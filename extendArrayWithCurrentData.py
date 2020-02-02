@@ -14,26 +14,43 @@ import numpy as np
 #
 # Inputs:
 # array = array desired to be modified
+# arrayIndex = the column (or row) index that will be duplicated
 # newColSize = the number of columns the modified array should have
+# duplicateColumns = defaults to true for duplicating columns, false for duplicating rows
 #
 # Outputs:
 # newArray = the original Array with newColSize number of columns with duplicated values
 #
 # Author: Seth Richards
-# Version Date 2019/12/03
+# Version Date 2020/02/02
+import numpy as np
 
-def extendArrayWithCurrentData(array,newColSize):
-    
-    i = 0
-    
+def extendArrayWithCurrentData(array, arrayIndex, newColSize,duplicateColumns = True):
+
+
     #initilizes array framework
-    newArray = np.empty([array.shape[0], newColSize])
+    if duplicateColumns:
+        newArray = np.empty([array.shape[0], newColSize])
+    else:
+        newArray = np.empty([newColSize, array.shape[0]])
 
     #iterates and duplicates values through new array using values from original array
     for i in range(newColSize):
-        newArray[:,newColSize - i - 1] = array[:]
+
+        # duplicates columns
+        if duplicateColumns:  
+            if len(array.shape) == 1:
+                newArray[:,i] = np.around(array[:],10)
+            else:
+                newArray[:, i] = np.around(array[:,arrayIndex], 10)
+
+        # duplicates rows
+        else:  
+            if len(array.shape) == 1:
+                newArray[i] = np.around(array[:],10)
+            else:
+                newArray[i] = np.around(array[arrayIndex, :], 10)
 
     return newArray
-
 
 
