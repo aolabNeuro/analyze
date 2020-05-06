@@ -5,7 +5,7 @@ import time
 import gausswin
 
 
-def tfwavelet(X, sampling=1, FREQPAR =None, waveflag=0):
+def tfwavelet(X, sampling=1, FREQPAR =None, waveflag = False):
     #
     # NOTE: Assumes X is in Python friendly readable form --> .DAT file needs to conform to Python dTypes
 
@@ -50,7 +50,7 @@ def tfwavelet(X, sampling=1, FREQPAR =None, waveflag=0):
     # Author: David Hawellek, version date April 23, 2013.
     #
     # Author: Seth Richards
-    # Version Date: 2019/10/15
+    # Version Date: 2020/05/05
 
     X = np.asarray(X) #Makes certain array is Numpy array
 
@@ -59,10 +59,10 @@ def tfwavelet(X, sampling=1, FREQPAR =None, waveflag=0):
 
     tic = 0
 
-    if waveflag == 0:
+    if not False:
         tic = time.perf_counter()
         print('TFWAVELET: Data Transform\n')
-    elif waveflag == 1:
+    else :
         tic = time.perf_counter()
         print('TFWAVELET: Checking Parameters\n')
 
@@ -104,7 +104,7 @@ def tfwavelet(X, sampling=1, FREQPAR =None, waveflag=0):
     WAVEPAR['timewin'] = timewin
 
 
-    if waveflag == 1:
+    if waveflag:
         print('#.2fHz to #.2fHz with #.2f oct smoothing\n#.2fs largest to #.4fs smallest analysis window\n', foi[0],
               foi[-1], bw, timewin[0], timewin[-1])
         dospec = False
@@ -171,9 +171,6 @@ def tfwavelet(X, sampling=1, FREQPAR =None, waveflag=0):
                 section = X[:,colTwo]
                 seccount = seccount + 1
 
-                print("If you see this statement, double check output SPEC. Translating MATLAB to Python code debugging returned correct, but suspicious data that I don't entirly trust")
-                print("-Seth")
-
                 spec[:,seccount,ifoi] = np.multiply(section,KERNEL)
 
     toc = time.perf_counter()
@@ -181,4 +178,3 @@ def tfwavelet(X, sampling=1, FREQPAR =None, waveflag=0):
     print('done (#.2fs)\n', timeElapsed)
 
     return WAVEPAR, spec
-
