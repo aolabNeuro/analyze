@@ -16,19 +16,18 @@ def sp2ts(sp, bn=None, binwidth=1):
     # Bijan Pesaran
 
     # Author: Seth Richards
-    # Version Date: 2020/05/19
+    # Version Date: 2020/06/11
 
     # THIS VERSION DOES NOT WORK WITH NON INTEGER BIN SIZE
 
     if bn is None:
-        bn = [np.transpose(minmax(sp)),1]
+        bn = [np.transpose(minmax(sp)), 1]
 
     if bn.shape[1] < 3:
         bn[2] = 1e3
     
     ts = []
-
-    diffTemp = np.multiply(abs(bn[1] - bn[0]),bn[2])
+    diffTemp = np.multiply(abs(bn[1] - bn[0]), bn[2])
     x = np.linspace(bn[0], bn[1], np.true_divide(diffTemp, binwidth+1))
     
     if isinstance(sp, dict):
@@ -37,13 +36,13 @@ def sp2ts(sp, bn=None, binwidth=1):
             historgamSet = np.true_divide(sp[tr], bn[2])
 
             # throwAway sets values of ts_tmp to bin size per bin
-            ts_tmp,throwAway = np.histogram(historgamSet, np.int(x))
+            ts_tmp,cthrowAway = np.histogram(historgamSet, np.int(x))
             ts1 = [0, ts_tmp[1:-2], 0]
             ts = np.array([ts, ts1])
 
     else:
         # throwAway sets values of ts_tmp to bin size per bin
-        ts_tmp, throwAway = np.histogram(sp, x)
+        ts_tmp,throwAway = np.histogram(sp, x)
         ts = [0, ts_tmp[1:-2], 0]
 
     return ts
