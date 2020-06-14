@@ -8,8 +8,7 @@ from scipy import signal
 from extendArrayWithCurrentData import extendArrayWithCurrentData
 
 
-def tfspec(X, tapers = None, sampling = 1, errorchk = False, dn= None, fk= None, pad= None, pval= None, flag= None, contflag= None, Errorbar= None):
-
+def tfspec(X, tapers=None, sampling=1, errorchk=False, dn=None, fk=None, pad=2, pval=0.05, flag= False, contflag=0, Errorbar="Chi-squared"):
 
     # TFSPEC Moving window time - frequency spectrum using multitaper techniques.
     #
@@ -58,55 +57,41 @@ def tfspec(X, tapers = None, sampling = 1, errorchk = False, dn= None, fk= None,
     # Optimized when not computing error bars.
 
     # Author: Seth Richards
-    # Version Date: 2020/03/01
+    # Version Date: 2020/06/14
 
     #finds the dimensions of array X, rows by columns
 
     X = np.asarray(X)
-    sX = np.shape((X))
+    sX = np.shape(X)
     nt = sX[1]  # calculate the number of points
     nch = sX[0]  # calculate the number of channels
 
     n = math.floor(np.true_divide(np.true_divide(nt,10), sampling))
     #array n equals array nt divided by 10 times sampling
 
-    if tapers  == None :
+    if tapers is None:
         tapers = np.array([n, 3, 5])
 
-    if np.size(tapers) == 2:
+    if len(tapers[0]) == 2:
         n = tapers[0]
         w = tapers[1]
         p = n * w
         k = math.floor(2 * p - 1)
-        tapers = [n, p, k] # disp(['Using ' num2str(k) ' tapers.']);
+        tapers = [n, p, k]
+        print(['Using ', tapers, ' tapers.'])
 
-    if np.size(tapers) == 3:
+    if len(tapers[0]) == 3:
         tapers[0] = math.floor(np.multiply(tapers[0], sampling))
         tapers,throwAway = dpsschk(tapers)
 
-    if dn == None :
-        dn = np.true_divide(n,10)
+    if dn is None :
+        dn = np.true_divide(n, 10)
 
-    if fk == None:
+    if fk is None:
         fk = [0, np.true_divide(sampling, 2.)]
 
     if np.size(fk) == 1:
         fk = [0, fk]
-
-    if pad == None:
-        pad = 2
-
-    if pval == None:
-        pval = 0.05
-
-    if flag == None:
-        flag = 0
-
-    if contflag == None:
-        contflag = 0
-
-    if Errorbar == None:
-        Errorbar = "Chi-squared"
 
     K = tapers.shape[1]
     N = tapers.shape[0]
@@ -120,70 +105,71 @@ def tfspec(X, tapers = None, sampling = 1, errorchk = False, dn= None, fk= None,
     fk = np.true_divide(fk,sampling)
     nfk = np.floor(np.multiply(fk, temp))
 
-    nwin = np.floor(np.true_divide((nt - N), dn)) # calculate the number of windows
+    nwin = np.floor(np.true_divide((nt - N), dn))  # calculate the number of windows
 
     f = np.linspace(fk[0], fk[1], np.diff(nfk)[0])
-    err = None
 
     if not flag:  # No pooling across trials
-        # spec = zeros(nch, nwin, np.diff(nfk), 'single');
         spec = np.zeros([nch,int(nwin),int(np.diff(nfk)[0])])
+        err = 0  # errorchk nonfunctional, returns zero for error estimate
 
         if errorchk:
             errorchk = False
             print("This code was not implemented/removed in MATLAB version")
 
-        if not errorchk: # Don't estimate error bars
+        if not errorchk:  # Don't estimate error bars
 
-            for win in range(0,int(nwin)):
+            err = None
+            for win in range(0, int(nwin)):
                 # Here the optimized spectral loop starts.
                 if contflag:
-                    tmp = signal.detrend(X[:, dn * win: dn * win + N - 1]) #?
+                    tmp = signal.detrend(X[:, dn * win: dn * win + N - 1])
                     tmp = np.transpose(tmp)
 
                     if tmp.shape[1] > N :# machine precision work-around? added by alo for weird behavior 181000020
-                        tmp = tmp[1:N,:]
+                        tmp = tmp[1:N, :]
 
                 else:
                     mX = np.sum(X[:, dn * (win - 1) + 1: dn * (win - 1) + N + 1], axis=0)
-                    mX = np.true_divide(mX,nch)
+                    mX = np.true_divide(mX, nch)
 
-                    extendedArray = extendArrayWithCurrentData(mX,0,nch,False)
+                    extendedArray = extendArrayWithCurrentData(mX, 0, nch, False)
                     tmp = (X[:, dn * (win-1) + 1:dn * (win - 1) + N+1] - extendedArray)
-                    tmp = np.transpose(tmp) # not matrix transpose, array transpose? --------------
+                    tmp = np.transpose(tmp)
 
 
                 for ch in range(nch):
-                    extendedArray = extendArrayWithCurrentData(tmp,ch,K)
-                    inputArray = np.multiply(tapers,extendedArray)
 
-                    Xk = np.fft.fft(np.transpose(inputArray),int(nf))
+                    extendedArray = extendArrayWithCurrentData(tmp, ch, K)
+                    inputArray = np.multiply(tapers, extendedArray)
+
+                    Xk = np.fft.fft(np.transpose(inputArray), int(nf))
                     Xk = np.transpose(Xk)
 
                     lowerBound = int(nfk[0])
                     upperBound = int(nfk[1])
-                    Xk = Xk[lowerBound:upperBound, :]  # -------------------------
+                    Xk = Xk[lowerBound:upperBound, :]
 
                     XkSquare = Xk * np.conj(Xk)
                     XkSquare = XkSquare.real
                     specSliceTemp = np.sum(XkSquare, axis=1)
                     specSliceTemp = np.true_divide(specSliceTemp, K)
 
-                    spec[ch, win,:] = np.transpose(specSliceTemp)
-
+                    spec[ch, win, :] = np.transpose(specSliceTemp)
 
             # The optimized loop ends here end
 
-    else: # Estimate error bars - this is not optimized
+    else:  # Estimate error bars - this is not optimized
         # Broken
-        print("This code was broken in matlab, unsure what value of tmp to estimate errorbars - Seth")
+        print("This code was not implemented in MATLAB originally, not supported in python yet")
         # ftmp, dum, err_tmp = dmtspec(np.transpose(tmp), tapers, sampling, fk, pad, pval);
         # spec[ch, win,:] = ftmp;
         # err[0, ch, win,:] = err_tmp[0,:];
         # err[1, ch, win,:] = err_tmp[1,:];
 
-    if flag: # Pooling across trials
+    if flag:  # Pooling across trials
         spec = np.zeros([nch, int(nwin), int(np.diff(nfk)[0])])
+        err = np.zeros(shape=(2, int(nwin), int(np.diff(nfk)[0])), dtype=float)
 
         # disp('Flag = 11')
         # ind = repmat([1:nch], K, 1); ind = ind(:)
@@ -191,14 +177,13 @@ def tfspec(X, tapers = None, sampling = 1, errorchk = False, dn= None, fk= None,
         # The optimized loop starts here
             if contflag:
                 tmp = X[:, dn * (win - 1) + 1: dn * (win - 1) + N]
-
             else:
                 mX = np.sum(X[:, dn * (win - 1) + 1: dn * (win - 1) + N + 1], axis=0)
                 mX = np.true_divide(mX, nch)
 
                 extendedArray = extendArrayWithCurrentData(mX, 0, nch, False)
                 tmp = (X[:, dn * (win - 1) + 1:dn * (win - 1) + N + 1] - extendedArray)
-                tmp = np.transpose(tmp)  # not matrix transpose, array transpose? --------------
+                tmp = np.transpose(tmp)
 
             if not errorchk: # Don't estimate error bars
                 SX = np.zeros([int(np.diff(nfk)[0]), 1])
@@ -211,7 +196,7 @@ def tfspec(X, tapers = None, sampling = 1, errorchk = False, dn= None, fk= None,
 
                     lowerBound = int(nfk[0])
                     upperBound = int(nfk[1])
-                    Xk = Xk[lowerBound:upperBound, :]  # -------------------------
+                    Xk = Xk[lowerBound:upperBound, :]
 
                     XkSquare = Xk * np.conj(Xk)
                     XkSquare = XkSquare.real
@@ -219,20 +204,19 @@ def tfspec(X, tapers = None, sampling = 1, errorchk = False, dn= None, fk= None,
 
                     SX = SX + specSliceTemp
 
-                spec[win,:] = np.true_divide(np.transpose(SX), np.multiply(K,nch))
+                spec[win, :] = np.true_divide(np.transpose(SX), np.multiply(K, nch))
+
             # The optimized loop ends here
             else: # Estimate error bars - This is not optimized
                 ftmp, dum, err_tmp = dmtspec(np.transpose(tmp), tapers, sampling, fk, pad, pval, flag, Errorbar)
-                spec[win,:] = ftmp
+                spec[win, :] = ftmp
                 err = np.zeros([2,err_tmp[1].shape])
-                err[0, win,:] = err_tmp[0,:]
-                err[1, win,:] = err_tmp[1,:]
-
+                err[0, win, :] = err_tmp[0, :]
+                err[1, win, :] = err_tmp[1, :]
 
     ti = np.linspace(N / 2, nt - N / 2, nwin)
 
     if spec.shape[1] == 1 and (spec.shape[1]).shape[1] > 2:
-        spec = spec.squeeze()  #sq()
+        spec = spec.squeeze()
 
-    #return statement here
     return spec, f, ti, err
