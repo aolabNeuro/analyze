@@ -50,7 +50,7 @@ def dmtspec(X, tapers = None, sampling = 1, fk = None, pad = 2, pval = 0.05, fla
     # Modified: Added error bars BP 08 / 27 / 98
 
     # Author: Seth Richards
-    # Version Date: 2020/01/20
+    # Version Date: 2020/06/14
 
     jlsp = 0
     sX = X.shape
@@ -69,7 +69,7 @@ def dmtspec(X, tapers = None, sampling = 1, fk = None, pad = 2, pval = 0.05, fla
     if tapers == None:
         tapers = [nt, 3, 5]
 
-    if np.size(tapers) == 2:
+    if len(tapers[0]) == 2:
         n = tapers[0]
         w = tapers[1]
         p = n * w
@@ -77,11 +77,11 @@ def dmtspec(X, tapers = None, sampling = 1, fk = None, pad = 2, pval = 0.05, fla
         tapers = [n, p, k]
         # disp(['Using ' num2str(k) ' tapers.'])
 
-    if np.size(tapers) == 3:
+    if len(tapers[0]) == 3:
         tapers[0] = math.floor(np.multiply(tapers[0], sampling))
         tapers, v = dpsschk.dpsschk(tapers)
 
-    if fk == None:
+    if fk is None:
         fk = [0, np.true_divide(sampling, 2)]
 
     if np.size(fk) == 1:
@@ -111,66 +111,67 @@ def dmtspec(X, tapers = None, sampling = 1, fk = None, pad = 2, pval = 0.05, fla
         if nch == 1:
             mX = np.true_divide(np.sum(X,0), nt)
         else:
-            mX = np.true_divide(np.sum(X, 0),nch)
-            #print('dof ', mX)
-
-        for ch in range(nch):
-            tmp = np.transpose((X[ch,:] - mX))
-
-            #Assumes tmp is an array of size (X,1)
-            tmp = extendArrayWithCurrentData(tmp,0,K)
-            inputArray = np.multiply(tapers[:,0:K+1],tmp[:])
-            inputArray = np.transpose(np.around(inputArray,4))
-
-            #N-point Fourier transform (I know all the transposes are weird.
-            #python dimensions are "interesting"
-            xk = np.fft.fft(inputArray,int(nf))
-
-
-            lowerBound = int(nfk[0])
-            upperBound = int(nfk[1])
-            xk = xk[:, lowerBound:upperBound]
-
-            Sk = np.multiply(xk,xk.conjugate())
-
-            # Casting complex to real (Ignore Warning)
-            Sk = np.around(np.array(Sk,np.float32),6)
-
-            spec[ch,:] = np.true_divide(np.sum(Sk,0),K)
-
-
-            if errorchk:  # Estimate error bars using Jacknife
-                if errorbarType == 'Jacknife':
-                    for ik in range(K):
-                        indices = np.setdiff1d(np.arange(0,K) ,ik)
-                        xj = xk[indices,:]
-                        jlsp[ik,:] = math.log(np.true_divide(np.sum(np.multiply(xj,xj.conj),0),(K - 1)))
-
-                    lsig = np.multiply(math.sqrt(K - 1),np.std(jlsp))
-                    crit = t.ppf(1 - np.true_divide(pval,2), dof - 1)  # Determine the scaling factor, using student's t cdf inverse
-                    critlsig = np.multiply(crit, lsig)
-                    err[0, ch,:] = np.exp(math.log(spec[ch,:])+critlsig)
-                    err[1, ch,:] = np.exp(math.log(spec[ch,:])-critlsig)
-
-                elif errorbarType == 'Chi-squared':  # if == 'Chi-squared'
-                    a = chi2.ppf(1 - np.true_divide(pval,2), dof)
-                    b = chi2.ppf(np.true_divide(pval,2), dof)
-                    err[0, ch,:] = np.true_divide(np.multiply(spec[ch,:],dof),b)
-                    err[1, ch,:] = np.true_divide(np.multiply(spec[ch,:],dof),a)
-
-
-    if flag:  # Pooling across trials
-        spec = np.zeros(1, np.diff(nfk)[0])
-        err = np.zeros(2, np.diff(nfk)[0])
-
-        Xk = np.zeros(nch * K, np.diff(nfk)[0])
-        mX = np.true_divide(np.sum(X, 0),nch)
+            mX = np.true_divide(np.sum(X, 0), nch)
 
         for ch in range(nch):
             tmp = np.transpose((X[ch, :] - mX))
 
             # Assumes tmp is an array of size (X,1)
-            tmp = extendArrayWithCurrentData(tmp,0, K)
+            tmp = extendArrayWithCurrentData(tmp, 0, K)
+            inputArray = np.multiply(tapers[:, 0:K+1], tmp)
+            inputArray = np.transpose(np.around(inputArray, 4))
+
+            # N-point Fourier transform (I know all the transposes are weird.
+            # python dimensions are "interesting"
+            xk = np.fft.fft(inputArray, int(nf))
+
+            lowerBound = int(nfk[0])
+            upperBound = int(nfk[1])
+            xk = xk[:, lowerBound:upperBound]
+
+            Sk = np.multiply(xk, xk.conjugate())
+
+            # Casting complex to real (Ignore Warning)
+            Sk = np.around(np.array(Sk, np.float32), 6)
+
+            spec[ch, :] = np.true_divide(np.sum(Sk, 0), K)
+
+            if errorchk:  # Estimate error bars using Jacknife
+                if errorbarType == 'Jacknife':
+                    for ik in range(K):
+                        indices = np.setdiff1d(np.arange(0, K),ik)
+                        xj = xk[indices, :]
+
+                        xjSquared = np.absolute(xj)
+                        xjSquared = np.multiply(xjSquared, xjSquared)
+                        jlspInside = np.mean(xjSquared, axis=0)
+
+                        jlsp[ik,:] = math.log(np.true_divide(jlspInside, (K - 1)))
+
+                    lsig = np.multiply(math.sqrt(K - 1), np.std(jlsp, axis=0))
+                    crit = t.ppf(1 - np.true_divide(pval, 2), dof - 1)  # Determine the scaling factor, using student's t cdf inverse
+                    critlsig = np.multiply(crit, lsig)
+                    err[0, ch, :] = np.exp(np.log(spec[ch, :])+critlsig)
+                    err[1, ch, :] = np.exp(np.log(spec[ch, :])-critlsig)
+
+                elif errorbarType == 'Chi-squared':  # if == 'Chi-squared'
+
+                    a = chi2.ppf(1 - np.true_divide(pval, 2), dof)
+                    b = chi2.ppf(np.true_divide(pval, 2), dof)
+                    err[0, ch,:] = np.true_divide(np.multiply(spec[ch, :], dof), b)
+                    err[1, ch,:] = np.true_divide(np.multiply(spec[ch, :], dof), a)
+
+    if flag:  # Pooling across trials
+        err = np.zeros(2, np.diff(nfk)[0])
+
+        Xk = np.zeros(nch * K, np.diff(nfk)[0])
+        mX = np.true_divide(np.sum(X, 0), nch)
+
+        for ch in range(nch):
+            tmp = np.transpose((X[ch, :] - mX))
+
+            # Assumes tmp is an array of size (X,1)
+            tmp = extendArrayWithCurrentData(tmp, 0, K)
             inputArray = np.multiply(tapers[:, 0:K + 1], tmp[:])
             inputArray = np.transpose(np.around(inputArray, 4))
 
@@ -180,14 +181,14 @@ def dmtspec(X, tapers = None, sampling = 1, fk = None, pad = 2, pval = 0.05, fla
             upperBound = int(nfk[1])
             xk = np.fft.fft(inputArray, int(nf))
             xk = xk[:, lowerBound:upperBound]
-            Xk[(ch-1)*K+1:ch*K,:] = xk
+            Xk[ch*K:(ch+1)*K, :] = xk
 
         Sk = np.multiply(Xk, Xk.conjugate())
 
         # Casting complex to real (Ignore Warning)
         Sk = np.around(np.array(Sk, np.float32), 6)
 
-        spec = np.true_divide(np.sum(Sk, 1) ,(np.multiply(K,nch)))
+        spec = np.true_divide(np.sum(Sk, 1), (np.multiply(K, nch)))
 
         if errorchk:  # Estimate error bars
             if errorbarType == 'Jackknife':
@@ -196,27 +197,26 @@ def dmtspec(X, tapers = None, sampling = 1, fk = None, pad = 2, pval = 0.05, fla
                     if np.mod(ik, 1000) == 0:
                         print("Jacknife iter: %d of %d" % ik, (nch * K))
 
-                    indices =  np.setdiff1d(np.arange(0,K*nch) ,ik)
-                    xj = Xk[indices,:]
-                    jlsp[ik,:] = math.log(np.true_divide(np.sum(np.multiply(xj,xj.conj), 1),(K * nch - 1)))
+                    indices = np.setdiff1d(np.arange(0,K*nch), ik)
+                    xj = Xk[indices, :]
 
+                    xjSquared = np.absolute(xj)
+                    xjSquared = np.multiply(xjSquared, xjSquared)
+                    jlspInside = np.mean(xjSquared, axis=0)
 
+                    jlsp[ik,:] = math.log(np.true_divide(jlspInside, (K * nch - 1)))
 
-
-                lsig = np.multiply( np.sqrt((nch * K) - 1),np.std(jlsp))
-                crit = t.ppf(1 - np.true_divide(pval,2), dof - 1) # Determine the scaling factor
-                critlsig = np.multiply(crit,lsig)
-                err[0,:] = np.exp(math.log(spec) + critlsig)
-                err[1,:] = np.exp(math.log(spec) - critlsig)
+                lsig = np.multiply( np.sqrt((nch * K) - 1), np.std(jlsp,axis=0))
+                crit = t.ppf(1 - np.true_divide(pval, 2), dof - 1) # Determine the scaling factor
+                critlsig = np.multiply(crit, lsig)
+                err[0,:] = np.exp(np.log(spec) + critlsig)
+                err[1,:] = np.exp(np.log(spec) - critlsig)
 
             elif errorbarType == 'Chi-squared':
 
-                a = chi2.ppf(1 - np.true_divide(pval,2), dof)
-                b = chi2.ppf(np.true_divide(pval,2), dof)
-                err[0,:] = np.true_divide(np.multiply(spec, dof),b)
-                err[1,:] = np.true_divide(np.multiply(spec, dof),a)
-
-
-
+                a = chi2.ppf(1 - np.true_divide(pval, 2), dof)
+                b = chi2.ppf(np.true_divide(pval, 2), dof)
+                err[0, :] = np.true_divide(np.multiply(spec, dof), b)
+                err[1, :] = np.true_divide(np.multiply(spec, dof), a)
 
     return spec, f, err
