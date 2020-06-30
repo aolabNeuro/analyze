@@ -1,6 +1,7 @@
 import numpy as np
+from scipy.signal.windows import dpss
 import math
-import spectrum
+# import spectrum
 
 
 def dpsschk(tapers):
@@ -55,7 +56,8 @@ def dpsschk(tapers):
 
         if K > 2 * NW - 1:
             raise Exception('Error:  K must be less than 2*P-1')
-        e, v = spectrum.dpss(int(N), int(NW), int(K))
+#         e, v = spectrum.dpss(int(N), int(NW), int(K))
+        e, v = dpss(int(N),NW,Kmax=int(K),return_ratios=True)
         e = np.array(e)
     if not flag:
         print('Tapers already calculated')
