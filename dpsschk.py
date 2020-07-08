@@ -29,22 +29,15 @@ def dpsschk(tapers):
     # Version Date: 2020/06/14
     #
 
-    # initializes variables
-    e = 0
-    v = 0
-    flag = 0
-
     # functionality of dictionary(cell array) no longer supported - see code at bottom
     if isinstance(tapers, dict):
         raise Exception('Functionality not currently supported, tapers should be numpy array')
 
-    sz = max(np.shape(tapers))
+    sz = len(tapers)
     if sz == 3:
-        flag = True
-    if flag:
         N = tapers[0]               # desired window length
         NW = tapers[1]              # time half bandwidth parameter
-        K = tapers[2]               # slepian sequence (first)
+        K = tapers[2]               # number of tapers
         if np.remainder(N, 1):
             N = math.round(N)  # deal with rounding errors
 
@@ -59,7 +52,7 @@ def dpsschk(tapers):
 #         e, v = spectrum.dpss(int(N), int(NW), int(K))
         e, v = dpss(int(N),NW,Kmax=int(K),return_ratios=True)
         e = np.array(e)
-    if not flag:
+    else:
         print('Tapers already calculated')
         e = tapers
         v = 0

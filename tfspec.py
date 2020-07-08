@@ -6,8 +6,8 @@ from dmtspec import dmtspec
 from scipy import signal
 from extendArrayWithCurrentData import extendArrayWithCurrentData
 
-# for debugging
-import matplotlib.pyplot as plt
+# # for debugging
+# import matplotlib.pyplot as plt
 
 
 def tfspec(X, tapers=None, sampling=1, errorchk=False, dn=None, fk=None, pad=2, pval=0.05, flag= False, contflag=False, Errorbar="Chi-squared"):
@@ -84,7 +84,7 @@ def tfspec(X, tapers=None, sampling=1, errorchk=False, dn=None, fk=None, pad=2, 
 
     if len(tapers) == 3:
         tapers[0] = math.floor(tapers[0] *sampling)
-        dpss_tapers,throwAway = dpsschk(tapers)
+        dpss_tapers,taper_weight = dpsschk(tapers)
 
     if dn is None :
         dn = np.true_divide(n, 10)
@@ -94,7 +94,7 @@ def tfspec(X, tapers=None, sampling=1, errorchk=False, dn=None, fk=None, pad=2, 
 
     if np.size(fk) == 1:
         fk = [0, fk]
-    
+
     K = dpss_tapers.shape[0] # number of tapers
     N = dpss_tapers.shape[1] # number of time points, probably shouldn't be overwrote
 
@@ -110,7 +110,7 @@ def tfspec(X, tapers=None, sampling=1, errorchk=False, dn=None, fk=None, pad=2, 
     nwin = np.floor(np.true_divide((nt - N), dn))  # calculate the number of windows
     nfr = np.int(np.diff(nfk)[0])
     f = np.linspace(fk[0],fk[1],nfr)
-    
+
     if not flag:  # No pooling across trials
         spec = np.zeros((nch,int(nwin),nfr))
         err = 0  # errorchk nonfunctional, returns zero for error estimate
@@ -131,16 +131,19 @@ def tfspec(X, tapers=None, sampling=1, errorchk=False, dn=None, fk=None, pad=2, 
                         tmp = tmp[1:N, :]
 
                 else:
-                    mX = X[:,dn*win:(dn*win+N)].mean(axis=0)
+                    if nch > 1:
+                        mX = X[:,dn*win:(dn*win+N)].mean(axis=0)
 
-#                     extendedArray = extendArrayWithCurrentData(mX, 0, nch, False)
-                    tmp = (X[:,dn*win:(dn*win+N)] - mX).T # N x nch
-                
-                
+    #                     extendedArray = extendArrayWithCurrentData(mX, 0, nch, False)
+                        tmp = (X[:,dn*win:(dn*win+N)] - mX).T # N x nch
+                    else:
+                        tmp = X[:,dn*win:(dn*win+N)].T
+
+
                 # this can all be done in a single pass. Don't for-loop.
                 lowerBound = int(nfk[0])
                 upperBound = int(nfk[1])
-                inputArray = np.einsum('ij,ik->ijk',tmp,dpss_tapers.T) # N x nch x k
+                inputArray = np.einsum('ij,ki->ijk',tmp,dpss_tapers) # N x nch x k
                 Xk = np.fft.fft(inputArray,axis=0,n=int(nf))
                 Xk = Xk[lowerBound:upperBound,]
                 XkSquare = (Xk * np.conj(Xk)).real
@@ -219,7 +222,7 @@ def tfspec(X, tapers=None, sampling=1, errorchk=False, dn=None, fk=None, pad=2, 
                 err = np.zeros([2,err_tmp[1].shape])
                 err[0, win, :] = err_tmp[0, :]
                 err[1, win, :] = err_tmp[1, :]
-    
+
     ti = np.linspace(N / 2, nt - N / 2, np.int(nwin))
 
     if spec.shape[1] == 1 and (spec.shape[1]).shape[1] > 2:

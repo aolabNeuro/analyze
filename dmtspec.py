@@ -121,8 +121,7 @@ def dmtspec(X, tapers = None, sampling = 1, fk = None, pad = 2, pval = 0.05, fla
             inputArray = np.multiply(tapers[:, 0:K+1], tmp)
             inputArray = np.transpose(np.around(inputArray, 4))
 
-            # N-point Fourier transform (I know all the transposes are weird.
-            # python dimensions are "interesting"
+            # N-point Fourier transform
             xk = np.fft.fft(inputArray, int(nf))
 
             lowerBound = int(nfk[0])
