@@ -1,3 +1,2 @@
-from . import data
-from . import datafilter
-from . import datareader
+# __init__.py
+from . import analysis, data, postproc, precondition, preproc, visualization, tutorial_functions
