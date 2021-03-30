@@ -44,6 +44,20 @@ def practice_func_leo(number_of_fish):
     
     return 'You have {} fish'.format(number_of_fish)
 
+  
+def practice_func_tomo(user_name):
+    '''
+    This function returns a print statement specific to Tomo from the input username
+
+    Inputs:
+        user_name [string]: Name of person running the function
+        
+    Outputs:
+        string_out [string]: Hello Tomo from 
+    '''
+    string_out = 'Hello Tomo, from ' + user_name
+    return string_out
+
 
 def practice_func_pavi(my_name):
     '''
