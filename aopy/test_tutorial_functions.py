@@ -8,5 +8,10 @@ class TutorialTests(unittest.TestCase):
         self.assertEqual(type(output), str)
         self.assertEqual(output, 'You have 3 fish')
 
+    def test_pavi(self):
+        output = aopy.tutorial_functions.practice_func_pavi('pavi')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'hello! I am pavi')
+
 if __name__ == "__main__":
     unittest.main()
