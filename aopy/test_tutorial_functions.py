@@ -9,6 +9,12 @@ class TutorialTests(unittest.TestCase):
         self.assertEqual(output, 'You have 3 fish')
 
 
+    def test_sijia_practice(self):
+        output = aopy.tutorial_functions.practice_func_sijia('Cap')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'hello, Cap')
+
+
     def test_tomo_practice(self):
         output = aopy.tutorial_functions.practice_func_tomo('ryan')
         self.assertEqual(type(output), str)
@@ -18,6 +24,7 @@ class TutorialTests(unittest.TestCase):
         output = aopy.tutorial_functions.practice_func_pavi('pavi')
         self.assertEqual(type(output), str)
         self.assertEqual(output, 'hello! I am pavi')
+
 
 
 if __name__ == "__main__":

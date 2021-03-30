@@ -72,6 +72,20 @@ def practice_func_pavi(my_name):
     return 'hello! I am '+ my_name
 
 
+def practice_func_sijia(favourite_marvel_character):
+    '''
+    This function prints a number of fish
+
+    Inputs:
+        favourite_marvel_character [string ]: which marvel character we'd like to meet
+        
+    Outputs:
+        statement [str]: a greeting statement to the favourite marvel character
+    '''
+    
+    return f'hello, {favourite_marvel_character}'
+
+
 def display_cat_leo():
     '''
     Cat
