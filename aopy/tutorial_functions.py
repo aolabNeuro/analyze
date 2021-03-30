@@ -44,6 +44,22 @@ def practice_func_leo(number_of_fish):
     
     return 'You have {} fish'.format(number_of_fish)
 
+
+def display_cat_leo():
+    '''
+    Cat
+
+    Inputs:
+        None
+
+    Outputs:
+        cat [str]: a cat
+    '''
+    cat = ' /\\_/\\\n( o.o )\n > ^ <'
+    for t in range(3):
+        print(cat)
+    return cat
+
 def practice_func_miken(your_number):
     '''
     This function tests if your number is the best number
@@ -57,3 +73,4 @@ def practice_func_miken(your_number):
 
     result = your_number == 7
     return result 
+
