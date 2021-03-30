@@ -43,3 +43,17 @@ def practice_func_leo(number_of_fish):
     '''
     
     return 'You have {} fish'.format(number_of_fish)
+
+def practice_func_miken(your_number):
+    '''
+    This function tests if your number is the best number
+
+    Inputs:
+        your_number [num]: your number, any number.
+
+    Outputs:
+        result [bool]: True if your number is the best number, otherwise false.
+    '''
+
+    result = your_number == 7
+    return result 
