@@ -45,6 +45,19 @@ def practice_func_leo(number_of_fish):
     return 'You have {} fish'.format(number_of_fish)
 
 
+def practice_func_pavi(my_name):
+    '''
+    This is just a test function
+    Inputs:
+      param my_name: [str] enter your name
+    
+    Output:
+      return: returns a statement introducing my_name
+    '''
+
+    return 'hello! I am '+ my_name
+
+
 def display_cat_leo():
     '''
     Cat
@@ -73,4 +86,5 @@ def practice_func_miken(your_number):
 
     result = your_number == 7
     return result 
+
 
