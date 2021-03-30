@@ -43,3 +43,12 @@ def practice_func_leo(number_of_fish):
     '''
     
     return 'You have {} fish'.format(number_of_fish)
+
+def practice_func_pavi(my_name):
+    '''
+    This is just a test function
+    :param my_name: [str] enter your name
+    :return: returns a statement introducing my_name
+    '''
+
+    return 'hello! I am '+ my_name
