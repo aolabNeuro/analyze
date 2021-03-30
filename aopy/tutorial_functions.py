@@ -43,3 +43,18 @@ def practice_func_leo(number_of_fish):
     '''
     
     return 'You have {} fish'.format(number_of_fish)
+
+def display_cat_leo():
+    '''
+    Cat
+
+    Inputs:
+        None
+
+    Outputs:
+        cat [str]: a cat
+    '''
+    cat = ' /\\_/\\\n( o.o )\n > ^ <'
+    for t in range(3):
+        print(cat)
+    return cat
