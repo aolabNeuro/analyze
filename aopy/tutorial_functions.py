@@ -43,3 +43,17 @@ def practice_func_leo(number_of_fish):
     '''
     
     return 'You have {} fish'.format(number_of_fish)
+
+def practice_func_sijia(favourite_marvel_character):
+    '''
+    This function prints a number of fish
+
+    Inputs:
+        favourite_marvel_character [string ]: which marvel character we'd like to meet
+        
+    Outputs:
+        statement [str]: a greeting statement to the favourite marvel character
+    '''
+    
+    return f'hello, {favourite_marvel_character}'
+
