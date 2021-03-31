@@ -13,5 +13,23 @@ class TutorialTests(unittest.TestCase):
         self.assertEqual(type(output), str)
         self.assertEqual(output, 'Pamel has 10 cookies. She will eat all of them')
 
+    def test_sijia_practice(self):
+        output = aopy.tutorial_functions.practice_func_sijia('Cap')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'hello, Cap')
+
+
+    def test_tomo_practice(self):
+        output = aopy.tutorial_functions.practice_func_tomo('ryan')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'Hello Tomo, from ryan')
+
+    def test_pavi(self):
+        output = aopy.tutorial_functions.practice_func_pavi('pavi')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'hello! I am pavi')
+
+
 if __name__ == "__main__":
     unittest.main()
+
