@@ -45,6 +45,17 @@ def practice_func_leo(number_of_fish):
     return 'You have {} fish'.format(number_of_fish)
 
 
+#Pamel's practice function
+def pamels_function(num_of_cookies):
+    ''' This function prints the number of cookies Pamel has
+
+    Inputs: num_of_cookies [int]: How many cookies Pamel has
+
+    Outputs:
+        statement[str]: a statement about my cookies
+    '''
+    return 'Pamel has {} cookies. She will eat all of them'.format(num_of_cookies)
+
 def practice_function_gus(favorite_food):
     '''
     This function returns a print statement specific to Gus from the input username
