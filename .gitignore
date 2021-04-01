@@ -1,3 +1,4 @@
 bmi3d/.ipynb_checkpoints
-*__pycache__
-*egg-info
+*/__pycache__
+*.egg-info
+.vscode

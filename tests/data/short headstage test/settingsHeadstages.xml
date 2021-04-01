@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<SETTINGS>
+	<INFO>
+		<VERSION>v0.2.0</VERSION>
+		<DATE>2020-07-03T17:47:02-0700</DATE>
+		<MACHINE>DESKTOP-A1H2UMI</MACHINE>
+		<FILE_HEADER>
+			<TIMESTAMP datatype="uint64" unit="nanoseconds" />
+		</FILE_HEADER>
+		<FILE_FORMAT>flat binary</FILE_FORMAT>
+	</INFO>
+	<SIGNALCHAIN>
+		<PROCESSOR>
+			<DATA_INFO>
+				<SOURCE>Headstages</SOURCE>
+				<SAMPLERATE>25000.000000</SAMPLERATE>
+				<DATA_TYPE>int16</DATA_TYPE>
+				<DATA_CHANNELS>64</DATA_CHANNELS>
+			</DATA_INFO>
+			<CHANNEL_INFO>
+				<CHANNEL name="HS_CH1" input="1" headstage="HS7" OEP_rec_tray="1" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH2" input="2" headstage="HS7" OEP_rec_tray="2" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH3" input="3" headstage="HS7" OEP_rec_tray="3" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH4" input="4" headstage="HS7" OEP_rec_tray="4" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH5" input="5" headstage="HS7" OEP_rec_tray="5" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH6" input="6" headstage="HS7" OEP_rec_tray="6" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH7" input="7" headstage="HS7" OEP_rec_tray="7" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH8" input="8" headstage="HS7" OEP_rec_tray="8" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH9" input="9" headstage="HS7" OEP_rec_tray="9" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH10" input="10" headstage="HS7" OEP_rec_tray="10" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH11" input="11" headstage="HS7" OEP_rec_tray="11" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH12" input="12" headstage="HS7" OEP_rec_tray="12" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH13" input="13" headstage="HS7" OEP_rec_tray="13" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH14" input="14" headstage="HS7" OEP_rec_tray="14" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH15" input="15" headstage="HS7" OEP_rec_tray="15" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH16" input="16" headstage="HS7" OEP_rec_tray="16" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH17" input="17" headstage="HS7" OEP_rec_tray="17" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH18" input="18" headstage="HS7" OEP_rec_tray="18" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH19" input="19" headstage="HS7" OEP_rec_tray="19" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH20" input="20" headstage="HS7" OEP_rec_tray="20" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH21" input="21" headstage="HS7" OEP_rec_tray="21" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH22" input="22" headstage="HS7" OEP_rec_tray="22" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH23" input="23" headstage="HS7" OEP_rec_tray="23" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH24" input="24" headstage="HS7" OEP_rec_tray="24" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH25" input="25" headstage="HS7" OEP_rec_tray="25" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH26" input="26" headstage="HS7" OEP_rec_tray="26" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH27" input="27" headstage="HS7" OEP_rec_tray="27" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH28" input="28" headstage="HS7" OEP_rec_tray="28" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH29" input="29" headstage="HS7" OEP_rec_tray="29" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH30" input="30" headstage="HS7" OEP_rec_tray="30" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH31" input="31" headstage="HS7" OEP_rec_tray="31" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH32" input="32" headstage="HS7" OEP_rec_tray="32" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH33" input="33" headstage="HS7" OEP_rec_tray="33" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH34" input="34" headstage="HS7" OEP_rec_tray="34" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH35" input="35" headstage="HS7" OEP_rec_tray="35" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH36" input="36" headstage="HS7" OEP_rec_tray="36" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH37" input="37" headstage="HS7" OEP_rec_tray="37" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH38" input="38" headstage="HS7" OEP_rec_tray="38" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH39" input="39" headstage="HS7" OEP_rec_tray="39" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH40" input="40" headstage="HS7" OEP_rec_tray="40" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH41" input="41" headstage="HS7" OEP_rec_tray="41" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH42" input="42" headstage="HS7" OEP_rec_tray="42" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH43" input="43" headstage="HS7" OEP_rec_tray="43" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH44" input="44" headstage="HS7" OEP_rec_tray="44" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH45" input="45" headstage="HS7" OEP_rec_tray="45" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH46" input="46" headstage="HS7" OEP_rec_tray="46" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH47" input="47" headstage="HS7" OEP_rec_tray="47" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH48" input="48" headstage="HS7" OEP_rec_tray="48" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH49" input="49" headstage="HS7" OEP_rec_tray="49" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH50" input="50" headstage="HS7" OEP_rec_tray="50" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH51" input="51" headstage="HS7" OEP_rec_tray="51" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH52" input="52" headstage="HS7" OEP_rec_tray="52" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH53" input="53" headstage="HS7" OEP_rec_tray="53" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH54" input="54" headstage="HS7" OEP_rec_tray="54" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH55" input="55" headstage="HS7" OEP_rec_tray="55" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH56" input="56" headstage="HS7" OEP_rec_tray="56" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH57" input="57" headstage="HS7" OEP_rec_tray="57" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH58" input="58" headstage="HS7" OEP_rec_tray="58" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH59" input="59" headstage="HS7" OEP_rec_tray="59" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH60" input="60" headstage="HS7" OEP_rec_tray="60" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH61" input="61" headstage="HS7" OEP_rec_tray="61" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH62" input="62" headstage="HS7" OEP_rec_tray="62" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH63" input="63" headstage="HS7" OEP_rec_tray="63" voltsperbit="1.907348633e-7" />
+				<CHANNEL name="HS_CH64" input="64" headstage="HS7" OEP_rec_tray="64" voltsperbit="1.907348633e-7" />
+			</CHANNEL_INFO>
+		</PROCESSOR>
+	</SIGNALCHAIN>
+</SETTINGS>
