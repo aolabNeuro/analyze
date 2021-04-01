@@ -6,6 +6,13 @@ import setuptools
 with open("README.md", "r") as f:
     long_description = f.read()
 
+install_requires = [
+    'numpy',
+    'pandas',
+    'psutil',
+    'h5py',
+]
+
 setuptools.setup(
     name="aopy",
     version="0.0.1",
@@ -19,4 +26,5 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent"
     ],
+    install_requires=install_requires,
 )

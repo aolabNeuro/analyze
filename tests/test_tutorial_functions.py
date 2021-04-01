@@ -8,8 +8,8 @@ class TutorialTests(unittest.TestCase):
         self.assertEqual(type(output), str)
         self.assertEqual(output, 'You have 3 fish')
 
-    def pamels_function(self):
-        output = aopy.tutorial_functions.practice_func_leo(10)
+    def test_pamels_function(self):
+        output = aopy.tutorial_functions.pamels_function(10)
         self.assertEqual(type(output), str)
         self.assertEqual(output, 'Pamel has 10 cookies. She will eat all of them')
 
@@ -30,6 +30,27 @@ class TutorialTests(unittest.TestCase):
         not_best_result = aopy.tutorial_functions.practice_func_miken(not_best_num)
         self.assertTrue(best_result)
         self.assertTrue(~not_best_result)
+
+    def test_sijia_practice(self):
+        output = aopy.tutorial_functions.practice_func_sijia('Cap')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'hello, Cap')
+
+
+    def test_tomo_practice(self):
+        output = aopy.tutorial_functions.practice_func_tomo('ryan')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'Hello Tomo, from ryan')
+
+    def test_pavi(self):
+        output = aopy.tutorial_functions.practice_func_pavi('pavi')
+        self.assertEqual(type(output), str)
+        self.assertEqual(output, 'hello! I am pavi')
+
+    def test_gus(self):
+        ''' This tests tutorial_function.py '''
+        favorite_food = 'chicken'
+        aopy.tutorial_functions.practice_function_gus(favorite_food)
 
 if __name__ == "__main__":
     unittest.main()
