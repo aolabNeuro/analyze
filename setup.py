@@ -15,12 +15,12 @@ install_requires = [
 
 setuptools.setup(
     name="aopy",
-    version="0.0.1",
+    version="0.1.0",
     author="aoLab",
     author_email="mnolan@uw.edu", # I am not eternal, please replace ~ MN
     description="python code repository for aoLab @UW",
     long_description=long_description,
-    url="https://github.com/m-nolan/aopy_dev",
+    url="https://github.com/aolabNeuro/analyze",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
