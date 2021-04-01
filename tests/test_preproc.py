@@ -118,6 +118,15 @@ class DigitalCalcTests(unittest.TestCase):
         expected_array = np.array([0.1, 0.75, 1.2, np.nan])
         np.testing.assert_allclose(parsed_times, expected_array)
 
+    def test_get_measured_frame_timestamps(self):
+        latency_estimate = 0.1
+        search_radius = 0.001
+        estimated_timestamps = np.arange(10000)/100
+        measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
+        measured_timestamps = np.delete(measured_timestamps, [500])
+        corrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        self.assertEqual(len(corrected), len(estimated_timestamps))
+        self.assertEqual(corrected[500], corrected[501])
 
 event_log_events_in_str = [
             ('wait', 0.),

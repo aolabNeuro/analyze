@@ -130,7 +130,7 @@ def get_closest_value(timestamp, sequence, radius):
     x_diff = np.zeros(len(sequence))
 
     # calculate differences
-    x_diff = timestamp - np.array(sequence);
+    x_diff = timestamp - np.array(sequence)
     # check x_diff within radius
     within_radius = np.abs(x_diff)<=radius
     # find closest sequence value based on x_diff
@@ -163,6 +163,34 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
         if closest:
             parsed_ts[idx_ts] = closest
     return parsed_ts
+
+def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate=0.01, search_radius=1./100):
+    '''
+    Takes estimated frame times and measured frame times and returns a time for each frame
+
+    Inputs:
+    estimated_timestamps [nframes]: timestamps when frames were thought to be displayed
+    measured_timestamps [nt]: timestamps when frames actually appeared on screen
+    (opt) latency_estimate [float]: how long the display takes normally to update
+    (opt) search_radius [float]: how far away to look for a measurement before giving up
+
+    Output:
+    corrected_timestamps [nframes]: some of which will be empty if they were not displayed
+    '''
+
+    approx_timestamps = estimated_timestamps + latency_estimate
+    corrected_timestamps = find_measured_event_times(approx_timestamps, measured_timestamps, search_radius)
+
+    # For any missing timestamps, the time at which they occurred is the next non-nan value
+    missing = np.isnan(corrected_timestamps)
+    if missing.any():
+        idx_missing = np.where(missing)[0]
+        for idx in idx_missing:
+            next_non_nan = idx + 1
+            while np.isnan(corrected_timestamps[next_non_nan]):
+                next_non_nan += 1
+            corrected_timestamps[idx] = corrected_timestamps[next_non_nan]
+    return corrected_timestamps
 
 
 '''
