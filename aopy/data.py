@@ -237,6 +237,7 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
     Inputs:
         data_dir [str]: folder containing the data you want to load
         data_source [str]: type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        channels [int array]: list of channels to process
         n_samples [int]: number of samples to read. Must be geq than a single chunk
         dtype [numpy dtype]: format for data_out if none supplied
         data_out [nCh, nt]: array of data to be written to. If None, it will be created

@@ -54,6 +54,14 @@ class DigitalCalcTests(unittest.TestCase):
         assert np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21])
         assert np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1])
 
+    def test_find_first_significant_bit(self):
+        data = 0b0100
+        ffs = find_first_significant_bit(data)
+        self.assertEqual(ffs, 2)
+        data = 0
+        ffs = find_first_significant_bit(data)
+        self.assertEqual(ffs, -1)
+
     def test_mask_and_shift(self):
         mask = 0x0000000000ff0000 # bits 17-24
         digital_data = [2, 4, 12*0x10000, 140*0x10000, 0xff0000, 0xff0000]
@@ -144,7 +152,7 @@ event_log_with_events_in_number = [
 ]
 class EventFilterTests(unittest.TestCase):
 
-    def test_get_events(self):
+    def test_get_matching_events(self):
         wait_events_in_list = get_matching_events(event_log_events_in_str, 'wait')
         assert wait_events_in_list == expected_wait_events
 

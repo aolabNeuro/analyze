@@ -27,7 +27,7 @@ class LoadDataTests(unittest.TestCase):
         assert mocap_data_pos.shape[1] == 3
         assert mocap_data_rot.shape[1] == 4
 
-    def test_get_sources(self):
+    def test_get_eCube_data_sources(self):
         sources = get_eCube_data_sources(test_filepath)
         print(sources)
         assert len(sources) == 1

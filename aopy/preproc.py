@@ -206,7 +206,7 @@ def calc_events_duration(event_log):
     event_log [a list of tuples (event: str or int, time_stamp: float)]
     
     OUTPUT:
-    events_duration [float]
+    events_duration [float]: 
     '''
 
     # Unpack the first and last events
@@ -226,7 +226,7 @@ def calc_event_rate(event_log, event_name):
     event_name[str or int]: event to be matched to
 
     OUTPUT:
-    event_rate[float]: 
+    event_rate[float]: fraction of matching events divided by total events
     '''
     events_duration = calc_events_duration(event_log)
     num_of_events = get_event_occurrences(event_log, event_name)
