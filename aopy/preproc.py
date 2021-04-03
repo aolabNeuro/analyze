@@ -349,7 +349,7 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     n_samples = int(np.floor(dur * samplerate))
 
     if data.ndim > 1:
-        trial_aligned = np.zeros((len(trigger_times), n_samples, data.shape[1:]))
+        trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
     else:
         trial_aligned = np.zeros((len(trigger_times), n_samples))
     for t in range(len(trigger_times)):

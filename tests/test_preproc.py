@@ -367,6 +367,9 @@ class EventFilterTests(unittest.TestCase):
         self.assertEqual(len(trial_aligned), len(trigger_times))
         np.allclose(trial_aligned[0], np.arange(5, 15))
         np.allclose(trial_aligned[1], np.arange(55, 65))
+        data = np.ones((100,2))
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
 
     def test_trial_align_times(self):
         timestamps = np.array([2, 6, 7, 10, 25, 27])
