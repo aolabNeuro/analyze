@@ -9,9 +9,9 @@ def practice_func_ryan(user_name):
 
     Inputs:
         user_name [string]: Name of person running the function
-        
+
     Outputs:
-        string_out [string]: Hello Ryan from 
+        string_out [string]: Hello Ryan from
     '''
     string_out = 'Hello Ryan, from' + user_name
     return string_out
@@ -23,7 +23,7 @@ def practice_func_ryan2(favorite_food):
 
     Inputs:
         favorite_food [string]: Your favorite food
-        
+
     Outputs:
         None; print statement
     '''
@@ -37,9 +37,23 @@ def practice_func_leo(number_of_fish):
 
     Inputs:
         number_of_fish [int]: How many fish you have
-        
+
     Outputs:
         statement [str]: a statement of how many fish you have
     '''
-    
+
     return 'You have {} fish'.format(number_of_fish)
+
+# Amy's practice function
+def practice_func_amy(number_of_dogs):
+    '''
+    This function prints a number of dogs
+
+    Inputs:
+        number_of_dogs [int]: How many dogs you have
+
+    Outputs:
+        statement [str]: a statement of how many dogs you have
+    '''
+
+    return 'You have {} dog(s).'.format(number_of_dogs)
