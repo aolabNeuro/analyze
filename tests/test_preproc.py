@@ -88,25 +88,25 @@ class DigitalCalcTests(unittest.TestCase):
         test_timestamp = 16.5
         test_expected_value = 16
         value = get_closest_value(test_timestamp, test_sequence, test_radius)
-        self.assertEquals(test_expected_value, value)
+        self.assertEqual(test_expected_value, value)
 
         # test value within range (rounding up)
         test_timestamp = 16.51
         test_expected_value = 17
         value = get_closest_value(test_timestamp, test_sequence, test_radius)
-        self.assertEquals(test_expected_value, value)
+        self.assertEqual(test_expected_value, value)
 
         #test value out of range
         test_timestamp = 130
         test_expected_value = None
         value = get_closest_value(test_timestamp, test_sequence, test_radius)
-        self.assertEquals(value, test_expected_value)
+        self.assertEqual(value, test_expected_value)
 
         #test value out of range
         test_timestamp = -20
         test_expected_value = None
         value = get_closest_value(test_timestamp, test_sequence, test_radius)
-        self.assertEquals(value, test_expected_value)
+        self.assertEqual(value, test_expected_value)
 
     def test_find_measured_event_times(self):
         approx_times = [0.1, 0.5, 1.0, 55.8]
@@ -118,6 +118,15 @@ class DigitalCalcTests(unittest.TestCase):
         expected_array = np.array([0.1, 0.75, 1.2, np.nan])
         np.testing.assert_allclose(parsed_times, expected_array)
 
+    def test_get_measured_frame_timestamps(self):
+        latency_estimate = 0.1
+        search_radius = 0.001
+        estimated_timestamps = np.arange(10000)/100
+        measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
+        measured_timestamps = np.delete(measured_timestamps, [500])
+        corrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        self.assertEqual(len(corrected), len(estimated_timestamps))
+        self.assertEqual(corrected[500], corrected[501])
 
 event_log_events_in_str = [
             ('wait', 0.),
@@ -209,7 +218,7 @@ class EventFilterTests(unittest.TestCase):
         rate = calc_event_rate(event_log_events_in_str, 'foobar')
         assert rate == 0
 
-    def test_trial_align(self):
+    def test_trial_align_events(self):
         # test trial_separate
         events = np.array([6, 5, 2, 7, 2, 5, 7, 4, 2, 3, 6, 2, 3, 6, 4, 6, 3, 1, 3, 2, 4, 2,
             6, 4, 5, 5, 0, 3, 2, 4, 2, 4, 2, 5, 3, 2, 4, 0, 5, 2, 2, 7, 4, 6,
@@ -287,10 +296,10 @@ class EventFilterTests(unittest.TestCase):
             [0. , 0.1],
             [0. , 0.1]])
 
-        trial_aligned_times = trial_align(aligned_events, aligned_times, NUM_TO_ALIGN)
+        trial_aligned_times = trial_align_events(aligned_events, aligned_times, NUM_TO_ALIGN)
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
 
-    def test_trial_align_to_list_of_tuples(self):
+    def test_trial_align_events_to_list_of_tuples(self):
 
         NUM_WAIT =  0
         NUM_TARGET = 1
@@ -336,9 +345,42 @@ class EventFilterTests(unittest.TestCase):
             [0.,  1. ],
             [0. , 2. ]]
         )
-        trial_aligned_times = trial_align(aligned_events, aligned_times, NUM_WAIT)
+        trial_aligned_times = trial_align_events(aligned_events, aligned_times, NUM_WAIT)
         
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
+
+    def test_subvec(self):
+        samplerate = 1
+        vector = np.arange(100)
+        t0 = 5
+        n_samples = 10
+        sub = subvec(vector, t0, n_samples, samplerate)
+        np.allclose(sub, np.arange(5, 15))
+        
+    def test_trial_align_data(self):
+        data = np.arange(100)
+        samplerate = 1
+        time_before = 0
+        time_after = 10
+        trigger_times = np.array([5, 55])
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertEqual(len(trial_aligned), len(trigger_times))
+        np.allclose(trial_aligned[0], np.arange(5, 15))
+        np.allclose(trial_aligned[1], np.arange(55, 65))
+        data = np.ones((100,2))
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
+
+    def test_trial_align_times(self):
+        timestamps = np.array([2, 6, 7, 10, 25, 27])
+        trigger_times = np.array([5, 10, 15, 20, 25])
+        time_before = 0
+        time_after = 9
+        trial_aligned, trial_indices = trial_align_times(timestamps, trigger_times, time_before, time_after)
+        self.assertEqual(len(trial_aligned), len(trial_indices))
+        self.assertEqual(len(trial_aligned), len(trigger_times))
+        np.allclose(trial_aligned[0], [6, 7, 10])
+        self.assertEqual(len(trial_aligned[2]), 0)
 
 if __name__ == "__main__":
     unittest.main()

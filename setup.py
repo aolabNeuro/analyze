@@ -11,6 +11,7 @@ install_requires = [
     'pandas',
     'psutil',
     'h5py',
+    'tables',
 ]
 
 setuptools.setup(

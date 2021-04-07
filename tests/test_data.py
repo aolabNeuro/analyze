@@ -27,8 +27,8 @@ class LoadDataTests(unittest.TestCase):
         assert mocap_data_pos.shape[1] == 3
         assert mocap_data_rot.shape[1] == 4
 
-    def test_get_eCube_data_sources(self):
-        sources = get_eCube_data_sources(test_filepath)
+    def test_get_ecube_data_sources(self):
+        sources = get_ecube_data_sources(test_filepath)
         print(sources)
         assert len(sources) == 1
         assert sources[0] == "Headstages"
@@ -70,6 +70,64 @@ class LoadDataTests(unittest.TestCase):
         assert hdf['Headstages'].shape[0] == 64
         assert hdf['Headstages'].shape[1] == 214032
     
+    def test_save_hdf(self):
+        import os
+        import h5py
+        testfile = 'save_hdf_test.hdf'
+        testpath = os.path.join(data_dir, testfile)
+        if os.path.exists(testpath):
+            os.remove(testpath)
+        data = {'test_data': np.arange(1000)}
+        params = {'key1': 'value1', 'key2': 2}
+        save_hdf(data_dir, testfile, data_dict=data, params_dict=params, append=False)
+        f = h5py.File(testpath, 'r')
+        print(f.keys())
+        self.assertIn('test_data', f)
+        self.assertIn('params', f)
+        test_data = f['test_data'][()]
+        params = f['params']
+        self.assertEqual(params['key1'][()], b'value1') # note that the hdf doesn't save unicode strings
+        self.assertEqual(params['key2'][()], 2)
+        np.allclose(test_data, np.arange(1000))
+
+    def test_load_hdf_data(self):
+        import os
+        import h5py
+        testfile = 'load_hdf_test.hdf'
+        testpath = os.path.join(data_dir, testfile)
+        if os.path.exists(testpath):
+            os.remove(testpath)
+        data_dict = {'test_data': np.arange(1000)}
+        save_hdf(data_dir, testfile, data_dict=data_dict, append=False)
+        self.assertRaises(ValueError, lambda: load_hdf_data(data_dir, testfile, 'not_valid_data'))
+        data = load_hdf_data(data_dir, testfile, 'test_data')
+        self.assertEqual(len(data), len(data_dict['test_data']))
+        self.assertTupleEqual(data.shape, data_dict['test_data'].shape)
+        np.allclose(data, data_dict['test_data'])
+
+    def test_load_hdf_metadata(self):
+        import os
+        import h5py
+        testfile = 'load_hdf_test.hdf'
+        testpath = os.path.join(data_dir, testfile)
+        if os.path.exists(testpath):
+            os.remove(testpath)
+        params_dict = {'key1': 'value1', 'key2': 2, 'key3': 3.3}
+        save_hdf(data_dir, testfile, params_dict=params_dict, append=False)
+        metadata = load_hdf_metadata(data_dir, testfile)
+        print(metadata)
+        self.assertDictEqual(metadata, params_dict)
+
+    def test_load_bmi3d_hdf_table(self):
+        testfile = 'test20210330_12_te1254.hdf'
+        data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'task')
+        self.assertEqual(len(data), 534)
+        self.assertEqual(len(metadata.keys()), 35)
+
+        data, metadata = load_bmi3d_sync_clock(data_dir, testfile)
+        self.assertEqual(len(data), 534)
+        data, metadata = load_bmi3d_sync_events(data_dir, testfile)
+        self.assertEqual(len(data), 6)
     
 if __name__ == "__main__":
     unittest.main()

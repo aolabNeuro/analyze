@@ -130,7 +130,7 @@ def get_closest_value(timestamp, sequence, radius):
     x_diff = np.zeros(len(sequence))
 
     # calculate differences
-    x_diff = timestamp - np.array(sequence);
+    x_diff = timestamp - np.array(sequence)
     # check x_diff within radius
     within_radius = np.abs(x_diff)<=radius
     # find closest sequence value based on x_diff
@@ -163,6 +163,34 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
         if closest:
             parsed_ts[idx_ts] = closest
     return parsed_ts
+
+def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate=0.01, search_radius=1./100):
+    '''
+    Takes estimated frame times and measured frame times and returns a time for each frame
+
+    Inputs:
+    estimated_timestamps [nframes]: timestamps when frames were thought to be displayed
+    measured_timestamps [nt]: timestamps when frames actually appeared on screen
+    (opt) latency_estimate [float]: how long the display takes normally to update
+    (opt) search_radius [float]: how far away to look for a measurement before giving up
+
+    Output:
+    corrected_timestamps [nframes]: some of which will be empty if they were not displayed
+    '''
+
+    approx_timestamps = estimated_timestamps + latency_estimate
+    corrected_timestamps = find_measured_event_times(approx_timestamps, measured_timestamps, search_radius)
+
+    # For any missing timestamps, the time at which they occurred is the next non-nan value
+    missing = np.isnan(corrected_timestamps)
+    if missing.any():
+        idx_missing = np.where(missing)[0]
+        for idx in idx_missing:
+            next_non_nan = idx + 1
+            while np.isnan(corrected_timestamps[next_non_nan]):
+                next_non_nan += 1
+            corrected_timestamps[idx] = corrected_timestamps[next_non_nan]
+    return corrected_timestamps
 
 
 '''
@@ -279,7 +307,7 @@ def trial_separate(events, times, evt_start, n_events=8):
 
     return trial_events, trial_times
 
-def trial_align(aligned_events, aligned_times, event_to_align):
+def trial_align_events(aligned_events, aligned_times, event_to_align):
     '''
     Compute a new trial_times matrix with offset timestamps for the given event_to_align
     
@@ -302,3 +330,81 @@ def trial_align(aligned_events, aligned_times, event_to_align):
         trial_aligned_times[idx_trial] = offset_row
 
     return trial_aligned_times
+
+def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
+    '''
+    Transform data into chunks of data triggered by trial start times
+
+    Inputs:
+        data [nt, nch]: arbitrary data, can be multidimensional
+        trigger_times [ntrial]: start time of each trial
+        time_before [float]: amount of time to include before the start of each trial
+        time_after [float]: time to include after the start of each trial
+        samplerate [int]: sampling rate of data
+    
+    Output:
+        trial_aligned [ntrial, nt, nch]: trial aligned data
+    '''
+    dur = time_after + time_before
+    n_samples = int(np.floor(dur * samplerate))
+
+    if data.ndim > 1:
+        trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
+    else:
+        trial_aligned = np.zeros((len(trigger_times), n_samples))
+    for t in range(len(trigger_times)):
+        t0 = trigger_times[t] - time_before
+        if np.isnan(t0):
+            continue
+        sub = subvec(data, t0, n_samples, samplerate)
+        if data.ndim > 1:
+            trial_aligned[t,:min(len(sub),n_samples),:] = sub[:min(len(sub),n_samples)]
+        else:
+            trial_aligned[t,:min(len(sub),n_samples)] = sub[:min(len(sub),n_samples)]
+    return trial_aligned
+
+def trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=True):
+    '''
+    Takes timestamps and splits them into chunks triggered by trial start times
+
+    Inputs:
+        timestamps [nt]: events in time to be trial aligned
+        trigger_times [ntrial]: start time of each trial
+        time_before [float]: amount of time to include before the start of each trial
+        time_after [float]: time to include after the start of each trial
+        (opt) subtract [bool]: whether the start of each trial should be set to 0
+    
+    Output:
+        trial_aligned [ntrial, nt]: trial aligned timestamps
+        trial_indices [ntrial, nt]: indices into timestamps in the same shape as trial_aligned
+    '''
+    trial_aligned = []
+    trial_indices = []
+    for t in range(len(trigger_times)):
+        t0 = trigger_times[t] - time_before
+        t1 = trigger_times[t] + time_after
+        trial_idx = (timestamps > t0) & (timestamps <= t1)
+        sub = timestamps[trial_idx]
+        if subtract:
+            sub -= trigger_times[t]
+        trial_aligned.append(sub)
+        trial_indices.append(np.where(trial_idx)[0])
+    return trial_aligned, trial_indices
+
+def subvec(vector, t0, n_samples, samplerate):
+    '''
+    Sub-vector helper function
+    
+    Input:
+        vector [nt]: that you want to slice
+        t0 [float]: start time
+        n_samples [int]: number of samples to extract
+        samplerate [int]: sampling rate of the vector
+
+    Output:
+        sub [n_samples]: vector of length n_samples starting at t0
+    '''
+    sub = np.empty((n_samples,))
+    idx_start = int(np.floor(t0*samplerate))
+    idx_end = min(len(vector)-1, idx_start+n_samples)
+    return vector[idx_start:idx_end]
