@@ -350,18 +350,6 @@ class EventFilterTests(unittest.TestCase):
         trial_aligned_times = trial_align_events(aligned_events, aligned_times, NUM_WAIT)
         
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
-
-    def test_subvec(self):
-        samplerate = 1
-        vector = np.arange(100)
-        t0 = 5
-        n_samples = 10
-        sub = subvec(vector, t0, n_samples, samplerate)
-        np.allclose(sub, np.arange(5, 15))
-        t0 = 95
-        n_samples = 10
-        sub = subvec(vector, t0, n_samples, samplerate)
-        self.assertEqual(np.count_nonzero(np.isnan(sub)), 5)
         
     def test_trial_align_data(self):
         data = np.arange(100)

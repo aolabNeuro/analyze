@@ -370,19 +370,19 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
 
-    if data.ndim > 1:
-        trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
-    else:
-        trial_aligned = np.zeros((len(trigger_times), n_samples))
+    if data.ndim == 1:
+        data.shape = (data.shape[0], 1)
+    trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
     for t in range(len(trigger_times)):
         t0 = trigger_times[t] - time_before
         if np.isnan(t0):
             continue
-        sub = subvec(data, t0, n_samples, samplerate)
-        if data.ndim > 1:
-            trial_aligned[t,:min(len(sub),n_samples),:] = sub[:min(len(sub),n_samples)]
-        else:
-            trial_aligned[t,:min(len(sub),n_samples)] = sub[:min(len(sub),n_samples)]
+        # sub = subvec(data, t0, n_samples, samplerate)
+        trial_data = np.empty((n_samples,data.shape[1]))
+        idx_start = int(np.floor(t0*samplerate))
+        idx_end = min(data.shape[0], idx_start+n_samples)
+        trial_data[:idx_end-idx_start,:] = data[idx_start:idx_end,:]
+        trial_aligned[t,:min(len(trial_data),n_samples),:] = trial_data[:min(len(trial_data),n_samples),:]
     return trial_aligned
 
 def trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=True):
@@ -412,23 +412,3 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
         trial_aligned.append(sub)
         trial_indices.append(np.where(trial_idx)[0])
     return trial_aligned, trial_indices
-
-def subvec(vector, t0, n_samples, samplerate):
-    '''
-    Sub-vector helper function
-    
-    Input:
-        vector [nt]: that you want to slice
-        t0 [float]: start time
-        n_samples [int]: number of samples to extract
-        samplerate [int]: sampling rate of the vector
-
-    Output:
-        sub [n_samples]: vector of length n_samples starting at t0
-    '''
-    sub = np.empty((n_samples,))
-    sub[:] = np.nan
-    idx_start = int(np.floor(t0*samplerate))
-    idx_end = min(len(vector), idx_start+n_samples)
-    sub[:idx_end-idx_start] = vector[idx_start:idx_end]
-    return sub
