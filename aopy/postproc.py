@@ -25,7 +25,7 @@ def translate_spatial_data(spatial_data, new_origin):
 def rotate_spatial_data(spatial_data, new_axis, current_axis):
     '''
     Rotates data about the origin into a new coordinate system based on the relationship between
-    'new_axis' and 'current_axis'. If 'current_axis3d' and 'new_axis' point in 
+    'new_axis' and 'current_axis'. If 'current_axis' and 'new_axis' point in 
     the same direction, the code will return 'spatial_data' with a warning that the vectors point in
     the same direction.
     
