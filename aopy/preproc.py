@@ -412,3 +412,62 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
         trial_aligned.append(sub)
         trial_indices.append(np.where(trial_idx)[0])
     return trial_aligned, trial_indices
+
+
+def get_trial_segments(events, times, start_events, end_events):
+    '''
+    Gets times for the start and end of each trial according to the given set of start_events and end_events
+
+    Inputs:
+        events [nt]: events vector
+        times [nt]: times vector
+        start_events [list]: set of start events to match
+        end_events [list]: set of end events to match
+    Output:
+        segments [list of list of events]: a segment of each trial
+        times [ntrials, 2]: list of 2 timestamps for each trial corresponding to the start and end events
+
+    Note:
+        - if there are multiple matching start or end events in a trial, only consider the first one
+    '''
+    # Find the indices in events that correspond to start events
+    evt_start_idx = np.where(np.in1d(events, start_events))[0]
+
+    # Extract segments for each start event
+    segments = []
+    segment_times = []
+    for idx_evt in range(len(evt_start_idx)):
+        idx_start = evt_start_idx[idx_evt]
+        idx_end = evt_start_idx[idx_evt] + 1
+
+        # Look forward for a matching end event
+        while idx_end < len(events):
+            if np.in1d(events[idx_end], start_events): 
+                break # start event must be followed by end event otherwise not valid
+            if np.in1d(events[idx_end], end_events):
+                segments.append(events[idx_start:idx_end+1])
+                segment_times.append([times[idx_start], times[idx_end]])
+                break 
+            idx_end += 1
+    segment_times = np.array(segment_times)
+    return segments, segment_times
+
+def get_data_segments(data, segment_times, samplerate):
+    '''
+    Gets arbitrary length segments of data from a timeseries
+
+    Inputs:
+        data [nt, ndim]: arbitrary timeseries data that needs to segmented
+        segment_times [nseg, 2] pairs of start and end times for each segment
+        samplerate [int]: sampling rate of the data
+
+    Output:
+        segments [list of 1d arrays [nt]]: nt is the length of each segment (can be different for each)
+    '''
+    segments = []
+    for idx_seg in range(segment_times.shape[0]):
+        idx_data_start = int(segment_times[idx_seg,0]*samplerate)
+        idx_data_end = int(segment_times[idx_seg,1]*samplerate)
+        seg = data[idx_data_start:idx_data_end]
+        segments.append(seg)
+    return segments

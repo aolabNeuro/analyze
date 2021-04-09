@@ -376,5 +376,26 @@ class EventFilterTests(unittest.TestCase):
         np.allclose(trial_aligned[0], [6, 7, 10])
         self.assertEqual(len(trial_aligned[2]), 0)
 
+    def test_get_trial_segments(self):
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        times = np.arange(len(events))
+        start_evt = 2
+        end_evt = [3, 4]
+        segments, times = get_trial_segments(events, times, start_evt, end_evt)
+        np.allclose(segments, [[2, 4], [2, 3]])
+        np.allclose(times, [[1, 2], [5, 6]])
+
+    def test_get_data_segments(self):
+        data = np.arange(100)
+        segment_times = np.array([[0, 4], [50, 51]])
+        samplerate = 1
+        segments = get_data_segments(data, segment_times, samplerate)
+        self.assertEqual(len(segments), 2)
+        data = np.ones((100,3))
+        segments = get_data_segments(data, segment_times, samplerate)
+        self.assertEqual(len(segments), 2)
+        self.assertEqual(segments[0].shape, (4,3))
+
+
 if __name__ == "__main__":
     unittest.main()
