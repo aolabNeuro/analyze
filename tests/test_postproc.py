@@ -108,7 +108,15 @@ class move_trajectory_tests(unittest.TestCase):
         np.testing.assert_almost_equal(rotated_data3d, goal_rotated_data3d)
         np.testing.assert_almost_equal(rotated_point3d, goal_rotated_point3d)
 
+        # Test that points and arrays give the same result
+        spatial_data = np.array([[2,1,3], [4,1,4]])
+        spatial_point = np.array([4,1,4])
+        current_axis = np.array([5,3,1])
+        new_axis = np.array([1,0, 0])
+        rotated_data = aopy.postproc.rotate_spatial_data(spatial_data, new_axis, current_axis)
+        rotated_point = aopy.postproc.rotate_spatial_data(spatial_point, new_axis, current_axis)
 
+        np.testing.assert_almost_equal(rotated_data[1,:], rotated_point[0,:])
 
 if __name__ == "__main__":
     unittest.main()
