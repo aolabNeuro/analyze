@@ -356,6 +356,10 @@ class EventFilterTests(unittest.TestCase):
         n_samples = 10
         sub = subvec(vector, t0, n_samples, samplerate)
         np.allclose(sub, np.arange(5, 15))
+        t0 = 95
+        n_samples = 10
+        np.allclose(sub, np.arange(5, 15))
+        assert np.count_nonzero(np.isnan(sub)) == 5
         
     def test_trial_align_data(self):
         data = np.arange(100)

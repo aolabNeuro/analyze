@@ -406,5 +406,6 @@ def subvec(vector, t0, n_samples, samplerate):
     '''
     sub = np.empty((n_samples,))
     idx_start = int(np.floor(t0*samplerate))
-    idx_end = min(len(vector)-1, idx_start+n_samples)
-    return vector[idx_start:idx_end]
+    idx_end = min(len(vector), idx_start+n_samples)
+    sub[:idx_end-idx_start] = vector[idx_start:idx_end]
+    return sub
