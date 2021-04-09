@@ -117,16 +117,18 @@ def get_closest_value(timestamp, sequence, radius):
     equidistant, this function returns the lower value.
 
     Inputs: 
-        timestamp : given timestamp
-        sequence: sequence to search for closest value
-        radius: distance from aproxTime to search for closest value
+        timestamp [float]: given timestamp
+        sequence [nt]: sequence to search for closest value
+        radius [float]: distance from timestamp to search for closest value
 
     Output:
-        closest_value: value within sequence that is closest to timestamp
+        closest_value [float]: value within sequence that is closest to timestamp
+        closest_idx [int]: index of the closest_value in the sequence
     '''
 
     # initialize returned value
     closest_value = None
+    minimum = None
     x_diff = np.zeros(len(sequence))
 
     # calculate differences
@@ -138,12 +140,11 @@ def get_closest_value(timestamp, sequence, radius):
         minimum = np.argmin(np.abs(x_diff))
         closest_value = sequence[minimum]
 
-    return closest_value
+    return closest_value, minimum
 
 def find_measured_event_times(approx_times, measured_times, search_radius):
     '''
     Uses closest_value() to repeatedly find a measured time for each approximate time.			
-
     Inputs:
         approx_times [nt]: array of approximate event timestamps
         measured_times [nt']: array of measured timestamps that might correspond to the approximate timestamps
@@ -158,10 +159,27 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
     parsed_ts[:] = np.nan
 
     # Find the closest neighbor for each approximate timestamp
+    search_size = 1000
+    idx_prev_closest = 0
+    idx_next_closest = min(search_size, len(measured_times))
     for idx_ts, ts in enumerate(approx_times):
-        closest = get_closest_value(ts, measured_times, search_radius) # radius is 1/SR
+
+        # Try searching a small subset of measured times
+        closest, idx_closest = get_closest_value(ts, measured_times[idx_prev_closest:idx_next_closest], search_radius)
         if closest:
             parsed_ts[idx_ts] = closest
+            idx_prev_closest += idx_closest
+            idx_next_closest = min(idx_next_closest + 1, len(measured_times))
+            continue
+
+        # If that doesn't work, look in the whole array. This approach speeds things up 
+        # considerably if there are only a small number of missing measurements
+        closest, idx_closest = get_closest_value(ts, measured_times[idx_next_closest:], search_radius)
+        if closest:
+            parsed_ts[idx_ts] = closest
+            idx_prev_closest = idx_next_closest + idx_closest
+            idx_next_closest = min(idx_prev_closest + search_size, len(measured_times))
+
     return parsed_ts
 
 def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate=0.01, search_radius=1./100):
@@ -179,18 +197,22 @@ def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, lat
     '''
 
     approx_timestamps = estimated_timestamps + latency_estimate
-    corrected_timestamps = find_measured_event_times(approx_timestamps, measured_timestamps, search_radius)
+    uncorrected_timestamps = find_measured_event_times(approx_timestamps, measured_timestamps, search_radius)
 
     # For any missing timestamps, the time at which they occurred is the next non-nan value
-    missing = np.isnan(corrected_timestamps)
+    missing = np.isnan(uncorrected_timestamps)
+    corrected_timestamps = uncorrected_timestamps.copy()
     if missing.any():
         idx_missing = np.where(missing)[0]
         for idx in idx_missing:
             next_non_nan = idx + 1
             while np.isnan(corrected_timestamps[next_non_nan]):
+                if next_non_nan + 1 == len(corrected_timestamps):
+                    # cannot correct the very last timestamp
+                    break
                 next_non_nan += 1
             corrected_timestamps[idx] = corrected_timestamps[next_non_nan]
-    return corrected_timestamps
+    return corrected_timestamps, uncorrected_timestamps
 
 
 '''
@@ -405,6 +427,7 @@ def subvec(vector, t0, n_samples, samplerate):
         sub [n_samples]: vector of length n_samples starting at t0
     '''
     sub = np.empty((n_samples,))
+    sub[:] = np.nan
     idx_start = int(np.floor(t0*samplerate))
     idx_end = min(len(vector), idx_start+n_samples)
     sub[:idx_end-idx_start] = vector[idx_start:idx_end]

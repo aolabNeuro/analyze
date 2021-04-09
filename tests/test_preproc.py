@@ -87,25 +87,25 @@ class DigitalCalcTests(unittest.TestCase):
         # test value within range (rounding down)
         test_timestamp = 16.5
         test_expected_value = 16
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(test_expected_value, value)
 
         # test value within range (rounding up)
         test_timestamp = 16.51
         test_expected_value = 17
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(test_expected_value, value)
 
         #test value out of range
         test_timestamp = 130
         test_expected_value = None
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(value, test_expected_value)
 
         #test value out of range
         test_timestamp = -20
         test_expected_value = None
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(value, test_expected_value)
 
     def test_find_measured_event_times(self):
@@ -124,9 +124,11 @@ class DigitalCalcTests(unittest.TestCase):
         estimated_timestamps = np.arange(10000)/100
         measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
         measured_timestamps = np.delete(measured_timestamps, [500])
-        corrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        corrected, uncorrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
         self.assertEqual(len(corrected), len(estimated_timestamps))
         self.assertEqual(corrected[500], corrected[501])
+        self.assertEqual(len(uncorrected), len(corrected))
+        self.assertEqual(np.count_nonzero(np.isnan(uncorrected)), 1)
 
 event_log_events_in_str = [
             ('wait', 0.),
@@ -358,8 +360,8 @@ class EventFilterTests(unittest.TestCase):
         np.allclose(sub, np.arange(5, 15))
         t0 = 95
         n_samples = 10
-        np.allclose(sub, np.arange(5, 15))
-        assert np.count_nonzero(np.isnan(sub)) == 5
+        sub = subvec(vector, t0, n_samples, samplerate)
+        self.assertEqual(np.count_nonzero(np.isnan(sub)), 5)
         
     def test_trial_align_data(self):
         data = np.arange(100)
