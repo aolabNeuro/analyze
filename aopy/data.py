@@ -8,6 +8,30 @@ import csv
 import pandas as pd
 import os
 
+def get_filenames(base_dir, te):
+    '''
+    Silly function to get the filenames for systems in a given task entry
+
+    Input:
+        base_dir [str]: directory where the files will be
+        te [int]: block number for the task entry
+
+    Output:
+        files [dict]: dictionary of files indexed by system
+    '''
+    print("Please don't use this function. Make one that gets filenames from the database instead!")
+    contents = os.listdir(base_dir)
+    relevant_contents = [file_or_dir for file_or_dir in contents if str(te) in file_or_dir]
+    files = {}
+    for file_or_dir in relevant_contents:
+        if '.csv' in file_or_dir:
+            files['optitrack'] = file_or_dir
+        elif '.hdf' in file_or_dir:
+            files['bmi3d'] = file_or_dir
+        elif os.path.isdir(os.path.join(base_dir, file_or_dir)):
+            files['ecube'] = file_or_dir
+    return files
+
 def load_optitrack_metadata(data_dir, filename, metadata_row=0, mocap_data_col_idx=np.arange(2,9)):
     '''
     This function loads optitrack metadata from .csv file that has 1 rigid body
@@ -65,18 +89,8 @@ def load_optitrack_metadata(data_dir, filename, metadata_row=0, mocap_data_col_i
             elif idx_csvrow == column_names_idx_csvrow:
                 mocap_metadata['Data Column Motion Names'] = row[mocap_data_column_idx:]  
 
-    '''
-    Check that data was loaded correctly.
-    '''
-    # Check that capture frame rate is the same as export frame rate
-    assert mocap_metadata['Capture Frame Rate'] == mocap_metadata['Export Frame Rate'], 'Export and capture frame rate should be equal'
-    mocap_metadata['samplerate'] = float(mocap_metadata['Capture Frame Rate'])
-    # del mocap_metadata['Capture Frame Rate']
-    # del mocap_metadata['Export Frame Rate']
-
-    # Check that rotational coordinates in are in quaternion 
-    assert mocap_metadata['Rotation Type'] == 'Quaternion', 'Rotation type must be Quaternion'
-
+    if 'Export Frame Rate' in mocap_metadata:
+        mocap_metadata['samplerate'] = float(mocap_metadata['Export Frame Rate'])
     return mocap_metadata
 
 def load_optitrack_data(data_dir, filename):
@@ -104,6 +118,14 @@ def load_optitrack_data(data_dir, filename):
         mocap_data_rot [nt, 4]: Rotational mocap data
     '''
 
+    # Load the metadata to check the columns are going to line up
+    mocap_metadata = load_optitrack_metadata(data_dir, filename)
+    if not mocap_metadata:
+        raise Exception('No metadata found for optitrack file')
+    assert mocap_metadata['Rotation Type'] == 'Quaternion', 'Rotation type must be Quaternion'
+    assert mocap_metadata['Format Version'] == '1.23', 'Only supports version 1.23'
+
+    # Load the data columns
     column_names_idx_csvrow = 5 # Header row index
     mocap_data_rot_column_idx = range(2,6) # Column index for rotation data
     mocap_data_pos_column_idx = range(6,9) # Column indices for position data
@@ -114,6 +136,28 @@ def load_optitrack_data(data_dir, filename):
     mocap_data_pos = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_pos_column_idx]
 
     return mocap_data_pos, mocap_data_rot
+
+def load_optitrack_time(data_dir, filename):
+    '''
+    This function loads timestamps from the optitrack .csv file 
+
+    Required packages: pandas, numpy
+
+    Inputs:
+        data_dir [string]: Directory to load data from
+        filename [string]: File name to load within the data directory
+
+    Outputs
+        timestamps [nt]: Array of timestamps for each captured frame
+    '''
+
+    column_names_idx_csvrow = 5 # Header row index
+    timestamp_column_idx = 1 # Column index for time data
+    filepath = os.path.join(data_dir, filename)
+    # Load .csv file as a pandas data frame, convert to a numpy array, and only
+    # return the 'Time (Seconds)' column
+    timestamps = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
+    return timestamps
 
 def load_ecube_metadata(data_dir, data_source):
     '''
@@ -182,7 +226,7 @@ def load_ecube_data(data_dir, data_source, channels=None):
     timeseries_data = process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
     return timeseries_data
 
-def proc_ecube_data(data_dir, data_source, hdf_filename):
+def proc_ecube_data(data_dir, data_source, result_filepath):
     '''
     Loads and saves eCube data into an HDF file
 
@@ -191,7 +235,7 @@ def proc_ecube_data(data_dir, data_source, hdf_filename):
     Inputs:
         data_dir [str]: folder containing the data you want to load
         data_source [str]: type of data ("Headstage", "AnalogPanel", "DigitalPanel")
-        hdf_filename [str]: name of hdf file to be written (or appended??)
+        result_filepath [str]: path to hdf file to be written (or appended)
 
     Output:
         None
@@ -206,7 +250,7 @@ def proc_ecube_data(data_dir, data_source, hdf_filename):
         dtype = np.uint16
 
     # Create an hdf dataset
-    hdf = h5py.File(hdf_filename, 'a') # should append existing or write new?
+    hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
     dset = hdf.create_dataset(data_source, (n_channels, n_samples), dtype=dtype)
 
     # Open and read the eCube data into the new hdf dataset
@@ -259,7 +303,7 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
         try:
             data_chunk = next(datastream)
             data_len = np.shape(data_chunk)[1]
-            data_out[:,idx_samples:idx_samples+data_len] = data_chunk[channels,:] # this might be where you filter data
+            data_out[:,idx_samples:idx_samples+data_len] = np.squeeze(data_chunk[channels,:]) # this might be where you filter data
             idx_samples += data_len
         except StopIteration:
             break
@@ -313,6 +357,8 @@ def save_hdf(data_dir, hdf_filename, data_dict=None, params_dict=None, append=Fa
     '''
 
     full_file_name = os.path.join(data_dir, hdf_filename)
+    if os.path.exists(full_file_name) and not append:
+        raise FileExistsError('Will not overwrite existing data')
     mode = 'a' if append else 'w'
     hdf = h5py.File(full_file_name, mode)
     
@@ -331,8 +377,11 @@ def save_hdf(data_dir, hdf_filename, data_dict=None, params_dict=None, append=Fa
             data = params_dict[key]
             if hasattr(data, 'dtype') and data.dtype.char == 'U':
                 data = str(data)
-            params.create_dataset(key, data=data)
-            print("Added " + key)
+            try:
+                params.create_dataset(key, data=data)
+                print("Added " + key)
+            except:
+                print("Warning: could not add key {} with data {}".format(key, data))
         
     hdf.close()
     print("Done!")
@@ -384,14 +433,14 @@ def load_hdf_metadata(data_dir, hdf_filename):
     hdf.close()
     return metadata
 
-def load_bmi3d_hdf_table(data_dir, filename, table_name):
+def load_bmi3d_hdf_table(data_dir, filename, table_name=None):
     '''
     Loads data and metadata from a table in an hdf file generated by BMI3D
 
     Inputs:
         data_dir [str]: path to the data
         filename [str]: name of the file to load from
-        table_name [str]: name of the table you want to load
+        (opt) table_name [str]: name of the table you want to load
 
     Outputs:
         data [ndarray]: data from bmi3d
@@ -421,3 +470,9 @@ def load_bmi3d_sync_clock(data_dir, filename):
     Just a wrapper around load_bmi3d_hdf_table()
     '''
     return load_bmi3d_hdf_table(data_dir, filename, 'sync_clock')
+
+def load_bmi3d_trials(data_dir, filename):
+    '''
+    Just a wrapper around load_bmi3d_hdf_table()
+    '''
+    return load_bmi3d_hdf_table(data_dir, filename, 'trials')
