@@ -100,3 +100,42 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
       return output_spatial_data[:,:2]
     elif spatial_data.shape[1] == 3:
       return output_spatial_data
+
+def calc_reward_intervals(timestamps, values):
+    '''
+    Given timestamps and values corresponding to reward times and reward state, calculate the
+    intervals (start, end) during which the reward was active
+
+    Inputs:
+        timestamps [nt]: when the reward transitioned state
+        values [nt]: what the state was at each corresponding timestamp
+
+    Output:
+        intervals [nt/2]: during which the reward was active
+    '''
+    reward_ts_on = timestamps[values == 1]
+    reward_ts_off = timestamps[values == 0]
+    if len(reward_ts_on) == len(reward_ts_off):
+        return list(zip(reward_ts_on, reward_ts_off))
+    else:
+        raise ValueError("Invalid reward timestamps or values")
+
+
+def get_trial_targets(trials, targets):
+    '''
+    Organizes targets from each trial into a trial array of targets. Essentially reshapes the array,
+    but sometimes? there can be more or fewer targets in certain trials than in others
+
+    Inputs:
+        trials [ntargets]: trial number for each target presented
+        targets [ntargets, 3]: target locations
+    
+    Output:
+        trial_targets [ntrials list of [ntargets, 3]]: list of targets in each trial
+    ''' 
+    n_trials = np.max(trials) + 1
+    trial_targets = [[] for _ in range(n_trials)]
+    for idx in range(len(trials)):
+        trial = trials[idx]
+        trial_targets[trial].append(targets[idx])
+    return trial_targets
