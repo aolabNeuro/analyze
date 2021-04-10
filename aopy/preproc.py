@@ -96,6 +96,28 @@ def find_first_significant_bit(x):
     '''
     return (x & -x).bit_length() - 1 # no idea how it works! thanks stack overflow --LRS
 
+def convert_channels_to_mask(channels):
+    '''
+    Helper function to take a range of channels into a bitmask
+
+    Inputs:
+        channels [int array]: 0-indexed channels to be masked
+    
+    Output:
+        mask [int]: binary mask of the given channels
+    '''
+    try:
+        # Range of channels
+        _ = iter(channels)
+        channels = np.array(channels)
+        flags = np.zeros(64, dtype=int)
+        flags[channels] = 1
+        return int(np.dot(np.array([2**i for i in range(64)]), flags))
+    except:
+        
+        # Single channel
+        return int(1 << channels)
+
 def convert_digital_to_channels(data_64_bit):
     '''
     Converts 64-bit digital data from eCube into channels.
@@ -195,7 +217,8 @@ def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, lat
     (opt) search_radius [float]: how far away to look for a measurement before giving up
 
     Output:
-    corrected_timestamps [nframes]: some of which will be empty if they were not displayed
+    corrected_timestamps [nframes]: measured timestamps with missing values filled in with the next non-nan value
+    uncorrected_timestamps [nframes]: some of which will be empty if they were not displayed
     '''
 
     approx_timestamps = estimated_timestamps + latency_estimate
@@ -205,15 +228,15 @@ def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, lat
     missing = np.isnan(uncorrected_timestamps)
     corrected_timestamps = uncorrected_timestamps.copy()
     if missing.any():
-        idx_missing = np.where(missing)[0]
-        for idx in idx_missing:
-            next_non_nan = idx + 1
-            while np.isnan(corrected_timestamps[next_non_nan]):
-                if next_non_nan + 1 == len(corrected_timestamps):
-                    # cannot correct the very last timestamp
-                    break
-                next_non_nan += 1
-            corrected_timestamps[idx] = corrected_timestamps[next_non_nan]
+
+        # Fill in missing values by reversing the order, then filling in the previous value
+        backwards_timestamps = np.flip(corrected_timestamps)
+        missing = np.isnan(backwards_timestamps)
+        idx = np.where(~missing, np.arange(len(missing)), 0)
+        np.maximum.accumulate(idx, out=idx) # apply maximum element-wise across the backwards array of indices
+        backwards_timestamps[missing] = backwards_timestamps[idx[missing]]
+        corrected_timestamps = np.flip(backwards_timestamps)
+
     return corrected_timestamps, uncorrected_timestamps
 
 
@@ -568,21 +591,6 @@ def _parse_bmi3d_v1(data_dir, files):
     digital_data, metadata = load_ecube_digital(data_dir, ecube_filename)
     samplerate = metadata['samplerate']
 
-    def convert_channels_to_mask(channels):
-        '''
-        Helper function to take a range of channels into a bitmask
-        '''
-        try:
-            # Range of channels
-            _ = iter(channels)
-            flags = np.zeros(64, dtype=int)
-            flags[channels] = 1
-            return int(np.dot(np.array([2**i for i in range(1, 65)]), flags))
-        except:
-            
-            # Single channel
-            return int(1 << channels)
-
     # Load ecube analog data for the strobe and reward system
     analog_channels = [bmi3d_event_metadata['screen_measure_ach'], bmi3d_event_metadata['reward_measure_ach']] # [5, 0]
     ecube_analog, metadata = load_eCube_analog(data_dir, ecube_filename, channels=analog_channels)
@@ -590,10 +598,10 @@ def _parse_bmi3d_v1(data_dir, files):
     reward_system_analog = ecube_analog[1,:]
 
     # Mask and detect BMI3D computer events from ecube
-    event_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['event_sync_dch']) # 0xff0000 
+    event_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['event_sync_dch']) # 0xff0000
     ecube_sync_data = mask_and_shift(digital_data, event_bit_mask)
     ecube_sync_timestamps, ecube_sync_events = detect_edges(ecube_sync_data, samplerate, lowhi=True, hilow=False)
-    bmi3d_clock_mask = convert_channels_to_mask(bmi3d_event_metadata['screen_sync_dch']) # 0x1000000
+    bmi3d_clock_mask = 0x1000000 # convert_channels_to_mask(bmi3d_event_metadata['screen_sync_dch']) # wrong in this version
     bmi3d_clock_data = mask_and_shift(digital_data, bmi3d_clock_mask)
     bmi3d_clock_timestamps, _ = detect_edges(bmi3d_clock_data, samplerate, lowhi=True, hilow=False)
 
@@ -619,7 +627,11 @@ def _parse_bmi3d_v1(data_dir, files):
         print("Warning: last event ({}) doesn't match bmi3d records ({})".format(ecube_sync_events[-1], bmi3d_events['code'][-1]))
     # - Check that the number of frames is consistent with the clock
     bmi3d_internal_clock_timestamps = bmi3d_sync_clock['timestamp']
-    if len(bmi3d_clock_timestamps) < len(bmi3d_internal_clock_timestamps):
+    if len(bmi3d_clock_timestamps) == 0:
+        print("Warning: no clock timestamps on the eCube. Maybe something was unplugged?")
+        print("Using internal clock timestamps")
+        bmi3d_clock_timestamps = bmi3d_internal_clock_timestamps
+    elif len(bmi3d_clock_timestamps) < len(bmi3d_internal_clock_timestamps):
         print("Warning: length of clock timestamps on eCube ({}) doesn't match bmi3d record ({})".format(len(bmi3d_clock_timestamps), len(bmi3d_task)))
         print("Adding internal clock timestamps to the end of the recording...")
         tmp = bmi3d_clock_timestamps.copy()
@@ -631,16 +643,18 @@ def _parse_bmi3d_v1(data_dir, files):
     # - Although most of the time the screen should update when the clock cycles, it won't always
     latency_estimate = 0.01
     search_radius = 0.01
-    bmi3d_external_clock_timestamps, bmi3d_external_clock_timestamps_uncorrected = get_measured_frame_timestamps(
-        bmi3d_clock_timestamps, screen_strobe_timestamps_offline, 
-        latency_estimate, search_radius)
-    # - Add some statistics about the timing
-    n_missing_markers = np.count_nonzero(np.isnan(bmi3d_external_clock_timestamps_uncorrected))
-    fraction_missing = n_missing_markers/n_cycles
-    print("Fraction missing markers: {:.2}".format(fraction_missing))
-    measured_diff = bmi3d_external_clock_timestamps_uncorrected - bmi3d_clock_timestamps
-    latency = np.mean(measured_diff[~np.isnan(measured_diff)])
-    print("Estimated display latency: {:.2} s (refresh period is {:.2} s)".format(latency, 1./bmi3d_task_metadata['fps']))
+    if len(screen_strobe_timestamps_offline) > 2 * len(bmi3d_clock_timestamps):
+        print("Something has gone wrong with the screen sensor. Ignoring")
+        metadata_dict['has_measured_timestamps'] = False
+        bmi3d_external_clock_timestamps = bmi3d_clock_timestamps
+    else:
+        bmi3d_external_clock_timestamps, bmi3d_external_clock_timestamps_uncorrected = get_measured_frame_timestamps(
+            bmi3d_clock_timestamps, screen_strobe_timestamps_offline, 
+            latency_estimate, search_radius)
+        # - Add some statistics about the timing
+        metadata_dict['n_missing_markers'] = np.count_nonzero(np.isnan(bmi3d_external_clock_timestamps_uncorrected))
+        measured_diff = bmi3d_external_clock_timestamps_uncorrected - bmi3d_clock_timestamps
+        metadata_dict['estimated_screen_latency'] = np.mean(measured_diff[~np.isnan(measured_diff)])
 
     # Organize the data a bit
     # - Subtract bmi3d time 0 from all the timestamps
@@ -673,10 +687,6 @@ def _parse_bmi3d_v1(data_dir, files):
         'reward_system': reward_system,
     })
     metadata_dict.update({
-        'measured_display_latency': latency,
-        'missing_markers': n_missing_markers,
-        'marker_search_radius': search_radius,
-        'marker_latency_estimate': latency_estimate,
         'bmi3d_n_cycles': n_cycles,
         'bmi3d_start_time': bmi3d_start_time,
     })

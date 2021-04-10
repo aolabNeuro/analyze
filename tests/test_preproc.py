@@ -6,7 +6,7 @@ data_dir = 'tests/data/'
 write_dir = 'tests/tmp'
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
-    
+
 class DigitalCalcTests(unittest.TestCase):
 
     def test_convert_analog_to_digital(self):
@@ -62,6 +62,16 @@ class DigitalCalcTests(unittest.TestCase):
         digital_data = [2, 4, 12*0x10000, 140*0x10000, 0xff0000, 0xff0000]
         masked = mask_and_shift(digital_data, mask)
         assert np.array_equal(masked, [0, 0, 12, 140, 255, 255])
+
+    def test_convert_channels_to_mask(self):
+        self.assertEqual(convert_channels_to_mask(0), 1)
+        self.assertEqual(convert_channels_to_mask(5), 1 << 5)
+        channels = [0,1]
+        mask = convert_channels_to_mask(channels)
+        self.assertEqual(mask, 0b11)
+        channels = range(16,24)
+        mask = convert_channels_to_mask(channels)
+        self.assertEqual(mask, 0xff0000)
 
     def test_digital_to_channels(self):
         testdata = [0b0110100001011100101100000100011001010001101110101001000100111000, 0xff0ff00fffffff0f]
