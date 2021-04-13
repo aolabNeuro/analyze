@@ -32,7 +32,7 @@ def get_filenames(base_dir, te):
             files['ecube'] = file_or_dir
     return files
 
-def load_optitrack_metadata(data_dir, filename, metadata_row=0, mocap_data_col_idx=np.arange(2,9)):
+def load_optitrack_metadata(data_dir, filename, metadata_row=0):
     '''
     This function loads optitrack metadata from .csv file that has 1 rigid body
     exported with the following settings:

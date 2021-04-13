@@ -38,6 +38,8 @@ class LoadDataTests(unittest.TestCase):
         mocap_timestamps = load_optitrack_time(data_dir, filename)
         assert mocap_timestamps.shape[0] == 92383
         assert mocap_timestamps.ndim == 1
+        diff = np.diff(mocap_timestamps)
+        assert (diff > 0).all(), 'Should be monotonically increasing'
 
     def test_get_ecube_data_sources(self):
         sources = get_ecube_data_sources(test_filepath)
