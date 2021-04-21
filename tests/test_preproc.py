@@ -409,24 +409,34 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
         files['bmi3d'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
-        self.assertIn('bmi3d_fps', metadata)
-        self.assertAlmostEqual(metadata['bmi3d_fps'], 120.)
-        files['bmi3d'] = 'test20210310_08_te1039.hdf'
-        data, metadata = parse_bmi3d(data_dir, files)
+        self.assertIn('fps', metadata)
+        self.assertAlmostEqual(metadata['fps'], 120.)
+        files['bmi3d'] = 'beig20210407_01_te1315.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # will run as v0 since no ecube
+
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
+        data, metadata = parse_bmi3d(data_dir, files) # will run as v1
+        self.assertIn('fps', metadata)
+        self.assertIn('sync_protocol_version', metadata)
+        self.assertIn('sync_clock', data)
+        self.assertIn('measure_clock_offline', data)
 
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
         data, metadata = parse_optitrack(data_dir, files)
+        self.assertIn('optitrack', data)
+        self.assertIn('samplerate', metadata)
+        self.assertEqual(metadata['samplerate'], 240.)
 
     def test_proc_exp(self):
         result_filename = 'test_proc_exp.hdf'
         files = get_filenames(data_dir, 1315)
         proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
-        bmi3d_cycles = load_hdf_data(write_dir, result_filename, 'bmi3d_cycles')
-        optitrack = load_hdf_data(write_dir, result_filename, 'optitrack')
-        reward_system = load_hdf_data(write_dir, result_filename, 'reward_system')
-
+        exp_data = load_hdf_group(write_dir, result_filename, 'exp_data')
+        exp_metadata = load_hdf_group(write_dir, result_filename, 'exp_metadata')
+        optitrack = load_hdf_group(write_dir, result_filename, 'optitrack_data')
+        optitrack_metadata = load_hdf_group(write_dir, result_filename, 'optitrack_metadata')
 
 if __name__ == "__main__":
     unittest.main()
