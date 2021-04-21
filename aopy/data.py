@@ -342,7 +342,7 @@ def load_eCube_analog(path, data_dir, channels=None):
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
     return data, metadata
 
-def save_hdf(data_dir, hdf_filename, data_dict=None, params_dict=None, append=False):
+def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, debug=False):
     '''
     Writes data_dict and params into a hdf file in the data_dir folder 
 
@@ -350,44 +350,51 @@ def save_hdf(data_dir, hdf_filename, data_dict=None, params_dict=None, append=Fa
         data_dir [str]: destination file directory
         hdf_filename [str]: name of the hdf file to be saved
         (opt) data_dict [dict]: the data to be saved as a hdf file
-        (opt) params_dict [dict]: metadata key value pairs
+        (opt) data_group [str]: where to store the data in the hdf
         (opt) append [bool]: append an existing hdf file or create a new hdf file
 
     Output: None
     '''
 
     full_file_name = os.path.join(data_dir, hdf_filename)
-    if os.path.exists(full_file_name) and not append:
-        raise FileExistsError('Will not overwrite existing data')
-    mode = 'a' if append else 'w'
-    hdf = h5py.File(full_file_name, mode)
-    
-    print("Writing datasets:")
-    if data_dict:
-        if not isinstance(data_dict, dict):
-            raise Exception("data_dict must be a dictionary where the keys are the names of the datasets")
-        for key in data_dict.keys():
-            dataset = hdf.create_dataset(key,data=data_dict[key])
-            print("Added " + key)
-    
-    print("Writing params:")
-    if params_dict:
-        params = hdf.create_group("params")
-        for key in params_dict.keys():
-            data = params_dict[key]
-            if hasattr(data, 'dtype') and data.dtype.char == 'U':
-                data = str(data)
-            try:
-                params.create_dataset(key, data=data)
-                print("Added " + key)
-            except:
-                print("Warning: could not add key {} with data {}".format(key, data))
+    if append:
+        hdf = h5py.File(full_file_name, 'a')
+    elif not os.path.exists(full_file_name):
+        hdf = h5py.File(full_file_name, 'w')
+    else:
+        raise FileExistsError("Will not overwrite existing file!")
         
+    # Find or make the appropriate group
+    if not data_group in hdf:
+        group = hdf.create_group(data_group)
+        if debug: print("Writing new group: {}".format(data_group))
+    else:
+        group = hdf[data_group]
+        if debug: print("Adding data to group: {}".format(data_group))
+
+    # Write each key, unless it exists and append is False
+    for key in data_dict.keys():
+        if key in group:
+            print("Warning: dataset " + key + " already exists in " + data_group + "!")
+            del group[key]
+        data = data_dict[key]
+        if hasattr(data, 'dtype') and data.dtype.char == 'U':
+            data = str(data)
+        elif type(data) is dict:
+            import json
+            key = key + '_json'
+            data = json.dumps(data)
+        try:
+            group.create_dataset(key, data=data)
+            if debug: print("Added " + key)
+        except:
+            if debug: print("Warning: could not add key {} with data {}".format(key, data))
+    
     hdf.close()
-    print("Done!")
+    if debug: print("Done!")
     return
 
-def load_hdf_data(data_dir, hdf_filename, data_name):
+def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Simple wrapper to get the data from an hdf file as a numpy array
 
@@ -395,43 +402,54 @@ def load_hdf_data(data_dir, hdf_filename, data_name):
         data_dir [str]: folder where data is located
         hdf_filename [str]: name of hdf file
         data_name [str]: table to load
+        data_group [str]: from which group to load data
     
     Output
         data [ndarray]: numpy array of data from hdf
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
-    if data_name not in hdf:
-        raise ValueError('{} not found in file {}'.format(data_name, hdf_filename))
-    data = hdf[data_name][()]
+    full_data_name = os.path.join(data_group, data_name)
+    if full_data_name not in hdf:
+        raise ValueError('{} not found in file {}'.format(full_data_name, hdf_filename))
+    data = hdf[full_data_name][()]
     hdf.close()
     return np.array(data)
 
-def load_hdf_metadata(data_dir, hdf_filename):
+def load_hdf_group(data_dir, hdf_filename, group="/"):
     '''
-    Simple wrapper to get metadata from an hdf file
+    Loads any datasets from the given hdf group into a dictionary. Also will
+    recursively load other groups if any exist under the given group
 
     Input:
         data_dir [str]: folder where data is located
         hdf_filename [str]: name of hdf file
+        group [str]: name of the group to load
     
     Output
-        metadata [dict]: key value parameters
+        data [dict]: all the datasets contained in the given group
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
-    if 'params' not in hdf:
-        raise ValueError('No metadata in file {}'.format(hdf_filename))
-    keys = hdf['params'].keys()
-    metadata = dict()
+    if group not in hdf:
+        raise ValueError('No such group in file {}'.format(hdf_filename))
+    keys = hdf[group].keys()
+    data = dict()
     for k in keys:
-        v = hdf['params'][k][()]
+        if isinstance(hdf[group][k], h5py.Group):
+            v = load_hdf_group(data_dir, hdf_filename, os.path.join(group, k))
+        else:
+            v = hdf[group][k][()]
+        if '_json' in k:
+            import json
+            k_ = k.replace('_json', '')
+            data[k_] = json.loads(v)
         try:
-            metadata[k] = v.decode('utf-8')
+            data[k] = v.decode('utf-8')
         except:
-            metadata[k] = v
+            data[k] = v
     hdf.close()
-    return metadata
+    return data
 
 def load_bmi3d_hdf_table(data_dir, filename, table_name=None):
     '''
@@ -453,26 +471,16 @@ def load_bmi3d_hdf_table(data_dir, filename, table_name=None):
         metadata = {k : getattr(table.attrs, k) for k in param_keys}
         return table.read(), metadata
 
-def load_bmi3d_task(data_dir, filename):
+def load_bmi3d_root_metadata(data_dir, filename):
     '''
-    Just a wrapper around load_bmi3d_hdf_table()
-    '''
-    return load_bmi3d_hdf_table(data_dir, filename, 'task')
+    Root metadata not accessible using pytables, instead use h5py
 
-def load_bmi3d_sync_events(data_dir, filename):
-    '''
-    Just a wrapper around load_bmi3d_hdf_table()
-    '''
-    return load_bmi3d_hdf_table(data_dir, filename, 'sync_events')
+    Inputs:
+        data_dir [str]: path to the data
+        filename [str]: name of the file to load from
 
-def load_bmi3d_sync_clock(data_dir, filename):
+    Outputs:
+        metadata [dict]: key-value attributes
     '''
-    Just a wrapper around load_bmi3d_hdf_table()
-    '''
-    return load_bmi3d_hdf_table(data_dir, filename, 'sync_clock')
-
-def load_bmi3d_trials(data_dir, filename):
-    '''
-    Just a wrapper around load_bmi3d_hdf_table()
-    '''
-    return load_bmi3d_hdf_table(data_dir, filename, 'trials')
+    with h5py.File(os.path.join(data_dir, filename), 'r') as f:
+        return dict(f['/'].attrs.items())

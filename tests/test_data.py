@@ -90,17 +90,21 @@ class LoadDataTests(unittest.TestCase):
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):
             os.remove(testpath)
-        data = {'test_data': np.arange(1000)}
+        data = {'test_data_array': np.arange(1000)}
         params = {'key1': 'value1', 'key2': 2}
-        save_hdf(write_dir, testfile, data_dict=data, params_dict=params, append=False)
+        save_hdf(write_dir, testfile, data_dict=data, data_group="/", append=False)
+        save_hdf(write_dir, testfile, data_dict=data, data_group="/test_data", append=True)
+        save_hdf(write_dir, testfile, data_dict=params, data_group="/test_metadata", append=True)
         f = h5py.File(testpath, 'r')
+        self.assertIn('test_data_array', f)
         self.assertIn('test_data', f)
-        self.assertIn('params', f)
-        test_data = f['test_data'][()]
-        params = f['params']
-        self.assertEqual(params['key1'][()], b'value1') # note that the hdf doesn't save unicode strings
-        self.assertEqual(params['key2'][()], 2)
-        self.assertTrue(np.allclose(test_data, np.arange(1000)))
+        self.assertIn('test_metadata', f)
+        test_data = f['test_data']
+        test_metadata = f['test_metadata']
+        self.assertEqual(test_metadata['key1'][()], b'value1') # note that the hdf doesn't save unicode strings
+        self.assertEqual(test_metadata['key2'][()], 2)
+        self.assertTrue(np.allclose(test_data['test_data_array'], np.arange(1000)))
+        self.assertRaises(FileExistsError, lambda: save_hdf(write_dir, testfile, data, "/", append=False))
 
     def test_load_hdf_data(self):
         import os
@@ -116,18 +120,30 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(len(data), len(data_dict['test_data']))
         self.assertTupleEqual(data.shape, data_dict['test_data'].shape)
         self.assertTrue(np.allclose(data, data_dict['test_data']))
+        save_hdf(write_dir, testfile, data_dict=data_dict, data_group="/test_group", append=True)
+        data = load_hdf_data(write_dir, testfile, 'test_data', "/test_group")
+        self.assertTrue(np.allclose(data, data_dict['test_data']))
 
-    def test_load_hdf_metadata(self):
+    def test_load_hdf_group(self):
         import os
         import h5py
-        testfile = 'load_hdf_test.hdf'
+        testfile = 'load_hdf_group_test.hdf'
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):
             os.remove(testpath)
+        data_dict = {'test_data_1': np.arange(1000), 'test_data_2': np.arange(100)}
         params_dict = {'key1': 'value1', 'key2': 2, 'key3': 3.3}
-        save_hdf(write_dir, testfile, params_dict=params_dict, append=False)
-        metadata = load_hdf_metadata(write_dir, testfile)
-        self.assertDictEqual(metadata, params_dict)
+        save_hdf(write_dir, testfile, data_dict=data_dict, append=False)
+        save_hdf(write_dir, testfile, data_dict=params_dict, data_group="/params", append=True)
+        self.assertRaises(ValueError, lambda: load_hdf_group(write_dir, testfile, 'not_valid_group'))
+        everything = load_hdf_group(write_dir, testfile)
+        params_only = load_hdf_group(write_dir, testfile, "/params")
+        self.assertIn('test_data_1', everything)
+        self.assertIn('test_data_2', everything)
+        self.assertIn('params', everything)
+        self.assertEqual(len(data_dict['test_data_1']), len(data_dict['test_data_1']))
+        self.assertEqual(len(data_dict['test_data_2']), len(data_dict['test_data_2']))
+        self.assertDictEqual(params_only, params_dict)
 
     def test_load_bmi3d_hdf_table(self):
         testfile = 'test20210330_12_te1254.hdf'
@@ -135,9 +151,9 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(len(data), 534)
         self.assertEqual(len(metadata.keys()), 35)
 
-        data, metadata = load_bmi3d_sync_clock(data_dir, testfile)
+        data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'sync_clock')
         self.assertEqual(len(data), 534)
-        data, metadata = load_bmi3d_sync_events(data_dir, testfile)
+        data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'sync_events')
         self.assertEqual(len(data), 6)
     
 if __name__ == "__main__":
