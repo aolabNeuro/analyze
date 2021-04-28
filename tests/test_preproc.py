@@ -405,27 +405,55 @@ class EventFilterTests(unittest.TestCase):
 class TestPrepareExperiment(unittest.TestCase):
 
     def test_parse_bmi3d(self):
+
+        # Test empty
         files = {}
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
-        files['bmi3d'] = 'test20210310_08_te1039.hdf'
+
+        def check_required_fields(data, metadata):
+            self.assertIn('fps', metadata)
+            self.assertIn('sync_protocol_version', metadata)
+            self.assertIn('source_dir', metadata)
+            self.assertIn('source_files', metadata)
+            self.assertIn('clock', data)
+            self.assertIn('events', data)
+            self.assertIn('task', data)
+            self.assertIn('state', data)
+            self.assertIn('trials', data)
+
+
+        # Test sync version 0
+        files['hdf'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
+        check_required_fields(data, metadata)
+        print(data['trials'])
         self.assertIn('fps', metadata)
         self.assertAlmostEqual(metadata['fps'], 120.)
-        files['bmi3d'] = 'beig20210407_01_te1315.hdf'
-        data, metadata = parse_bmi3d(data_dir, files) # will run as v0 since no ecube
 
+        # Test sync version 1
+        # TODO
+
+        # Test sync version 2
+
+        # Test sync version 3 
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        check_required_fields(data, metadata)
+        trials = data['trials']
+        self.assertEqual(len(trials), 3)        
         files['ecube'] = '2021-04-07_BMI3D_te1315'
-        data, metadata = parse_bmi3d(data_dir, files) # will run as v1
-        self.assertIn('fps', metadata)
-        self.assertIn('sync_protocol_version', metadata)
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        check_required_fields(data, metadata)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
+        # Test sync version 4
+        # TODO
 
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
         data, metadata = parse_optitrack(data_dir, files)
-        self.assertIn('optitrack', data)
+        self.assertIn('data', data)
         self.assertIn('samplerate', metadata)
         self.assertEqual(metadata['samplerate'], 240.)
 
@@ -435,8 +463,17 @@ class TestPrepareExperiment(unittest.TestCase):
         proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
         exp_data = load_hdf_group(write_dir, result_filename, 'exp_data')
         exp_metadata = load_hdf_group(write_dir, result_filename, 'exp_metadata')
-        optitrack = load_hdf_group(write_dir, result_filename, 'optitrack_data')
-        optitrack_metadata = load_hdf_group(write_dir, result_filename, 'optitrack_metadata')
+        self.assertIsNotNone(exp_data)
+        self.assertIsNotNone(exp_metadata)
+
+    def test_proc_mocap(self):
+        result_filename = 'test_proc_mocap.hdf'
+        files = get_filenames(data_dir, 1315)
+        proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
+        mocap = load_hdf_group(write_dir, result_filename, 'mocap_data')
+        mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')
+        self.assertIsNotNone(mocap)
+        self.assertIsNotNone(mocap_meta)
 
 if __name__ == "__main__":
     unittest.main()

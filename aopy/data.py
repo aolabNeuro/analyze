@@ -27,7 +27,7 @@ def get_filenames(base_dir, te):
         if '.csv' in file_or_dir:
             files['optitrack'] = file_or_dir
         elif '.hdf' in file_or_dir:
-            files['bmi3d'] = file_or_dir
+            files['hdf'] = file_or_dir
         elif os.path.isdir(os.path.join(base_dir, file_or_dir)):
             files['ecube'] = file_or_dir
     return files
