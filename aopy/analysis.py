@@ -11,16 +11,19 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
     Estimate the latent dimensionality of an input dataset by appling cross validated 
     factor analysis (FA) to input data and returning the maximum likelihood values. 
     
-    Inputs:
-        data_in [nt, nch]: Time series data in
-        dimensions [ndim]: 1D Array of dimensions to compute FA for 
-        nfold [int]: Number of cross validation folds to compute. Must be >= 1
-        maxiter [int]: Maximum number of FA iterations to compute if there is no convergence. Defaults to 1000.
-        verbose [bool]: Display % of dimensions completed. Defaults to False
+    Args:
+        data_in (nt, nch): Time series data in
+        dimensions (ndim): 1D Array of dimensions to compute FA for 
+        nfold (int): Number of cross validation folds to compute. Must be >= 1
+        maxiter (int): Maximum number of FA iterations to compute if there is no convergence. Defaults to 1000.
+        verbose (bool): Display % of dimensions completed. Defaults to False
 
-    Outputs:
-        log_likelihood_score [ndim, nfold]: Array of MLE FA score for each dimension for each fold
-        iterations_required [ndim, nfold]: How many iterations of FA were required to converge for each fold
+    Returns:
+        tuple: tuple containing:
+
+        (ndim, nfold): Array of MLE FA score for each dimension for each fold
+        
+        (ndim, nfold): How many iterations of FA were required to converge for each fold
     '''
 
     # Initialize arrays
