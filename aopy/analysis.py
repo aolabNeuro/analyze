@@ -1,10 +1,12 @@
 """
-Analysis
-====================================
 Code for basic neural data analysis
+
 import numpy as np
+
 from sklearn.decomposition import PCA, FactorAnalysis
+
 from sklearn import model_selection
+
 import warnings
 """
 

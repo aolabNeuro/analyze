@@ -79,10 +79,7 @@ threshold. It scales the analog to between 0 and 1 and uses thres as a</p>
 analog_data [nt, nch]: Time series array of analog data
 (opt) thresh [float]: Minimum threshold value to use in conversion</p>
 <p>Outputs:
-digital_data [nt, nch]: Array of 1’s or 0’s indicating if the analog input</p>
-<blockquote>
-<div><p>was above threshold</p>
-</div></blockquote>
+digital_data [nt, nch]: Array of 1’s or 0’s indicating if the analog input was above threshold</p>
 </dd></dl>
 
 <dl class="py function">
@@ -204,7 +201,7 @@ mask_and_shift(0001000011110000, 0000000011111111) =&gt; 11110000</p>
 <dt>Inputs:</dt><dd><p>data [ntime]: digital data
 bit_mask [int]: which bits to filter</p>
 </dd>
-<dt>Output:</dt><dd><p><a href="#id1"><span class="problematic" id="id2">data_</span></a> [ntime]: masked and shifted data</p>
+<dt>Output:</dt><dd><p>data [ntime]: masked and shifted data</p>
 </dd>
 </dl>
 </dd></dl>
