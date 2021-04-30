@@ -12,12 +12,12 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     This function takes analog data and converts it to digital data given a 
     threshold. It scales the analog to between 0 and 1 and uses thres as a 
 
-    Inputs: 
-    analog_data [nt, nch]: Time series array of analog data
-    (opt) thresh [float]: Minimum threshold value to use in conversion
+    Args: 
+        analog_data (nt, nch): Time series array of analog data
+        thresh (float, optional): Minimum threshold value to use in conversion
 
-    Outputs:
-    digital_data [nt, nch]: Array of 1's or 0's indicating if the analog input was above threshold  
+    Returns:
+        (nt, nch): Array of 1's or 0's indicating if the analog input was above threshold  
     '''
     # Scale data between 0 and 1 so that threshold is a percentange
     minval = np.min(analog_data)
@@ -44,15 +44,17 @@ def detect_edges(digital_data, samplerate, lowhi=True, hilow=True):
     Finds the timestamp and corresponding value of all the bit flips in data. Assume 
     the first element in data isn't a transition
 
-    Inputs:
-        digital_data [ntime x 1]: masked binary data array
-        samplerate [int]: sampling rate of the data used to calculate timestamps
-        lowhi [bool]: include low to high transitions
-        hilow [bool]: include high to low transitions
+    Args:
+        digital_data (ntime x 1): masked binary data array
+        samplerate (int): sampling rate of the data used to calculate timestamps
+        lowhi (bool): include low to high transitions
+        hilow (bool): include high to low transitions
 
-    Output:
-        timestamps [nbitflips]: when the bits flipped
-        values [nbitflips]: corresponding values for each change
+    Returns:
+        tuple: tuple containing:
+
+            timestamps (nbitflips): when the bits flipped
+            values (nbitflips): corresponding values for each change
     '''
 
     digital_data = np.squeeze(np.uint64(digital_data)) # important conversion for binary math
@@ -72,12 +74,12 @@ def mask_and_shift(data, bit_mask):
     mask_and_shift(0001000011110000, 1111111100000000) => 00010000
     mask_and_shift(0001000011110000, 0000000011111111) => 11110000
 
-    Inputs:
-        data [ntime]: digital data
-        bit_mask [int]: which bits to filter
+    Args:
+        data (ntime): digital data
+        bit_mask (int): which bits to filter
 
-    Output:
-        data [ntime]: masked and shifted data
+    Returns:
+        (nt): masked and shifted data
     '''
 
     return np.bitwise_and(data, bit_mask) >> find_first_significant_bit(bit_mask)
@@ -87,11 +89,11 @@ def find_first_significant_bit(x):
     Find first significant big. Returns the index, counting from 0, of the
     least significant set bit in x. Helper function for mask_and_shift
 
-    Input:
-        x [int]: a number
+    Args:
+        x (int): a number
 
-    Output:
-        idx_fsb [int]: index of first significant nonzero bit
+    Returns:
+        int: index of first significant nonzero bit
     '''
     return (x & -x).bit_length() - 1 # no idea how it works! thanks stack overflow --LRS
 
@@ -99,11 +101,11 @@ def convert_channels_to_mask(channels):
     '''
     Helper function to take a range of channels into a bitmask
 
-    Inputs:
-        channels [int array]: 0-indexed channels to be masked
+    Args:
+        channels (int array): 0-indexed channels to be masked
     
-    Output:
-        mask [int]: binary mask of the given channels
+    Returns:
+        int: binary mask of the given channels
     '''
     try:
         # Range of channels
@@ -121,11 +123,11 @@ def convert_digital_to_channels(data_64_bit):
     '''
     Converts 64-bit digital data from eCube into channels.
 
-    Inputs:
-        data_64_bit [n]: masked 64-bit data, little-endian
+    Args:
+        data_64_bit (n): masked 64-bit data, little-endian
 
-    Outputs:
-        unpacked [n, 64]: where channel 0 is least significant bit
+    Returns:
+        (n, 64): where channel 0 is least significant bit
     '''
 
     # Take the input, split into bytes, then unpack each byte, all little endian
@@ -139,14 +141,16 @@ def get_closest_value(timestamp, sequence, radius):
     closest to given timestamp. if none exist, returns none. If two are
     equidistant, this function returns the lower value.
 
-    Inputs: 
-        timestamp [float]: given timestamp
-        sequence [nt]: sequence to search for closest value
-        radius [float]: distance from timestamp to search for closest value
+    Args: 
+        timestamp (float): given timestamp
+        sequence (nt): sequence to search for closest value
+        radius (float): distance from timestamp to search for closest value
 
-    Output:
-        closest_value [float]: value within sequence that is closest to timestamp
-        closest_idx [int]: index of the closest_value in the sequence
+    Returns:
+        tuple: tuple containing:
+
+            closest_value (float): value within sequence that is closest to timestamp
+            closest_idx (int): index of the closest_value in the sequence
     '''
 
     # initialize returned value
@@ -167,15 +171,18 @@ def get_closest_value(timestamp, sequence, radius):
 
 def find_measured_event_times(approx_times, measured_times, search_radius):
     '''
-    Uses closest_value() to repeatedly find a measured time for each approximate time.			
-    Inputs:
-        approx_times [nt]: array of approximate event timestamps
-        measured_times [nt']: array of measured timestamps that might correspond to the approximate timestamps
-        search_radius [float]: distance before and after each approximate time to search for a measured time 
+    Uses closest_value() to repeatedly find a measured time for each approximate time.		
+
+    Args:
+        approx_times (nt): array of approximate event timestamps
+        measured_times (nt'): array of measured timestamps that might correspond to the approximate timestamps
+        search_radius (float): distance before and after each approximate time to search for a measured time 
         
-    Output:
-        parsed_ts	[nt]: array of the same length as approximate timestamps, 
-        but containing matching timestamps or np.nan
+    Returns:
+        tuple: tuple containing:
+
+            parsed_ts (nt): array of the same length as approximate timestamps, 
+            but containing matching timestamps or np.nan
     '''
 
     parsed_ts = np.empty((len(approx_times),))
@@ -209,15 +216,17 @@ def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, lat
     '''
     Takes estimated frame times and measured frame times and returns a time for each frame
 
-    Inputs:
-    estimated_timestamps [nframes]: timestamps when frames were thought to be displayed
-    measured_timestamps [nt]: timestamps when frames actually appeared on screen
-    (opt) latency_estimate [float]: how long the display takes normally to update
-    (opt) search_radius [float]: how far away to look for a measurement before giving up
+    Args:
+        estimated_timestamps (nframes): timestamps when frames were thought to be displayed
+        measured_timestamps (nt): timestamps when frames actually appeared on screen
+        latency_estimate (float, optional): how long the display takes normally to update
+        search_radius (float, optional): how far away to look for a measurement before giving up
 
-    Output:
-    corrected_timestamps [nframes]: measured timestamps with missing values filled in with the next non-nan value
-    uncorrected_timestamps [nframes]: some of which will be empty if they were not displayed
+    Returns:
+        tuple: tuple containing:
+
+            corrected_timestamps (nframes): measured timestamps with missing values filled in with the next non-nan value
+            uncorrected_timestamps (nframes): some of which will be empty if they were not displayed
     '''
 
     approx_timestamps = estimated_timestamps + latency_estimate
@@ -254,12 +263,12 @@ def get_matching_events(event_log, event_to_match):
     '''
     Given a list of tuple of (events, timestamps), find the matched event and the timestamps
     
-    INPUT:
-    event_log [list]: a list of tuples (event[string or int] , time stamp: float)
-    event_to_match [int or str]: event to be matched to
+    Args:
+        event_log (list of (event, timestamp) tuples): log of events and times
+        event_to_match (int or str): event to be matched to
     
-    OUTPUT
-    returns a list of matched events and their time stamps
+    Returns:
+        list: returns a list of matched events and their time stamps
     '''
     #use python filter function to speed up the searching
     return list(filter(lambda k: k[0] == event_to_match, event_log) )
@@ -268,12 +277,12 @@ def get_event_occurrences(event_log, event_to_count):
     '''
     Given event_log, count the number of occurances of event_to_count
 
-    Input:
-    event_log [a list of tuples (event:string or int , time_stamp: float)]:
-    event_to_count [int or str]: event to be matched to
+    Args:
+        event_log (list of (event, timestamp) tuples): log of events and times
+        event_to_count (int or str): event to be matched to
 
-    Output:
-    num_occurances [int]
+    Returns:
+        int: num_occurances
     '''
     matched_events_in_list = get_matching_events(event_log, event_to_count)
     num_occurances = len(matched_events_in_list)
@@ -284,11 +293,11 @@ def calc_events_duration(event_log):
     given an event_log and succuss_event,
     calculate the succuss rate
 
-    INPUT:
-    event_log [a list of tuples (event: str or int, time_stamp: float)]
+    Args:
+        event_log (list of (event, timestamp) tuples): log of events and times
     
-    OUTPUT:
-    events_duration [float]: 
+    Returns:
+        float: events_duration
     '''
 
     # Unpack the first and last events
@@ -303,12 +312,12 @@ def calc_event_rate(event_log, event_name):
     '''
     Given an event_log and event_name, calculate the rate of that event
 
-    INPUT:
-    event_log[a list of tuples (event: str or int, timestamp: float)]
-    event_name[str or int]: event to be matched to
+    Args:
+        event_log (list of (event, timestamp) tuples): log of events and times
+        event_name (str or int): event to be matched to
 
-    OUTPUT:
-    event_rate[float]: fraction of matching events divided by total events
+    Returns:
+        float: fraction of matching events divided by total events
     '''
     events_duration = calc_events_duration(event_log)
     num_of_events = get_event_occurrences(event_log, event_name)
@@ -321,12 +330,12 @@ def calc_reward_rate(event_log, event_name='REWARD'):
     A wrapper for calc_event_rate
     event_name defauls to be 'REWARD'
 
-    INPUTS:
-        event_log [a list of tuples (event: str or int, timestamp: float)]
-        event_name [str or int]: event to be matched to
+    Args:
+        event_log (list of (event, timestamp) tuples): log of events and times
+        event_name (str or int): event to be matched to
 
-    OUTPUT:
-        reward_rate
+    Returns:
+        float: reward_rate
 
     '''
     return calc_event_rate(event_log, event_name)
@@ -335,15 +344,17 @@ def trial_separate(events, times, evt_start, n_events=8):
     '''
     Compute the 2D matrices contaning events per trial and timestamps per trial
 
-    INPUT
-        events [nt]: events vector
-        times [nt]: times vector
-        evt_start [int or str]: event marking the start of a trial
-        n_events [int]: number of events in a trial
+    Args:
+        events (nt): events vector
+        times (nt): times vector
+        evt_start (int or str): event marking the start of a trial
+        n_events (int): number of events in a trial
     
-    OUTPUT:
-        trial_events [n_trial, n_events]: events per trial
-        trial_times [n_trial, n_events]: timestamps per trial
+    Returns:
+        tuple: tuple containing:
+
+            trial_events (n_trial, n_events): events per trial
+            trial_times (n_trial, n_events): timestamps per trial
     '''
 
     # Find the indices in events that correspond to evt_start 
@@ -365,13 +376,13 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
     '''
     Compute a new trial_times matrix with offset timestamps for the given event_to_align
     
-    INPUT
-        aligned_events [n_trial, n_event]: events per trial
-        aligned_times [n_trial, n_event]: timestamps per trial
-        event_to_align [int or str]: event to align to
+    Args:
+        aligned_events (n_trial, n_event): events per trial
+        aligned_times (n_trial, n_event): timestamps per trial
+        event_to_align (int or str): event to align to
 
-    OUTPUT:
-        trial_aligned_times [n_trial, n_event]: number of trials by number of events
+    Returns:
+        (n_trial, n_event): number of trials by number of events
     '''
 
     # For each row, find the column that matches the given event, 
@@ -389,15 +400,15 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
     Transform data into chunks of data triggered by trial start times
 
-    Inputs:
-        data [nt, nch]: arbitrary data, can be multidimensional
-        trigger_times [ntrial]: start time of each trial
-        time_before [float]: amount of time to include before the start of each trial
-        time_after [float]: time to include after the start of each trial
-        samplerate [int]: sampling rate of data
+    Args:
+        data (nt, nch): arbitrary data, can be multidimensional
+        trigger_times (ntrial): start time of each trial
+        time_before (float): amount of time to include before the start of each trial
+        time_after (float): time to include after the start of each trial
+        samplerate (int): sampling rate of data
     
-    Output:
-        trial_aligned [ntrial, nt, nch]: trial aligned data
+    Returns:
+        (ntrial, nt, nch): trial aligned data
     '''
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
@@ -421,16 +432,18 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
     '''
     Takes timestamps and splits them into chunks triggered by trial start times
 
-    Inputs:
-        timestamps [nt]: events in time to be trial aligned
-        trigger_times [ntrial]: start time of each trial
-        time_before [float]: amount of time to include before the start of each trial
-        time_after [float]: time to include after the start of each trial
-        (opt) subtract [bool]: whether the start of each trial should be set to 0
+    Args:
+        timestamps (nt): events in time to be trial aligned
+        trigger_times (ntrial): start time of each trial
+        time_before (float): amount of time to include before the start of each trial
+        time_after (float): time to include after the start of each trial
+        subtract (bool, optional): whether the start of each trial should be set to 0
     
-    Output:
-        trial_aligned [ntrial, nt]: trial aligned timestamps
-        trial_indices [ntrial, nt]: indices into timestamps in the same shape as trial_aligned
+    Returns:
+        tuple: tuple containing:
+
+            trial_aligned (ntrial, nt): trial aligned timestamps
+            trial_indices (ntrial, nt): indices into timestamps in the same shape as trial_aligned
     '''
     trial_aligned = []
     trial_indices = []
@@ -450,14 +463,16 @@ def get_trial_segments(events, times, start_events, end_events):
     '''
     Gets times for the start and end of each trial according to the given set of start_events and end_events
 
-    Inputs:
-        events [nt]: events vector
-        times [nt]: times vector
-        start_events [list]: set of start events to match
-        end_events [list]: set of end events to match
-    Output:
-        segments [list of list of events]: a segment of each trial
-        times [ntrials, 2]: list of 2 timestamps for each trial corresponding to the start and end events
+    Args:
+        events (nt): events vector
+        times (nt): times vector
+        start_events (list): set of start events to match
+        end_events (list): set of end events to match
+    Returns:
+        tuple: tuple containing:
+
+            segments (list of list of events): a segment of each trial
+            times (ntrials, 2): list of 2 timestamps for each trial corresponding to the start and end events
 
     Note:
         - if there are multiple matching start or end events in a trial, only consider the first one
@@ -488,13 +503,13 @@ def get_data_segments(data, segment_times, samplerate):
     '''
     Gets arbitrary length segments of data from a timeseries
 
-    Inputs:
-        data [nt, ndim]: arbitrary timeseries data that needs to segmented
-        segment_times [nseg, 2] pairs of start and end times for each segment
-        samplerate [int]: sampling rate of the data
+    Args:
+        data (nt, ndim): arbitrary timeseries data that needs to segmented
+        segment_times (nseg, 2) pairs of start and end times for each segment
+        samplerate (int): sampling rate of the data
 
-    Output:
-        segments [list of 1d arrays [nt]]: nt is the length of each segment (can be different for each)
+    Returns:
+        list of 1d arrays (nt): nt is the length of each segment (can be different for each)
     '''
     segments = []
     for idx_seg in range(segment_times.shape[0]):
@@ -508,15 +523,15 @@ def get_unique_trials(trial_idx, conditions, condition_name='target'):
     '''
     Gets the unique trial combinations of each condition set
 
-    Inputs:
-        n_trials [int]: number of trials
-        trial_idx [int array]: which trials happen on each cycle
-        conditions [ndarray]: which conditions happen on each cycle
-        (opt) condition_name [str]: what the conditios are called
+    Args:
+        n_trials (int): number of trials
+        trial_idx (int array): which trials happen on each cycle
+        conditions (ndarray): which conditions happen on each cycle
+        condition_name (str, optional): what the conditios are called
 
-    Output:
-        trials [record array]: array of type [('trial', 'u8'), ('index', 'u8'), 
-            (condition_name, 'f8', (3,))]] describing the unique conditions on each trial
+    Returns:
+        record array: array of type [('trial', 'u8'), ('index', 'u8'), 
+            (condition_name, 'f8', (3,)))] describing the unique conditions on each trial
     '''
     conditions = conditions.round(decimals=6)
     if conditions.ndim == 1:
@@ -544,11 +559,11 @@ def max_repeated_nans(a):
     '''
     Utility to calculate the maximum number of consecutive nans
 
-    Inputs:
-        a [ndarray]: input sequence
+    Args:
+        a (ndarray): input sequence
 
-    Outputs:
-        num [int]: max consecutive nans
+    Returns:
+        int: max consecutive nans
     '''
     mask = np.concatenate(([False],np.isnan(a),[False]))
     if ~mask.any():
@@ -564,13 +579,15 @@ def parse_bmi3d(data_dir, files):
     '''
     Wrapper around version-specific bmi3d parsers
 
-    Inputs:
-        data_dir [str]: where to look for the data
-        files [dict]: dictionary of files for this experiment
+    Args:
+        data_dir (str): where to look for the data
+        files (dict): dictionary of files for this experiment
     
-    Outputs:
-        data [dict]: bmi3d data
-        metadata [dict]: bmi3d metadata
+    Returns:
+        tuple: tuple containing:
+
+            data (dict): bmi3d data
+            metadata (dict): bmi3d metadata
     '''
     # Check that there is hdf data in files
     if not 'hdf' in files:
@@ -604,13 +621,15 @@ def _parse_bmi3d_v0(data_dir, files):
     '''
     Simple parser for BMI3D data which basically ignores timing from the eCube.
 
-    Inputs:
-        data_dir [str]: where to look for the data
-        files [dict]: dictionary of files for this experiment
+    Args:
+        data_dir (str): where to look for the data
+        files (dict): dictionary of files for this experiment
     
-    Outputs:
-        data [dict]: bmi3d data
-        metadata [dict]: bmi3d metadata
+    Returns:
+        tuple: tuple containing:
+
+            data (dict): bmi3d data
+            metadata (dict): bmi3d metadata
     '''
     bmi3d_hdf_filename = files['hdf']
     metadata = {}
@@ -647,13 +666,15 @@ def _parse_bmi3d_v1(data_dir, files):
     '''
     Parser for BMI3D data which incorporates ecube data. Only compatible with sync versions > 0
 
-    Inputs:
-        data_dir [str]: where to look for the data
-        files [dict]: dictionary of files for this experiment
+    Args:
+        data_dir (str): where to look for the data
+        files (dict): dictionary of files for this experiment
     
-    Outputs:
-        data_dict [dict]: bmi3d data
-        metadata_dict [dict]: bmi3d metadata
+    Returns:
+        tuple: tuple containing:
+
+            data_dict (dict): bmi3d data
+            metadata_dict (dict): bmi3d metadata
     '''
 
     data_dict = {}
@@ -751,13 +772,15 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
     '''
     Organizes the bmi3d data and metadata and computes some automatic conversions
 
-    Inputs:
-        data [dict]: bmi3d data
-        metadata [dict]: bmi3d metadata
+    Args:
+        data (dict): bmi3d data
+        metadata (dict): bmi3d metadata
 
-    Outputs:
-        data [dict]: prepared bmi3d data
-        metadata [dict]: prepared bmi3d metadata
+    Returns:
+        tuple: tuple containing:
+
+            data (dict): prepared bmi3d data
+            metadata (dict): prepared bmi3d metadata
     '''
     parser_version = metadata['bmi3d_parser']
     internal_clock = data['bmi3d_clock']
@@ -942,13 +965,15 @@ def parse_optitrack(data_dir, files):
     '''
     Parser for optitrack data
 
-    Inputs:
-        data_dir [str]: where to look for the data
-        files [dict]: dictionary of files for this experiment
+    Args:
+        data_dir (str): where to look for the data
+        files (dict): dictionary of files for this experiment
     
-    Outputs:
-        data [dict]: optitrack data
-        metadata [dict]: optitrack metadata
+    Returns:
+        tuple: tuple containing:
+
+            data (dict): optitrack data
+            metadata (dict): optitrack metadata
     '''
     # Check that there is optitrack data in files
     if not 'optitrack' in files:
@@ -1015,13 +1040,13 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
     Process experiment data files
     
-    Inputs:
-        data_dir [str]: where the data files are located
-        files [dict]: dictionary of filenames indexed by system
-        result_filename [str]: where to store the processed result
-        overwrite [bool]: whether to remove existing processed files if they exist
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool): whether to remove existing processed files if they exist
 
-    Output:
+    Returns:
         None
     '''   
     # Check if a processed file already exists
@@ -1042,13 +1067,13 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
     Process motion capture files
     
-    Inputs:
-        data_dir [str]: where the data files are located
-        files [dict]: dictionary of filenames indexed by system
-        result_filename [str]: where to store the processed result
-        overwrite [bool]: whether to remove existing processed files if they exist
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool): whether to remove existing processed files if they exist
 
-    Output:
+    Returns:
         None
     '''  
     # Check if a processed file already exists

@@ -12,6 +12,7 @@ install_requires = [
     'psutil',
     'h5py',
     'tables',
+    'scikit-learn',
 ]
 
 setuptools.setup(

@@ -12,12 +12,12 @@ def get_filenames(base_dir, te):
     '''
     Silly function to get the filenames for systems in a given task entry
 
-    Input:
-        base_dir [str]: directory where the files will be
-        te [int]: block number for the task entry
+    Args:
+        base_dir (str): directory where the files will be
+        te (int): block number for the task entry
 
-    Output:
-        files [dict]: dictionary of files indexed by system
+    Returns:
+        dict: dictionary of files indexed by system
     '''
     print("Please don't use this function. Make one that gets filenames from the database instead!")
     contents = os.listdir(base_dir)
@@ -36,24 +36,25 @@ def load_optitrack_metadata(data_dir, filename, metadata_row=0):
     '''
     This function loads optitrack metadata from .csv file that has 1 rigid body
     exported with the following settings:
-    - Markers: Off
-    - Unlabeled markers: Off
-    - Quality Statistics: Off
-    - Rigid Bodies: On
-    - Rigid Body Markers: Off
-    - Bones: Off
-    - Bone Markers: Off
-    - Header Information: On
-    - Optitrack format Version(s): 1.23
+
+        Markers: Off
+        Unlabeled markers: Off
+        Quality Statistics: Off
+        Rigid Bodies: On
+        Rigid Body Markers: Off
+        Bones: Off
+        Bone Markers: Off
+        Header Information: On
+        Optitrack format Version(s): 1.23
 
     Required packages: csv, pandas
 
-    Inputs:
-        data_dir [string]: Directory to load data from
-        filename [string]: File name to load within the data directory
+    Args:
+        data_dir (string): Directory to load data from
+        filename (string): File name to load within the data directory
 
-    Outputs
-        mocap_metadata [dict]: Dictionary of metadata for for an optitrack datafile
+    Returns:
+        dict: Dictionary of metadata for for an optitrack datafile
     '''
 
     # Constants for indexing into mocap data
@@ -97,25 +98,28 @@ def load_optitrack_data(data_dir, filename):
     '''
     This function loads a series of x, y, z positional data from the optitrack
     .csv file that has 1 rigid body exported with the following settings:
-    - Markers: Off
-    - Unlabeled markers: Off
-    - Quality Statistics: Off
-    - Rigid Bodies: On
-    - Rigid Body Markers: Off
-    - Bones: Off
-    - Bone Markers: Off
-    - Header Information: On
-    - Optitrack format Version(s): 1.23
+
+        Markers: Off
+        Unlabeled markers: Off
+        Quality Statistics: Off
+        Rigid Bodies: On
+        Rigid Body Markers: Off
+        Bones: Off
+        Bone Markers: Off
+        Header Information: On
+        Optitrack format Version(s): 1.23
 
     Required packages: pandas, numpy
 
-    Inputs:
-        data_dir [string]: Directory to load data from
-        filename [string]: File name to load within the data directory
+    Args:
+        data_dir (string): Directory to load data from
+        filename (string): File name to load within the data directory
 
-    Outputs
-        mocap_data_pos [nt, 3]: Positional mocap data
-        mocap_data_rot [nt, 4]: Rotational mocap data
+    Returns:
+        tuple: tuple containing:
+        
+            mocap_data_pos (nt, 3): Positional mocap data
+            mocap_data_rot (nt, 4): Rotational mocap data
     '''
 
     # Load the metadata to check the columns are going to line up
@@ -143,12 +147,12 @@ def load_optitrack_time(data_dir, filename):
 
     Required packages: pandas, numpy
 
-    Inputs:
-        data_dir [string]: Directory to load data from
-        filename [string]: File name to load within the data directory
+    Args:
+        data_dir (string): Directory to load data from
+        filename (string): File name to load within the data directory
 
-    Outputs
-        timestamps [nt]: Array of timestamps for each captured frame
+    Returns:
+        (nt): Array of timestamps for each captured frame
     '''
 
     column_names_idx_csvrow = 5 # Header row index
@@ -163,16 +167,17 @@ def load_ecube_metadata(data_dir, data_source):
     '''
     Sums the number of channels and samples across all files in the data_dir
 
-    Inputs: 
-        data_dir [str]: eCube data directory
-        source [str]: selects the source (AnalogPanel, Headstages, etc.)
+    Args: 
+        data_dir (str): eCube data directory
+        source (str): selects the source (AnalogPanel, Headstages, etc.)
 
-    Output:
-        metadata [dict]: Dictionary of metadata with fields
-        - samplerate [float]: sampling rate of data for this source
-        - data_source [str]: copied from the function argument
-        - n_channels [int]: number of channels
-        - n_samples [int]: number of samples for one channel
+    Returns:
+        dict: Dictionary of metadata with fields:
+
+            samplerate (float): sampling rate of data for this source
+            data_source (str): copied from the function argument
+            n_channels (int): number of channels
+            n_samples (int): number of samples for one channel
     '''
 
     # For now just load the metadata provieded by pyECubeSig
@@ -200,13 +205,13 @@ def load_ecube_data(data_dir, data_source, channels=None):
 
     Requires load_ecube_metadata(), process_channels()
 
-    Inputs:
-        data_dir [str]: folder containing the data you want to load
-        data_source [str]: type of data ("Headstage", "AnalogPanel", "DigitalPanel")
-        channels [int array or None]: list of channel numbers (0-indexed) to load. If None, will load all channels by default
+    Args:
+        data_dir (str): folder containing the data you want to load
+        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        channels (int array or None): list of channel numbers (0-indexed) to load. If None, will load all channels by default
 
-    Output:
-        timeseries_data [nCh x nt]: all the data for the given source
+    Returns:
+        (nCh x nt): all the data for the given source
     '''
 
     # Read metadata, check inputs
@@ -232,12 +237,12 @@ def proc_ecube_data(data_dir, data_source, result_filepath):
 
     Requires load_ecube_metadata()
 
-    Inputs:
-        data_dir [str]: folder containing the data you want to load
-        data_source [str]: type of data ("Headstage", "AnalogPanel", "DigitalPanel")
-        result_filepath [str]: path to hdf file to be written (or appended)
+    Args:
+        data_dir (str): folder containing the data you want to load
+        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        result_filepath (str): path to hdf file to be written (or appended)
 
-    Output:
+    Returns:
         None
     '''
 
@@ -264,11 +269,11 @@ def get_ecube_data_sources(data_dir):
     '''
     Lists the available data sources in a given data directory
 
-    Inputs: 
-        data_dir [str]: eCube data directory
+    Args: 
+        data_dir (str): eCube data directory
 
-    Output:
-        sources [str array]: available sources (AnalogPanel, Headstages, etc.)
+    Returns:
+        str array: available sources (AnalogPanel, Headstages, etc.)
     '''
     dat = Dataset(data_dir)
     return dat.listsources()
@@ -279,16 +284,16 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
     has been loaded. If a processing function is supplied, it will be applied to 
     each batch of data. If not, the data will be appended 
 
-    Inputs:
-        data_dir [str]: folder containing the data you want to load
-        data_source [str]: type of data ("Headstage", "AnalogPanel", "DigitalPanel")
-        channels [int array]: list of channels to process
-        n_samples [int]: number of samples to read. Must be geq than a single chunk
-        dtype [numpy dtype]: format for data_out if none supplied
-        data_out [nCh, nt]: array of data to be written to. If None, it will be created
+    Args:
+        data_dir (str): folder containing the data you want to load
+        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        channels (int array): list of channels to process
+        n_samples (int): number of samples to read. Must be geq than a single chunk
+        dtype (numpy dtype): format for data_out if none supplied
+        data_out (nCh, nt): array of data to be written to. If None, it will be created
 
-    Output:
-        data_out [nchannels, n_samples]: Requested samples for requested channels
+    Returns:
+        (nchannels, n_samples): Requested samples for requested channels
     '''
     if data_out == None:
         data_out = np.zeros((len(channels), n_samples), dtype=dtype)
@@ -313,13 +318,15 @@ def load_ecube_digital(path, data_dir):
     '''
     Just a wrapper around load_ecube_data() and load_ecube_metadata()
 
-    Inputs:
-        path [str]: base directory where ecube data is stored
-        data_dir [str]: folder you want to load
+    Args:
+        path (str): base directory where ecube data is stored
+        data_dir (str): folder you want to load
 
-    Output:
-        data [nt]: digital data, arranged as 64-bit numbers representing the 64 channels
-        metadata [dict]: metadata (see load_ecube_metadata() for details)
+    Returns:
+        tuple: tuple containing:
+        
+            data (nt): digital data, arranged as 64-bit numbers representing the 64 channels
+            metadata (dict): metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'DigitalPanel')
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
@@ -329,14 +336,16 @@ def load_eCube_analog(path, data_dir, channels=None):
     '''
     Just a wrapper around load_ecube_data() and load_ecube_metadata()
 
-    Inputs:
-        path [str]: base directory where ecube data is stored
-        data_dir [str]: folder you want to load
-        (opt) channels [int array]: which channels to load
+    Args:
+        path (str): base directory where ecube data is stored
+        data_dir (str): folder you want to load
+        channels (int array, optional): which channels to load
 
-    Output:
-        data [nCh, nt]: analog data for the requested channels
-        metadata [dict]: metadata (see load_ecube_metadata() for details)
+    Returns:
+        tuple: tuple containing:
+        
+            data (nCh, nt): analog data for the requested channels
+            metadata (dict): metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'AnalogPanel', channels)
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
@@ -346,14 +355,14 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     '''
     Writes data_dict and params into a hdf file in the data_dir folder 
 
-    Inputs: 
-        data_dir [str]: destination file directory
-        hdf_filename [str]: name of the hdf file to be saved
-        (opt) data_dict [dict]: the data to be saved as a hdf file
-        (opt) data_group [str]: where to store the data in the hdf
-        (opt) append [bool]: append an existing hdf file or create a new hdf file
+    Args: 
+        data_dir (str): destination file directory
+        hdf_filename (str): name of the hdf file to be saved
+        data_dict (dict, optional): the data to be saved as a hdf file
+        data_group (str, optional): where to store the data in the hdf
+        append (bool, optional): append an existing hdf file or create a new hdf file
 
-    Output: None
+    Returns: None
     '''
 
     full_file_name = os.path.join(data_dir, hdf_filename)
@@ -398,14 +407,14 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Simple wrapper to get the data from an hdf file as a numpy array
 
-    Input:
-        data_dir [str]: folder where data is located
-        hdf_filename [str]: name of hdf file
-        data_name [str]: table to load
-        data_group [str]: from which group to load data
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+        data_name (str): table to load
+        data_group (str): from which group to load data
     
-    Output
-        data [ndarray]: numpy array of data from hdf
+    Returns:
+        ndarray: numpy array of data from hdf
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
@@ -421,13 +430,13 @@ def load_hdf_group(data_dir, hdf_filename, group="/"):
     Loads any datasets from the given hdf group into a dictionary. Also will
     recursively load other groups if any exist under the given group
 
-    Input:
-        data_dir [str]: folder where data is located
-        hdf_filename [str]: name of hdf file
-        group [str]: name of the group to load
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+        group (str): name of the group to load
     
-    Output
-        data [dict]: all the datasets contained in the given group
+    Returns:
+        dict: all the datasets contained in the given group
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
@@ -455,14 +464,16 @@ def load_bmi3d_hdf_table(data_dir, filename, table_name=None):
     '''
     Loads data and metadata from a table in an hdf file generated by BMI3D
 
-    Inputs:
-        data_dir [str]: path to the data
-        filename [str]: name of the file to load from
-        (opt) table_name [str]: name of the table you want to load
+    Args:
+        data_dir (str): path to the data
+        filename (str): name of the file to load from
+        table_name (str, optional): name of the table you want to load
 
-    Outputs:
-        data [ndarray]: data from bmi3d
-        metadata [dict]: attributes associated with the table
+    Returns:
+        tuple: tuple containing:
+        
+            data (ndarray): data from bmi3d
+            metadata (dict): attributes associated with the table
     '''
     filepath = os.path.join(data_dir, filename)
     with tables.open_file(filepath, 'r') as f:
@@ -475,12 +486,12 @@ def load_bmi3d_root_metadata(data_dir, filename):
     '''
     Root metadata not accessible using pytables, instead use h5py
 
-    Inputs:
-        data_dir [str]: path to the data
-        filename [str]: name of the file to load from
+    Args:
+        data_dir (str): path to the data
+        filename (str): name of the file to load from
 
-    Outputs:
-        metadata [dict]: key-value attributes
+    Returns:
+        dict: key-value attributes
     '''
     with h5py.File(os.path.join(data_dir, filename), 'r') as f:
         return dict(f['/'].attrs.items())

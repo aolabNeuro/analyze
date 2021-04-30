@@ -35,6 +35,48 @@
   <div class="section" id="module-aopy.postproc">
 <span id="postproc"></span><h1>Postproc:<a class="headerlink" href="#module-aopy.postproc" title="Permalink to this headline">¶</a></h1>
 <dl class="py function">
+<dt id="aopy.postproc.calc_reward_intervals">
+<code class="sig-prename descclassname"><span class="pre">aopy.postproc.</span></code><code class="sig-name descname"><span class="pre">calc_reward_intervals</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timestamps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.postproc.calc_reward_intervals" title="Permalink to this definition">¶</a></dt>
+<dd><p>Given timestamps and values corresponding to reward times and reward state, calculate the
+intervals (start, end) during which the reward was active</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>timestamps</strong> (<em>nt</em>) – when the reward transitioned state</p></li>
+<li><p><strong>values</strong> (<em>nt</em>) – what the state was at each corresponding timestamp</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>during which the reward was active</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(nt/2)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.postproc.get_trial_targets">
+<code class="sig-prename descclassname"><span class="pre">aopy.postproc.</span></code><code class="sig-name descname"><span class="pre">get_trial_targets</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trials</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">targets</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.postproc.get_trial_targets" title="Permalink to this definition">¶</a></dt>
+<dd><p>Organizes targets from each trial into a trial array of targets. Essentially reshapes the array,
+but sometimes? there can be more or fewer targets in certain trials than in others</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trials</strong> (<em>ntargets</em>) – trial number for each target presented</p></li>
+<li><p><strong>targets</strong> (<em>ntargets</em><em>, </em><em>3</em>) – target locations</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>list of targets in each trial</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(ntrials list of (ntargets, 3))</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
 <dt id="aopy.postproc.rotate_spatial_data">
 <code class="sig-prename descclassname"><span class="pre">aopy.postproc.</span></code><code class="sig-name descname"><span class="pre">rotate_spatial_data</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spatial_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_axis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_axis</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.postproc.rotate_spatial_data" title="Permalink to this definition">¶</a></dt>
 <dd><p>Rotates data about the origin into a new coordinate system based on the relationship between
@@ -42,15 +84,19 @@
 the same direction, the code will return ‘spatial_data’ with a warning that the vectors point in
 the same direction.</p>
 <p>This function was written to rotate spatial data but can be applied to other data of similar form.</p>
-<dl class="simple">
-<dt>Required packages:</dt><dd><p>import numpy as np
-import warnings</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spatial_data</strong> (<em>nt</em><em>, </em><em>ndim</em>) – Array of spatial data in 2D or 3D</p></li>
+<li><p><strong>new_axis</strong> (<em>ndim</em>) – vector pointing along the desired orientation of the data</p></li>
+<li><p><strong>current_axis</strong> (<em>ndim</em>) – vector pointing along the current orientation of the dat</p></li>
+</ul>
 </dd>
-<dt>Inputs:</dt><dd><p>spatial_data [nt, ndim]: Array of spatial data in 2D or 3D
-new_axis [ndim]: vector pointing along the desired orientation of the data
-current_axis [ndim]: vector pointing along the current orientation of the dat</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>new reach trajectory rotated to the new axis</p>
 </dd>
-<dt>Output:</dt><dd><p>output_spatial_data [nt, ndim]: new reach trajectory rotated to the new axis</p>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(nt, ndim)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -59,13 +105,18 @@ current_axis [ndim]: vector pointing along the current orientation of the dat</p
 <dt id="aopy.postproc.translate_spatial_data">
 <code class="sig-prename descclassname"><span class="pre">aopy.postproc.</span></code><code class="sig-name descname"><span class="pre">translate_spatial_data</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spatial_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_origin</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.postproc.translate_spatial_data" title="Permalink to this definition">¶</a></dt>
 <dd><p>Shifts 2D or 3D spatial data to a new location.</p>
-<dl class="simple">
-<dt>Required packages:</dt><dd><p>import numpy as np</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>spatial_data</strong> (<em>nt</em><em>, </em><em>ndim</em>) – Spatial data in 2D or 3D</p></li>
+<li><p><strong>new_origin</strong> (<em>ndim</em>) – Location of point that will become the origin in cartesian coordinates</p></li>
+</ul>
 </dd>
-<dt>Inputs:</dt><dd><p>spatial_data [nt, ndim]: Spatial data in 2D or 3D
-new_origin [ndim]: Location of point that will become the origin in cartesian coordinates</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>new reach trajectory translated to the new origin</p>
 </dd>
-<dt>Output:</dt><dd><p>new_spatial_data [nt, ndim]: new reach trajectory translated to the new origin</p>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(nt, ndim)</p>
 </dd>
 </dl>
 </dd></dl>

@@ -413,7 +413,6 @@ class EventFilterTests(unittest.TestCase):
         trial_idx = np.array([0, 0, 0, 0, 1, 1, 1, 1])
         conditions = np.array([[1, 1], [np.pi/2, 2], [1, 1], [np.pi/2, 2], [1, 1], [4, 4], [1, 1], [4, 4]])
         trials = get_unique_trials(trial_idx, conditions, condition_name='foobar')
-        print(trials)
         self.assertEqual(len(trials), 4)
         self.assertCountEqual(trials['trial'], [0, 0, 1, 1])
         np.testing.assert_array_almost_equal(trials['foobar'], np.array([[1, 1], [np.pi/2, 2], [1, 1], [4, 4]]))

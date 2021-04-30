@@ -38,11 +38,20 @@
 <dt id="aopy.preproc.calc_event_rate">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">calc_event_rate</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event_log</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_name</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.calc_event_rate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given an event_log and event_name, calculate the rate of that event</p>
-<p>INPUT:
-event_log[a list of tuples (event: str or int, timestamp: float)]
-event_name[str or int]: event to be matched to</p>
-<p>OUTPUT:
-event_rate[float]: fraction of matching events divided by total events</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>event_log</strong> (<em>list of</em><em> (</em><em>event</em><em>, </em><em>timestamp</em><em>) </em><em>tuples</em>) – log of events and times</p></li>
+<li><p><strong>event_name</strong> (<em>str</em><em> or </em><em>int</em>) – event to be matched to</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>fraction of matching events divided by total events</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -50,10 +59,17 @@ event_rate[float]: fraction of matching events divided by total events</p>
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">calc_events_duration</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event_log</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.calc_events_duration" title="Permalink to this definition">¶</a></dt>
 <dd><p>given an event_log and succuss_event,
 calculate the succuss rate</p>
-<p>INPUT:
-event_log [a list of tuples (event: str or int, time_stamp: float)]</p>
-<p>OUTPUT:
-events_duration [float]:</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>event_log</strong> (<em>list of</em><em> (</em><em>event</em><em>, </em><em>timestamp</em><em>) </em><em>tuples</em>) – log of events and times</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>events_duration</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -61,11 +77,18 @@ events_duration [float]:</p>
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">calc_reward_rate</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event_log</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'REWARD'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.calc_reward_rate" title="Permalink to this definition">¶</a></dt>
 <dd><p>A wrapper for calc_event_rate
 event_name defauls to be ‘REWARD’</p>
-<dl class="simple">
-<dt>INPUTS:</dt><dd><p>event_log [a list of tuples (event: str or int, timestamp: float)]
-event_name [str or int]: event to be matched to</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>event_log</strong> (<em>list of</em><em> (</em><em>event</em><em>, </em><em>timestamp</em><em>) </em><em>tuples</em>) – log of events and times</p></li>
+<li><p><strong>event_name</strong> (<em>str</em><em> or </em><em>int</em>) – event to be matched to</p></li>
+</ul>
 </dd>
-<dt>OUTPUT:</dt><dd><p>reward_rate</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>reward_rate</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>float</p>
 </dd>
 </dl>
 </dd></dl>
@@ -75,21 +98,52 @@ event_name [str or int]: event to be matched to</p>
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">convert_analog_to_digital</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">analog_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">thresh</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.3</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.convert_analog_to_digital" title="Permalink to this definition">¶</a></dt>
 <dd><p>This function takes analog data and converts it to digital data given a
 threshold. It scales the analog to between 0 and 1 and uses thres as a</p>
-<p>Inputs:
-analog_data [nt, nch]: Time series array of analog data
-(opt) thresh [float]: Minimum threshold value to use in conversion</p>
-<p>Outputs:
-digital_data [nt, nch]: Array of 1’s or 0’s indicating if the analog input was above threshold</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>analog_data</strong> (<em>nt</em><em>, </em><em>nch</em>) – Time series array of analog data</p></li>
+<li><p><strong>thresh</strong> (<em>float</em><em>, </em><em>optional</em>) – Minimum threshold value to use in conversion</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Array of 1’s or 0’s indicating if the analog input was above threshold</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(nt, nch)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.convert_channels_to_mask">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">convert_channels_to_mask</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">channels</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.convert_channels_to_mask" title="Permalink to this definition">¶</a></dt>
+<dd><p>Helper function to take a range of channels into a bitmask</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>channels</strong> (<em>int array</em>) – 0-indexed channels to be masked</p>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>binary mask of the given channels</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
 <dt id="aopy.preproc.convert_digital_to_channels">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">convert_digital_to_channels</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_64_bit</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.convert_digital_to_channels" title="Permalink to this definition">¶</a></dt>
 <dd><p>Converts 64-bit digital data from eCube into channels.</p>
-<dl class="simple">
-<dt>Inputs:</dt><dd><p>data_64_bit [n]: masked 64-bit data, little-endian</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>data_64_bit</strong> (<em>n</em>) – masked 64-bit data, little-endian</p>
 </dd>
-<dt>Outputs:</dt><dd><p>unpacked [n, 64]: where channel 0 is least significant bit</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>where channel 0 is least significant bit</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(n, 64)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -99,14 +153,25 @@ digital_data [nt, nch]: Array of 1’s or 0’s indicating if the analog input w
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">detect_edges</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">digital_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samplerate</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lowhi</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hilow</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.detect_edges" title="Permalink to this definition">¶</a></dt>
 <dd><p>Finds the timestamp and corresponding value of all the bit flips in data. Assume
 the first element in data isn’t a transition</p>
-<dl class="simple">
-<dt>Inputs:</dt><dd><p>digital_data [ntime x 1]: masked binary data array
-samplerate [int]: sampling rate of the data used to calculate timestamps
-lowhi [bool]: include low to high transitions
-hilow [bool]: include high to low transitions</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>digital_data</strong> (<em>ntime x 1</em>) – masked binary data array</p></li>
+<li><p><strong>samplerate</strong> (<em>int</em>) – sampling rate of the data used to calculate timestamps</p></li>
+<li><p><strong>lowhi</strong> (<em>bool</em>) – include low to high transitions</p></li>
+<li><p><strong>hilow</strong> (<em>bool</em>) – include high to low transitions</p></li>
+</ul>
 </dd>
-<dt>Output:</dt><dd><p>timestamps [nbitflips]: when the bits flipped
-values [nbitflips]: corresponding values for each change</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>timestamps (nbitflips): when the bits flipped
+values (nbitflips): corresponding values for each change</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
 </dd>
 </dl>
 </dd></dl>
@@ -116,10 +181,15 @@ values [nbitflips]: corresponding values for each change</p>
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">find_first_significant_bit</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.find_first_significant_bit" title="Permalink to this definition">¶</a></dt>
 <dd><p>Find first significant big. Returns the index, counting from 0, of the
 least significant set bit in x. Helper function for mask_and_shift</p>
-<dl class="simple">
-<dt>Input:</dt><dd><p>x [int]: a number</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>x</strong> (<em>int</em>) – a number</p>
 </dd>
-<dt>Output:</dt><dd><p>idx_fsb [int]: index of first significant nonzero bit</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>index of first significant nonzero bit</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
 </dd>
 </dl>
 </dd></dl>
@@ -128,13 +198,24 @@ least significant set bit in x. Helper function for mask_and_shift</p>
 <dt id="aopy.preproc.find_measured_event_times">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">find_measured_event_times</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">approx_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">measured_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_radius</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.find_measured_event_times" title="Permalink to this definition">¶</a></dt>
 <dd><p>Uses closest_value() to repeatedly find a measured time for each approximate time.</p>
-<dl class="simple">
-<dt>Inputs:</dt><dd><p>approx_times [nt]: array of approximate event timestamps
-measured_times [nt’]: array of measured timestamps that might correspond to the approximate timestamps
-search_radius [float]: distance before and after each approximate time to search for a measured time</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>approx_times</strong> (<em>nt</em>) – array of approximate event timestamps</p></li>
+<li><p><strong>measured_times</strong> (<em>nt'</em>) – array of measured timestamps that might correspond to the approximate timestamps</p></li>
+<li><p><strong>search_radius</strong> (<em>float</em>) – distance before and after each approximate time to search for a measured time</p></li>
+</ul>
 </dd>
-<dt>Output:</dt><dd><p>parsed_ts       [nt]: array of the same length as approximate timestamps,
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>parsed_ts (nt): array of the same length as approximate timestamps,
 but containing matching timestamps or np.nan</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
 </dd>
 </dl>
 </dd></dl>
@@ -145,12 +226,45 @@ but containing matching timestamps or np.nan</p>
 <dd><p>Returns the value, within a specified radius, in given sequence
 closest to given timestamp. if none exist, returns none. If two are
 equidistant, this function returns the lower value.</p>
-<dl class="simple">
-<dt>Inputs:</dt><dd><p>timestamp : given timestamp
-sequence: sequence to search for closest value
-radius: distance from aproxTime to search for closest value</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>timestamp</strong> (<em>float</em>) – given timestamp</p></li>
+<li><p><strong>sequence</strong> (<em>nt</em>) – sequence to search for closest value</p></li>
+<li><p><strong>radius</strong> (<em>float</em>) – distance from timestamp to search for closest value</p></li>
+</ul>
 </dd>
-<dt>Output:</dt><dd><p>closest_value: value within sequence that is closest to timestamp</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>closest_value (float): value within sequence that is closest to timestamp
+closest_idx (int): index of the closest_value in the sequence</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.get_data_segments">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">get_data_segments</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">segment_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samplerate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.get_data_segments" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets arbitrary length segments of data from a timeseries</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>nt</em><em>, </em><em>ndim</em>) – arbitrary timeseries data that needs to segmented</p></li>
+<li><p><strong>segment_times</strong> (<em>nseg</em><em>, </em><em>2</em>) – </p></li>
+<li><p><strong>samplerate</strong> (<em>int</em>) – sampling rate of the data</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>nt is the length of each segment (can be different for each)</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list of 1d arrays (nt)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -159,35 +273,126 @@ radius: distance from aproxTime to search for closest value</p>
 <dt id="aopy.preproc.get_event_occurrences">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">get_event_occurrences</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event_log</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_to_count</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.get_event_occurrences" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given event_log, count the number of occurances of event_to_count</p>
-<p>Input:
-event_log [a list of tuples (event:string or int , time_stamp: float)]:
-event_to_count [int or str]: event to be matched to</p>
-<p>Output:
-num_occurances [int]</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>event_log</strong> (<em>list of</em><em> (</em><em>event</em><em>, </em><em>timestamp</em><em>) </em><em>tuples</em>) – log of events and times</p></li>
+<li><p><strong>event_to_count</strong> (<em>int</em><em> or </em><em>str</em>) – event to be matched to</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>num_occurances</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
 <dt id="aopy.preproc.get_matching_events">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">get_matching_events</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">event_log</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_to_match</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.get_matching_events" title="Permalink to this definition">¶</a></dt>
 <dd><p>Given a list of tuple of (events, timestamps), find the matched event and the timestamps</p>
-<p>INPUT:
-event_log [list]: a list of tuples (event[string or int] , time stamp: float)
-event_to_match [int or str]: event to be matched to</p>
-<p>OUTPUT
-returns a list of matched events and their time stamps</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>event_log</strong> (<em>list of</em><em> (</em><em>event</em><em>, </em><em>timestamp</em><em>) </em><em>tuples</em>) – log of events and times</p></li>
+<li><p><strong>event_to_match</strong> (<em>int</em><em> or </em><em>str</em>) – event to be matched to</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>returns a list of matched events and their time stamps</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>list</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
 <dt id="aopy.preproc.get_measured_frame_timestamps">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">get_measured_frame_timestamps</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">estimated_timestamps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">measured_timestamps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">latency_estimate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_radius</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.01</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.get_measured_frame_timestamps" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes estimated frame times and measured frame times and returns a time for each frame</p>
-<p>Inputs:
-estimated_timestamps [nframes]: timestamps when frames were thought to be displayed
-measured_timestamps [nt]: timestamps when frames actually appeared on screen
-(opt) latency_estimate [float]: how long the display takes normally to update
-(opt) search_radius [float]: how far away to look for a measurement before giving up</p>
-<p>Output:
-corrected_timestamps [nframes]: some of which will be empty if they were not displayed</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>estimated_timestamps</strong> (<em>nframes</em>) – timestamps when frames were thought to be displayed</p></li>
+<li><p><strong>measured_timestamps</strong> (<em>nt</em>) – timestamps when frames actually appeared on screen</p></li>
+<li><p><strong>latency_estimate</strong> (<em>float</em><em>, </em><em>optional</em>) – how long the display takes normally to update</p></li>
+<li><p><strong>search_radius</strong> (<em>float</em><em>, </em><em>optional</em>) – how far away to look for a measurement before giving up</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>corrected_timestamps (nframes): measured timestamps with missing values filled in with the next non-nan value
+uncorrected_timestamps (nframes): some of which will be empty if they were not displayed</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.get_trial_segments">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">get_trial_segments</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">events</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_events</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_events</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.get_trial_segments" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets times for the start and end of each trial according to the given set of start_events and end_events</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>events</strong> (<em>nt</em>) – events vector</p></li>
+<li><p><strong>times</strong> (<em>nt</em>) – times vector</p></li>
+<li><p><strong>start_events</strong> (<em>list</em>) – set of start events to match</p></li>
+<li><p><strong>end_events</strong> (<em>list</em>) – set of end events to match</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>segments (list of list of events): a segment of each trial
+times (ntrials, 2): list of 2 timestamps for each trial corresponding to the start and end events</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<ul class="simple">
+<li><p>if there are multiple matching start or end events in a trial, only consider the first one</p></li>
+</ul>
+</div>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.get_unique_trials">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">get_unique_trials</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trial_idx</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conditions</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">condition_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'target'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.get_unique_trials" title="Permalink to this definition">¶</a></dt>
+<dd><p>Gets the unique trial combinations of each condition set</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>n_trials</strong> (<em>int</em>) – number of trials</p></li>
+<li><p><strong>trial_idx</strong> (<em>int array</em>) – which trials happen on each cycle</p></li>
+<li><p><strong>conditions</strong> (<em>ndarray</em>) – which conditions happen on each cycle</p></li>
+<li><p><strong>condition_name</strong> (<em>str</em><em>, </em><em>optional</em>) – what the conditios are called</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>array of type [(‘trial’, ‘u8’), (‘index’, ‘u8’),</dt><dd><p>(condition_name, ‘f8’, (3,)))] describing the unique conditions on each trial</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>record array</p>
+</dd>
+</dl>
 </dd></dl>
 
 <dl class="py function">
@@ -197,26 +402,123 @@ corrected_timestamps [nframes]: some of which will be empty if they were not dis
 For example,
 mask_and_shift(0001000011110000, 1111111100000000) =&gt; 00010000
 mask_and_shift(0001000011110000, 0000000011111111) =&gt; 11110000</p>
-<dl class="simple">
-<dt>Inputs:</dt><dd><p>data [ntime]: digital data
-bit_mask [int]: which bits to filter</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>ntime</em>) – digital data</p></li>
+<li><p><strong>bit_mask</strong> (<em>int</em>) – which bits to filter</p></li>
+</ul>
 </dd>
-<dt>Output:</dt><dd><p>data [ntime]: masked and shifted data</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>masked and shifted data</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(nt)</p>
 </dd>
 </dl>
 </dd></dl>
 
 <dl class="py function">
-<dt id="aopy.preproc.subvec">
-<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">subvec</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">vector</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">t0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samplerate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.subvec" title="Permalink to this definition">¶</a></dt>
-<dd><p>Sub-vector helper function</p>
-<dl class="simple">
-<dt>Input:</dt><dd><p>vector [nt]: that you want to slice
-t0 [float]: start time
-n_samples [int]: number of samples to extract
-samplerate [int]: sampling rate of the vector</p>
+<dt id="aopy.preproc.max_repeated_nans">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">max_repeated_nans</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">a</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.max_repeated_nans" title="Permalink to this definition">¶</a></dt>
+<dd><p>Utility to calculate the maximum number of consecutive nans</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>a</strong> (<em>ndarray</em>) – input sequence</p>
 </dd>
-<dt>Output:</dt><dd><p>sub [n_samples]: vector of length n_samples starting at t0</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>max consecutive nans</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.parse_bmi3d">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">parse_bmi3d</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">files</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.parse_bmi3d" title="Permalink to this definition">¶</a></dt>
+<dd><p>Wrapper around version-specific bmi3d parsers</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dir</strong> (<em>str</em>) – where to look for the data</p></li>
+<li><p><strong>files</strong> (<em>dict</em>) – dictionary of files for this experiment</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>data (dict): bmi3d data
+metadata (dict): bmi3d metadata</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.parse_optitrack">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">parse_optitrack</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">files</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.parse_optitrack" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parser for optitrack data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dir</strong> (<em>str</em>) – where to look for the data</p></li>
+<li><p><strong>files</strong> (<em>dict</em>) – dictionary of files for this experiment</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>data (dict): optitrack data
+metadata (dict): optitrack metadata</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.proc_exp">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">proc_exp</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.proc_exp" title="Permalink to this definition">¶</a></dt>
+<dd><p>Process experiment data files</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dir</strong> (<em>str</em>) – where the data files are located</p></li>
+<li><p><strong>files</strong> (<em>dict</em>) – dictionary of filenames indexed by system</p></li>
+<li><p><strong>result_filename</strong> (<em>str</em>) – where to store the processed result</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em>) – whether to remove existing processed files if they exist</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.preproc.proc_mocap">
+<code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">proc_mocap</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">files</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">overwrite</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.proc_mocap" title="Permalink to this definition">¶</a></dt>
+<dd><p>Process motion capture files</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_dir</strong> (<em>str</em>) – where the data files are located</p></li>
+<li><p><strong>files</strong> (<em>dict</em>) – dictionary of filenames indexed by system</p></li>
+<li><p><strong>result_filename</strong> (<em>str</em>) – where to store the processed result</p></li>
+<li><p><strong>overwrite</strong> (<em>bool</em>) – whether to remove existing processed files if they exist</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>None</p>
 </dd>
 </dl>
 </dd></dl>
@@ -225,14 +527,21 @@ samplerate [int]: sampling rate of the vector</p>
 <dt id="aopy.preproc.trial_align_data">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">trial_align_data</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trigger_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_before</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_after</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samplerate</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.trial_align_data" title="Permalink to this definition">¶</a></dt>
 <dd><p>Transform data into chunks of data triggered by trial start times</p>
-<dl class="simple">
-<dt>Inputs:</dt><dd><p>data [nt, nch]: arbitrary data, can be multidimensional
-trigger_times [ntrial]: start time of each trial
-time_before [float]: amount of time to include before the start of each trial
-time_after [float]: time to include after the start of each trial
-samplerate [int]: sampling rate of data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>nt</em><em>, </em><em>nch</em>) – arbitrary data, can be multidimensional</p></li>
+<li><p><strong>trigger_times</strong> (<em>ntrial</em>) – start time of each trial</p></li>
+<li><p><strong>time_before</strong> (<em>float</em>) – amount of time to include before the start of each trial</p></li>
+<li><p><strong>time_after</strong> (<em>float</em>) – time to include after the start of each trial</p></li>
+<li><p><strong>samplerate</strong> (<em>int</em>) – sampling rate of data</p></li>
+</ul>
 </dd>
-<dt>Output:</dt><dd><p>trial_aligned [ntrial, nt, nch]: trial aligned data</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>trial aligned data</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(ntrial, nt, nch)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -241,12 +550,19 @@ samplerate [int]: sampling rate of data</p>
 <dt id="aopy.preproc.trial_align_events">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">trial_align_events</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aligned_events</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aligned_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">event_to_align</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.trial_align_events" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute a new trial_times matrix with offset timestamps for the given event_to_align</p>
-<dl class="simple">
-<dt>INPUT</dt><dd><p>aligned_events [n_trial, n_event]: events per trial
-aligned_times [n_trial, n_event]: timestamps per trial
-event_to_align [int or str]: event to align to</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aligned_events</strong> (<em>n_trial</em><em>, </em><em>n_event</em>) – events per trial</p></li>
+<li><p><strong>aligned_times</strong> (<em>n_trial</em><em>, </em><em>n_event</em>) – timestamps per trial</p></li>
+<li><p><strong>event_to_align</strong> (<em>int</em><em> or </em><em>str</em>) – event to align to</p></li>
+</ul>
 </dd>
-<dt>OUTPUT:</dt><dd><p>trial_aligned_times [n_trial, n_event]: number of trials by number of events</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>number of trials by number of events</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>(n_trial, n_event)</p>
 </dd>
 </dl>
 </dd></dl>
@@ -255,15 +571,26 @@ event_to_align [int or str]: event to align to</p>
 <dt id="aopy.preproc.trial_align_times">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">trial_align_times</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timestamps</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trigger_times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_before</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_after</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">subtract</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.trial_align_times" title="Permalink to this definition">¶</a></dt>
 <dd><p>Takes timestamps and splits them into chunks triggered by trial start times</p>
-<dl class="simple">
-<dt>Inputs:</dt><dd><p>timestamps [nt]: events in time to be trial aligned
-trigger_times [ntrial]: start time of each trial
-time_before [float]: amount of time to include before the start of each trial
-time_after [float]: time to include after the start of each trial
-(opt) subtract [bool]: whether the start of each trial should be set to 0</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>timestamps</strong> (<em>nt</em>) – events in time to be trial aligned</p></li>
+<li><p><strong>trigger_times</strong> (<em>ntrial</em>) – start time of each trial</p></li>
+<li><p><strong>time_before</strong> (<em>float</em>) – amount of time to include before the start of each trial</p></li>
+<li><p><strong>time_after</strong> (<em>float</em>) – time to include after the start of each trial</p></li>
+<li><p><strong>subtract</strong> (<em>bool</em><em>, </em><em>optional</em>) – whether the start of each trial should be set to 0</p></li>
+</ul>
 </dd>
-<dt>Output:</dt><dd><p>trial_aligned [ntrial, nt]: trial aligned timestamps
-trial_indices [ntrial, nt]: indices into timestamps in the same shape as trial_aligned</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>trial_aligned (ntrial, nt): trial aligned timestamps
+trial_indices (ntrial, nt): indices into timestamps in the same shape as trial_aligned</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
 </dd>
 </dl>
 </dd></dl>
@@ -272,14 +599,25 @@ trial_indices [ntrial, nt]: indices into timestamps in the same shape as trial_a
 <dt id="aopy.preproc.trial_separate">
 <code class="sig-prename descclassname"><span class="pre">aopy.preproc.</span></code><code class="sig-name descname"><span class="pre">trial_separate</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">events</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">times</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">evt_start</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_events</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.preproc.trial_separate" title="Permalink to this definition">¶</a></dt>
 <dd><p>Compute the 2D matrices contaning events per trial and timestamps per trial</p>
-<dl class="simple">
-<dt>INPUT</dt><dd><p>events [nt]: events vector
-times [nt]: times vector
-evt_start [int or str]: event marking the start of a trial
-n_events [int]: number of events in a trial</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>events</strong> (<em>nt</em>) – events vector</p></li>
+<li><p><strong>times</strong> (<em>nt</em>) – times vector</p></li>
+<li><p><strong>evt_start</strong> (<em>int</em><em> or </em><em>str</em>) – event marking the start of a trial</p></li>
+<li><p><strong>n_events</strong> (<em>int</em>) – number of events in a trial</p></li>
+</ul>
 </dd>
-<dt>OUTPUT:</dt><dd><p>trial_events [n_trial, n_events]: events per trial
-trial_times [n_trial, n_events]: timestamps per trial</p>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p><p>tuple containing:</p>
+<blockquote>
+<div><p>trial_events (n_trial, n_events): events per trial
+trial_times (n_trial, n_events): timestamps per trial</p>
+</div></blockquote>
+</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>tuple</p>
 </dd>
 </dl>
 </dd></dl>
