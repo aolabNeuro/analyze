@@ -336,7 +336,6 @@ def calc_reward_rate(event_log, event_name='REWARD'):
 
     Returns:
         float: reward_rate
-
     '''
     return calc_event_rate(event_log, event_name)
 
@@ -1089,4 +1088,3 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         optitrack_data, optitrack_metadata = parse_optitrack(data_dir, files)
         save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
-
