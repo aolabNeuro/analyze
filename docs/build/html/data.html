@@ -171,20 +171,16 @@ hdf_filename [str]: name of hdf file</p>
 <dt id="aopy.data.load_optitrack_data">
 <code class="sig-prename descclassname"><span class="pre">aopy.data.</span></code><code class="sig-name descname"><span class="pre">load_optitrack_data</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.data.load_optitrack_data" title="Permalink to this definition">¶</a></dt>
 <dd><p>This function loads a series of x, y, z positional data from the optitrack
-.csv file that has 1 rigid body exported with the following settings:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Markers: Off</p></li>
-<li><p>Unlabeled markers: Off</p></li>
-<li><p>Quality Statistics: Off</p></li>
-<li><p>Rigid Bodies: On</p></li>
-<li><p>Rigid Body Markers: Off</p></li>
-<li><p>Bones: Off</p></li>
-<li><p>Bone Markers: Off</p></li>
-<li><p>Header Information: On</p></li>
-<li><p>Optitrack format Version(s): 1.23</p></li>
-</ul>
-</div></blockquote>
+.csv file that has 1 rigid body exported with the following settings:
+- Markers: Off
+- Unlabeled markers: Off
+- Quality Statistics: Off
+- Rigid Bodies: On
+- Rigid Body Markers: Off
+- Bones: Off
+- Bone Markers: Off
+- Header Information: On
+- Optitrack format Version(s): 1.23</p>
 <p>Required packages: pandas, numpy</p>
 <dl class="simple">
 <dt>Inputs:</dt><dd><p>data_dir [string]: Directory to load data from
@@ -200,20 +196,16 @@ mocap_data_rot [nt, 4]: Rotational mocap data</p>
 <dt id="aopy.data.load_optitrack_metadata">
 <code class="sig-prename descclassname"><span class="pre">aopy.data.</span></code><code class="sig-name descname"><span class="pre">load_optitrack_metadata</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_dir</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">metadata_row</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mocap_data_col_idx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">array([2,</span> <span class="pre">3,</span> <span class="pre">4,</span> <span class="pre">5,</span> <span class="pre">6,</span> <span class="pre">7,</span> <span class="pre">8])</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.data.load_optitrack_metadata" title="Permalink to this definition">¶</a></dt>
 <dd><p>This function loads optitrack metadata from .csv file that has 1 rigid body
-exported with the following settings:</p>
-<blockquote>
-<div><ul class="simple">
-<li><p>Markers: Off</p></li>
-<li><p>Unlabeled markers: Off</p></li>
-<li><p>Quality Statistics: Off</p></li>
-<li><p>Rigid Bodies: On</p></li>
-<li><p>Rigid Body Markers: Off</p></li>
-<li><p>Bones: Off</p></li>
-<li><p>Bone Markers: Off</p></li>
-<li><p>Header Information: On</p></li>
-<li><p>Optitrack format Version(s): 1.23</p></li>
-</ul>
-</div></blockquote>
+exported with the following settings:
+- Markers: Off
+- Unlabeled markers: Off
+- Quality Statistics: Off
+- Rigid Bodies: On
+- Rigid Body Markers: Off
+- Bones: Off
+- Bone Markers: Off
+- Header Information: On
+- Optitrack format Version(s): 1.23</p>
 <p>Required packages: csv, pandas</p>
 <dl class="simple">
 <dt>Inputs:</dt><dd><p>data_dir [string]: Directory to load data from

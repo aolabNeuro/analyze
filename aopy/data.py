@@ -12,15 +12,15 @@ def load_optitrack_metadata(data_dir, filename, metadata_row=0, mocap_data_col_i
     '''
     This function loads optitrack metadata from .csv file that has 1 rigid body
     exported with the following settings:
-        - Markers: Off
-        - Unlabeled markers: Off
-        - Quality Statistics: Off
-        - Rigid Bodies: On
-        - Rigid Body Markers: Off
-        - Bones: Off
-        - Bone Markers: Off
-        - Header Information: On
-        - Optitrack format Version(s): 1.23
+    - Markers: Off
+    - Unlabeled markers: Off
+    - Quality Statistics: Off
+    - Rigid Bodies: On
+    - Rigid Body Markers: Off
+    - Bones: Off
+    - Bone Markers: Off
+    - Header Information: On
+    - Optitrack format Version(s): 1.23
 
     Required packages: csv, pandas
 
@@ -83,15 +83,15 @@ def load_optitrack_data(data_dir, filename):
     '''
     This function loads a series of x, y, z positional data from the optitrack
     .csv file that has 1 rigid body exported with the following settings:
-        - Markers: Off
-        - Unlabeled markers: Off
-        - Quality Statistics: Off
-        - Rigid Bodies: On
-        - Rigid Body Markers: Off
-        - Bones: Off
-        - Bone Markers: Off
-        - Header Information: On
-        - Optitrack format Version(s): 1.23
+    - Markers: Off
+    - Unlabeled markers: Off
+    - Quality Statistics: Off
+    - Rigid Bodies: On
+    - Rigid Body Markers: Off
+    - Bones: Off
+    - Bone Markers: Off
+    - Header Information: On
+    - Optitrack format Version(s): 1.23
 
     Required packages: pandas, numpy
 
