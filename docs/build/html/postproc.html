@@ -1,0 +1,149 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Postproc: &#8212; aopy 0.0.0 documentation</title>
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Precondition:" href="precondition.html" />
+    <link rel="prev" title="Data:" href="data.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="module-aopy.postproc">
+<span id="postproc"></span><h1>Postproc:<a class="headerlink" href="#module-aopy.postproc" title="Permalink to this headline">¶</a></h1>
+<dl class="py function">
+<dt id="aopy.postproc.rotate_spatial_data">
+<code class="sig-prename descclassname"><span class="pre">aopy.postproc.</span></code><code class="sig-name descname"><span class="pre">rotate_spatial_data</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spatial_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_axis</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">current_axis</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.postproc.rotate_spatial_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rotates data about the origin into a new coordinate system based on the relationship between
+‘new_axis’ and ‘current_axis’. If ‘current_axis’ and ‘new_axis’ point in
+the same direction, the code will return ‘spatial_data’ with a warning that the vectors point in
+the same direction.</p>
+<p>This function was written to rotate spatial data but can be applied to other data of similar form.</p>
+<dl class="simple">
+<dt>Required packages:</dt><dd><p>import numpy as np
+import warnings</p>
+</dd>
+<dt>Inputs:</dt><dd><p>spatial_data [nt, ndim]: Array of spatial data in 2D or 3D
+new_axis [ndim]: vector pointing along the desired orientation of the data
+current_axis [ndim]: vector pointing along the current orientation of the dat</p>
+</dd>
+<dt>Output:</dt><dd><p>output_spatial_data [nt, ndim]: new reach trajectory rotated to the new axis</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt id="aopy.postproc.translate_spatial_data">
+<code class="sig-prename descclassname"><span class="pre">aopy.postproc.</span></code><code class="sig-name descname"><span class="pre">translate_spatial_data</span></code><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">spatial_data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">new_origin</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#aopy.postproc.translate_spatial_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Shifts 2D or 3D spatial data to a new location.</p>
+<dl class="simple">
+<dt>Required packages:</dt><dd><p>import numpy as np</p>
+</dd>
+<dt>Inputs:</dt><dd><p>spatial_data [nt, ndim]: Spatial data in 2D or 3D
+new_origin [ndim]: Location of point that will become the origin in cartesian coordinates</p>
+</dd>
+<dt>Output:</dt><dd><p>new_spatial_data [nt, ndim]: new reach trajectory translated to the new origin</p>
+</dd>
+</dl>
+</dd></dl>
+
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">aopy</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data.html">Data:</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Postproc:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="precondition.html">Precondition:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="preproc.html">Preproc:</a></li>
+<li class="toctree-l1"><a class="reference internal" href="visualization.html">Visualization:</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="data.html" title="previous chapter">Data:</a></li>
+      <li>Next: <a href="precondition.html" title="next chapter">Precondition:</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, aolab.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/postproc.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

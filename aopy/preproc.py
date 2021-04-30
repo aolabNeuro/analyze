@@ -9,16 +9,15 @@ Digital calc
 '''
 def convert_analog_to_digital(analog_data, thresh=.3):
     '''
-        This function takes analog data and converts it to digital data given a 
-        threshold. It scales the analog to between 0 and 1 and uses thres as a 
+    This function takes analog data and converts it to digital data given a 
+    threshold. It scales the analog to between 0 and 1 and uses thres as a 
 
-        Inputs: 
-        analog_data [nt, nch]: Time series array of analog data
-        (opt) thresh [float]: Minimum threshold value to use in conversion
+    Inputs: 
+    analog_data [nt, nch]: Time series array of analog data
+    (opt) thresh [float]: Minimum threshold value to use in conversion
 
-        Outputs:
-        digital_data [nt, nch]: Array of 1's or 0's indicating if the analog input 
-            was above threshold  
+    Outputs:
+    digital_data [nt, nch]: Array of 1's or 0's indicating if the analog input was above threshold  
     '''
     # Scale data between 0 and 1 so that threshold is a percentange
     minval = np.min(analog_data)
@@ -78,7 +77,7 @@ def mask_and_shift(data, bit_mask):
         bit_mask [int]: which bits to filter
 
     Output:
-        data_ [ntime]: masked and shifted data
+        data [ntime]: masked and shifted data
     '''
 
     return np.bitwise_and(data, bit_mask) >> find_first_significant_bit(bit_mask)
