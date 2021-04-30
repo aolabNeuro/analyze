@@ -1,10 +1,12 @@
-# analysis.py
-# code for basic neural data analysis
-
+"""
+Analysis
+=
+Code for basic neural data analysis
 import numpy as np
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn import model_selection
 import warnings
+"""
 
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
