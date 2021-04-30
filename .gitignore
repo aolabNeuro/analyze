@@ -3,4 +3,4 @@ bmi3d/.ipynb_checkpoints
 */*/__pycache__
 *.egg-info
 .vscode
-tests/tmp/*
+tests/tmp
