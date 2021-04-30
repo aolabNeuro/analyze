@@ -266,11 +266,11 @@ def calc_reward_rate(event_log, event_name='REWARD'):
     A wrapper for calc_event_rate
     event_name defauls to be 'REWARD'
 
-    INPUTS:
-        event_log [a list of tuples (event: str or int, timestamp: float)]
-        event_name [str or int]: event to be matched to
+    Args:
+        event_log (a list of tuples): (event: str or int, timestamp: float)]
+        event_name (str or int): event to be matched to
 
-    OUTPUT:
+    Returns:
         reward_rate
 
     '''
@@ -280,15 +280,17 @@ def trial_separate(events, times, evt_start, n_events=8):
     '''
     Compute the 2D matrices contaning events per trial and timestamps per trial
 
-    INPUT
-        events [nt]: events vector
-        times [nt]: times vector
-        evt_start [int or str]: event marking the start of a trial
-        n_events [int]: number of events in a trial
+    Args:
+        events (nt): events vector
+        times (nt): times vector
+        evt_start (int or str): event marking the start of a trial
+        n_events (int): number of events in a trial
     
-    OUTPUT:
-        trial_events [n_trial, n_events]: events per trial
-        trial_times [n_trial, n_events]: timestamps per trial
+    Returns:
+        tuple: tuple containing
+            trial_events (n_trial, n_events): events per trial
+
+            trial_times (n_trial, n_events): timestamps per trial
     '''
 
     # Find the indices in events that correspond to evt_start 
@@ -310,13 +312,13 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
     '''
     Compute a new trial_times matrix with offset timestamps for the given event_to_align
     
-    INPUT
-        aligned_events [n_trial, n_event]: events per trial
-        aligned_times [n_trial, n_event]: timestamps per trial
-        event_to_align [int or str]: event to align to
+    Args:
+        aligned_events (n_trial, n_event): events per trial
+        aligned_times (n_trial, n_event): timestamps per trial
+        event_to_align (int or str): event to align to
 
-    OUTPUT:
-        trial_aligned_times [n_trial, n_event]: number of trials by number of events
+    Returns:
+        n_trial, n_event: number of trials by number of events
     '''
 
     # For each row, find the column that matches the given event, 
@@ -334,15 +336,15 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
     Transform data into chunks of data triggered by trial start times
 
-    Inputs:
-        data [nt, nch]: arbitrary data, can be multidimensional
-        trigger_times [ntrial]: start time of each trial
-        time_before [float]: amount of time to include before the start of each trial
-        time_after [float]: time to include after the start of each trial
-        samplerate [int]: sampling rate of data
+    Args:
+        data (nt, nch): arbitrary data, can be multidimensional
+        trigger_times (ntrial): start time of each trial
+        time_before (float): amount of time to include before the start of each trial
+        time_after (float): time to include after the start of each trial
+        samplerate (int): sampling rate of data
     
-    Output:
-        trial_aligned [ntrial, nt, nch]: trial aligned data
+    Returns:
+        ntrial, nt, nch: trial aligned data
     '''
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
@@ -366,16 +368,18 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
     '''
     Takes timestamps and splits them into chunks triggered by trial start times
 
-    Inputs:
-        timestamps [nt]: events in time to be trial aligned
-        trigger_times [ntrial]: start time of each trial
-        time_before [float]: amount of time to include before the start of each trial
-        time_after [float]: time to include after the start of each trial
-        (opt) subtract [bool]: whether the start of each trial should be set to 0
+    Args:
+        timestamps (nt): events in time to be trial aligned
+        trigger_times (ntrial): start time of each trial
+        time_before (float): amount of time to include before the start of each trial
+        time_after (float): time to include after the start of each trial
+        (opt) subtract (bool): whether the start of each trial should be set to 0
     
-    Output:
-        trial_aligned [ntrial, nt]: trial aligned timestamps
-        trial_indices [ntrial, nt]: indices into timestamps in the same shape as trial_aligned
+    Returns:
+        tuple: tuple containing
+            trial_aligned (ntrial, nt): trial aligned timestamps
+
+            trial_indices (ntrial, nt): indices into timestamps in the same shape as trial_aligned
     '''
     trial_aligned = []
     trial_indices = []
