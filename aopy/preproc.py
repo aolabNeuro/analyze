@@ -505,7 +505,7 @@ def get_data_segments(data, segment_times, samplerate):
         segments.append(seg)
     return segments
 
-def get_unique_trials(n_trials, trial_idx, conditions, condition_name='target'):
+def get_unique_trials(trial_idx, conditions, condition_name='target'):
     '''
     Gets the unique trial combinations of each condition set
 
@@ -519,19 +519,26 @@ def get_unique_trials(n_trials, trial_idx, conditions, condition_name='target'):
         trials [record array]: array of type [('trial', 'u8'), ('index', 'u8'), 
             (condition_name, 'f8', (3,))]] describing the unique conditions on each trial
     '''
-    trial_dtype = np.dtype([('trial', 'u8'), ('index', 'u8'), (condition_name, 'f8', (3,))]) # TODO should be arbitrary size
+    conditions = conditions.round(decimals=6)
+    if conditions.ndim == 1:
+        conditions = np.reshape(conditions, (conditions.shape[0], 1))
+    unique_conditions = np.unique(conditions, axis=0)
+
+    trial_dtype = np.dtype([('trial', 'u8'), ('index', 'u8'), (condition_name, 'f8', (conditions.shape[1],))])
     corrected_trials = np.empty((0,), dtype=trial_dtype)
     trial = np.empty((1,), dtype=trial_dtype)
 
-    conditions = conditions.round(decimals=4)
-    unique_conditions = np.unique(conditions)
+    n_trials = len(np.unique(trial_idx))
     for idx_trial in range(n_trials):
+
+        # For each unique condition, add a trial entry if it matches any condition that belong to this trial
         trial_conditions = conditions[np.reshape(trial_idx == idx_trial, -1),:]
-        for idx_matching_condition in np.where(np.in1d(unique_conditions, trial_conditions))[0]:
-            trial['trial'] = idx_trial
-            trial['index'] = idx_matching_condition
-            trial[condition_name] = unique_conditions[idx_matching_condition]
-            corrected_trials = np.append(corrected_trials, trial)
+        for idx_unique_cond in range(unique_conditions.shape[0]):
+            if (trial_conditions == unique_conditions[idx_unique_cond]).all(axis=1).any():
+                trial['trial'] = idx_trial
+                trial['index'] = idx_unique_cond
+                trial[condition_name] = unique_conditions[idx_unique_cond]
+                corrected_trials = np.append(corrected_trials, trial)
     return corrected_trials
 
 def max_repeated_nans(a):
@@ -883,7 +890,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
             n_trials = len(trial_events)
             trial_idx = [np.where(trial_cycles >= idx)[0] for idx in range(len(task))] # needs testing
 
-        corrected_trials = get_unique_trials(n_trials, trial_idx, task['target_location'])
+        corrected_trials = get_unique_trials(trial_idx, task['target_location'])
     else:
 
         # TODO maybe should check if the last trial is incomplete
