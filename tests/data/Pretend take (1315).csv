@@ -1,0 +1,9 @@
+Format Version,1.23,Take Name,Take 2021-04-06 11_51_16 (1313),Take Notes,,Capture Frame Rate,240,Export Frame Rate,240,Capture Start Time,2021-04-06 11.51.13.103 AM,Total Frames in Take,2,Total Exported Frames,2,Rotation Type,Quaternion,Length Units,Meters,Coordinate Space,Global
+
+,Type,Rigid Body,Rigid Body,Rigid Body,Rigid Body,Rigid Body,Rigid Body,Rigid Body,,,,,,,,,,,,,
+,Name,RigidBody,RigidBody,RigidBody,RigidBody,RigidBody,RigidBody,RigidBody,,,,,,,,,,,,,
+,ID,6D79CDF970911EB249496FBED4C76AE,6D79CDF970911EB249496FBED4C76AE,6D79CDF970911EB249496FBED4C76AE,6D79CDF970911EB249496FBED4C76AE,6D79CDF970911EB249496FBED4C76AE,6D79CDF970911EB249496FBED4C76AE,6D79CDF970911EB249496FBED4C76AE,,,,,,,,,,,,,
+,,Rotation,Rotation,Rotation,Rotation,Position,Position,Position,,,,,,,,,,,,,
+Frame,Time (Seconds),X,Y,Z,W,X,Y,Z,,,,,,,,,,,,,
+0,0,0.245498,-0.286074,-0.19599,-0.905252,-0.051253,0.702758,0.205539,,,,,,,,,,,,,
+1,0.5,0.245498,-0.286074,-0.19599,-0.905252,-0.051253,0.702758,0.205539,,,,,,,,,,,,,

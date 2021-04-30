@@ -2,6 +2,11 @@ from aopy.preproc import *
 import numpy as np
 import unittest
 
+data_dir = 'tests/data/'
+write_dir = 'tests/tmp'
+if not os.path.exists(write_dir):
+    os.mkdir(write_dir)
+
 class DigitalCalcTests(unittest.TestCase):
 
     def test_convert_analog_to_digital(self):
@@ -24,32 +29,22 @@ class DigitalCalcTests(unittest.TestCase):
         test_02 = [0b11, 0, 0, 0, 0, 0, 0, 0b01, 0b10, 0b01, 0b11, 0b01, 0b00, 0b10, 0b00, 0b01, 0, 0b01, 0, 0b01, 0, 0b01, 0]
 
         ts, values = detect_edges(test_bool, 1)
-        print(ts)
-        print(values)
         assert len(ts) == 6
         assert np.array_equal(ts, [1, 3, 5, 6, 8, 11])
         assert np.array_equal(values, [0, 1, 0, 1, 0, 1])
         ts, values = detect_edges(test_bool, 1, hilow=False)
-        print(ts)
-        print(values)
         assert len(ts) == 3
         assert np.array_equal(ts, [3, 6, 11])
         assert np.array_equal(values, [1, 1, 1])
         ts, values = detect_edges(test_bool, 1, lowhi=False)
-        print(ts)
-        print(values)
         assert len(ts) == 3
         assert np.array_equal(ts, [1, 5, 8])
         assert np.array_equal(values, [0, 0, 0])
         ts, values = detect_edges(test_01, 1, hilow=False)
-        print(ts)
-        print(values)
         assert len(ts) == 6
         assert np.array_equal(ts, [7, 13, 15, 17, 19, 21])
         assert np.array_equal(values, [1, 1, 1, 1, 1, 1])
         ts, values = detect_edges(test_02, 1, hilow=False)
-        print(ts)
-        print(values)
         assert len(ts) == 9
         assert np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21])
         assert np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1])
@@ -68,12 +63,20 @@ class DigitalCalcTests(unittest.TestCase):
         masked = mask_and_shift(digital_data, mask)
         assert np.array_equal(masked, [0, 0, 12, 140, 255, 255])
 
+    def test_convert_channels_to_mask(self):
+        self.assertEqual(convert_channels_to_mask(0), 1)
+        self.assertEqual(convert_channels_to_mask(5), 1 << 5)
+        channels = [0,1]
+        mask = convert_channels_to_mask(channels)
+        self.assertEqual(mask, 0b11)
+        channels = range(16,24)
+        mask = convert_channels_to_mask(channels)
+        self.assertEqual(mask, 0xff0000)
+
     def test_digital_to_channels(self):
         testdata = [0b0110100001011100101100000100011001010001101110101001000100111000, 0xff0ff00fffffff0f]
         unpacked = convert_digital_to_channels(testdata)
         packed = np.packbits(unpacked, bitorder='little').view(np.uint64)
-        print(unpacked[0,:])
-        print(unpacked[1,:])
         assert packed[0] == testdata[0]
         assert packed[1] == testdata[1]
         assert unpacked[0,0] == 0
@@ -87,25 +90,25 @@ class DigitalCalcTests(unittest.TestCase):
         # test value within range (rounding down)
         test_timestamp = 16.5
         test_expected_value = 16
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(test_expected_value, value)
 
         # test value within range (rounding up)
         test_timestamp = 16.51
         test_expected_value = 17
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(test_expected_value, value)
 
         #test value out of range
         test_timestamp = 130
         test_expected_value = None
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(value, test_expected_value)
 
         #test value out of range
         test_timestamp = -20
         test_expected_value = None
-        value = get_closest_value(test_timestamp, test_sequence, test_radius)
+        value, idx = get_closest_value(test_timestamp, test_sequence, test_radius)
         self.assertEqual(value, test_expected_value)
 
     def test_find_measured_event_times(self):
@@ -124,9 +127,11 @@ class DigitalCalcTests(unittest.TestCase):
         estimated_timestamps = np.arange(10000)/100
         measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
         measured_timestamps = np.delete(measured_timestamps, [500])
-        corrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        corrected, uncorrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
         self.assertEqual(len(corrected), len(estimated_timestamps))
         self.assertEqual(corrected[500], corrected[501])
+        self.assertEqual(len(uncorrected), len(corrected))
+        self.assertEqual(np.count_nonzero(np.isnan(uncorrected)), 1)
 
 event_log_events_in_str = [
             ('wait', 0.),
@@ -348,14 +353,6 @@ class EventFilterTests(unittest.TestCase):
         trial_aligned_times = trial_align_events(aligned_events, aligned_times, NUM_WAIT)
         
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
-
-    def test_subvec(self):
-        samplerate = 1
-        vector = np.arange(100)
-        t0 = 5
-        n_samples = 10
-        sub = subvec(vector, t0, n_samples, samplerate)
-        np.allclose(sub, np.arange(5, 15))
         
     def test_trial_align_data(self):
         data = np.arange(100)
@@ -365,8 +362,8 @@ class EventFilterTests(unittest.TestCase):
         trigger_times = np.array([5, 55])
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertEqual(len(trial_aligned), len(trigger_times))
-        np.allclose(trial_aligned[0], np.arange(5, 15))
-        np.allclose(trial_aligned[1], np.arange(55, 65))
+        self.assertTrue(np.allclose(trial_aligned[0], np.arange(5, 15)))
+        self.assertTrue(np.allclose(trial_aligned[1], np.arange(55, 65)))
         data = np.ones((100,2))
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
@@ -376,11 +373,128 @@ class EventFilterTests(unittest.TestCase):
         trigger_times = np.array([5, 10, 15, 20, 25])
         time_before = 0
         time_after = 9
-        trial_aligned, trial_indices = trial_align_times(timestamps, trigger_times, time_before, time_after)
+        trial_aligned, trial_indices = trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=False)
         self.assertEqual(len(trial_aligned), len(trial_indices))
         self.assertEqual(len(trial_aligned), len(trigger_times))
-        np.allclose(trial_aligned[0], [6, 7, 10])
+        self.assertTrue(np.allclose(trial_aligned[0], [6, 7, 10]))
         self.assertEqual(len(trial_aligned[2]), 0)
+        trial_aligned, trial_indices = trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=True)
+        self.assertTrue(np.allclose(trial_aligned[0], np.array([6, 7, 10])-5))
+
+
+    def test_get_trial_segments(self):
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        times = np.arange(len(events))
+        start_evt = 2
+        end_evt = [3, 4]
+        segments, times = get_trial_segments(events, times, start_evt, end_evt)
+        self.assertTrue(np.allclose(segments, [[2, 4], [2, 3]]))
+        self.assertTrue(np.allclose(times, [[1, 2], [5, 6]]))
+
+    def test_get_data_segments(self):
+        data = np.arange(100)
+        segment_times = np.array([[0, 4], [50, 51]])
+        samplerate = 1
+        segments = get_data_segments(data, segment_times, samplerate)
+        self.assertEqual(len(segments), 2)
+        data = np.ones((100,3))
+        segments = get_data_segments(data, segment_times, samplerate)
+        self.assertEqual(len(segments), 2)
+        self.assertEqual(segments[0].shape, (4,3))
+
+    def test_get_unique_trials(self):
+        trial_idx = np.array(range(10))
+        conditions = np.array(range(10))
+        trials = get_unique_trials(trial_idx, conditions, condition_name='idx')
+        self.assertEqual(len(trials), 10)
+        self.assertEqual(trials[0]['trial'], 0)
+        self.assertEqual(trials[-1]['idx'], [9])
+        
+        trial_idx = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        conditions = np.array([[1, 1], [np.pi/2, 2], [1, 1], [np.pi/2, 2], [1, 1], [4, 4], [1, 1], [4, 4]])
+        trials = get_unique_trials(trial_idx, conditions, condition_name='foobar')
+        self.assertEqual(len(trials), 4)
+        self.assertCountEqual(trials['trial'], [0, 0, 1, 1])
+        np.testing.assert_array_almost_equal(trials['foobar'], np.array([[1, 1], [np.pi/2, 2], [1, 1], [4, 4]]))
+
+        trial_idx = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        conditions = np.random.uniform(size=(8,))
+        trials = get_unique_trials(trial_idx, conditions, condition_name='rando')
+        self.assertEqual(len(trials), 8)
+        self.assertCountEqual(trials['trial'], [0, 0, 0, 0, 1, 1, 1, 1])
+        self.assertEqual(np.sum(trials['index']), 28)
+
+class TestPrepareExperiment(unittest.TestCase):
+
+    def test_parse_bmi3d(self):
+
+        # Test empty
+        files = {}
+        self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
+
+        def check_required_fields(data, metadata):
+            self.assertIn('fps', metadata)
+            self.assertIn('sync_protocol_version', metadata)
+            self.assertIn('source_dir', metadata)
+            self.assertIn('source_files', metadata)
+            self.assertIn('clock', data)
+            self.assertIn('events', data)
+            self.assertIn('task', data)
+            self.assertIn('state', data)
+            self.assertIn('trials', data)
+
+
+        # Test sync version 0
+        files['hdf'] = 'test20210310_08_te1039.hdf'
+        data, metadata = parse_bmi3d(data_dir, files)
+        check_required_fields(data, metadata)
+        self.assertIn('fps', metadata)
+        self.assertAlmostEqual(metadata['fps'], 120.)
+
+        # Test sync version 1
+        # TODO
+
+        # Test sync version 2
+
+        # Test sync version 3 
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        check_required_fields(data, metadata)
+        trials = data['trials']
+        self.assertEqual(len(trials), 3)        
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        check_required_fields(data, metadata)
+        self.assertIn('sync_clock', data)
+        self.assertIn('measure_clock_offline', data)
+        # Test sync version 4
+        # TODO
+
+    def test_parse_optitrack(self):
+        files = {}
+        files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
+        data, metadata = parse_optitrack(data_dir, files)
+        self.assertIn('data', data)
+        self.assertIn('samplerate', metadata)
+        self.assertEqual(metadata['samplerate'], 240.)
+
+    def test_proc_exp(self):
+        result_filename = 'test_proc_exp.hdf'
+        files = get_filenames(data_dir, 1315)
+        proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
+        exp_data = load_hdf_group(write_dir, result_filename, 'exp_data')
+        exp_metadata = load_hdf_group(write_dir, result_filename, 'exp_metadata')
+        self.assertIsNotNone(exp_data)
+        self.assertIsNotNone(exp_metadata)
+
+    def test_proc_mocap(self):
+        result_filename = 'test_proc_mocap.hdf'
+        files = get_filenames(data_dir, 1315)
+        proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
+        mocap = load_hdf_group(write_dir, result_filename, 'mocap_data')
+        mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')
+        self.assertIsNotNone(mocap)
+        self.assertIsNotNone(mocap_meta)
 
 if __name__ == "__main__":
     unittest.main()

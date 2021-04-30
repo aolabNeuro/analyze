@@ -7,15 +7,12 @@ def translate_spatial_data(spatial_data, new_origin):
     '''
     Shifts 2D or 3D spatial data to a new location.
 
-    Required packages: 
-        import numpy as np
+    Args:
+        spatial_data (nt, ndim): Spatial data in 2D or 3D
+        new_origin (ndim): Location of point that will become the origin in cartesian coordinates
 
-    Inputs:
-        spatial_data [nt, ndim]: Spatial data in 2D or 3D
-        new_origin [ndim]: Location of point that will become the origin in cartesian coordinates
-
-    Output:
-        new_spatial_data [nt, ndim]: new reach trajectory translated to the new origin
+    Returns:
+        (nt, ndim): new reach trajectory translated to the new origin
     '''
     new_spatial_data = np.subtract(spatial_data, new_origin)
 
@@ -31,16 +28,13 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
     
     This function was written to rotate spatial data but can be applied to other data of similar form.
 
-    Required packages: 
-        import numpy as np
-        import warnings
+    Args:
+        spatial_data (nt, ndim): Array of spatial data in 2D or 3D
+        new_axis (ndim): vector pointing along the desired orientation of the data
+        current_axis (ndim): vector pointing along the current orientation of the dat
 
-    Inputs:
-        spatial_data [nt, ndim]: Array of spatial data in 2D or 3D
-        new_axis [ndim]: vector pointing along the desired orientation of the data
-        current_axis [ndim]: vector pointing along the current orientation of the dat
-    Output:
-        output_spatial_data [nt, ndim]: new reach trajectory rotated to the new axis
+    Returns:
+        (nt, ndim): new reach trajectory rotated to the new axis
     '''
 
     # Check if input data is a single point and enfore that it is a row vector
@@ -100,3 +94,42 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
       return output_spatial_data[:,:2]
     elif spatial_data.shape[1] == 3:
       return output_spatial_data
+
+def calc_reward_intervals(timestamps, values):
+    '''
+    Given timestamps and values corresponding to reward times and reward state, calculate the
+    intervals (start, end) during which the reward was active
+
+    Args:
+        timestamps (nt): when the reward transitioned state
+        values (nt): what the state was at each corresponding timestamp
+
+    Returns:
+        (nt/2): during which the reward was active
+    '''
+    reward_ts_on = timestamps[values == 1]
+    reward_ts_off = timestamps[values == 0]
+    if len(reward_ts_on) == len(reward_ts_off):
+        return list(zip(reward_ts_on, reward_ts_off))
+    else:
+        raise ValueError("Invalid reward timestamps or values")
+
+
+def get_trial_targets(trials, targets):
+    '''
+    Organizes targets from each trial into a trial array of targets. Essentially reshapes the array,
+    but sometimes? there can be more or fewer targets in certain trials than in others
+
+    Args:
+        trials (ntargets): trial number for each target presented
+        targets (ntargets, 3): target locations
+    
+    Returns:
+        (ntrials list of (ntargets, 3)): list of targets in each trial
+    ''' 
+    n_trials = np.max(trials) + 1
+    trial_targets = [[] for _ in range(n_trials)]
+    for idx in range(len(trials)):
+        trial = trials[idx]
+        trial_targets[trial].append(targets[idx])
+    return trial_targets

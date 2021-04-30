@@ -1,6 +1,6 @@
 bmi3d/.ipynb_checkpoints
 */__pycache__
 */*/__pycache__
-tests/data/short headstage test/preprocessed.hdf
 *.egg-info
 .vscode
+tests/tmp

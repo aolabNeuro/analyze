@@ -1,9 +1,9 @@
-import aopy
+from aopy.postproc import *
 import numpy as np
 import warnings
 import unittest
 
-class move_trajectory_tests(unittest.TestCase):
+class TestTrajectoryFuncs(unittest.TestCase):
 
     def test_translate_spatial_data(self):
         # Test 2D input array and single point
@@ -12,8 +12,8 @@ class move_trajectory_tests(unittest.TestCase):
         new_origin2d = np.array([0,1])
         goal_shifted_data2d = np.array([[0,0], [0,1]])
         goal_shifted_point2d = np.array([0,0])
-        shited_data2d = aopy.postproc.translate_spatial_data(spatial_data2d, new_origin2d)
-        shited_point2d = aopy.postproc.translate_spatial_data(spatial_point2d, new_origin2d)
+        shited_data2d = translate_spatial_data(spatial_data2d, new_origin2d)
+        shited_point2d = translate_spatial_data(spatial_point2d, new_origin2d)
 
         np.testing.assert_almost_equal(shited_data2d, goal_shifted_data2d)
         np.testing.assert_almost_equal(shited_point2d, goal_shifted_point2d)
@@ -24,8 +24,8 @@ class move_trajectory_tests(unittest.TestCase):
         new_origin3d = np.array([1,1,1])
         goal_shifted_data3d = np.array([[0,0,0], [1,1,1]])
         goal_shifted_point3d = np.array([[0,0,0]])
-        shited_data3d = aopy.postproc.translate_spatial_data(spatial_data3d, new_origin3d)
-        shited_point3d = aopy.postproc.translate_spatial_data(spatial_point3d, new_origin3d)
+        shited_data3d = translate_spatial_data(spatial_data3d, new_origin3d)
+        shited_point3d = translate_spatial_data(spatial_point3d, new_origin3d)
 
         np.testing.assert_almost_equal(shited_data3d, goal_shifted_data3d)
         np.testing.assert_almost_equal(shited_point3d, goal_shifted_point3d)
@@ -38,8 +38,8 @@ class move_trajectory_tests(unittest.TestCase):
         
         # 90 deg rotation
         new_axis2d = np.array([1,0])
-        rotated_data2d = aopy.postproc.rotate_spatial_data(spatial_data2d, new_axis2d, current_axis2d)
-        rotated_point2d = aopy.postproc.rotate_spatial_data(spatial_point2d, new_axis2d, current_axis2d)
+        rotated_data2d = rotate_spatial_data(spatial_data2d, new_axis2d, current_axis2d)
+        rotated_point2d = rotate_spatial_data(spatial_point2d, new_axis2d, current_axis2d)
 
         goal_rotated_data2d = np.array([[1,0], [2,0]])
         goal_rotated_point2d = np.array([[1,0]])
@@ -49,8 +49,8 @@ class move_trajectory_tests(unittest.TestCase):
 
         # 180 deg rotation
         new_axis2d = np.array([0,-1])
-        rotated_data2d = aopy.postproc.rotate_spatial_data(spatial_data2d, new_axis2d, current_axis2d)
-        rotated_point2d = aopy.postproc.rotate_spatial_data(spatial_point2d, new_axis2d, current_axis2d)
+        rotated_data2d = rotate_spatial_data(spatial_data2d, new_axis2d, current_axis2d)
+        rotated_point2d = rotate_spatial_data(spatial_point2d, new_axis2d, current_axis2d)
 
         goal_rotated_data2d = np.array([[0,-1], [0,-2]])
         goal_rotated_point2d = np.array([[0,-1]])
@@ -61,8 +61,8 @@ class move_trajectory_tests(unittest.TestCase):
         # -90 deg rotation
         new_axis2d = np.array([-1,0])
 
-        rotated_data2d = aopy.postproc.rotate_spatial_data(spatial_data2d, new_axis2d, current_axis2d)
-        rotated_point2d = aopy.postproc.rotate_spatial_data(spatial_point2d, new_axis2d, current_axis2d)
+        rotated_data2d = rotate_spatial_data(spatial_data2d, new_axis2d, current_axis2d)
+        rotated_point2d = rotate_spatial_data(spatial_point2d, new_axis2d, current_axis2d)
 
         goal_rotated_data2d = np.array([[-1,0], [-2,0]])
         goal_rotated_point2d = np.array([[-1,0]])
@@ -77,8 +77,8 @@ class move_trajectory_tests(unittest.TestCase):
         
         # Rotation 1
         new_axis3d = np.array([1,0, 0])
-        rotated_data3d = aopy.postproc.rotate_spatial_data(spatial_data3d, new_axis3d, current_axis3d)
-        rotated_point3d = aopy.postproc.rotate_spatial_data(spatial_point3d, new_axis3d, current_axis3d)
+        rotated_data3d = rotate_spatial_data(spatial_data3d, new_axis3d, current_axis3d)
+        rotated_point3d = rotate_spatial_data(spatial_point3d, new_axis3d, current_axis3d)
 
         goal_rotated_data3d = np.array([[1,0, 0], [2,0,0]])
         goal_rotated_point3d = np.array([[1,0,0]])
@@ -88,8 +88,8 @@ class move_trajectory_tests(unittest.TestCase):
 
         # Rotation 2
         new_axis3d = np.array([-1,0, 0])
-        rotated_data3d = aopy.postproc.rotate_spatial_data(spatial_data3d, new_axis3d, current_axis3d)
-        rotated_point3d = aopy.postproc.rotate_spatial_data(spatial_point3d, new_axis3d, current_axis3d)
+        rotated_data3d = rotate_spatial_data(spatial_data3d, new_axis3d, current_axis3d)
+        rotated_point3d = rotate_spatial_data(spatial_point3d, new_axis3d, current_axis3d)
 
         goal_rotated_data3d = np.array([[-1,0,0], [-2,0,0]])
         goal_rotated_point3d = np.array([[-1,0,0]])
@@ -99,8 +99,8 @@ class move_trajectory_tests(unittest.TestCase):
 
         # Rotation 3
         new_axis3d = np.array([0,1, 0])
-        rotated_data3d = aopy.postproc.rotate_spatial_data(spatial_data3d, new_axis3d, current_axis3d)
-        rotated_point3d = aopy.postproc.rotate_spatial_data(spatial_point3d, new_axis3d, current_axis3d)
+        rotated_data3d = rotate_spatial_data(spatial_data3d, new_axis3d, current_axis3d)
+        rotated_point3d = rotate_spatial_data(spatial_point3d, new_axis3d, current_axis3d)
 
         goal_rotated_data3d = np.array([[0,1,0], [0,2,0]])
         goal_rotated_point3d = np.array([[0,1,0]])
@@ -113,10 +113,30 @@ class move_trajectory_tests(unittest.TestCase):
         spatial_point = np.array([4,1,4])
         current_axis = np.array([5,3,1])
         new_axis = np.array([1,0, 0])
-        rotated_data = aopy.postproc.rotate_spatial_data(spatial_data, new_axis, current_axis)
-        rotated_point = aopy.postproc.rotate_spatial_data(spatial_point, new_axis, current_axis)
+        rotated_data = rotate_spatial_data(spatial_data, new_axis, current_axis)
+        rotated_point = rotate_spatial_data(spatial_point, new_axis, current_axis)
 
         np.testing.assert_almost_equal(rotated_data[1,:], rotated_point[0,:])
+
+class TestCalcFuncs(unittest.TestCase):
+
+    def test_calc_reward_intervals(self):
+        timestamps = np.array([1,2,5,6,9,10])
+        values = np.array([1,0,1,0,1,0])
+        intervals = calc_reward_intervals(timestamps, values)
+        self.assertEqual(len(intervals), len(timestamps)/2)
+        self.assertTrue(np.allclose(intervals, [(1,2),(5,6),(9,10)]))
+        values = np.array([1,1,1,1,1,1,])
+        self.assertRaises(ValueError, lambda: calc_reward_intervals(timestamps, values))
+
+class TestGetFuncs(unittest.TestCase):
+
+    def test_get_trial_targets(self):
+        trials = [0, 1, 1, 2]
+        targets = [[1,2,3],[2,3,4],[2,3,4],[5,6,7]]
+        trial_targets = get_trial_targets(trials, targets)
+        self.assertEqual(len(trial_targets), 3)
+        self.assertEqual(len(trial_targets[1]), 2)
 
 if __name__ == "__main__":
     unittest.main()
