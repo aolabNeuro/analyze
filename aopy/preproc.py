@@ -807,7 +807,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         bmi3d_start_time = 0
 
     # Estimate display latency
-    if metadata['sync_protocol_version'] >= 3:
+    if metadata['sync_protocol_version'] >= 3 and 'sync_clock' in data and 'measure_clock_offline' in data:
 
         # Estimate the latency based on the "sync" state at the beginning of the experiment
         sync_impulse = data['sync_clock']['timestamp'][1:3]
@@ -827,27 +827,33 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
 
     # By default use the internal clock and events
     corrected_clock = internal_clock.copy()
-    corrected_events = rfn.append_fields(internal_events, 'timestamp', corrected_clock['timestamp'][internal_events['time']], dtypes='f8')
+    event_cycles = internal_events['time']
+    valid_cycles = np.in1d(event_cycles, corrected_clock['time'])
+    event_idx = np.in1d(corrected_clock['time'], event_cycles[valid_cycles])
+    event_timestamps = np.empty((len(event_cycles),), dtype='f')
+    event_timestamps[:] = np.nan
+    event_timestamps[valid_cycles] = corrected_clock['timestamp'][event_idx]
+    corrected_events = rfn.append_fields(internal_events, 'timestamp', event_timestamps, dtypes='f8')
 
     # Correct the timestamps and events based on sync and measure if present
-    if 'measure_clock_offline' in data:
+    if 'sync_events' in data and 'sync_clock' in data and 'measure_clock_offline' in data:
         
         # Check that the events are all present
         sync_events = data['sync_events']
         event_dict = metadata['event_sync_dict']
         if sync_events['code'][0] != internal_events['code'][0]:
             print("Warning: first event ({}) doesn't match bmi3d records ({})".format(sync_events['code'][0], internal_events['code'][0]))
-            event = np.empty((1,), dtype=corrected_events.dtype)
+            event = np.zeros((1,), dtype=corrected_events.dtype)
             event['code'] = sync_events['code'][0]
-            event['time'] = -1
+            event['time'] = 0
             event['timestamp'] = sync_events['timestamp'][0]
             # TODO decode
             corrected_events = np.insert(corrected_events, event, 0)
         if sync_events['code'][-1] != internal_events['code'][-1]:
             print("Warning: last event ({}) doesn't match bmi3d records ({})".format(sync_events['code'][-1], internal_events['code'][-1]))
-            event = np.empty((1,), dtype=corrected_events.dtype)
+            event = np.zeros((1,), dtype=corrected_events.dtype)
             event['code'] = sync_events['code'][-1]
-            event['time'] = -1
+            event['time'] = internal_events['time'][-1]
             event['timestamp'] = sync_events['timestamp'][-1]
             # TODO decode
             corrected_events = np.append(corrected_events, event)
@@ -923,7 +929,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
     corrected_clock['timestamp'] -= bmi3d_start_time
 
     # Trim / pad everything to the same length
-    n_cycles = len(task)
+    n_cycles = corrected_clock['time'][-1]
     if metadata['sync_protocol_version'] >= 3:
 
         # Due to the "sync" state at the beginning of the experiment, we need 
@@ -931,14 +937,16 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         state_log = data['bmi3d_state']
         n_sync_cycles = state_log['time'][1] # 120, approximately
         n_sync_clocks = np.count_nonzero(corrected_clock['time'] < n_sync_cycles)
-        n_cycles = state_log['time'][-1]
 
         padded_clock = np.zeros((n_cycles,), dtype=corrected_clock.dtype)
         padded_clock[n_sync_cycles:] = corrected_clock[n_sync_clocks:]
         padded_clock['time'][:n_sync_cycles] = range(n_sync_cycles)
-        padded_clock['time'][:n_sync_cycles] = np.arange(n_sync_cycles)/metadata['fps']
+        padded_clock['timestamp'][:n_sync_cycles] = np.arange(n_sync_cycles)/metadata['fps']
         corrected_clock = padded_clock
         
+    # Update the event timestamps according to the corrected clock    
+    corrected_events['timestamp'] = corrected_clock['timestamp'][corrected_events['time']]
+
     # Also put the reward system data into bmi3d time?
     if 'reward_system' in data and 'reward_system' in metadata['features']:
         metadata['has_reward_system'] = True
