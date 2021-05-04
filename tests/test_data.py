@@ -8,18 +8,21 @@ data_dir = 'tests/data/'
 write_dir = 'tests/tmp'
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
-filename = 'Take 2021-03-10 17_56_55 (1039).csv'
 test_filepath = "tests/data/short headstage test"
 
 class LoadDataTests(unittest.TestCase):
 
     def test_get_filenames_in_dir(self):
-        files = get_filenames_in_dir(data_dir, 1039)
-        self.assertIn('optitrack', files)
-        self.assertEqual(files['optitrack'], filename)
+        test_dir = os.path.join(data_dir, 'test_filenames_dir')
+        files = get_filenames_in_dir(test_dir, 1039)
+        self.assertIn('foo', files)
+        self.assertIn('bar', files)
+        self.assertEqual(files['foo'], '1039_foo')
+        self.assertEqual(files['bar'], '1039_bar.txt')
 
     def test_load_mocap(self):
         # Data directory and filepath
+        filename = 'Take 2021-03-10 17_56_55 (1039).csv'
 
         # Load Meta data
         mocap_metadata = load_optitrack_metadata(data_dir, filename)

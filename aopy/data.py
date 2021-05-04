@@ -7,10 +7,13 @@ import tables
 import csv
 import pandas as pd
 import os
+import glob
 
 def get_filenames_in_dir(base_dir, te):
     '''
-    Silly function to get the filenames for systems in a given task entry
+    Gets the filenames for available systems in a given task entry. Requires that
+    files are organized by system in the base directory, and named with their task
+    entry somewhere in their filename or directory name.
 
     Args:
         base_dir (str): directory where the files will be
@@ -19,16 +22,13 @@ def get_filenames_in_dir(base_dir, te):
     Returns:
         dict: dictionary of files indexed by system
     '''
-    contents = os.listdir(base_dir)
-    relevant_contents = [file_or_dir for file_or_dir in contents if str(te) in file_or_dir]
+    contents = glob.glob(os.path.join(base_dir,'*/*'))
+    relevant_contents = filter(lambda f: str(te) in f, contents)
     files = {}
-    for file_or_dir in relevant_contents:
-        if '.csv' in file_or_dir:
-            files['optitrack'] = file_or_dir
-        elif '.hdf' in file_or_dir:
-            files['hdf'] = file_or_dir
-        elif os.path.isdir(os.path.join(base_dir, file_or_dir)):
-            files['ecube'] = file_or_dir
+    for file in relevant_contents:
+        system = os.path.basename(os.path.dirname(file))
+        filename = os.path.basename(file)
+        files[system] = filename
     return files
 
 def get_exp_filename(te):

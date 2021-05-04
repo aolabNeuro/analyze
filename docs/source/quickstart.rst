@@ -9,6 +9,18 @@ contents of these files.
 
 A simple example:
 
+::
+
+    /data/raw/   
+    ├── hdf/
+    |   ├── test20210310_08_te1039.hdf
+    │   └── ...
+    ├── ecube/
+    |   ├── 2021-03-10_BMI3D_te1039/
+    │   |   ├── AnalogPanel_32_Channels_int16_2021-03-10_10-03-58
+    |   |   └── DigitalPanel_64_Channels_bool_masked_uint64_2021-03-10_10-03-58
+    │   └── ...
+
 .. code-block:: python
 
     import aopy
