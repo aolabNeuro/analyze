@@ -13,8 +13,8 @@ test_filepath = "tests/data/short headstage test"
 
 class LoadDataTests(unittest.TestCase):
 
-    def test_get_filenames(self):
-        files = get_filenames(data_dir, 1039)
+    def test_get_filenames_in_dir(self):
+        files = get_filenames_in_dir(data_dir, 1039)
         self.assertIn('optitrack', files)
         self.assertEqual(files['optitrack'], filename)
 
@@ -105,6 +105,20 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(test_metadata['key2'][()], 2)
         self.assertTrue(np.allclose(test_data['test_data_array'], np.arange(1000)))
         self.assertRaises(FileExistsError, lambda: save_hdf(write_dir, testfile, data, "/", append=False))
+
+    def test_get_hdf_contents(self):
+        testfile = 'load_hdf_contents_test.hdf'
+        testpath = os.path.join(write_dir, testfile)
+        if os.path.exists(testpath):
+            os.remove(testpath)
+        data_dict = {'test_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=data_dict, data_group="/", append=False)
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
+        result = get_hdf_contents(write_dir, testfile, show_tree=True)
+        self.assertIn('test_data', result)
+        self.assertIn('group1', result)
+        self.assertIn('group_data', result['group1'])
 
     def test_load_hdf_data(self):
         import os

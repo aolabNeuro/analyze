@@ -480,7 +480,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_proc_exp(self):
         result_filename = 'test_proc_exp.hdf'
-        files = get_filenames(data_dir, 1315)
+        files = get_filenames_in_dir(data_dir, 1315)
         proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
         exp_data = load_hdf_group(write_dir, result_filename, 'exp_data')
         exp_metadata = load_hdf_group(write_dir, result_filename, 'exp_metadata')
@@ -489,7 +489,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_proc_mocap(self):
         result_filename = 'test_proc_mocap.hdf'
-        files = get_filenames(data_dir, 1315)
+        files = get_filenames_in_dir(data_dir, 1315)
         proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
         mocap = load_hdf_group(write_dir, result_filename, 'mocap_data')
         mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')

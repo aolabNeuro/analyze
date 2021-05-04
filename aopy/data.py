@@ -8,7 +8,7 @@ import csv
 import pandas as pd
 import os
 
-def get_filenames(base_dir, te):
+def get_filenames_in_dir(base_dir, te):
     '''
     Silly function to get the filenames for systems in a given task entry
 
@@ -19,7 +19,6 @@ def get_filenames(base_dir, te):
     Returns:
         dict: dictionary of files indexed by system
     '''
-    print("Please don't use this function. Make one that gets filenames from the database instead!")
     contents = os.listdir(base_dir)
     relevant_contents = [file_or_dir for file_or_dir in contents if str(te) in file_or_dir]
     files = {}
@@ -31,6 +30,18 @@ def get_filenames(base_dir, te):
         elif os.path.isdir(os.path.join(base_dir, file_or_dir)):
             files['ecube'] = file_or_dir
     return files
+
+def get_exp_filename(te):
+    '''
+    Returns the experiment filename for a given task entry
+
+    Args:
+        te (int): block number for the task entry
+    
+    Returns:
+        str: filename
+    '''
+    return "preprocessed_te" + str(te) + ".hdf"
 
 def load_optitrack_metadata(data_dir, filename, metadata_row=0):
     '''
@@ -403,6 +414,70 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     if debug: print("Done!")
     return
 
+def get_hdf_contents(data_dir, hdf_filename, show_tree=False):
+    '''
+    Lists the hdf contents in a dictionary
+
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+    
+    Returns:
+        dict: contents of the file
+    '''
+    full_file_name = os.path.join(data_dir, hdf_filename)
+    hdf = h5py.File(full_file_name, 'r')
+
+    def _is_dataset(hdf):
+        return isinstance(hdf, h5py.Dataset)
+
+    def _get_hdf_contents(hdf, str_prefix=""):
+        
+        # If we're at a dataset print it out
+        if _is_dataset(hdf):
+            name = os.path.split(hdf.name)[1]
+            if show_tree: 
+                print(f'{str_prefix}{name}: [shape: {hdf.shape}, type: {hdf.dtype}]')
+            return (hdf.shape, hdf.dtype)
+        
+        # Otherwise recurse if we're in a group
+        else:
+            contents = dict()
+            for name, group in hdf.items():
+                if show_tree and not _is_dataset(group):
+                    print(str_prefix+"└──" + name)
+                contents[name] = _get_hdf_contents(group, str_prefix.replace("└──", "|  ")+"└──")
+            return contents
+    
+    if show_tree: 
+        print(hdf_filename)
+    return _get_hdf_contents(hdf)
+
+def _load_hdf_dataset(dataset, name):
+    '''
+    Internal function for loading hdf datasets. Decodes json and unicode data automatically.
+
+    Args:
+        dataset (hdf object): dataset to load
+        name (str): name of the dataset
+
+    Returns:
+        tuple: tuple containing:
+
+            name (str): name of the dataset (might be modified)
+            data (object): loaded data
+    '''
+    data = dataset[()]
+    if '_json' in name:
+        import json
+        name = name.replace('_json', '')
+        data = json.loads(data)
+    try:
+        data = data.decode('utf-8')
+    except:
+        pass
+    return name, data
+
 def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Simple wrapper to get the data from an hdf file as a numpy array
@@ -421,7 +496,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     full_data_name = os.path.join(data_group, data_name)
     if full_data_name not in hdf:
         raise ValueError('{} not found in file {}'.format(full_data_name, hdf_filename))
-    data = hdf[full_data_name][()]
+    _, data = _load_hdf_dataset(hdf[full_data_name], data_name)
     hdf.close()
     return np.array(data)
 
@@ -442,21 +517,20 @@ def load_hdf_group(data_dir, hdf_filename, group="/"):
     hdf = h5py.File(full_file_name, 'r')
     if group not in hdf:
         raise ValueError('No such group in file {}'.format(hdf_filename))
-    keys = hdf[group].keys()
-    data = dict()
-    for k in keys:
-        if isinstance(hdf[group][k], h5py.Group):
-            v = load_hdf_group(data_dir, hdf_filename, os.path.join(group, k))
-        else:
-            v = hdf[group][k][()]
-        if '_json' in k:
-            import json
-            k_ = k.replace('_json', '')
-            data[k_] = json.loads(v)
-        try:
-            data[k] = v.decode('utf-8')
-        except:
-            data[k] = v
+
+    # Recursively load groups until datasets are reached
+    def _load_hdf_group(hdf):
+        keys = hdf.keys()
+        data = dict()
+        for k in keys:
+            if isinstance(hdf[k], h5py.Group):
+                data[k] = _load_hdf_group(hdf[k])
+            else:
+                k_, v = _load_hdf_dataset(hdf[k], k)
+                data[k_] = v
+        return data
+
+    data = _load_hdf_group(hdf[group])
     hdf.close()
     return data
 
