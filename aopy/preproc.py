@@ -650,8 +650,11 @@ def _parse_bmi3d_v0(data_dir, files):
     }) 
 
     # Estimate timestamps
-    bmi3d_timestamps = np.arange(len(bmi3d_task))/bmi3d_task_metadata['fps']
-    bmi3d_clock = np.array(bmi3d_timestamps, dtype=[('timestamp', 'f8')])
+    bmi3d_cycles = np.arange(len(bmi3d_task))
+    bmi3d_timestamps = bmi3d_cycles/bmi3d_task_metadata['fps']
+    bmi3d_clock = np.empty((len(bmi3d_task),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
+    bmi3d_clock['time'] = bmi3d_cycles
+    bmi3d_clock['timestamp'] = bmi3d_timestamps
 
     # Put data into dictionary
     bmi3d_data = dict(
@@ -893,6 +896,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         corrected_timestamps, uncorrected_timestamps = get_measured_frame_timestamps(
             approx_clock['timestamp'], measured_clock['timestamp'], 
             latency_estimate, search_radius)
+        metadata['latency_measured'] = np.nanmean(corrected_timestamps - uncorrected_timestamps) - latency_estimate
         metadata['n_missing_markers'] = np.count_nonzero(np.isnan(uncorrected_timestamps))
 
         # Abort if there are too many missing markers
@@ -1037,10 +1041,11 @@ def parse_optitrack(data_dir, files):
     optitrack['rotation'] = optitrack_rot
     data_dict = {
         'data': optitrack,
+    }
+    optitrack_metadata.update({
         'source_dir': data_dir,
         'source_files': files,
-    }
-
+    }) 
     # TODO: add metadata about where the timestamps came from
     return data_dict, optitrack_metadata
 
