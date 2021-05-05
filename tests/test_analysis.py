@@ -41,13 +41,14 @@ class factor_analysis_tests(unittest.TestCase):
         data_dimensionality = np.argmax(np.mean(log_likelihood_score, 1))
         self.assertEqual(data_dimensionality, 2)
 
-    def test_trough_peak_idx(self):
+class find_extrema_tests(unittest.TestCase):
+    def test_find_trough_peak_idx(self):
         #Test single waveform
         deg_step = np.pi/8
         theta = np.arange(-np.pi, (2*np.pi)+(deg_step), deg_step)
         y = -np.sin(theta)
         
-        trough_idx, peak_idx = aopy.analysis.trough_peak_idx(y)
+        trough_idx, peak_idx = aopy.analysis.find_trough_peak_idx(y)
 
         self.assertEqual(trough_idx, 12) 
         self.assertEqual(peak_idx, 20)
@@ -59,29 +60,29 @@ class factor_analysis_tests(unittest.TestCase):
         y_multiple[:,2] = -np.sin(theta-2*deg_step)
         y_multiple[:,3] = -np.sin(theta-3*deg_step)
 
-        trough_idx_multiple, peak_idx_multiple = aopy.analysis.trough_peak_idx(y_multiple)
+        trough_idx_multiple, peak_idx_multiple = aopy.analysis.find_trough_peak_idx(y_multiple)
         np.testing.assert_allclose(trough_idx_multiple, np.array([12, 13, 14, 15]))
         np.testing.assert_allclose(peak_idx_multiple, np.array([20, 21, 22, 23]))
 
-    def test_poly2_peak_interp(self):
+    def test_interpolate_extremum_poly2(self):
         # Define waveform
         deg_step = np.pi/8
         theta = np.arange(-np.pi, (2*np.pi)+(deg_step), deg_step)
         y = -np.sin(theta-deg_step/2)
         
         # Test on value in the middle of the waveform
-        extremum_time, extremum_value, f = aopy.analysis.poly2_peak_interp(12, y)
+        extremum_time, extremum_value, f = aopy.analysis.interpolate_extremum_poly2(12, y)
         self.assertAlmostEqual(extremum_time, 12.5) 
         self.assertAlmostEqual(extremum_value, -1, places=2)
 
         # Test on values at the beginning and end of the waveform
         theta_edge = np.arange(-np.pi, (2*np.pi)+(2*deg_step), deg_step)
         y_edge = -np.sin(theta_edge)
-        extremum_time_edge1, extremum_value_edge1, f = aopy.analysis.poly2_peak_interp(0, y_edge)
+        extremum_time_edge1, extremum_value_edge1, f = aopy.analysis.interpolate_extremum_poly2(0, y_edge)
         self.assertAlmostEqual(extremum_time_edge1, 0) 
         self.assertAlmostEqual(extremum_value_edge1, 0)
 
-        extremum_time_edge2, extremum_value_edge2, f = aopy.analysis.poly2_peak_interp(len(theta_edge)-1, y_edge, extrap_peaks=True)
+        extremum_time_edge2, extremum_value_edge2, f = aopy.analysis.interpolate_extremum_poly2(len(theta_edge)-1, y_edge, extrap_peaks=True)
         self.assertGreater(extremum_time_edge2, len(theta_edge)-1) 
         self.assertLess(extremum_value_edge2, 0)
 

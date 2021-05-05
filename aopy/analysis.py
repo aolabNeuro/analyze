@@ -61,7 +61,7 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
             
     return log_likelihood_score, iterations_required
 
-def trough_peak_idx(unit_data):
+def find_trough_peak_idx(unit_data):
     '''
     This function calculates the trough-to-peak time at the index level (0th order) by finding the minimum value of
     the waveform, and identifying that as the trough index. To calculate the peak index, this function finds the 
@@ -105,9 +105,9 @@ def trough_peak_idx(unit_data):
         
     return troughidx, peakidx
 
-def poly2_peak_interp(extremum_idx, data, extrap_peaks=False):
+def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
     '''
-    This function finds the peak approximation around an index by fitting a second order polynomial (using a lagrange polynomial) to
+    This function finds the extremum approximation around an index by fitting a second order polynomial (using a lagrange polynomial) to
     the index input, the point before, and the point after it. In the case where the input index is either 
     at the end or the beginning of the data array, the function can either fit the data using the closest 3
     data points and return the extrapolated peak value or just return the input index. This extrapolation
@@ -118,7 +118,7 @@ def poly2_peak_interp(extremum_idx, data, extrap_peaks=False):
 
     Args:
         extremum_idx (int): Current extremum index
-        data [n]: data used to interpolate (or extrapolate) with
+        data (n): data used to interpolate (or extrapolate) with
         extrap_peaks (bool): If the extremum_idx is at the start or end of the data, indicate if the closest 3 points
                                 should be used to extrapolate a peak index.
         
