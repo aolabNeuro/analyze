@@ -242,7 +242,7 @@ def load_ecube_data(data_dir, data_source, channels=None):
     timeseries_data = process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
     return timeseries_data
 
-def proc_ecube_data(data_dir, data_source, result_filepath):
+def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     '''
     Loads and saves eCube data into an HDF file
 
@@ -252,6 +252,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath):
         data_dir (str): folder containing the data you want to load
         data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
         result_filepath (str): path to hdf file to be written (or appended)
+        dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
 
     Returns:
         None
@@ -270,7 +271,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath):
     dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
 
     # Open and read the eCube data into the new hdf dataset
-    process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset)
+    process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset, **dataset_kwargs)
     dat = Dataset(data_dir)
     dset.attrs['samplerate'] = dat.samplerate
     dset.attrs['data_source'] = data_source
@@ -289,7 +290,7 @@ def get_ecube_data_sources(data_dir):
     dat = Dataset(data_dir)
     return dat.listsources()
 
-def process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None):
+def process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, **dataset_kwargs):
     '''
     Reads data from an ecube data source by channel until the number of samples requested 
     has been loaded. If a processing function is supplied, it will be applied to 
@@ -302,14 +303,15 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
         n_samples (int): number of samples to read. Must be geq than a single chunk
         dtype (np.dtype): format for data_out if none supplied
         data_out (nt, nch): array of data to be written to. If None, it will be created
-
+        dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
+        
     Returns:
         (nt, nch): Requested samples for requested channels
     '''
     if data_out == None:
         data_out = np.zeros((n_samples, len(channels)), dtype=dtype)
 
-    dat = Dataset(data_dir)
+    dat = Dataset(data_dir, **dataset_kwargs)
     dat.selectsource(data_source)
     chunk = dat.emitchunk(startat=0, debug=True)
     datastream = ChunkedStream(chunkemitter=chunk)

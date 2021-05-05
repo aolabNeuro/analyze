@@ -1103,3 +1103,32 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
 
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
+    '''
+    Process lfp data
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool): whether to remove existing processed files if they exist
+
+    Returns:
+        None
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if overwrite and os.path.exists(filepath):
+        os.remove(filepath)
+    elif os.path.exists(filepath):
+        print("File {} already exists, doing nothing.".format(result_filename))
+        return
+
+    # Preprocess neural data into lfp
+    if 'ecube' in files:
+        broadband = proc_ecube_data(data_dir, 'Headstage', filepath)
+        lfp = broadband[::25,:]
+        data = {'lfp': lfp}
+        save_hdf(result_dir, result_filename, data, append=True)
+
+        
