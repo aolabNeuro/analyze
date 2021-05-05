@@ -1117,16 +1117,17 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         None
     '''  
     # Check if a processed file already exists
-    filepath = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(filepath):
-        os.remove(filepath)
-    elif os.path.exists(filepath):
+    result_path = os.path.join(result_dir, result_filename)
+    if overwrite and os.path.exists(result_path):
+        os.remove(result_path)
+    elif os.path.exists(result_path):
         print("File {} already exists, doing nothing.".format(result_filename))
         return
 
     # Preprocess neural data into lfp
     if 'ecube' in files:
-        broadband = proc_ecube_data(data_dir, 'Headstage', filepath)
+        data_path = os.path.join(data_dir, files['ecube'])
+        broadband = proc_ecube_data(data_path, 'Headstage', result_path)
         lfp = broadband[::25,:]
         data = {'lfp': lfp}
         save_hdf(result_dir, result_filename, data, append=True)
