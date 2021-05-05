@@ -179,6 +179,8 @@ class SignalPathTests(unittest.TestCase):
         testfile = '210118_ecog_channel_map.xls'
         self.assertEqual(lookup_acq2elec(data_dir, testfile, 118), 0)
         self.assertEqual(lookup_acq2elec(data_dir, testfile, 63), -1)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 118, elec_name='zif61'), 0)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 119, elec_name='zif71', zero_index=False), 7)
 
     def test_load_electrode_pos(self):
         testfile = '244ch_viventi_ecog_elec_to_pos.xls'

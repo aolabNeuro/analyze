@@ -277,6 +277,8 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     dset.attrs['data_source'] = data_source
     dset.attrs['channels'] = range(n_channels)
 
+    return dset
+
 def get_ecube_data_sources(data_dir):
     '''
     Lists the available data sources in a given data directory
@@ -574,14 +576,17 @@ def load_bmi3d_root_metadata(data_dir, filename):
 
 _cached_signal_path = {}
 
-def lookup_acq2elec(data_dir, signal_path_file, acq):
+def lookup_acq2elec(data_dir, signal_path_file, acq, acq_name='acq', elec_name='electrode', zero_index=True):
     '''
     Looks up the electrode number for a given acquisition channel using an excel map file (from Dr. Map)
 
     Inputs:
         data_dir (str): where the signal path file is located
         signal_path_file (str): signal path definition file
-        acq (int): which channel to look up (0-indexed)
+        acq (int): which channel to look up
+        acq_name (str, optional): the name of the acquisition column
+        elec_name (str, optional): the name of the electrode column
+        zero_index (bool, optional): use 0-indexing for acq and elec (default True)
 
     Output:
         ch2elec [nchannels]: lookup table mapping channels to electrodes or -1
@@ -594,12 +599,19 @@ def lookup_acq2elec(data_dir, signal_path_file, acq):
         signal_path = pd.read_excel(fullfile)
         _cached_signal_path[fullfile] = signal_path
     
-    ch = acq + 1 # signal paths are 1-indexed
-    row = signal_path.loc[signal_path['acq'] == ch]
-    if len(row) > 0:
-        return row['electrode'].to_numpy() - 1 # translate to 0-index
+    if zero_index:
+        ch = acq + 1 # signal paths are 1-indexed
+        row = signal_path.loc[signal_path[acq_name] == ch]
+        if len(row) > 0:
+            return row[elec_name].to_numpy() - 1 # translate to 0-index
+        else:
+            return -1
     else:
-        return -1
+        row = signal_path.loc[signal_path[acq_name] == acq]
+        if len(row) > 0:
+            return row[elec_name].to_numpy()
+        else:
+            return 0
 
 def load_electrode_pos(data_dir, pos_file):
     '''
