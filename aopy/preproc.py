@@ -720,7 +720,7 @@ def _parse_bmi3d_v1(data_dir, files):
 
         # Load ecube analog data for the strobe and reward system
         analog_channels = [bmi3d_event_metadata['screen_measure_ach'], bmi3d_event_metadata['reward_measure_ach']] # [5, 0]
-        ecube_analog, metadata = load_eCube_analog(data_dir, ecube_filename, channels=analog_channels)
+        ecube_analog, metadata = load_ecube_analog(data_dir, ecube_filename, channels=analog_channels)
         clock_measure_analog = ecube_analog[0,:]
         reward_system_analog = ecube_analog[1,:]
         analog_samplerate = metadata['samplerate']

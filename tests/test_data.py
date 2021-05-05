@@ -59,8 +59,8 @@ class LoadDataTests(unittest.TestCase):
     def test_process_channels(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
         data = process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
-        assert data.shape[0] == 1
-        assert data.shape[1] == 214032
+        assert data.shape[1] == 1
+        assert data.shape[0] == 214032
 
     def test_load_ecube_metadata(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
@@ -69,8 +69,8 @@ class LoadDataTests(unittest.TestCase):
 
     def test_load_ecube_data(self):
         data = load_ecube_data(test_filepath, 'Headstages')
-        assert data.shape[0] == 64
-        assert data.shape[1] == 214032
+        assert data.shape[1] == 64
+        assert data.shape[0] == 214032
 
     def test_proc_ecube_data(self):
         import os
@@ -83,8 +83,8 @@ class LoadDataTests(unittest.TestCase):
         hdf = h5py.File(hdf_filepath, 'r')
         assert 'Headstages' in hdf
         assert hdf['Headstages'].attrs['samplerate'] == 25000.
-        assert hdf['Headstages'].shape[0] == 64
-        assert hdf['Headstages'].shape[1] == 214032
+        assert hdf['Headstages'].shape[1] == 64
+        assert hdf['Headstages'].shape[0] == 214032
     
     def test_save_hdf(self):
         import os
@@ -172,6 +172,19 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(len(data), 534)
         data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'sync_events')
         self.assertEqual(len(data), 6)
+
+class SignalPathTests(unittest.TestCase):
+
+    def test_lookup_acq2elec(self):
+        testfile = '210118_ecog_channel_map.xls'
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 118), 0)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 63), -1)
+
+    def test_load_electrode_pos(self):
+        testfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        x, y = load_electrode_pos(data_dir, testfile)
+        self.assertEqual(len(x), 244)
+        self.assertEqual(len(y), 244)
     
 if __name__ == "__main__":
     unittest.main()

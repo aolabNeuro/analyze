@@ -222,7 +222,7 @@ def load_ecube_data(data_dir, data_source, channels=None):
         channels (int array or None): list of channel numbers (0-indexed) to load. If None, will load all channels by default
 
     Returns:
-        (nCh x nt): all the data for the given source
+        (nt, nch): all the data for the given source
     '''
 
     # Read metadata, check inputs
@@ -267,7 +267,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath):
 
     # Create an hdf dataset
     hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = hdf.create_dataset(data_source, (n_channels, n_samples), dtype=dtype)
+    dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
 
     # Open and read the eCube data into the new hdf dataset
     process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset)
@@ -300,14 +300,14 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
         data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
         channels (int array): list of channels to process
         n_samples (int): number of samples to read. Must be geq than a single chunk
-        dtype (numpy dtype): format for data_out if none supplied
-        data_out (nCh, nt): array of data to be written to. If None, it will be created
+        dtype (np.dtype): format for data_out if none supplied
+        data_out (nt, nch): array of data to be written to. If None, it will be created
 
     Returns:
-        (nchannels, n_samples): Requested samples for requested channels
+        (nt, nch): Requested samples for requested channels
     '''
     if data_out == None:
-        data_out = np.zeros((len(channels), n_samples), dtype=dtype)
+        data_out = np.zeros((n_samples, len(channels)), dtype=dtype)
 
     dat = Dataset(data_dir)
     dat.selectsource(data_source)
@@ -319,7 +319,7 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
         try:
             data_chunk = next(datastream)
             data_len = np.shape(data_chunk)[1]
-            data_out[:,idx_samples:idx_samples+data_len] = np.squeeze(data_chunk[channels,:]) # this might be where you filter data
+            data_out[idx_samples:idx_samples+data_len,:] = np.reshape(data_chunk[channels,:], (data_len, len(channels))) # this might be where you filter data
             idx_samples += data_len
         except StopIteration:
             break
@@ -343,7 +343,7 @@ def load_ecube_digital(path, data_dir):
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
     return data, metadata
 
-def load_eCube_analog(path, data_dir, channels=None):
+def load_ecube_analog(path, data_dir, channels=None):
     '''
     Just a wrapper around load_ecube_data() and load_ecube_metadata()
 
@@ -355,7 +355,7 @@ def load_eCube_analog(path, data_dir, channels=None):
     Returns:
         tuple: tuple containing:
         
-            data (nCh, nt): analog data for the requested channels
+            data (nt, nch): analog data for the requested channels
             metadata (dict): metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'AnalogPanel', channels)
@@ -569,3 +569,53 @@ def load_bmi3d_root_metadata(data_dir, filename):
     '''
     with h5py.File(os.path.join(data_dir, filename), 'r') as f:
         return dict(f['/'].attrs.items())
+
+_cached_signal_path = {}
+
+def lookup_acq2elec(data_dir, signal_path_file, acq):
+    '''
+    Looks up the electrode number for a given acquisition channel using an excel map file (from Dr. Map)
+
+    Inputs:
+        data_dir (str): where the signal path file is located
+        signal_path_file (str): signal path definition file
+        acq (int): which channel to look up (0-indexed)
+
+    Output:
+        ch2elec [nchannels]: lookup table mapping channels to electrodes or -1
+        pos (nelecs, nelecs): tuple of x and y positions for each electrode
+    '''
+    fullfile = os.path.join(data_dir, signal_path_file)
+    if fullfile in _cached_signal_path:
+        signal_path = _cached_signal_path[fullfile]
+    else:
+        signal_path = pd.read_excel(fullfile)
+        _cached_signal_path[fullfile] = signal_path
+    
+    ch = acq + 1 # signal paths are 1-indexed
+    row = signal_path.loc[signal_path['acq'] == ch]
+    if len(row) > 0:
+        return row['electrode'].to_numpy() - 1 # translate to 0-index
+    else:
+        return -1
+
+def load_electrode_pos(data_dir, pos_file):
+    '''
+    Reads an electrode position map file and returns the x and y positions. The file
+    should have the columns 'topdown_x' and 'topdown_y'.
+
+    Args:
+        data_dir (str): where to find the file
+        pos_file (str): the excel file
+
+    Returns:
+        tuple: tuple containing:
+
+            x_pos (nch): x position of each electrode
+            y_pos (nch): y position of each electrode
+    '''
+    fullfile = os.path.join(data_dir, pos_file)
+    electrode_pos = pd.read_excel(fullfile)
+    x_pos = electrode_pos['topdown_x'].to_numpy()
+    y_pos = electrode_pos['topdown_y'].to_numpy()
+    return x_pos, y_pos
