@@ -1127,7 +1127,7 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
     # Preprocess neural data into lfp
     if 'ecube' in files:
         data_path = os.path.join(data_dir, files['ecube'])
-        broadband = proc_ecube_data(data_path, 'Headstage', result_path)
+        broadband = proc_ecube_data(data_path, 'Headstages', result_path)
         lfp = broadband[::25,:]
         data = {'lfp': lfp}
         save_hdf(result_dir, result_filename, data, append=True)
