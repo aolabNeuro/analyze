@@ -9,18 +9,18 @@ from scipy.spatial import cKDTree
 import numpy as np
 import os
 
-def savefig(result_dir, filename, **kwargs):
+def savefig(base_dir, filename, **kwargs):
     '''
     Wrapper around matplotlib savefig with some default options
 
     Args:
-        result_dir (str): where to put the figure
+        base_dir (str): where to put the figure
         filename (str): what to name the figure
         **kwargs (optional): arguments to pass to plt.savefig()
     '''
     if '.' not in filename:
         filename += '.png'
-    fname = os.path.join(result_dir, filename)
+    fname = os.path.join(base_dir, filename)
     if 'dpi' not in kwargs:
         kwargs['dpi']=300.
     if 'facecolor' not in kwargs:
@@ -73,38 +73,84 @@ def plot_freq_domain(freq_data, samplerate, ax=None):
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Power (a.u.)')
 
-def plot_data_on_pos(data, x_pos, y_pos, grid_size, ax=None, interp='nearest', cmap='bwr', threshold=0.01):
+def get_data_map(data, x_pos, y_pos):
     '''
-    Make an image out of scatter data. 
+    Organizes data according to the given x and y positions
 
     Args:
         data (nch): list of values
         x_pos (nch): list of x positions
         y_pos (nch): list of y positions
-        grid_size (2): number of points along each axis
-        ax (int): optional axis on which to plot, default gca
-        interp (str): method used for interpolation
-        cmap (str): matplotlib colormap to use in image
-        threshold (float): distance to neighbors before disregarding a point on the image
+
+    Returns:
+        2,n array: map of the data on the given grid
+    '''
+    data = np.reshape(data, -1)
+
+    X = np.unique(x_pos)
+    Y = np.unique(y_pos)
+    nX = len(X)
+    nY = len(Y)
+
+    # Order Y into rows and X into columns
+    data_map = np.empty((nY, nX), dtype=data.dtype)
+    data_map[:] = np.nan
+    for data_idx in range(len(data)):
+        xid = np.where(X == x_pos[data_idx])[0]
+        yid = np.where(Y == y_pos[data_idx])[0]
+        data_map[yid, xid] = data[data_idx]
+
+    return data_map
+
+def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', threshold_dist=None):
+    '''
+    Turns scatter data into grid data by interpolating up to a given threshold distance.
+
+    Args:
+        data (nch): list of values
+        x_pos (nch): list of x positions
+        y_pos (nch): list of y positions
+        grid_size (tuple): number of points along each axis
+        interp_method (str): method used for interpolation
+        threshold_dist (float): distance to neighbors before disregarding a point on the image
+
+    Returns:
+        2,n array: map of the data on the given grid
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
     x_spacing = (extent[1]-extent[0])/(grid_size[0]-1)
     y_spacing = (extent[3]-extent[2])/(grid_size[1]-1)
-    if ax is None:
-        ax = plt.gca()
     xy = np.vstack((x_pos, y_pos)).T
     xq, yq = np.meshgrid(np.arange(extent[0],x_spacing*grid_size[0],x_spacing), np.arange(extent[2],y_spacing*grid_size[1],y_spacing))
-    X = griddata(xy, data, (np.reshape(xq,-1), np.reshape(yq,-1)), method=interp, rescale=False)
+    X = griddata(xy, data, (np.reshape(xq,-1), np.reshape(yq,-1)), method=interp_method, rescale=False)
 
     # Construct kd-tree, functionality copied from scipy.interpolate
     tree = cKDTree(xy)
     xi = _ndim_coords_from_arrays((np.reshape(xq,-1), np.reshape(yq,-1)))
     dists, indexes = tree.query(xi)
 
-    # Copy original result but mask missing values with NaNs
-    X[dists > threshold] = np.nan
+    # Mask values with distances over the threshold with NaNs
+    if threshold_dist:
+        X[dists > threshold_dist] = np.nan
 
-    # Fix the extents to match what imshow expects
+    data_map = np.reshape(X, grid_size)
+    return data_map
+
+def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
+    '''
+    Wrapper around plt.imshow for spatial data
+
+    Args:
+        map (2,n array): map of x,y data
+        x (list): list of x positions
+        y (list): list of y positions
+        ax (int, optional): axis on which to plot, default gca
+        cmap (str, optional): matplotlib colormap to use in image
+    '''
+    # Calculate the proper extents
+    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+    x_spacing = (extent[1]-extent[0])/(data_map.shape[0]-1)
+    y_spacing = (extent[3]-extent[2])/(data_map.shape[1]-1)
     extent = np.add(extent, [-x_spacing/2, x_spacing/2, -y_spacing/2, y_spacing/2])
 
     # Set the 'bad' color to something different
@@ -112,7 +158,6 @@ def plot_data_on_pos(data, x_pos, y_pos, grid_size, ax=None, interp='nearest', c
     cmap.set_bad(color='black')
 
     # Plot
-    im = np.reshape(X, grid_size)
-    plt.imshow(im, cmap=cmap, origin='lower', extent=extent)
+    plt.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     plt.xlabel('x position')
     plt.ylabel('y position')
