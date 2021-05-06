@@ -46,9 +46,9 @@ def plot_timeseries(data, samplerate, ax=None):
         ax = plt.gca()
     time = np.arange(np.shape(data)[0])/samplerate
     for ch in range(np.shape(data)[1]):
-        plt.plot(time, data[:,ch]*1e6)
-    plt.xlabel('Time (s)')
-    plt.ylabel('Voltage (uV)')
+        ax.plot(time, data[:,ch]*1e6)
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Voltage (uV)')
 
 def plot_freq_domain(freq_data, samplerate, ax=None):
     '''
@@ -68,10 +68,10 @@ def plot_freq_domain(freq_data, samplerate, ax=None):
     data_ampl = abs(freq_data[freq>1,:])*2/length
     non_negative_freq = freq[freq>1]
     for ch in range(np.shape(freq_data)[1]):
-        plt.semilogx(non_negative_freq, data_ampl[:,ch]*1e4)
+        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e4)
         #plt.xscale('log', base=2)
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Power (a.u.)')
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_ylabel('Power (a.u.)')
 
 def get_data_map(data, x_pos, y_pos):
     '''
@@ -158,6 +158,8 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     cmap.set_bad(color='black')
 
     # Plot
-    plt.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
-    plt.xlabel('x position')
-    plt.ylabel('y position')
+    if ax is None:
+        ax = plt.gca()
+    ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    ax.set_xlabel('x position')
+    ax.set_ylabel('y position')

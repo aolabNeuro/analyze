@@ -609,7 +609,7 @@ def lookup_acq2elec(data_dir, signal_path_file, acq, acq_name='acq', elec_name='
     else:
         row = signal_path.loc[signal_path[acq_name] == acq]
         if len(row) > 0:
-            return row[elec_name].to_numpy()
+            return row[elec_name].to_numpy()[0]
         else:
             return 0
 

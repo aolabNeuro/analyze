@@ -3,12 +3,14 @@ from aopy.visualization import *
 import numpy as np
 
 write_dir = 'tests/tmp'
+if not os.path.exists(write_dir):
+    os.mkdir(write_dir)
 
 class PlottingTests(unittest.TestCase):
 
     def test_plot_timeseries(self):
         filename = 'timeseries.png'
-        data = np.reshape(np.sin(np.arange(1000)/np.pi) + np.sin(2*np.arange(1000)),(1000))
+        data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
         samplerate = 1000
         plt.figure()
         plot_timeseries(data, samplerate)
@@ -16,7 +18,7 @@ class PlottingTests(unittest.TestCase):
 
     def test_plot_freq_domain(self):
         filename = 'freqdomain.png'
-        data = np.reshape(np.sin(np.arange(1000)/np.pi) + np.sin(2*np.arange(1000)),(1000))
+        data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
         freq_data = np.fft.fft(data)
         samplerate = 1000
         plt.figure()
