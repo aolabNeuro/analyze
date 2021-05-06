@@ -236,7 +236,7 @@ def load_ecube_data(data_dir, data_source, channels=None):
     if data_source == 'DigitalPanel':
         dtype = np.uint64
     else:
-        dtype = np.uint16
+        dtype = np.int16
 
     # Fetch all the data for all the channels
     timeseries_data = process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
@@ -264,7 +264,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     if data_source == 'DigitalPanel':
         dtype = np.uint64
     else:
-        dtype = np.uint16
+        dtype = np.int16
 
     # Create an hdf dataset
     hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
