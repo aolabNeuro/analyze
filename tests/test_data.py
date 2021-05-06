@@ -1,6 +1,7 @@
 # test_data.py 
 # tests of aopy.data
 from aopy.data import *
+from aopy.visualization import *
 import unittest
 import os
 
@@ -9,6 +10,7 @@ write_dir = 'tests/tmp'
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 test_filepath = "tests/data/short headstage test"
+sim_filepath = "tests/data/fake ecube data"
 
 class LoadDataTests(unittest.TestCase):
 
@@ -71,6 +73,14 @@ class LoadDataTests(unittest.TestCase):
         data = load_ecube_data(test_filepath, 'Headstages')
         assert data.shape[1] == 64
         assert data.shape[0] == 214032
+        data = load_ecube_data(test_filepath, 'Headstages', channels=[4])
+        assert data.shape[1] == 1
+        assert data.shape[0] == 214032
+        data = load_ecube_data(sim_filepath, 'Headstages')
+        assert data.shape[1] == 8
+        assert data.shape[0] == 25000
+        plot_timeseries(data, 25000)
+        savefig(write_dir, 'load_ecube_data.png')
 
     def test_proc_ecube_data(self):
         import os

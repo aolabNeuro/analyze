@@ -323,7 +323,7 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
         try:
             data_chunk = next(datastream)
             data_len = np.shape(data_chunk)[1]
-            data_out[idx_samples:idx_samples+data_len,:] = np.reshape(data_chunk[channels,:], (data_len, len(channels))) # this might be where you filter data
+            data_out[idx_samples:idx_samples+data_len,:] = np.swapaxes(data_chunk[channels,:], 0, 1) # this might be where you filter data
             idx_samples += data_len
         except StopIteration:
             break
