@@ -13,6 +13,7 @@ install_requires = [
     'h5py',
     'tables',
     'scikit-learn',
+    'xlrd',
     'openpyxl',
     'matplotlib',
 ]
