@@ -574,44 +574,70 @@ def load_bmi3d_root_metadata(data_dir, filename):
     with h5py.File(os.path.join(data_dir, filename), 'r') as f:
         return dict(f['/'].attrs.items())
 
-_cached_signal_path = {}
+# Set up a cache mapping filenames to pandas dataframes so we don't have to load the
+# dataframe every time someone calls the lookup functions
+_cached_dataframes = {}
 
-def lookup_acq2elec(data_dir, signal_path_file, acq, acq_name='acq', elec_name='electrode', zero_index=True):
+def lookup_excel_value(data_dir, excel_file, from_column, to_column, lookup_value):
+    '''
+    Finds a matching value for the given key in an excel file. Used for looking up
+    electrode and acquisition channels for signal path files, but can also be useful
+    as a lookup table for other numeric mappings.
+
+    Args:
+        data_dir (str): where the signal path file is located
+        signal_path_file (str): signal path definition file
+        from_column (str, optional): the name of the electrode column
+        to_column (str, optional): the name of the acquisition column
+        lookup_value (int): match this value in the from_column
+
+    Returns:
+        int: the corresponding value in the lookup table, or 0 if none is found
+    '''
+    fullfile = os.path.join(data_dir, excel_file)
+    if fullfile in _cached_dataframes:
+        dataframe = _cached_dataframes[fullfile]
+    else:
+        dataframe = pd.read_excel(fullfile)
+        _cached_dataframes[fullfile] = dataframe
+    
+    row = dataframe.loc[dataframe[from_column] == lookup_value]
+    if len(row) > 0:
+        return row[to_column].to_numpy()[0]
+    else:
+        return 0
+
+def lookup_acq2elec(data_dir, signal_path_file, acq, zero_index=True):
     '''
     Looks up the electrode number for a given acquisition channel using an excel map file (from Dr. Map)
 
-    Inputs:
+    Args:
         data_dir (str): where the signal path file is located
         signal_path_file (str): signal path definition file
         acq (int): which channel to look up
-        acq_name (str, optional): the name of the acquisition column
-        elec_name (str, optional): the name of the electrode column
         zero_index (bool, optional): use 0-indexing for acq and elec (default True)
 
-    Output:
-        ch2elec [nchannels]: lookup table mapping channels to electrodes or -1
-        pos (nelecs, nelecs): tuple of x and y positions for each electrode
+    Returns:
+        int: matching electrode number. If no matching electrode is found, returns -1 (or 0 with zero_index=False)
     '''
-    fullfile = os.path.join(data_dir, signal_path_file)
-    if fullfile in _cached_signal_path:
-        signal_path = _cached_signal_path[fullfile]
-    else:
-        signal_path = pd.read_excel(fullfile)
-        _cached_signal_path[fullfile] = signal_path
-    
-    if zero_index:
-        ch = acq + 1 # signal paths are 1-indexed
-        row = signal_path.loc[signal_path[acq_name] == ch]
-        if len(row) > 0:
-            return row[elec_name].to_numpy() - 1 # translate to 0-index
-        else:
-            return -1
-    else:
-        row = signal_path.loc[signal_path[acq_name] == acq]
-        if len(row) > 0:
-            return row[elec_name].to_numpy()[0]
-        else:
-            return 0
+    value = lookup_excel_value(data_dir, signal_path_file, 'acq', 'electrode', acq + 1*zero_index) 
+    return value - 1*zero_index
+
+def lookup_elec2acq(data_dir, signal_path_file, elec, zero_index=True):
+    '''
+    Looks up the acquisition channel for a given electrode number using an excel map file (from Dr. Map)
+
+    Args:
+        data_dir (str): where the signal path file is located
+        signal_path_file (str): signal path definition file
+        elec (int): which electrode to look up
+        zero_index (bool, optional): use 0-indexing for acq and elec (default True)
+
+    Returns:
+        int: matching acquisition channel. If no matching channel is found, returns -1 (or 0 with zero_index=False)
+    '''
+    value = lookup_excel_value(data_dir, signal_path_file, 'electrode', 'acq', elec + 1*zero_index)
+    return value - 1*zero_index
 
 def load_electrode_pos(data_dir, pos_file):
     '''

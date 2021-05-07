@@ -185,12 +185,24 @@ class LoadDataTests(unittest.TestCase):
 
 class SignalPathTests(unittest.TestCase):
 
+    def test_lookup_excel_value(self):
+        testfile = '210118_ecog_channel_map.xls'
+        self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'electrode', 119), 1)
+        self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'zif61GroupID', 119), '_A')
+
     def test_lookup_acq2elec(self):
         testfile = '210118_ecog_channel_map.xls'
         self.assertEqual(lookup_acq2elec(data_dir, testfile, 118), 0)
         self.assertEqual(lookup_acq2elec(data_dir, testfile, 63), -1)
-        self.assertEqual(lookup_acq2elec(data_dir, testfile, 118, elec_name='zif61'), 0)
-        self.assertEqual(lookup_acq2elec(data_dir, testfile, 119, elec_name='zif71', zero_index=False), 7)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 119, zero_index=False), 1)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 64, zero_index=False), 0)
+
+    def test_lookup_elec2acq(self):
+        testfile = '210118_ecog_channel_map.xls'
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 0), 118)
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 321), -1)
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 1, zero_index=False), 119)
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 320, zero_index=False), 0)
 
     def test_load_electrode_pos(self):
         testfile = '244ch_viventi_ecog_elec_to_pos.xls'
