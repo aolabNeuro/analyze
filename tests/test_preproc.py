@@ -2,8 +2,9 @@ from aopy.preproc import *
 import numpy as np
 import unittest
 
-data_dir = 'tests/data/'
-write_dir = 'tests/tmp'
+test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
+write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 

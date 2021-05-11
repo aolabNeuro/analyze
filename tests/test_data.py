@@ -5,12 +5,13 @@ from aopy.visualization import *
 import unittest
 import os
 
-data_dir = 'tests/data/'
-write_dir = 'tests/tmp'
+test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
+write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
-test_filepath = "tests/data/short headstage test"
-sim_filepath = "tests/data/fake ecube data"
+test_filepath = os.path.join(data_dir, "short headstage test")
+sim_filepath = os.path.join(data_dir, "fake ecube data")
 
 class LoadDataTests(unittest.TestCase):
 

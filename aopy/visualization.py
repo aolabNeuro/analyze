@@ -8,6 +8,7 @@ from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 import numpy as np
 import os
+import copy
 
 def savefig(base_dir, filename, **kwargs):
     '''
@@ -50,26 +51,26 @@ def plot_timeseries(data, samplerate, ax=None):
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (uV)')
 
-def plot_freq_domain(freq_data, samplerate, ax=None):
+def plot_freq_domain_power(data, samplerate, ax=None):
     '''
-    Plots data along frequency on the given axis
+    Plots a power spectrum of each channel on the given axis
 
     Args:
-        freq_data (nt, nch): frequency domain data, can also be a single channel vector
+        data (nt, nch): timeseries data, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
     '''
-    if np.ndim(freq_data) < 2:
-        freq_data = np.expand_dims(freq_data, 1)
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
     if ax is None:
         ax = plt.gca()
+    freq_data = np.fft.fft(data)
     length = np.shape(freq_data)[0]
     freq = np.fft.fftfreq(length, d=1./samplerate)
     data_ampl = abs(freq_data[freq>1,:])*2/length
     non_negative_freq = freq[freq>1]
     for ch in range(np.shape(freq_data)[1]):
         ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e4)
-        #plt.xscale('log', base=2)
     ax.set_xlabel('Frequency (Hz)')
     ax.set_ylabel('Power (a.u.)')
 
@@ -154,7 +155,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     extent = np.add(extent, [-x_spacing/2, x_spacing/2, -y_spacing/2, y_spacing/2])
 
     # Set the 'bad' color to something different
-    cmap = matplotlib.cm.get_cmap(cmap).copy() # CHANGE to cmap = matplotlib.cm.get_cmap(cmap).
+    cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
     cmap.set_bad(color='black')
 
     # Plot
