@@ -64,7 +64,7 @@ def plot_freq_domain_power(data, samplerate, ax=None):
         data = np.expand_dims(data, 1)
     if ax is None:
         ax = plt.gca()
-    freq_data = np.fft.fft(data)
+    freq_data = np.fft.fft(data, axis=0)
     length = np.shape(freq_data)[0]
     freq = np.fft.fftfreq(length, d=1./samplerate)
     data_ampl = abs(freq_data[freq>1,:])*2/length
