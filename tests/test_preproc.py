@@ -2,8 +2,9 @@ from aopy.preproc import *
 import numpy as np
 import unittest
 
-data_dir = 'tests/data/'
-write_dir = 'tests/tmp'
+test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
+write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -480,7 +481,9 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_proc_exp(self):
         result_filename = 'test_proc_exp.hdf'
-        files = get_filenames(data_dir, 1315)
+        files = {}
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
         proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
         exp_data = load_hdf_group(write_dir, result_filename, 'exp_data')
         exp_metadata = load_hdf_group(write_dir, result_filename, 'exp_metadata')
@@ -489,7 +492,9 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_proc_mocap(self):
         result_filename = 'test_proc_mocap.hdf'
-        files = get_filenames(data_dir, 1315)
+        files = {}
+        files['optitrack'] = 'Pretend take (1315).csv'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
         proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
         mocap = load_hdf_group(write_dir, result_filename, 'mocap_data')
         mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')

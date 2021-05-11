@@ -649,8 +649,11 @@ def _parse_bmi3d_v0(data_dir, files):
     }) 
 
     # Estimate timestamps
-    bmi3d_timestamps = np.arange(len(bmi3d_task))/bmi3d_task_metadata['fps']
-    bmi3d_clock = np.array(bmi3d_timestamps, dtype=[('timestamp', 'f8')])
+    bmi3d_cycles = np.arange(len(bmi3d_task))
+    bmi3d_timestamps = bmi3d_cycles/bmi3d_task_metadata['fps']
+    bmi3d_clock = np.empty((len(bmi3d_task),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
+    bmi3d_clock['time'] = bmi3d_cycles
+    bmi3d_clock['timestamp'] = bmi3d_timestamps
 
     # Put data into dictionary
     bmi3d_data = dict(
@@ -716,7 +719,7 @@ def _parse_bmi3d_v1(data_dir, files):
 
         # Load ecube analog data for the strobe and reward system
         analog_channels = [bmi3d_event_metadata['screen_measure_ach'], bmi3d_event_metadata['reward_measure_ach']] # [5, 0]
-        ecube_analog, metadata = load_eCube_analog(data_dir, ecube_filename, channels=analog_channels)
+        ecube_analog, metadata = load_ecube_analog(data_dir, ecube_filename, channels=analog_channels)
         clock_measure_analog = ecube_analog[0,:]
         reward_system_analog = ecube_analog[1,:]
         analog_samplerate = metadata['samplerate']
@@ -892,6 +895,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         corrected_timestamps, uncorrected_timestamps = get_measured_frame_timestamps(
             approx_clock['timestamp'], measured_clock['timestamp'], 
             latency_estimate, search_radius)
+        metadata['latency_measured'] = np.nanmean(corrected_timestamps - uncorrected_timestamps) - latency_estimate
         metadata['n_missing_markers'] = np.count_nonzero(np.isnan(uncorrected_timestamps))
 
         # Abort if there are too many missing markers
@@ -1036,10 +1040,11 @@ def parse_optitrack(data_dir, files):
     optitrack['rotation'] = optitrack_rot
     data_dict = {
         'data': optitrack,
+    }
+    optitrack_metadata.update({
         'source_dir': data_dir,
         'source_files': files,
-    }
-
+    }) 
     # TODO: add metadata about where the timestamps came from
     return data_dict, optitrack_metadata
 
@@ -1096,3 +1101,31 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         optitrack_data, optitrack_metadata = parse_optitrack(data_dir, files)
         save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
+
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
+    '''
+    Process lfp data
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool): whether to remove existing processed files if they exist
+
+    Returns:
+        None
+    '''  
+    # Check if a processed file already exists
+    result_path = os.path.join(result_dir, result_filename)
+    if overwrite and os.path.exists(result_path):
+        os.remove(result_path)
+    elif os.path.exists(result_path):
+        print("File {} already exists, doing nothing.".format(result_filename))
+        return
+
+    # Preprocess neural data into lfp
+    if 'ecube' in files:
+        data_path = os.path.join(data_dir, files['ecube'])
+        broadband = proc_ecube_data(data_path, 'Headstages', result_path)
+        # TODO filter broadband data into LFP
+
