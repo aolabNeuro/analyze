@@ -336,7 +336,6 @@ def calc_reward_rate(event_log, event_name='REWARD'):
 
     Returns:
         float: reward_rate
-
     '''
     return calc_event_rate(event_log, event_name)
 
@@ -1130,4 +1129,3 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         broadband = proc_ecube_data(data_path, 'Headstages', result_path)
         # TODO filter broadband data into LFP
 
-        
