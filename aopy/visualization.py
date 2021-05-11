@@ -141,7 +141,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     Wrapper around plt.imshow for spatial data
 
     Args:
-        map (2,n array): map of x,y data
+        data_map (2,n array): map of x,y data
         x (list): list of x positions
         y (list): list of y positions
         ax (int, optional): axis on which to plot, default gca
@@ -154,7 +154,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     extent = np.add(extent, [-x_spacing/2, x_spacing/2, -y_spacing/2, y_spacing/2])
 
     # Set the 'bad' color to something different
-    cmap = matplotlib.cm.get_cmap(cmap).copy()
+    cmap = matplotlib.cm.get_cmap(cmap).copy() # CHANGE to cmap = matplotlib.cm.get_cmap(cmap).
     cmap.set_bad(color='black')
 
     # Plot
