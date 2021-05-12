@@ -558,6 +558,8 @@ def load_bmi3d_hdf_table(data_dir, filename, table_name):
     '''
     filepath = os.path.join(data_dir, filename)
     with tables.open_file(filepath, 'r') as f:
+        if table_name not in f.root:
+            raise ValueError(f"{table_name} not found in {filename}")
         table = getattr(f.root, table_name)
         param_keys = table.attrs._f_list("user")
         metadata = {k : getattr(table.attrs, k) for k in param_keys}

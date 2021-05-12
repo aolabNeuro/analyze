@@ -184,6 +184,8 @@ class LoadDataTests(unittest.TestCase):
         data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'sync_events')
         self.assertEqual(len(data), 6)
 
+        self.assertRaises(ValueError, lambda: load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
+
 class SignalPathTests(unittest.TestCase):
 
     def test_lookup_excel_value(self):
