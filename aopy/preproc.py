@@ -341,7 +341,7 @@ def calc_reward_rate(event_log, event_name='REWARD'):
 
 def trial_separate(events, times, evt_start, n_events=8):
     '''
-    Compute the 2D matrices contaning events per trial and timestamps per trial
+    Compute the 2D matrices contaning events per trial and timestamps per trial. If there are not enough events to fill n_events, return 0 in the remaining indices.
 
     Args:
         events (nt): events vector
@@ -353,6 +353,7 @@ def trial_separate(events, times, evt_start, n_events=8):
         tuple: tuple containing:
 
             trial_events (n_trial, n_events): events per trial
+
             trial_times (n_trial, n_events): timestamps per trial
     '''
 
@@ -366,14 +367,24 @@ def trial_separate(events, times, evt_start, n_events=8):
     trial_events = np.empty((num_trials, n_events), dtype=events.dtype)
     trial_times = np.empty((num_trials, n_events), dtype=times.dtype)
     for iE in range(len(evt_start_idx)):
-        trial_events[iE,:] = events[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
-        trial_times[iE,:] = times[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
+
+        if len(events[evt_start_idx[iE]: evt_start_idx[iE]+n_events]) == n_events:
+            trial_events[iE,:] = events[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
+            trial_times[iE,:] = times[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
+        else:
+            short_event_len = len(events[evt_start_idx[iE]: evt_start_idx[iE]+n_events])
+            trial_events[iE,:short_event_len] = events[evt_start_idx[iE]: evt_start_idx[iE]+short_event_len]
+            trial_events[iE, short_event_len:] = 0
+            trial_times[iE,:short_event_len] = times[evt_start_idx[iE]: evt_start_idx[iE]+short_event_len]
+            trial_times[iE,short_event_len:] = 0
+
 
     return trial_events, trial_times
 
 def trial_align_events(aligned_events, aligned_times, event_to_align):
     '''
-    Compute a new trial_times matrix with offset timestamps for the given event_to_align
+    Compute a new trial_times matrix with offset timestamps for the given event_to_align.
+    Any index corresponding to where aligned_events = 0 will also return a 0.
     
     Args:
         aligned_events (n_trial, n_event): events per trial
@@ -392,6 +403,11 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
         time_offset = aligned_times[idx_trial, idx_time]
         offset_row = aligned_times[idx_trial, :] - time_offset
         trial_aligned_times[idx_trial] = offset_row
+
+        # Handle case where the input row of aligned_events has 0 values.
+        zero_idx = np.where(aligned_events[idx_trial,:] == 0)
+        if len(zero_idx) > 0:
+            trial_aligned_times[idx_trial,zero_idx] = 0
 
     return trial_aligned_times
 
