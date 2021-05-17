@@ -233,27 +233,27 @@ class EventFilterTests(unittest.TestCase):
             3, 4, 0, 0, 1, 6, 5, 2, 1, 0, 7, 2])
         times = np.arange(0, 10, 0.1)
 
-        expected_aligned_events = np.array([[2., 7.],
-            [2., 5.],
-            [2., 3.],
-            [2., 3.],
-            [2., 4.],
-            [2., 6.],
-            [2., 4.],
-            [2., 4.],
-            [2., 5.],
-            [2., 4.],
-            [2., 2.],
-            [2., 7.],
-            [2., 3.],
-            [2., 2.],
-            [2., 7.],
-            [2., 4.],
-            [2., 3.],
-            [2., 2.],
-            [2., 6.],
-            [2., 1.],
-            [2., 0.]])
+        expected_aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6],
+            [2, 4],
+            [2, 4],
+            [2, 5],
+            [2, 4],
+            [2, 2],
+            [2, 7],
+            [2, 3],
+            [2, 2],
+            [2, 7],
+            [2, 4],
+            [2, 3],
+            [2, 2],
+            [2, 6],
+            [2, 1],
+            [2, -1]])
         
         expected_aligned_times = np.array([[0.2, 0.3],
             [0.4, 0.5],
@@ -275,10 +275,10 @@ class EventFilterTests(unittest.TestCase):
             [8.5, 8.6],
             [8.6, 8.7],
             [9.5, 9.6],
-            [9.9, 0.]])
+            [9.9, -1.]])
         
-        NUM_TO_ALIGN = 2
-        aligned_events, aligned_times = trial_separate(events, times, NUM_TO_ALIGN, n_events=2)
+        event_to_align = 2
+        aligned_events, aligned_times = trial_separate(events, times, event_to_align, n_events=2)
 
         np.testing.assert_allclose(expected_aligned_events, aligned_events)
         np.testing.assert_allclose(expected_aligned_times, aligned_times)
@@ -293,20 +293,33 @@ class EventFilterTests(unittest.TestCase):
             [0. , 0.1],
             [0. , 0.1],
             [0. , 0.1],
-            [0. , 0. ],
-            [0. , 0.1],
-            [0. , 0.1],
-            [0. , 0. ],
             [0. , 0.1],
             [0. , 0.1],
             [0. , 0.1],
-            [0. , 0. ],
+            [0. , 0.1],
+            [0. , 0.1],
+            [0. , 0.1],
+            [0. , 0.1],
+            [0. , 0.1],
             [0. , 0.1],
             [0. , 0.1],
             [0. , 0.]])
 
-        trial_aligned_times = trial_align_events(aligned_events, aligned_times, NUM_TO_ALIGN)
+        trial_aligned_times = trial_align_events(aligned_events, aligned_times, event_to_align)
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
+
+        events, times = zip(*event_log_events_in_str)
+        event_to_align = 'wait'
+
+        expected_events = np.array([
+            ['wait', 'target', 'reward'],
+            ['wait', 'target', 'reward'],
+            ['wait', 'target', 'wait'],
+            ['wait', '', ''],
+        ])
+
+        aligned_events, aligned_times = trial_separate(np.array(events), np.array(times), event_to_align, n_events=3)
+        np.testing.assert_array_equal(expected_events, aligned_events)
 
     def test_trial_align_events_to_list_of_tuples(self):
 

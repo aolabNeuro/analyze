@@ -341,7 +341,8 @@ def calc_reward_rate(event_log, event_name='REWARD'):
 
 def trial_separate(events, times, evt_start, n_events=8):
     '''
-    Compute the 2D matrices contaning events per trial and timestamps per trial. If there are not enough events to fill n_events, return 0 in the remaining indices.
+    Compute the 2D matrices contaning events per trial and timestamps per trial. 
+    If there are not enough events to fill n_events, the remaining indices will be missing values.
 
     Args:
         events (nt): events vector
@@ -357,6 +358,13 @@ def trial_separate(events, times, evt_start, n_events=8):
             trial_times (n_trial, n_events): timestamps per trial
     '''
 
+    # Pad the arrays a bit in case there is an evt_start at the end
+    if np.issubdtype(events.dtype, np.number):
+        events = np.pad(events, (0, n_events), constant_values=(-1,))
+    else:
+        events = np.pad(events, (0, n_events), constant_values=('',))
+    times = np.pad(times, (0, n_events), constant_values=(-1,))
+
     # Find the indices in events that correspond to evt_start 
     evt_start_idx = np.where(events == evt_start)[0]
 
@@ -367,24 +375,15 @@ def trial_separate(events, times, evt_start, n_events=8):
     trial_events = np.empty((num_trials, n_events), dtype=events.dtype)
     trial_times = np.empty((num_trials, n_events), dtype=times.dtype)
     for iE in range(len(evt_start_idx)):
-
-        if len(events[evt_start_idx[iE]: evt_start_idx[iE]+n_events]) == n_events:
-            trial_events[iE,:] = events[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
-            trial_times[iE,:] = times[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
-        else:
-            short_event_len = len(events[evt_start_idx[iE]: evt_start_idx[iE]+n_events])
-            trial_events[iE,:short_event_len] = events[evt_start_idx[iE]: evt_start_idx[iE]+short_event_len]
-            trial_events[iE, short_event_len:] = 0
-            trial_times[iE,:short_event_len] = times[evt_start_idx[iE]: evt_start_idx[iE]+short_event_len]
-            trial_times[iE,short_event_len:] = 0
-
+        trial_events[iE,:] = events[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
+        trial_times[iE,:] = times[evt_start_idx[iE]: evt_start_idx[iE]+n_events]
 
     return trial_events, trial_times
 
 def trial_align_events(aligned_events, aligned_times, event_to_align):
     '''
     Compute a new trial_times matrix with offset timestamps for the given event_to_align.
-    Any index corresponding to where aligned_events = 0 will also return a 0.
+    Any index corresponding to where aligned_events is empty will also be empty.
     
     Args:
         aligned_events (n_trial, n_event): events per trial
@@ -398,14 +397,14 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
     # For each row, find the column that matches the given event, 
     # then subtract its timestamps from the entire row
     trial_aligned_times = np.zeros(aligned_times.shape)
-    for idx_trial in range(len(aligned_events)):
-        idx_time = np.where(aligned_events[idx_trial,:] == event_to_align)[0]
+    for idx_trial in range(aligned_events.shape[0]):
+        idx_time = np.where(aligned_events[idx_trial,:] == event_to_align)[0][0] # take the first match
         time_offset = aligned_times[idx_trial, idx_time]
         offset_row = aligned_times[idx_trial, :] - time_offset
         trial_aligned_times[idx_trial] = offset_row
 
-        # Handle case where the input row of aligned_events has 0 values.
-        zero_idx = np.where(aligned_events[idx_trial,:] == 0)
+        # Handle case where the input row of aligned_events has missing values.
+        zero_idx = np.where(np.logical_or(aligned_events[idx_trial,:] == -1, aligned_events[idx_trial,:] == ''))[0]
         if len(zero_idx) > 0:
             trial_aligned_times[idx_trial,zero_idx] = 0
 
