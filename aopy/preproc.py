@@ -360,6 +360,7 @@ def trial_separate(events, times, evt_start, n_events=8):
 
     # Pad the arrays a bit in case there is an evt_start at the end
     if np.issubdtype(events.dtype, np.number):
+        events = events.astype('int32')
         events = np.pad(events, (0, n_events), constant_values=(-1,))
     else:
         events = np.pad(events, (0, n_events), constant_values=('',))
