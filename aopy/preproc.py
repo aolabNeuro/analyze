@@ -342,7 +342,7 @@ def calc_reward_rate(event_log, event_name='REWARD'):
 def trial_separate(events, times, evt_start, n_events=8):
     '''
     Compute the 2D matrices contaning events per trial and timestamps per trial. 
-    If there are not enough events to fill n_events, the remaining indices will be missing values.
+    If there are not enough events to fill n_events, the remaining indices will be a value of '-1' the events are ints or missing values if events are strings.
 
     Args:
         events (nt): events vector
