@@ -30,22 +30,22 @@ def generate_test_signal(T, fs, freq, a= 0.02):
     # noise_power = 0.001 * fs / 2
 
     x = a * np.cos(2 * np.pi * f0 * t) # adding primary frequency
-    x += 0.01 * np.cos(2 * np.pi * freq[1] * t)
-    x += 0.03 * np.cos(2 * np.pi * freq[2] * t)
-    x += 0.1 * np.sin(2 * np.pi * 1.2 * np.sqrt(t)) # noise
+    x += a*0.5 * np.cos(2 * np.pi * freq[1] * t)
+    x += a*1.5 * np.cos(2 * np.pi * freq[2] * t)
+    x += a*20 * np.sin(2 * np.pi * 1.2 * np.sqrt(t)) # noise
     # x += np.random.normal(scale=np.sqrt(noise_power), size=t.shape)  # noise
 
     return x, t, f0
 
 # testing generate test_signal
 T = 0.05
-fs = 5000
+fs = 25000
 freq = [600, 312, 2000]
 a = 0.02
 x, t, f0= generate_test_signal(T, fs, freq, a)
 
 # Sample rate and desired cutoff frequencies (in Hz).
-fs = 5000.0
+# fs = 25000.0
 lowcut = 500.0
 highcut = 1200.0
 y = precondition.bandpass_butterworth_filter_data(x, lowcut, highcut, fs)
@@ -77,7 +77,7 @@ plt.show()
 # Plot the frequency response for a few different orders
 plt.figure(2)
 plt.clf()
-for order in [3, 6, 9]: # trying  different order of butterworth to see the roll off around cut-off frequencies
+for order in [2,3,4,5,6]: # trying  different order of butterworth to see the roll off around cut-off frequencies
     precondition.bandpass_butterworth_filter_data(x, lowcut, highcut, fs, order = order)
 
     b, a = precondition.bandpass_butterworth_params(lowcut, highcut,fs, order = order)
@@ -105,3 +105,29 @@ plt.legend()
 plt.title('Power Spectral Density Comparison')
 plt.show()
 
+# Testing Multitaper filter
+window_len = 100
+std_half_bw = 5/window_len
+
+slepian_seq, slepian_data = precondition.bandpass_multitaper_filter_data(x,lowcut,highcut,fs,window_len,std_half_bw)
+
+fig, ax = plt.subplots(8, 2, figsize = (9,7))
+for i in range(8):
+    ax[i,0].plot(slepian_seq[i,:], label='slepian sequence')
+    ax[i,1].plot(slepian_data[i], '-k', label='slepian seq * test data')
+    # ax[i,1].plot(x, '--b', label = 'test data')
+plt.tight_layout()
+plt.suptitle('Slepian Functions in Time Domain')
+plt.show()
+
+
+fig, ax = plt.subplots(8, 2, figsize = (9,7))
+for i in range(8):
+    w,h = freqz(slepian_seq[i,:])
+    ax[i, 0].plot(w, 20 * np.log10(np.abs(h)), lw=1.0)
+
+    w2,h2 = freqz(slepian_data[i])
+    ax[i,1].plot(w2, 20*np.log10(np.abs(h2)), '-k', lw =1.0)
+plt.tight_layout()
+plt.suptitle('Slepian Functions in Frequency Domain')
+plt.show()
