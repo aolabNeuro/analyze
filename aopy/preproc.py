@@ -339,7 +339,7 @@ def calc_reward_rate(event_log, event_name='REWARD'):
     '''
     return calc_event_rate(event_log, event_name)
 
-def trial_separate(events, times, evt_start, n_events=8):
+def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
     '''
     Compute the 2D matrices contaning events per trial and timestamps per trial. 
     If there are not enough events to fill n_events, the remaining indices will be missing values.
@@ -349,7 +349,8 @@ def trial_separate(events, times, evt_start, n_events=8):
         times (nt): times vector
         evt_start (int or str): event marking the start of a trial
         n_events (int): number of events in a trial
-    
+        nevent_offset (int): number of events to offset event alignment by
+
     Returns:
         tuple: tuple containing:
 
@@ -358,16 +359,27 @@ def trial_separate(events, times, evt_start, n_events=8):
             trial_times (n_trial, n_events): timestamps per trial
     '''
 
-    # Pad the arrays a bit in case there is an evt_start at the end
+    # Pad the arrays a bit in case there is an evt_start at the beginning or end
     if np.issubdtype(events.dtype, np.number):
-        events = events.astype('int32')
-        events = np.pad(events, (0, n_events), constant_values=(-1,))
+        if nevent_offset < 0:
+            events = events.astype('int32')
+            events = np.pad(events, (-nevent_offset, n_events), constant_values=(-1,))
+            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
+        else:
+            events = events.astype('int32')
+            events = np.pad(events, (0, n_events+nevent_offset), constant_values=(-1,))
+            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))
     else:
-        events = np.pad(events, (0, n_events), constant_values=('',))
-    times = np.pad(times, (0, n_events), constant_values=(-1,))
+        if nevent_offset < 0:
+            events = np.pad(events, (-nevent_offset, n_events), constant_values=('',))
+            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
+        else:
+            events = np.pad(events, (0, n_events+nevent_offset), constant_values=('',))
+            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
+    
 
     # Find the indices in events that correspond to evt_start 
-    evt_start_idx = np.where(events == evt_start)[0]
+    evt_start_idx = np.where(events == evt_start)[0]+nevent_offset
 
     # Find total number of trials
     num_trials = len(evt_start_idx)
