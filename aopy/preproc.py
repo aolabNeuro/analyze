@@ -350,8 +350,8 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
         evt_start (int or str): event marking the start of a trial
         n_events (int): number of events in a trial
         nevent_offset (int): number of events before the start event to offset event alignment by. For example,
-        if you wanted to align to "targ" in ["trial", "targ", "reward", "trial", "targ", "error"] but include the preceding "trial"
-        event, then you could use nevent_offset=-1
+            if you wanted to align to "targ" in ["trial", "targ", "reward", "trial", "targ", "error"] but include the preceding "trial"
+            event, then you could use nevent_offset=-1
 
     Returns:
         tuple: tuple containing:
