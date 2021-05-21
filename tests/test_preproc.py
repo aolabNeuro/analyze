@@ -226,7 +226,7 @@ class EventFilterTests(unittest.TestCase):
 
     def test_trial_align_events(self):
         # test trial_separate
-        events = np.array([6, 5, 2, 7, 2, 5, 7, 4, 2, 3, 6, 2, 3, 6, 4, 6, 3, 1, 3, 2, 4, 2,
+        events = np.array([2, 7, 5, 7, 2, 5, 7, 4, 2, 3, 6, 2, 3, 6, 4, 6, 3, 1, 3, 2, 4, 2,
             6, 4, 5, 5, 0, 3, 2, 4, 2, 4, 2, 5, 3, 2, 4, 0, 5, 2, 2, 7, 4, 6,
             3, 0, 6, 0, 1, 2, 3, 5, 3, 1, 4, 1, 2, 2, 7, 1, 1, 0, 6, 0, 1, 7,
             4, 5, 3, 3, 2, 4, 4, 1, 1, 5, 2, 3, 1, 4, 0, 5, 0, 0, 4, 2, 2, 6,
@@ -256,7 +256,7 @@ class EventFilterTests(unittest.TestCase):
             [2, 1],
             [2, -1]])
         
-        expected_aligned_times = np.array([[0.2, 0.3],
+        expected_aligned_times = np.array([[0.0, 0.1],
             [0.4, 0.45],
             [0.8, 0.9],
             [1.1, 1.2],
@@ -280,9 +280,33 @@ class EventFilterTests(unittest.TestCase):
         
         event_to_align = 2
         aligned_events, aligned_times = trial_separate(events, times, event_to_align, n_events=2)
+        aligned_events_offset, aligned_times_offset = trial_separate(events[:15], times[:15], event_to_align, n_events=2,nevent_offset=-1)
+        aligned_events_offset2, aligned_times_offset2 = trial_separate(events[-15:], times[-15:], event_to_align, n_events=2,nevent_offset=1)
+        expected_aligned_events_offset = np.array([[-1, 2],
+            [7, 2],
+            [4, 2],
+            [6, 2]])
+        expected_aligned_times_offset = np.array([[-1, 0.0],
+            [0.3, 0.4],
+            [0.7, 0.8],
+            [1, 1.1]])
+        expected_aligned_events_offset2 = np.array([[2, 6],
+            [6, 3],
+            [1, 0],
+            [-1, -1]])
+        expected_aligned_times_offset2 = np.array([[8.6, 8.7],
+            [8.7, 8.8],
+            [9.6, 9.7],
+            [-1, -1]])
+
+
 
         np.testing.assert_allclose(expected_aligned_events, aligned_events)
         np.testing.assert_allclose(expected_aligned_times, aligned_times)
+        np.testing.assert_allclose(expected_aligned_events_offset, aligned_events_offset)
+        np.testing.assert_allclose(expected_aligned_times_offset, aligned_times_offset)
+        np.testing.assert_allclose(expected_aligned_events_offset2, aligned_events_offset2)
+        np.testing.assert_allclose(expected_aligned_times_offset2, aligned_times_offset2)
 
         expected_aligned_times = np.array([[0. , 0.1],
             [0. , 0.05],
