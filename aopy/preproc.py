@@ -349,7 +349,9 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
         times (nt): times vector
         evt_start (int or str): event marking the start of a trial
         n_events (int): number of events in a trial
-        nevent_offset (int): number of events to offset event alignment by
+        nevent_offset (int): number of events before the start event to offset event alignment by. For example,
+        if you wanted to align to "targ" in ["trial", "targ", "reward", "trial", "targ", "error"] but include the preceding "trial"
+        event, then you could use nevent_offset=-1
 
     Returns:
         tuple: tuple containing:
@@ -1156,4 +1158,3 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         data_path = os.path.join(data_dir, files['ecube'])
         broadband = proc_ecube_data(data_path, 'Headstages', result_path)
         # TODO filter broadband data into LFP
-
