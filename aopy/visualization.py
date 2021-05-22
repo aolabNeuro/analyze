@@ -217,6 +217,7 @@ def animate_events(events, times, fps, xy=(0.3,0.3), fontsize=30, color='g'):
     fig, ax = plt.subplots(1,1)
     note = ax.annotate("", xy, fontsize=fontsize, color=color)
     plt.axis('off')
-    return FuncAnimation(fig, display_text, frames=frame_events.shape[0],
+    return FuncAnimation(fig, display_text, frames=frame_events.shape[0], 
+			 interval=round(1000/fps), 
                          init_func=lambda : None,
                          fargs=(frame_events, event_names, note))
