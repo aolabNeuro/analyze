@@ -1,8 +1,161 @@
 # visualization.py
 # code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 import seaborn as sns
+import matplotlib
+import matplotlib.pyplot as plt
+from scipy.interpolate import griddata
+from scipy.interpolate.interpnd import _ndim_coords_from_arrays
+from scipy.spatial import cKDTree
 import numpy as np
+import os
+import copy
 
+def savefig(base_dir, filename, **kwargs):
+    '''
+    Wrapper around matplotlib savefig with some default options
+    Args:
+        base_dir (str): where to put the figure
+        filename (str): what to name the figure
+        **kwargs (optional): arguments to pass to plt.savefig()
+    '''
+    if '.' not in filename:
+        filename += '.png'
+    fname = os.path.join(base_dir, filename)
+    if 'dpi' not in kwargs:
+        kwargs['dpi']=300.
+    if 'facecolor' not in kwargs:
+        kwargs['facecolor'] = 'none'
+    if 'edgecolor' not in kwargs:
+        kwargs['edgecolor'] = 'none'
+    if 'transparent' not in kwargs:
+        kwargs['transparent'] = True
+    plt.savefig(fname, **kwargs)
+
+def plot_timeseries(data, samplerate, ax=None):
+    '''
+    Plots data along time on the given axis
+    Args:
+        data (nt, nch): timeseries data, can also be a single channel vector
+        samplerate (float): sampling rate of the data
+        ax (pyplot axis, optional): where to plot
+    '''
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
+    if ax is None:
+        ax = plt.gca()
+    time = np.arange(np.shape(data)[0])/samplerate
+    for ch in range(np.shape(data)[1]):
+        ax.plot(time, data[:,ch]*1e6)
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Voltage (uV)')
+
+def plot_freq_domain_power(data, samplerate, ax=None):
+    '''
+    Plots a power spectrum of each channel on the given axis
+    Args:
+        data (nt, nch): timeseries data, can also be a single channel vector
+        samplerate (float): sampling rate of the data
+        ax (pyplot axis, optional): where to plot
+    '''
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
+    if ax is None:
+        ax = plt.gca()
+    freq_data = np.fft.fft(data, axis=0)
+    length = np.shape(freq_data)[0]
+    freq = np.fft.fftfreq(length, d=1./samplerate)
+    data_ampl = abs(freq_data[freq>1,:])*2/length
+    non_negative_freq = freq[freq>1]
+    for ch in range(np.shape(freq_data)[1]):
+        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e4)
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_ylabel('Power (a.u.)')
+
+def get_data_map(data, x_pos, y_pos):
+    '''
+    Organizes data according to the given x and y positions
+    Args:
+        data (nch): list of values
+        x_pos (nch): list of x positions
+        y_pos (nch): list of y positions
+    Returns:
+        2,n array: map of the data on the given grid
+    '''
+    data = np.reshape(data, -1)
+
+    X = np.unique(x_pos)
+    Y = np.unique(y_pos)
+    nX = len(X)
+    nY = len(Y)
+
+    # Order Y into rows and X into columns
+    data_map = np.empty((nY, nX), dtype=data.dtype)
+    data_map[:] = np.nan
+    for data_idx in range(len(data)):
+        xid = np.where(X == x_pos[data_idx])[0]
+        yid = np.where(Y == y_pos[data_idx])[0]
+        data_map[yid, xid] = data[data_idx]
+
+    return data_map
+
+def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', threshold_dist=None):
+    '''
+    Turns scatter data into grid data by interpolating up to a given threshold distance.
+    Args:
+        data (nch): list of values
+        x_pos (nch): list of x positions
+        y_pos (nch): list of y positions
+        grid_size (tuple): number of points along each axis
+        interp_method (str): method used for interpolation
+        threshold_dist (float): distance to neighbors before disregarding a point on the image
+    Returns:
+        2,n array: map of the data on the given grid
+    '''
+    extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
+    x_spacing = (extent[1]-extent[0])/(grid_size[0]-1)
+    y_spacing = (extent[3]-extent[2])/(grid_size[1]-1)
+    xy = np.vstack((x_pos, y_pos)).T
+    xq, yq = np.meshgrid(np.arange(extent[0],x_spacing*grid_size[0],x_spacing), np.arange(extent[2],y_spacing*grid_size[1],y_spacing))
+    X = griddata(xy, data, (np.reshape(xq,-1), np.reshape(yq,-1)), method=interp_method, rescale=False)
+
+    # Construct kd-tree, functionality copied from scipy.interpolate
+    tree = cKDTree(xy)
+    xi = _ndim_coords_from_arrays((np.reshape(xq,-1), np.reshape(yq,-1)))
+    dists, indexes = tree.query(xi)
+
+    # Mask values with distances over the threshold with NaNs
+    if threshold_dist:
+        X[dists > threshold_dist] = np.nan
+
+    data_map = np.reshape(X, grid_size)
+    return data_map
+
+def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
+    '''
+    Wrapper around plt.imshow for spatial data
+    Args:
+        data_map (2,n array): map of x,y data
+        x (list): list of x positions
+        y (list): list of y positions
+        ax (int, optional): axis on which to plot, default gca
+        cmap (str, optional): matplotlib colormap to use in image
+    '''
+    # Calculate the proper extents
+    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+    x_spacing = (extent[1]-extent[0])/(data_map.shape[0]-1)
+    y_spacing = (extent[3]-extent[2])/(data_map.shape[1]-1)
+    extent = np.add(extent, [-x_spacing/2, x_spacing/2, -y_spacing/2, y_spacing/2])
+
+    # Set the 'bad' color to something different
+    cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
+    cmap.set_bad(color='black')
+
+    # Plot
+    if ax is None:
+        ax = plt.gca()
+    ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    ax.set_xlabel('x position')
+    ax.set_ylabel('y position')
 def plot_rastor(data,plot_cue, cue_bin, ax):
     '''
        Create a rastor plot of neural data
@@ -20,13 +173,13 @@ def plot_rastor(data,plot_cue, cue_bin, ax):
     n_bins = np.shape(data)[2]
 
     color_palette = sns.set_palette("Accent", n_neurons)
-    for n in range(n_neurons):  # set this to 1 if we need rastor plot for only one neurons
+    for n in range(n_neurons):  # set this to 1 if we need rastor plot for only one neuron
         for tr in range(n_trial):
             for t in range(n_bins):
                 if data[n, tr, t] == 1:
                     x1 = [tr, tr + 1]
                     x2 = [t, t]
-                    ax.plot(x2, x1, color=color_palette[n])
+                    ax.plot(x2, x1, color=color_palette(n))
     if plot_cue:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
@@ -42,3 +195,32 @@ def plot_psth(data, cue_bin, ax):
        Returns:
            rastor plot in appropriate axis
     '''
+
+def plot_events_time(events, ax, labels):
+    '''
+
+    Args:
+        events (2D array): Logical array that denotes when an event(for example: a reward) occurred during an experimental session (n_events x n_timebins)
+        labels (str) : Event names for each column
+        ax (axes handle): Axes to plot
+
+    Returns:
+        chronological event plot
+
+    '''
+    from matplotlib.cm import get_cmap
+
+    n_timebins = np.shape(events)[1]
+    n_events = np.shape(events)[0]
+
+    for i in range(n_events):
+        color = np.random.rand(3)
+        for t in range(n_timebins):
+            if events[i,t] == 1:
+                y = [i, i+0.5]
+                x = [t, t]
+                ax.plot(x,y, c= color)
+
+    ax.set_xlabel('Time')
+    ax.set_yticks(np.arange(n_events)+0.25)
+    ax.set_yticklabels(labels)
