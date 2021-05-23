@@ -164,3 +164,67 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
+
+def set_bounds(bounds, ax=None):
+    '''
+    Sets the x, y, and z limits according to the given bounds
+
+    Args:
+        bounds (tuple): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    try:
+        ax.set(xlim=(1.1*bounds[0], 1.1*bounds[1]), 
+               ylim=(1.1*bounds[2], 1.1*bounds[3]),
+               zlim=(1.1*bounds[4], 1.1*bounds[5]))
+    except:
+        ax.set(xlim=(1.1*bounds[0], 1.1*bounds[1]), 
+               ylim=(1.1*bounds[2], 1.1*bounds[3]))
+
+def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), ax=None):
+    '''
+    Add targets to an axis. If any targets are at the "center", they will appear 
+    in a different color (magenta)
+
+    Args:
+        target_positions (ntarg, 3): array of target (x, y, z) locations
+        target_radius (floag): radius of each target
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        origin (tuple, optional): (x, y, z) position of the origin
+        ax (plt.Axis, optional): axis to plot the targets on
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    for i in range(0,target_positions.shape[0]):
+        if (target_positions[i] == origin).all():
+            target_color = 'm'
+        else:
+            target_color = 'b'
+        target = plt.Circle((target_positions[i][0], target_positions[i][1]), 
+                            radius=target_radius, alpha=0.5, color=target_color)
+        ax.add_artist(target)
+
+    if bounds: set_bounds(bounds, ax)
+    ax.set_aspect('equal', adjustable='box')
+
+def plot_trajectories(trajectories, bounds=None, ax=None):
+    '''
+    Draws the given trajectories, one at a time in different colors
+
+    Args:
+        trajectories (list): list of trajectories
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on
+   '''
+    if ax is None:
+        ax = plt.gca()
+
+    for path in trajectories:
+        ax.plot(path[:,0], path[:,1])
+
+    if bounds: set_bounds(bounds)
+    ax.set_aspect('equal', adjustable='box')
