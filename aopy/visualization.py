@@ -191,7 +191,7 @@ def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), a
 
     Args:
         target_positions (ntarg, 3): array of target (x, y, z) locations
-        target_radius (floag): radius of each target
+        target_radius (float): radius of each target
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
         origin (tuple, optional): (x, y, z) position of the origin
         ax (plt.Axis, optional): axis to plot the targets on
@@ -226,5 +226,5 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     for path in trajectories:
         ax.plot(path[:,0], path[:,1])
 
-    if bounds: set_bounds(bounds)
+    if bounds: set_bounds(bounds, ax)
     ax.set_aspect('equal', adjustable='box')
