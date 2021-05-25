@@ -37,7 +37,7 @@ def plot_timeseries(data, samplerate, ax=None):
     Plots data along time on the given axis
 
     Args:
-        data (nt, nch): timeseries data, can also be a single channel vector
+        data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
     '''
@@ -47,7 +47,7 @@ def plot_timeseries(data, samplerate, ax=None):
         ax = plt.gca()
     time = np.arange(np.shape(data)[0])/samplerate
     for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:,ch]*1e6)
+        ax.plot(time, data[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (uV)')
 
@@ -56,7 +56,7 @@ def plot_freq_domain_power(data, samplerate, ax=None):
     Plots a power spectrum of each channel on the given axis
 
     Args:
-        data (nt, nch): timeseries data, can also be a single channel vector
+        data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
     '''
@@ -67,12 +67,12 @@ def plot_freq_domain_power(data, samplerate, ax=None):
     freq_data = np.fft.fft(data, axis=0)
     length = np.shape(freq_data)[0]
     freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>1,:])*2/length
-    non_negative_freq = freq[freq>1]
+    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
+    non_negative_freq = freq[freq>=0]
     for ch in range(np.shape(freq_data)[1]):
-        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e4)
+        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Frequency (Hz)')
-    ax.set_ylabel('Power (a.u.)')
+    ax.set_ylabel('Power (uV)')
 
 def get_data_map(data, x_pos, y_pos):
     '''
