@@ -186,8 +186,8 @@ def set_bounds(bounds, ax=None):
 
 def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), ax=None):
     '''
-    Add targets to an axis. If any targets are at the "center", they will appear 
-    in a different color (magenta)
+    Add targets to an axis. If any targets are at the origin, they will appear 
+    in a different color (magenta). Works for 2D and 3D axes
 
     Args:
         target_positions (ntarg, 3): array of target (x, y, z) locations
@@ -200,31 +200,60 @@ def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), a
         ax = plt.gca()
 
     for i in range(0,target_positions.shape[0]):
-        if (target_positions[i] == origin).all():
+
+        # Pad the vector to make sure it is length 3
+        pos = np.zeros((3,))
+        pos[:len(target_positions[i])] = target_positions[i]
+
+        # Color according to its position
+        if (pos == origin).all():
             target_color = 'm'
         else:
             target_color = 'b'
-        target = plt.Circle((target_positions[i][0], target_positions[i][1]), 
-                            radius=target_radius, alpha=0.5, color=target_color)
-        ax.add_artist(target)
 
-    if bounds: set_bounds(bounds, ax)
-    ax.set_aspect('equal', adjustable='box')
+        # Plot in 3D or 2D
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        try:
+            ax.set_zlabel('z')
+            u = np.linspace(0, 2 * np.pi, 100)
+            v = np.linspace(0, np.pi, 100)
+            x = pos[0] + target_radius * np.outer(np.cos(u), np.sin(v))
+            y = pos[1] + target_radius * np.outer(np.sin(u), np.sin(v))
+            z = pos[2] + target_radius * np.outer(np.ones(np.size(u)), np.cos(v))
+            ax.plot_surface(x, y, z, alpha=0.5, color=target_color)
+            ax.set_box_aspect((1,1,1))
+        except:
+            target = plt.Circle((pos[0], pos[1]), 
+                            radius=target_radius, alpha=0.5, color=target_color)
+            ax.add_artist(target)
+            ax.set_aspect('equal', adjustable='box')
+    if bounds is not None: set_bounds(bounds, ax)
+    
 
 def plot_trajectories(trajectories, bounds=None, ax=None):
     '''
-    Draws the given trajectories, one at a time in different colors
+    Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
 
     Args:
-        trajectories (list): list of trajectories
+        trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
         ax (plt.Axis, optional): axis to plot the targets on
    '''
     if ax is None:
         ax = plt.gca()
 
-    for path in trajectories:
-        ax.plot(path[:,0], path[:,1])
+    # Plot in 3D, fall back to 2D
+    try:
+        ax.set_zlabel('z')
+        for path in trajectories:
+            ax.plot(*path.T)
+        ax.set_box_aspect((1,1,1))
+    except:
+        for path in trajectories:
+            ax.plot(path[:,0], path[:,1])
+        ax.set_aspect('equal', adjustable='box')
 
-    if bounds: set_bounds(bounds, ax)
-    ax.set_aspect('equal', adjustable='box')
+    if bounds is not None: set_bounds(bounds, ax)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')

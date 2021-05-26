@@ -66,6 +66,12 @@ class PlottingTests(unittest.TestCase):
         plot_targets(target_position, target_radius, (-2, 2, -2, 2))
         savefig(write_dir, filename)
 
+        filename = 'targets_3d.png'
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        plot_targets(target_position, target_radius, (-2, 2, -2, 2, -2, 2), ax=ax)
+        savefig(write_dir, filename)
+
     def test_plot_trajectories(self):
 
         # Test with two known trajectories
@@ -88,6 +94,14 @@ class PlottingTests(unittest.TestCase):
         plt.figure()
         bounds = (-5., 5., -5., 5., 0., 0.)
         plot_trajectories(trajectories, bounds)
+        savefig(write_dir, filename)
+
+        # Test 3D
+        filename = 'trajectories_3d.png'
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        bounds = (-5., 5., -5., 5., -5., 5.)
+        plot_trajectories(trajectories, bounds, ax=ax)
         savefig(write_dir, filename)
 
         # Make some pretty spirals. There should be 4 spiral trajectories
