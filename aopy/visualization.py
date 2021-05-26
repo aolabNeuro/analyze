@@ -193,6 +193,32 @@ def sample_events(events, times, samplerate):
         
     return frame_events, unique_events
 
+def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
+    '''
+    Save an animation using ffmpeg
+
+    Args:
+        animation (pyplot.Animation): animation to save
+        base_dir (str): directory to write
+        filename (str): should end in '.mp4'
+        dpi (float): resolution of the video file
+        savefig_kwargs (kwargs, optional): arguments to pass to savefig
+    '''
+    from matplotlib.animation import FFMpegFileWriter # requires ffmpeg
+    filepath = os.path.join(base_dir, filename)
+    writer = FFMpegFileWriter()
+    animation.save(filepath, dpi=dpi, writer=writer, savefig_kwargs=savefig_kwargs)
+
+def showanim(animation):
+    '''
+    Display an animation in a python notebook
+
+    Args:
+        animation (pyplot.Animation): animation to display
+    '''
+    from IPython.display import HTML # not a required package
+    HTML(animation.to_html5_video())
+
 def animate_events(events, times, fps, xy=(0.3,0.3), fontsize=30, color='g'):
     '''
     Silly function to plot events as text, frame by frame in an animation
@@ -220,3 +246,38 @@ def animate_events(events, times, fps, xy=(0.3,0.3), fontsize=30, color='g'):
     return FuncAnimation(fig, display_text, frames=frame_events.shape[0],
                          init_func=lambda : None,
                          fargs=(frame_events, event_names, note))
+
+def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b'):
+    '''
+    Draws a trajectory moving through 3D space at the given sampling rate and with a
+    fixed maximum number of points visible at a time.
+
+    Args:
+        trajectory (n, 3): matrix of n points
+        samplerate (float): sampling rate of the trajectory data
+        history (int, optional): maximum number of points visible at once
+    '''
+    
+    fig = plt.figure()
+    ax = plt.subplot(111, projection='3d')
+    
+    line, = ax.plot(trajectory[0,0], trajectory[0,1], trajectory[0,2], color=color)
+    
+    ax.set_xlim((np.nanmin(trajectory[:,0]), np.nanmax(trajectory[:,0])))
+    ax.set_xlabel('x = Right')
+
+    ax.set_ylim((np.nanmin(trajectory[:,1]), np.nanmax(trajectory[:,1])))
+    ax.set_ylabel('y = Forwards')
+    
+    ax.set_zlim((np.nanmin(trajectory[:,2]), np.nanmax(trajectory[:,2])))
+    ax.set_zlabel('z = Up')
+    
+    def draw(num):
+        length = min(num, history)
+        start = num-length
+        line.set_data(trajectory[start:num,0], trajectory[start:num,1])
+        line.set_3d_properties(trajectory[start:num,2])
+        return line,
+        
+    return FuncAnimation(fig, draw, frames=trajectory.shape[0],
+                         init_func=lambda : None, interval=1000./samplerate)

@@ -84,5 +84,25 @@ class PlottingTests(unittest.TestCase):
         writer = FFMpegFileWriter(fps=fps)
         ani.save(filename, dpi=300, writer=writer, savefig_kwargs=kwargs)
 
+    def test_saveanim(self):
+        events = ["hello", "world", "", "!", ""]
+        times = [0., 1.0, 1.5, 2.0, 2.5]
+        fps = 10
+        filename = "animate_test_save.mp4"
+        ani = animate_events(events, times, fps)
+        saveanim(ani, write_dir, filename)
+
+    def test_showanim(self):
+        # don't know how to test this. trust me it works :)
+        pass
+
+    def test_animate_trajectory_3d(self):
+        trajectory = np.zeros((10,3))
+        trajectory[:,0] = np.arange(10)
+        samplerate = 2
+        ani = animate_trajectory_3d(trajectory, samplerate, history=5)
+        filename = "animate_trajectory_test.mp4"
+        saveanim(ani, write_dir, filename)
+
 if __name__ == "__main__":
     unittest.main()
