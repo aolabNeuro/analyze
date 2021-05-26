@@ -1080,7 +1080,24 @@ def parse_optitrack(data_dir, files):
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
-    Process experiment data files
+    Process experiment data files: 
+        Loads 'hdf' and 'ecube' (if present) data
+        Parses 
+    The above data is prepared into structured arrays:
+        exp_data:
+            task ([('cursor', '<f8', (3,)), ('trial', 'u8', (1,)), ('time', 'u8', (1,)), ...])
+            state ([('msg', 'S', (1,)), ('time', 'u8', (1,))])
+            clock ([('timestamp', 'f8', (1,)), ('time', 'u8', (1,))])
+            events ([('timestamp', 'f8', (1,)), ('time', 'u8', (1,)), ('event', 'S32', (1,)), 
+                ('data', 'u2', (1,)), ('code', 'u2', (1,))])
+            trials ([('trial', 'u8'), ('index', 'u8'), (condition_name, 'f8', (3,)))])
+        exp_metadata:
+            source_dir (str)
+            source_files (dict)
+            bmi3d_start_time (float)
+            n_cycles (int)
+            n_trials (int)
+            <other metadata from bmi3d>
     
     Args:
         data_dir (str): where the data files are located
@@ -1107,7 +1124,18 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
 
 def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
-    Process motion capture files
+    Process motion capture files:
+        Loads metadata, position data, and rotation data from 'optitrack' files
+        If present, reads 'hdf' metadata to find appropriate strobe channel
+        If present, loads 'ecube' analog data representing optitrack camera strobe
+    The data is prepared along with timestamps into HDF datasets:
+        mocap_data:
+            optitrack [('position', 'f8', (3,)), ('rotation', 'f8', (4,)), ('timestamp', 'f8', (1,)]
+        mocap_metadata:
+            source_dir (str)
+            source_files (dict)
+            samplerate (float)
+            <other metadata from motive>
     
     Args:
         data_dir (str): where the data files are located
@@ -1134,7 +1162,10 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
 
 def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
-    Process lfp data
+    Process lfp data:
+        Loads 'ecube' headstage data and metadata
+    Saves broadband data into the HDF datasets:
+        Headstages (nt, nch)
     
     Args:
         data_dir (str): where the data files are located
