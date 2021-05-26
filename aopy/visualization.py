@@ -10,6 +10,7 @@ from scipy.spatial import cKDTree
 import numpy as np
 import os
 import copy
+from . import postproc
 
 def savefig(base_dir, filename, **kwargs):
     '''
@@ -166,33 +167,6 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
-def sample_events(events, times, samplerate):
-    '''
-    Converts a list of events and timestamps to a matrix of events where
-    each column is a different event and each row is a sample in time
-
-    Args:
-        events (list): list of event names or numbers
-        times (list): list of timestamps for each event
-        samplerate (float): rate at which you want to sample the events
-
-    Returns:
-        tuple: tuple containing:
-            frame_events (nt, n_events): boolean matrix of when each event occurred
-            event_names (n_events): list of event column names
-
-    '''
-    n_samples = round(times[-1]*samplerate) + 1
-    unique_events = np.unique(events)
-    frame_events = np.zeros((n_samples, len(unique_events)), dtype='bool')
-    for idx_event in range(len(events)):
-        unique_idx = unique_events == events[idx_event]
-        event_time = times[idx_event]
-        event_frame = round(event_time * samplerate)
-        frame_events[event_frame,unique_idx] = True
-        
-    return frame_events, unique_events
-
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
     '''
     Save an animation using ffmpeg
@@ -233,7 +207,7 @@ def animate_events(events, times, fps, xy=(0.3,0.3), fontsize=30, color='g'):
     Returns:
         matplotlib.animation.FuncAnimation: animation object
     '''
-    frame_events, event_names = sample_events(events, times, fps)
+    frame_events, event_names = postproc.sample_events(events, times, fps)
 
     def display_text(num, events, names, note):
         display = names[events[num,:] == 1]

@@ -133,3 +133,30 @@ def get_trial_targets(trials, targets):
         trial = trials[idx]
         trial_targets[trial].append(targets[idx])
     return trial_targets
+
+def sample_events(events, times, samplerate):
+    '''
+    Converts a list of events and timestamps to a matrix of events where
+    each column is a different event and each row is a sample in time
+
+    Args:
+        events (list): list of event names or numbers
+        times (list): list of timestamps for each event
+        samplerate (float): rate at which you want to sample the events
+
+    Returns:
+        tuple: tuple containing:
+            frame_events (nt, n_events): boolean matrix of when each event occurred
+            event_names (n_events): list of event column names
+
+    '''
+    n_samples = round(times[-1]*samplerate) + 1
+    unique_events = np.unique(events)
+    frame_events = np.zeros((n_samples, len(unique_events)), dtype='bool')
+    for idx_event in range(len(events)):
+        unique_idx = unique_events == events[idx_event]
+        event_time = times[idx_event]
+        event_frame = round(event_time * samplerate)
+        frame_events[event_frame,unique_idx] = True
+        
+    return frame_events, unique_events

@@ -49,29 +49,6 @@ class PlottingTests(unittest.TestCase):
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
-    def test_sample_events(self):
-        events = ["hello", "world"]
-        times = [0.5, 1.0]
-        samplerate = 10
-        frame_events, event_names = sample_events(events, times, samplerate)
-        
-        expected_result = [
-            [False, False],
-            [False, False],
-            [False, False],
-            [False, False],
-            [False, False],
-            [ True, False],
-            [False, False],
-            [False, False],
-            [False, False],
-            [False, False],
-            [False,  True]
-        ]
-
-        np.testing.assert_array_equal(expected_result, frame_events)
-        np.testing.assert_array_equal(["hello", "world"], event_names)
-
     def test_animate_events(self):
         events = ["hello", "world", "", "!", ""]
         times = [0., 1.0, 1.5, 2.0, 2.5]
