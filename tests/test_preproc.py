@@ -28,27 +28,41 @@ class DigitalCalcTests(unittest.TestCase):
         test_bool = [True, False, False, True, True, False, True, True, False, False, False, True]
         test_01 = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
         test_02 = [0b11, 0, 0, 0, 0, 0, 0, 0b01, 0b10, 0b01, 0b11, 0b01, 0b00, 0b10, 0b00, 0b01, 0, 0b01, 0, 0b01, 0, 0b01, 0]
+        test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
 
         ts, values = detect_edges(test_bool, 1)
-        assert len(ts) == 6
-        assert np.array_equal(ts, [1, 3, 5, 6, 8, 11])
-        assert np.array_equal(values, [0, 1, 0, 1, 0, 1])
-        ts, values = detect_edges(test_bool, 1, hilow=False)
-        assert len(ts) == 3
-        assert np.array_equal(ts, [3, 6, 11])
-        assert np.array_equal(values, [1, 1, 1])
-        ts, values = detect_edges(test_bool, 1, lowhi=False)
-        assert len(ts) == 3
-        assert np.array_equal(ts, [1, 5, 8])
-        assert np.array_equal(values, [0, 0, 0])
-        ts, values = detect_edges(test_01, 1, hilow=False)
-        assert len(ts) == 6
-        assert np.array_equal(ts, [7, 13, 15, 17, 19, 21])
-        assert np.array_equal(values, [1, 1, 1, 1, 1, 1])
-        ts, values = detect_edges(test_02, 1, hilow=False)
-        assert len(ts) == 9
-        assert np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21])
-        assert np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1])
+        self.assertEqual(len(ts), 6)
+        self.assertTrue(np.array_equal(ts, [1, 3, 5, 6, 8, 11]))
+        self.assertTrue(np.array_equal(values, [0, 1, 0, 1, 0, 1]))
+
+        # check rising edges only
+        ts, values = detect_edges(test_bool, 1, falling=False)
+        self.assertEqual(len(ts), 3)
+        self.assertTrue(np.array_equal(ts, [3, 6, 11]))
+        self.assertTrue(np.array_equal(values, [1, 1, 1]))
+        
+        # check falling edges only
+        ts, values = detect_edges(test_bool, 1, rising=False)
+        self.assertEqual(len(ts), 3)
+        self.assertTrue(np.array_equal(ts, [1, 5, 8]))
+        self.assertTrue(np.array_equal(values, [0, 0, 0]))
+
+        # check numeric boolean data
+        ts, values = detect_edges(test_01, 1, falling=False)
+        self.assertEqual(len(ts), 6)
+        self.assertTrue(np.array_equal(ts, [7, 13, 15, 17, 19, 21]))
+        self.assertTrue(np.array_equal(values, [1, 1, 1, 1, 1, 1]))
+
+        # check data values instead of a single bit
+        ts, values = detect_edges(test_02, 1, falling=False, check_valid=False)
+        self.assertEqual(len(ts), 9)
+        self.assertTrue(np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21]))
+        self.assertTrue(np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1]))
+
+        # test that if there are multiple of the same edge only the last one counts
+        ts, values = detect_edges(test_valid, 1)
+        self.assertTrue(np.array_equal(ts, [2, 3, 4, 7, 9, 13]))
+        self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
 
     def test_find_first_significant_bit(self):
         data = 0b0100

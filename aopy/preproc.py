@@ -39,7 +39,7 @@ def convert_analog_to_digital(analog_data, thresh=.3):
 
     return digital_data
 
-def detect_edges(digital_data, samplerate, lowhi=True, hilow=True):
+def detect_edges(digital_data, samplerate, rising=True, falling=True, check_valid=True):
     '''
     Finds the timestamp and corresponding value of all the bit flips in data. Assume 
     the first element in data isn't a transition
@@ -47,8 +47,10 @@ def detect_edges(digital_data, samplerate, lowhi=True, hilow=True):
     Args:
         digital_data (ntime x 1): masked binary data array
         samplerate (int): sampling rate of the data used to calculate timestamps
-        lowhi (bool): include low to high transitions
-        hilow (bool): include high to low transitions
+        rising (bool, optional): include low to high transitions
+        falling (bool, optional): include high to low transitions
+        check_valid (bool, optional): if True, enforces that risings and fallings must
+            be alternating
 
     Returns:
         tuple: tuple containing:
@@ -58,12 +60,33 @@ def detect_edges(digital_data, samplerate, lowhi=True, hilow=True):
     '''
 
     digital_data = np.squeeze(np.uint64(digital_data)) # important conversion for binary math
+    rising_idx = (~digital_data[:-1] & digital_data[1:]) > 0 # find low->high transitions
+    falling_idx = (~digital_data[1:] & digital_data[:-1]) > 0
+
+    # Find any non-zero zeros or zero ones
+    invalid = np.zeros((len(digital_data)-1,), dtype='?')
+    if check_valid:
+        all_edges = np.where(rising_idx | falling_idx)[0]
+        next_edge_rising = True
+        for idx in range(len(all_edges)): # skip the first edge
+            this_idx = all_edges[idx]
+            if next_edge_rising and rising_idx[this_idx]:
+                next_edge_rising = False
+            elif not next_edge_rising and falling_idx[this_idx]:
+                next_edge_rising = True
+            elif idx > 0:
+                prev_idx = all_edges[idx-1]
+                invalid[prev_idx] = True # previous edge was invalid
+    
+    # Assemble final index    
     logical_idx = np.zeros((len(digital_data)-1,), dtype='?')
-    if lowhi:
-        logical_idx |= (~digital_data[:-1] & digital_data[1:]) > 0 # find low->high transitions
-    if hilow:
-        logical_idx |= (~digital_data[1:] & digital_data[:-1]) > 0
+    if rising:
+        logical_idx |= rising_idx
+    if falling:
+        logical_idx |= falling_idx
+    logical_idx &= np.logical_not(invalid)
     logical_idx = np.insert(logical_idx, 0, False) # first element never a transition
+
     time = np.arange(np.size(digital_data))/samplerate
     return time[logical_idx], digital_data[logical_idx]
 
@@ -757,7 +780,7 @@ def _parse_bmi3d_v1(data_dir, files):
         # Mask and detect BMI3D computer events from ecube
         event_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['event_sync_dch']) # 0xff0000
         ecube_sync_data = mask_and_shift(digital_data, event_bit_mask)
-        ecube_sync_timestamps, ecube_sync_events = detect_edges(ecube_sync_data, digital_samplerate, lowhi=True, hilow=False)
+        ecube_sync_timestamps, ecube_sync_events = detect_edges(ecube_sync_data, digital_samplerate, rising=True, falling=False)
         sync_events = np.empty((len(ecube_sync_timestamps),), dtype=[('timestamp', 'f8'), ('code', 'u1')])
         sync_events['timestamp'] = ecube_sync_timestamps
         sync_events['code'] = ecube_sync_events
@@ -766,26 +789,26 @@ def _parse_bmi3d_v1(data_dir, files):
         else:
             clock_sync_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['screen_sync_dch']) 
         clock_sync_data = mask_and_shift(digital_data, clock_sync_bit_mask)
-        clock_sync_timestamps, _ = detect_edges(clock_sync_data, digital_samplerate, lowhi=True, hilow=False)
+        clock_sync_timestamps, _ = detect_edges(clock_sync_data, digital_samplerate, rising=True, falling=False)
         sync_clock = np.empty((len(clock_sync_timestamps),), dtype=[('timestamp', 'f8')])
         sync_clock['timestamp'] = clock_sync_timestamps
 
         # Mask and detect screen sensor events (A5 and D5)
         clock_measure_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['screen_measure_dch']) # 1 << 5
         clock_measure_data_online = mask_and_shift(digital_data, clock_measure_bit_mask)
-        clock_measure_timestamps_online, clock_measure_values_online = detect_edges(clock_measure_data_online, digital_samplerate, lowhi=True, hilow=True)
+        clock_measure_timestamps_online, clock_measure_values_online = detect_edges(clock_measure_data_online, digital_samplerate, rising=True, falling=True)
         measure_clock_online = np.empty((len(clock_measure_timestamps_online),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
         measure_clock_online['timestamp'] = clock_measure_timestamps_online
         measure_clock_online['value'] = clock_measure_values_online
         clock_measure_digitized = convert_analog_to_digital(clock_measure_analog, thresh=0.5)
-        clock_measure_timestamps_offline, clock_measure_values_offline = detect_edges(clock_measure_digitized, analog_samplerate, lowhi=True, hilow=True)
+        clock_measure_timestamps_offline, clock_measure_values_offline = detect_edges(clock_measure_digitized, analog_samplerate, rising=True, falling=True)
         measure_clock_offline = np.empty((len(clock_measure_timestamps_offline),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
         measure_clock_offline['timestamp'] = clock_measure_timestamps_offline
         measure_clock_offline['value'] = clock_measure_values_offline
 
         # And reward system (A0)
         reward_system_digitized = convert_analog_to_digital(reward_system_analog)
-        reward_system_timestamps, reward_system_values = detect_edges(reward_system_digitized, analog_samplerate, lowhi=True, hilow=True)
+        reward_system_timestamps, reward_system_values = detect_edges(reward_system_digitized, analog_samplerate, rising=True, falling=True)
         reward_system = np.empty((len(reward_system_timestamps),), dtype=[('timestamp', 'f8'), ('state', '?')])
         reward_system['timestamp'] = reward_system_timestamps
         reward_system['state'] = reward_system_values
@@ -1040,7 +1063,7 @@ def parse_optitrack(data_dir, files):
         samplerate = metadata['samplerate']
         optitrack_bit_mask = 1 << optitrack_strobe_channel
         optitrack_strobe = mask_and_shift(digital_data, optitrack_bit_mask)
-        optitrack_strobe_timestamps, _ = detect_edges(optitrack_strobe, samplerate, lowhi=True, hilow=False)
+        optitrack_strobe_timestamps, _ = detect_edges(optitrack_strobe, samplerate, rising=True, falling=False)
         # - check that eCube captured the same number of timestamps from esync as there are positions/rotations in the file
         if len(optitrack_pos) == len(optitrack_strobe_timestamps):
             optitrack_timestamps = optitrack_strobe_timestamps
