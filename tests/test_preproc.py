@@ -54,7 +54,7 @@ class DigitalCalcTests(unittest.TestCase):
         self.assertTrue(np.array_equal(values, [1, 1, 1, 1, 1, 1]))
 
         # check data values instead of a single bit
-        ts, values = detect_edges(test_02, 1, falling=False, check_valid=False)
+        ts, values = detect_edges(test_02, 1, falling=False, check_alternating=False)
         self.assertEqual(len(ts), 9)
         self.assertTrue(np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21]))
         self.assertTrue(np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1]))

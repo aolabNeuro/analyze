@@ -39,18 +39,26 @@ def convert_analog_to_digital(analog_data, thresh=.3):
 
     return digital_data
 
-def detect_edges(digital_data, samplerate, rising=True, falling=True, check_valid=True):
+def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True):
     '''
-    Finds the timestamp and corresponding value of all the bit flips in data. Assume 
+    Finds the timestamp and corresponding value of all the bit flips in data. Assumes 
     the first element in data isn't a transition
+
+    By default, also enforces that rising and falling edges must alternate, always taking the
+    last edge as the most valid one. For example::
+
+        >>> data = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
+        >>> ts, values = detect_edges(data, fs)
+        >>> print(values)
+        [3, 0, 3, 0, 7, 0]
 
     Args:
         digital_data (ntime x 1): masked binary data array
         samplerate (int): sampling rate of the data used to calculate timestamps
         rising (bool, optional): include low to high transitions
         falling (bool, optional): include high to low transitions
-        check_valid (bool, optional): if True, enforces that risings and fallings must
-            be alternating
+        check_alternating (bool, optional): if True, enforces that rising and falling
+            edges must be alternating
 
     Returns:
         tuple: tuple containing:
@@ -63,20 +71,24 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_vali
     rising_idx = (~digital_data[:-1] & digital_data[1:]) > 0 # find low->high transitions
     falling_idx = (~digital_data[1:] & digital_data[:-1]) > 0
 
-    # Find any non-zero zeros or zero ones
+    # Find any non-alternating edges
     invalid = np.zeros((len(digital_data)-1,), dtype='?')
-    if check_valid:
+    if check_alternating:
         all_edges = np.where(rising_idx | falling_idx)[0]
         next_edge_rising = True
-        for idx in range(len(all_edges)): # skip the first edge
+        for idx in range(len(all_edges)):
             this_idx = all_edges[idx]
             if next_edge_rising and rising_idx[this_idx]:
-                next_edge_rising = False
+                # Expected rising and found rising
+                next_edge_rising = False 
             elif not next_edge_rising and falling_idx[this_idx]:
-                next_edge_rising = True
-            elif idx > 0:
+                # Expected falling and found falling
+                next_edge_rising = True 
+            elif idx > 0: # skip the first edge since there is no previous edge
+                # Unexpected; there must be an extra edge somewhere.
+                # We will count this one as valid and the previous one as invalid
                 prev_idx = all_edges[idx-1]
-                invalid[prev_idx] = True # previous edge was invalid
+                invalid[prev_idx] = True
     
     # Assemble final index    
     logical_idx = np.zeros((len(digital_data)-1,), dtype='?')
