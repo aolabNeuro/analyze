@@ -156,6 +156,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
+
 def plot_rastor(data,plot_cue, cue_bin, ax):
     '''
        Create a rastor plot of neural data
@@ -183,44 +184,3 @@ def plot_rastor(data,plot_cue, cue_bin, ax):
     if plot_cue:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
-def plot_psth(data, cue_bin, ax):
-    '''
-       Create a peristimulus histogram for neural data
-
-       Args:
-           data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
-           plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-           cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
-            ax: axis to plot rastor plot
-       Returns:
-           rastor plot in appropriate axis
-    '''
-
-def plot_events_time(events, ax, labels):
-    '''
-
-    Args:
-        events (2D array): Logical array that denotes when an event(for example: a reward) occurred during an experimental session (n_events x n_timebins)
-        labels (str) : Event names for each column
-        ax (axes handle): Axes to plot
-
-    Returns:
-        chronological event plot
-
-    '''
-    from matplotlib.cm import get_cmap
-
-    n_timebins = np.shape(events)[1]
-    n_events = np.shape(events)[0]
-
-    for i in range(n_events):
-        color = np.random.rand(3)
-        for t in range(n_timebins):
-            if events[i,t] == 1:
-                y = [i, i+0.5]
-                x = [t, t]
-                ax.plot(x,y, c= color)
-
-    ax.set_xlabel('Time')
-    ax.set_yticks(np.arange(n_events)+0.25)
-    ax.set_yticklabels(labels)
