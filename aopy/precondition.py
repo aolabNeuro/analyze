@@ -1,12 +1,12 @@
 # precondition.py
 # code for preconditioning neural data
 from scipy import signal
-from scipy.signal import butter, lfilter, filtfilt, windows
+from scipy.signal import butter, lfilter, filtfilt, windows, freqz
 import math
 import numpy as np
 import os
-
-# TODO: Fix issues with installing nitime
+import matplotlib.pyplot as plt
+#
 import nitime.algorithms as tsa
 import nitime.utils as utils
 from nitime.viz import winspect
@@ -103,8 +103,8 @@ def bandpass_multitaper_filter_data(data, fs, NW = None, BW= None, adaptive = Fa
 
 #TODO: function for LFP band power
 
-def get_psd(data, fs):
-    f, psd = signal.welch(data, fs, average='mean')
+def get_psd(data, fs,l):
+    f, psd = signal.welch(data, fs, average='mean',nperseg=2*l)
     return f,psd
 
 '''
@@ -117,7 +117,7 @@ def plot_filtered_signal(t,x, x_filter,low, high ):
     plt.figure()
     plt.clf()
     plt.plot(t, x, label='Noisy signal')
-    plt.plot(t, x_filter, label='Filtered signal (%g - %gHz)' % low %high)
+    plt.plot(t, x_filter, label='Filtered signal')
     plt.xlabel('time (seconds)')
     # plt.hlines([-self.a, self.a], 0, self.T, linestyles='--')
     plt.grid(True)
@@ -138,14 +138,14 @@ def plot_phase_locking(t, a, f0,  x_filter):
     plt.legend(loc='best')
     plt.show()
 
-def plot_freq_response_vs_filter_order(x,lowcut, highvut,fs):
+def plot_freq_response_vs_filter_order(x,lowcut, highcut,fs):
     # Plot the frequency response for a few different orders
     plt.figure(2)
     plt.clf()
     for order in [2,3,4,5,6]: # trying  different order of butterworth to see the roll off around cut-off frequencies
-        precondition.bandpass_butterworth_filter_data(x, lowcut, highcut, fs, order = order)
+        bandpass_butterworth_filter_data(x, lowcut, highcut, fs, order = order)
 
-        b, a = precondition.bandpass_butterworth_params(lowcut, highcut,fs, order = order)
+        b, a = bandpass_butterworth_params(lowcut, highcut,fs, order = order)
         w, h = freqz(b, a, worN=2000)
         plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
 
@@ -171,8 +171,8 @@ def plot_psd(x,x_filter, fs):
     plt.show()
 
 def plot_db_spectral_estimate(freq, psd, psd_filter, labels):
-    psd = 10* np.log10(psd)
-    psd_filter = 10 * np.log10(psd_filter)
+    # psd = 10* np.log10(psd)
+    # psd_filter = 10 * np.log10(psd_filter)
     plt.figure()
     plot_spectral_estimate(freq,psd,(psd_filter,), elabels=(labels))
     plt.show()
