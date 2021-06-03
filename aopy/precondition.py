@@ -33,7 +33,7 @@ def generate_test_signal(T, fs, freq, a=0.02):
     f0 = freq[0]
     # noise_power = 0.001 * fs / 2
 
-    x = a * np.cos(2 * np.pi * f0 * t)  # adding primary frequency
+    x = a * 2 * np.cos(2 * np.pi * f0 * t)  # adding primary frequency
     x += a * 0.5 * np.cos(2 * np.pi * freq[1] * t)
     x += a * 1.5 * np.cos(2 * np.pi * freq[2] * t)
     x += a * 20 * np.sin(2 * np.pi * 1.2 * np.sqrt(t))  # noise
@@ -85,7 +85,7 @@ def bandpass_multitaper_filter_data(data, fs, NW = None, BW= None, adaptive = Fa
     '''
 
     Args:
-        data (ndarray):  time series data where time axis is assumed to be on the last axis
+        data (ndarray):  time series data where time axis is assumed to be on the last axis (n_channels , n_samples)
         fs (float): sampling rate of the signal
         NW (float): Normalized half bandwidth of the data tapers in Hz
         BW (float): sampling bandwidth of the data tapers in Hz
@@ -101,9 +101,53 @@ def bandpass_multitaper_filter_data(data, fs, NW = None, BW= None, adaptive = Fa
     f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides )
     return f, psd_mt, nu
 
-#TODO: function for LFP band power
+def multitaper_lfp_bandpower(f,psd_est, bands, n_channels, no_log):
+    '''
+
+    Args:
+        psd_est (ndarray): power spectral density - output of bandpass_multitaper_filter_data
+        bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
+        n_channels: number of channels
+        no_log (bool): boolean to select whether lfp band power should be in log scale or not
+
+    Returns:
+        lfp_power (ndarray): lfp band power for each channel for each band specified ( n_channels * n_features, 1)
+    '''
+
+    lfp_power = np.zeros((n_channels * len(bands), 1))
+    small_epsilon = 0
+    fft_inds = dict()
+
+    for band_idx, band in enumerate(bands):
+            fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
+
+    for idx, band in enumerate(bands):
+        if n_channels == 1:
+            if no_log:
+                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(psd_est[fft_inds[idx]], axis=0)
+            else:
+                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(np.log10(psd_est[fft_inds[idx]] + small_epsilon), axis=0)
+        else:
+            if no_log:
+                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(psd_est[:,fft_inds[idx]], axis=1)
+            else:
+                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(np.log10(psd_est[:,fft_inds[idx]] + small_epsilon), axis=1)
+
+    return lfp_power
 
 def get_psd(data, fs,l):
+    '''
+    Computes power spectral density using Welch's method
+
+    Args:
+        data (ndarray): time series data.
+        fs (float): sampling rate
+        l (int): no. of frequency points expected
+
+    Returns:
+        f (ndarray) : frequency points vector
+        psd_est (ndarray): estimated power spectral density (PSD)
+    '''
     f, psd = signal.welch(data, fs, average='mean',nperseg=2*l)
     return f,psd
 
@@ -171,10 +215,10 @@ def plot_psd(x,x_filter, fs):
     plt.show()
 
 def plot_db_spectral_estimate(freq, psd, psd_filter, labels):
-    # psd = 10* np.log10(psd)
-    # psd_filter = 10 * np.log10(psd_filter)
+    psd = 10* np.log10(psd)
+    psd_filter = 10 * np.log10(psd_filter)
     plt.figure()
-    plot_spectral_estimate(freq,psd,(psd_filter,), elabels=(labels))
+    plot_spectral_estimate(freq,psd,(psd_filter,), elabels=(labels,))
     plt.show()
 
 
