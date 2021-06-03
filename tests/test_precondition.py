@@ -66,6 +66,8 @@ plt.xticks(np.arange(len(bands)),bands)
 plt.xlabel('Frequency band (Hz)')
 plt.ylabel('Band Power')
 plt.show()
+fname = 'lfp_bandpower.png'
+savefig(write_dir, fname)
 
 
 class FilterTests(unittest.TestCase):
