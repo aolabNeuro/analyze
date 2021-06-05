@@ -218,11 +218,11 @@ def animate_events(events, times, fps, xy=(0.3,0.3), fontsize=30, color='g'):
     note = ax.annotate("", xy, fontsize=fontsize, color=color)
     plt.axis('off')
     return FuncAnimation(fig, display_text, frames=frame_events.shape[0], 
-			 interval=round(1000/fps), 
-                         init_func=lambda : None,
+			             interval=round(1000/fps), 
                          fargs=(frame_events, event_names, note))
 
-def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b'):
+def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b', 
+                          axis_labels=['x', 'y', 'z']):
     '''
     Draws a trajectory moving through 3D space at the given sampling rate and with a
     fixed maximum number of points visible at a time.
@@ -239,13 +239,13 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b'):
     line, = ax.plot(trajectory[0,0], trajectory[0,1], trajectory[0,2], color=color)
     
     ax.set_xlim((np.nanmin(trajectory[:,0]), np.nanmax(trajectory[:,0])))
-    ax.set_xlabel('x = Right')
+    ax.set_xlabel(axis_labels[0])
 
     ax.set_ylim((np.nanmin(trajectory[:,1]), np.nanmax(trajectory[:,1])))
-    ax.set_ylabel('y = Forwards')
+    ax.set_ylabel(axis_labels[1])
     
     ax.set_zlim((np.nanmin(trajectory[:,2]), np.nanmax(trajectory[:,2])))
-    ax.set_zlabel('z = Up')
+    ax.set_zlabel(axis_labels[2])
     
     def draw(num):
         length = min(num, history)

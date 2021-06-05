@@ -137,7 +137,28 @@ def get_trial_targets(trials, targets):
 def sample_events(events, times, samplerate):
     '''
     Converts a list of events and timestamps to a matrix of events where
-    each column is a different event and each row is a sample in time
+    each column is a different event and each row is a sample in time.
+    For example, if we have events 'reward' and 'penalty', and we want them
+    as separate rasters::
+
+        >>> events = ["reward", "reward", "penalty", "reward"]
+        >>> times = [0.3, 0.5, 0.7, 1.0]
+        >>> samplerate = 10
+        >>> frame_events, event_names = sample_events(events, times, samplerate)
+        >>> print(frame_events)
+        [[False, False],
+         [False, False],
+         [False, False],
+         [False, True ],
+         [False, False],
+         [False, True ],
+         [False, False],
+         [ True, False],
+         [False, False],
+         [False, False],
+         [False, True ]]
+        >>> print(event_names)
+        ["penalty", "reward"]
 
     Args:
         events (list): list of event names or numbers
@@ -146,8 +167,10 @@ def sample_events(events, times, samplerate):
 
     Returns:
         tuple: tuple containing:
-            frame_events (nt, n_events): boolean matrix of when each event occurred
-            event_names (n_events): list of event column names
+            frame_events (nt, n_events): logical index of 'events' at the 
+                given sampling rate
+            event_names (n_events): list of event column names (sorted 
+                alphabetically)
 
     '''
     n_samples = round(times[-1]*samplerate) + 1

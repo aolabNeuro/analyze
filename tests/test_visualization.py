@@ -77,7 +77,8 @@ class PlottingTests(unittest.TestCase):
         trajectory = np.zeros((10,3))
         trajectory[:,0] = np.arange(10)
         samplerate = 2
-        ani = animate_trajectory_3d(trajectory, samplerate, history=5)
+        axis_labels = ['x = Right', 'y = Forwards', 'z = Up']
+        ani = animate_trajectory_3d(trajectory, samplerate, history=5, axis_labels=axis_labels)
         filename = "animate_trajectory_test.mp4"
         saveanim(ani, write_dir, filename)
 
