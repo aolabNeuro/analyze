@@ -619,6 +619,38 @@ def get_unique_trials(trial_idx, conditions, condition_name='target'):
                 corrected_trials = np.append(corrected_trials, trial)
     return corrected_trials
 
+def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
+    '''
+    Given an array of trial separated events, this function goes through and finds the event sequences corresponding to the trials
+    that include a given event. If an array of event codes are input, the function will find the trials corresponding to
+    each event code. 
+    Note: all events input through 'event_codes' must be located in the same column of 'trial_events'
+    
+    Args:
+        trial_events (ntr, nevents): Array of trial separated event codes
+        event_codes (int, str, list, or 1D array): Event code(s) to find trials for. Can be a list of strings or ints
+        event_column (int): Column index to look for events in. Keep as 'None' if all columns should be analyzed.
+        
+    Returns:
+        (tuple):
+            (list of arrays): List where each index includes an array of trials containing the event_code corresponding to that index. 
+            (1D Array): Concatenated indices for which trials correspond to which event code.
+                        Can be used as indices to order 'trial_events' by the 'event_codes' input.
+    '''
+    split_events = []
+    if type(event_codes) == int or type(event_codes) == str:
+        split_events.append(np.unique(np.where(trial_events[:,event_columnidx] == event_codes)[0]))
+        split_events=[np.array(split_events).flatten()]
+        split_events_array = np.array(split_events).flatten()
+    else:
+        nevent_codes = len(event_codes)
+        split_events_array = np.array([]).astype(int)
+        for ievent in range(nevent_codes):
+            split_events.append(np.unique(np.where(trial_events[:,event_columnidx] == event_codes[ievent])[0]))
+            split_events_array = np.append(split_events_array, split_events[ievent])
+    
+    return split_events, split_events_array
+
 def max_repeated_nans(a):
     '''
     Utility to calculate the maximum number of consecutive nans

@@ -664,3 +664,37 @@ def load_electrode_pos(data_dir, pos_file):
     x_pos = electrode_pos['topdown_x'].to_numpy()
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos
+
+def parse_str_list(strings, str_include=None, str_avoid=None):
+    '''
+    This function parses a list of strings to return the strings that include/avoid specific substrings
+    It was designed to parse dictionary keys
+
+    Args: 
+        strings (list of strings): List of keys corresponding to the waveform data input
+        str_include (list of strings): List of substrings that must be included in a key to keep it
+        str_avoid (list of strings): List of substrings that can not be included in a key to keep it
+        
+    Retruns:
+        (list of strings): List of keys fitting the input conditions
+    '''
+    parsed_str = []
+    
+    for str_idx in range(len(strings)):
+        counter = 0
+        nconditions = 0
+        if str_include is not None:
+            for istr_incl in range(len(str_include)):
+                nconditions += 1
+                if str_include[istr_incl] in strings[str_idx]:
+                    counter += 1
+        if str_avoid is not None:
+            for istr_avd in range(len(str_avoid)):
+                nconditions += 1
+                if str_avoid[istr_avd] not in strings[str_idx]:
+                    counter += 1
+        
+        if counter == nconditions:
+            parsed_str.append(strings[str_idx])
+            
+    return parsed_str
