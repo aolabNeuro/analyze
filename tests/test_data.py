@@ -22,8 +22,8 @@ class LoadDataTests(unittest.TestCase):
         files = get_filenames_in_dir(test_dir, 1039)
         self.assertIn('foo', files)
         self.assertIn('bar', files)
-        self.assertEqual(files['foo'], '1039_foo')
-        self.assertEqual(files['bar'], '1039_bar.txt')
+        self.assertEqual(files['foo'], 'foo/1039_foo')
+        self.assertEqual(files['bar'], 'bar/1039_bar.txt')
 
     def test_load_mocap(self):
         # Data directory and filepath

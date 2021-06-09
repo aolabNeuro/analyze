@@ -114,8 +114,6 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
     functionality is controlled with the 'extrap_peaks' input variable. Note: the extrapolation function may choose an 
     index within the input data length if chosen points result in a polynomial with an extremum at that point.
 
-    Required package: scipy
-
     Args:
         extremum_idx (int): Current extremum index
         data (n): data used to interpolate (or extrapolate) with
@@ -124,10 +122,12 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
         
     Returns:
         tuple: A tuple containing 
-        extremum_value (float): Approximated peak value.
-        extremum_time (float): Interpolated (or extrapolated) peak time
-        f (np.poly): Polynomial used to calculate peak time
         
+        extremum_time (float): Interpolated (or extrapolated) peak time
+        
+        extremum_value (float): Approximated peak value.
+        
+        f (np.poly): Polynomial used to calculate peak time
     '''
 
     # Handle condition where the peak is at the beginning of a dataset

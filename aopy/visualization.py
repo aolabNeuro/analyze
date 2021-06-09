@@ -39,7 +39,7 @@ def plot_timeseries(data, samplerate, ax=None):
     Plots data along time on the given axis
 
     Args:
-        data (nt, nch): timeseries data, can also be a single channel vector
+        data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
     '''
@@ -49,7 +49,7 @@ def plot_timeseries(data, samplerate, ax=None):
         ax = plt.gca()
     time = np.arange(np.shape(data)[0])/samplerate
     for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:,ch]*1e6)
+        ax.plot(time, data[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (uV)')
 
@@ -58,7 +58,7 @@ def plot_freq_domain_power(data, samplerate, ax=None):
     Plots a power spectrum of each channel on the given axis
 
     Args:
-        data (nt, nch): timeseries data, can also be a single channel vector
+        data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
     '''
@@ -69,12 +69,12 @@ def plot_freq_domain_power(data, samplerate, ax=None):
     freq_data = np.fft.fft(data, axis=0)
     length = np.shape(freq_data)[0]
     freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>1,:])*2/length
-    non_negative_freq = freq[freq>1]
+    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
+    non_negative_freq = freq[freq>=0]
     for ch in range(np.shape(freq_data)[1]):
-        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e4)
+        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Frequency (Hz)')
-    ax.set_ylabel('Power (a.u.)')
+    ax.set_ylabel('Power (uV)')
 
 def get_data_map(data, x_pos, y_pos):
     '''
@@ -256,3 +256,96 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
         
     return FuncAnimation(fig, draw, frames=trajectory.shape[0],
                          init_func=lambda : None, interval=1000./samplerate)
+
+def set_bounds(bounds, ax=None):
+    '''
+    Sets the x, y, and z limits according to the given bounds
+
+    Args:
+        bounds (tuple): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    try:
+        ax.set(xlim=(1.1*bounds[0], 1.1*bounds[1]), 
+               ylim=(1.1*bounds[2], 1.1*bounds[3]),
+               zlim=(1.1*bounds[4], 1.1*bounds[5]))
+    except:
+        ax.set(xlim=(1.1*bounds[0], 1.1*bounds[1]), 
+               ylim=(1.1*bounds[2], 1.1*bounds[3]))
+
+def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), ax=None):
+    '''
+    Add targets to an axis. If any targets are at the origin, they will appear 
+    in a different color (magenta). Works for 2D and 3D axes
+
+    Args:
+        target_positions (ntarg, 3): array of target (x, y, z) locations
+        target_radius (float): radius of each target
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        origin (tuple, optional): (x, y, z) position of the origin
+        ax (plt.Axis, optional): axis to plot the targets on
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    for i in range(0,target_positions.shape[0]):
+
+        # Pad the vector to make sure it is length 3
+        pos = np.zeros((3,))
+        pos[:len(target_positions[i])] = target_positions[i]
+
+        # Color according to its position
+        if (pos == origin).all():
+            target_color = 'm'
+        else:
+            target_color = 'b'
+
+        # Plot in 3D or 2D
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        try:
+            ax.set_zlabel('z')
+            u = np.linspace(0, 2 * np.pi, 100)
+            v = np.linspace(0, np.pi, 100)
+            x = pos[0] + target_radius * np.outer(np.cos(u), np.sin(v))
+            y = pos[1] + target_radius * np.outer(np.sin(u), np.sin(v))
+            z = pos[2] + target_radius * np.outer(np.ones(np.size(u)), np.cos(v))
+            ax.plot_surface(x, y, z, alpha=0.5, color=target_color)
+            ax.set_box_aspect((1,1,1))
+        except:
+            target = plt.Circle((pos[0], pos[1]), 
+                            radius=target_radius, alpha=0.5, color=target_color)
+            ax.add_artist(target)
+            ax.set_aspect('equal', adjustable='box')
+    if bounds is not None: set_bounds(bounds, ax)
+    
+
+def plot_trajectories(trajectories, bounds=None, ax=None):
+    '''
+    Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
+
+    Args:
+        trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on
+   '''
+    if ax is None:
+        ax = plt.gca()
+
+    # Plot in 3D, fall back to 2D
+    try:
+        ax.set_zlabel('z')
+        for path in trajectories:
+            ax.plot(*path.T)
+        ax.set_box_aspect((1,1,1))
+    except:
+        for path in trajectories:
+            ax.plot(path[:,0], path[:,1])
+        ax.set_aspect('equal', adjustable='box')
+
+    if bounds is not None: set_bounds(bounds, ax)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')

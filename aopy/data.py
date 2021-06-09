@@ -28,7 +28,7 @@ def get_filenames_in_dir(base_dir, te):
     files = {}
     for file in relevant_contents:
         system = os.path.basename(os.path.dirname(file))
-        filename = os.path.basename(file)
+        filename = os.path.relpath(file, base_dir)
         files[system] = filename
     return files
 
