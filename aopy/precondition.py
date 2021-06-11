@@ -81,7 +81,7 @@ def bandpass_butterworth_filter_data(data, cutoff_low, cutoff_high, fs, order = 
     filtered_data = filtfilt(b, a, data)
     return filtered_data
 
-def bandpass_multitaper_filter_data(data, fs, NW = None, BW= None, adaptive = False, jackknife = True, sides = 'default'):
+def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknife = True, sides = 'default'):
     '''
 
     Args:
@@ -135,7 +135,7 @@ def multitaper_lfp_bandpower(f,psd_est, bands, n_channels, no_log):
 
     return lfp_power
 
-def get_psd(data, fs,l):
+def get_psd_welch(data, fs,l = None):
     '''
     Computes power spectral density using Welch's method
 
@@ -143,83 +143,17 @@ def get_psd(data, fs,l):
         data (ndarray): time series data.
         fs (float): sampling rate
         l (int): no. of frequency points expected
+        average (str):  { ‘mean’, ‘median’ }, optional method to use when averaging periodograms. Defaults to ‘mean’.
 
     Returns:
         f (ndarray) : frequency points vector
         psd_est (ndarray): estimated power spectral density (PSD)
     '''
-    f, psd = signal.welch(data, fs, average='mean',nperseg=2*l)
+    if l:
+        f, psd = signal.welch(data, fs, average = 'median',nperseg=2*l)
+    else:
+        f, psd = signal.welch(data, fs, average = 'median')
     return f,psd
-
-'''
-Plots to test filter performance
-'''
-
-
-def plot_filtered_signal(t,x, x_filter,low, high ):
-    # Plotting noisy test signal and filtered signal
-    plt.figure()
-    plt.clf()
-    plt.plot(t, x, label='Noisy signal')
-    plt.plot(t, x_filter, label='Filtered signal')
-    plt.xlabel('time (seconds)')
-    # plt.hlines([-self.a, self.a], 0, self.T, linestyles='--')
-    plt.grid(True)
-    plt.axis('tight')
-    plt.legend(loc='best')
-    plt.show()
-
-def plot_phase_locking(t, a, f0,  x_filter):
-    # Plotting filtered signal with original signal frequency
-    plt.figure()
-    plt.clf()
-    x_f0 = a * np.cos(2 * np.pi * f0 * t)
-    plt.plot(t, x_f0, label='Original signal (%g Hz)' % f0)
-    plt.plot(t, x_filter, label='Filtered signal (%g Hz)' % f0)
-    plt.xlabel('time (seconds)')
-    plt.ylabel('amplitude')
-    plt.title('Comparison of Original Vs Filtered Signal')
-    plt.legend(loc='best')
-    plt.show()
-
-def plot_freq_response_vs_filter_order(x,lowcut, highcut,fs):
-    # Plot the frequency response for a few different orders
-    plt.figure(2)
-    plt.clf()
-    for order in [2,3,4,5,6]: # trying  different order of butterworth to see the roll off around cut-off frequencies
-        bandpass_butterworth_filter_data(x, lowcut, highcut, fs, order = order)
-
-        b, a = bandpass_butterworth_params(lowcut, highcut,fs, order = order)
-        w, h = freqz(b, a, worN=2000)
-        plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
-
-    plt.plot([0, 0.5 * fs], [np.sqrt(0.5), np.sqrt(0.5)], '--', label='sqrt(0.5)')
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Gain')
-    plt.grid(True)
-    plt.legend(loc='best')
-    plt.title('Comparison of Frequency response for Diff. Orders of Butterworth Filter')
-    plt.show()
-
-def plot_psd(x,x_filter, fs):
-    # Plot power spectral density of the signal
-    f, psd = signal.welch(x, fs, average = 'mean')
-    f_filtered, psd_filterred = signal.welch(x_filter, fs, average='median')
-    plt.figure()
-    plt.semilogy(f, psd, label='test signal')
-    plt.semilogy(f_filtered, psd_filterred, label='filtered output')
-    plt.xlabel('frequency [Hz]')
-    plt.ylabel('PSD')
-    plt.legend()
-    plt.title('Power Spectral Density Comparison')
-    plt.show()
-
-def plot_db_spectral_estimate(freq, psd, psd_filter, labels):
-    psd = 10* np.log10(psd)
-    psd_filter = 10 * np.log10(psd_filter)
-    plt.figure()
-    plot_spectral_estimate(freq,psd,(psd_filter,), elabels=(labels,))
-    plt.show()
 
 
 
