@@ -40,7 +40,7 @@ class FilterTests(unittest.TestCase):
         lowcut = 500.0
         highcut = 1200.0
         tic = time.perf_counter()
-        x_filter = precondition.bandpass_butterworth_filter_data(self.x, lowcut, highcut, self.fs)
+        x_filter = precondition.butterworth_filter_data(self.x, lowcut, highcut, self.fs)
         toc = time.perf_counter()
         print(f" Butterworth filter executed in {toc - tic:0.4f} seconds")
 

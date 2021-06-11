@@ -229,9 +229,9 @@ def plot_freq_response_vs_filter_order(x, lowcut, highcut, fs):
     # Plot the frequency response for a few different orders
     for order in [2, 3, 4, 5,
                   6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
-        precondition.bandpass_butterworth_filter_data(x, lowcut, highcut, fs, order=order)
+        precondition.butterworth_filter_data(x, lowcut, highcut, fs, order=order)
 
-        b, a = precondition.bandpass_butterworth_params(lowcut, highcut, fs, order=order)
+        b, a = precondition.butterworth_params(lowcut, highcut, fs, order=order)
         w, h = freqz(b, a, worN=2000)
         plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
 

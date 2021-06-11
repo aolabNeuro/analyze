@@ -41,7 +41,7 @@ def generate_test_signal(T, fs, freq, a):
 
     return x, t
 
-def bandpass_butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'bandpass'):
+def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'bandpass'):
     '''
     Design Nth-order digital Butterworth filter and return the filter coefficients.
 
@@ -56,14 +56,10 @@ def bandpass_butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_t
         tuple (b,a): bandpass filter parameters
 
     '''
-    nyq = 0.5 * fs
-    low = cutoff_low / nyq
-    high = cutoff_high / nyq
-
     b,a = butter( order, [cutoff_low, cutoff_high], btype=filter_type, fs =fs)
     return b,a
 
-def bandpass_butterworth_filter_data(data, cutoff_low, cutoff_high, fs, order = 4,filter_type = 'bandpass' ):
+def butterworth_filter_data(data, cutoff_low, cutoff_high, fs, order = 4,filter_type = 'bandpass' ):
     '''
     Apply a digital butterworth filter forward and backward to a timeseries signal.
 
