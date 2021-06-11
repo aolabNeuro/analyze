@@ -14,6 +14,10 @@ install_requires = [
     'tables',
     'scikit-learn',
     'nitime',
+    'xlrd',
+    'openpyxl',
+    'matplotlib',
+    'scipy',
 ]
 
 setuptools.setup(

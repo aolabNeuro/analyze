@@ -39,16 +39,26 @@ def convert_analog_to_digital(analog_data, thresh=.3):
 
     return digital_data
 
-def detect_edges(digital_data, samplerate, lowhi=True, hilow=True):
+def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True):
     '''
-    Finds the timestamp and corresponding value of all the bit flips in data. Assume 
+    Finds the timestamp and corresponding value of all the bit flips in data. Assumes 
     the first element in data isn't a transition
+
+    By default, also enforces that rising and falling edges must alternate, always taking the
+    last edge as the most valid one. For example::
+
+        >>> data = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
+        >>> ts, values = detect_edges(data, fs)
+        >>> print(values)
+        [3, 0, 3, 0, 7, 0]
 
     Args:
         digital_data (ntime x 1): masked binary data array
         samplerate (int): sampling rate of the data used to calculate timestamps
-        lowhi (bool): include low to high transitions
-        hilow (bool): include high to low transitions
+        rising (bool, optional): include low to high transitions
+        falling (bool, optional): include high to low transitions
+        check_alternating (bool, optional): if True, enforces that rising and falling
+            edges must be alternating
 
     Returns:
         tuple: tuple containing:
@@ -58,12 +68,37 @@ def detect_edges(digital_data, samplerate, lowhi=True, hilow=True):
     '''
 
     digital_data = np.squeeze(np.uint64(digital_data)) # important conversion for binary math
+    rising_idx = (~digital_data[:-1] & digital_data[1:]) > 0 # find low->high transitions
+    falling_idx = (~digital_data[1:] & digital_data[:-1]) > 0
+
+    # Find any non-alternating edges
+    invalid = np.zeros((len(digital_data)-1,), dtype='?')
+    if check_alternating:
+        all_edges = np.where(rising_idx | falling_idx)[0]
+        next_edge_rising = True
+        for idx in range(len(all_edges)):
+            this_idx = all_edges[idx]
+            if next_edge_rising and rising_idx[this_idx]:
+                # Expected rising and found rising
+                next_edge_rising = False 
+            elif not next_edge_rising and falling_idx[this_idx]:
+                # Expected falling and found falling
+                next_edge_rising = True 
+            elif idx > 0: # skip the first edge since there is no previous edge
+                # Unexpected; there must be an extra edge somewhere.
+                # We will count this one as valid and the previous one as invalid
+                prev_idx = all_edges[idx-1]
+                invalid[prev_idx] = True
+    
+    # Assemble final index    
     logical_idx = np.zeros((len(digital_data)-1,), dtype='?')
-    if lowhi:
-        logical_idx |= (~digital_data[:-1] & digital_data[1:]) > 0 # find low->high transitions
-    if hilow:
-        logical_idx |= (~digital_data[1:] & digital_data[:-1]) > 0
+    if rising:
+        logical_idx |= rising_idx
+    if falling:
+        logical_idx |= falling_idx
+    logical_idx &= np.logical_not(invalid)
     logical_idx = np.insert(logical_idx, 0, False) # first element never a transition
+
     time = np.arange(np.size(digital_data))/samplerate
     return time[logical_idx], digital_data[logical_idx]
 
@@ -336,29 +371,52 @@ def calc_reward_rate(event_log, event_name='REWARD'):
 
     Returns:
         float: reward_rate
-
     '''
     return calc_event_rate(event_log, event_name)
 
-def trial_separate(events, times, evt_start, n_events=8):
+def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
     '''
-    Compute the 2D matrices contaning events per trial and timestamps per trial
+    Compute the 2D matrices contaning events per trial and timestamps per trial. 
+    If there are not enough events to fill n_events, the remaining indices will be a value of '-1' the events are ints or missing values if events are strings.
 
     Args:
         events (nt): events vector
         times (nt): times vector
         evt_start (int or str): event marking the start of a trial
         n_events (int): number of events in a trial
-    
+        nevent_offset (int): number of events before the start event to offset event alignment by. For example,
+            if you wanted to align to "targ" in ["trial", "targ", "reward", "trial", "targ", "error"] but include the preceding "trial"
+            event, then you could use nevent_offset=-1
+
     Returns:
         tuple: tuple containing:
 
             trial_events (n_trial, n_events): events per trial
+
             trial_times (n_trial, n_events): timestamps per trial
     '''
 
+    # Pad the arrays a bit in case there is an evt_start at the beginning or end
+    if np.issubdtype(events.dtype, np.number):
+        if nevent_offset < 0:
+            events = events.astype('int32')
+            events = np.pad(events, (-nevent_offset, n_events), constant_values=(-1,))
+            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
+        else:
+            events = events.astype('int32')
+            events = np.pad(events, (0, n_events+nevent_offset), constant_values=(-1,))
+            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))
+    else:
+        if nevent_offset < 0:
+            events = np.pad(events, (-nevent_offset, n_events), constant_values=('',))
+            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
+        else:
+            events = np.pad(events, (0, n_events+nevent_offset), constant_values=('',))
+            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
+    
+
     # Find the indices in events that correspond to evt_start 
-    evt_start_idx = np.where(events == evt_start)[0]
+    evt_start_idx = np.where(events == evt_start)[0]+nevent_offset
 
     # Find total number of trials
     num_trials = len(evt_start_idx)
@@ -374,7 +432,8 @@ def trial_separate(events, times, evt_start, n_events=8):
 
 def trial_align_events(aligned_events, aligned_times, event_to_align):
     '''
-    Compute a new trial_times matrix with offset timestamps for the given event_to_align
+    Compute a new trial_times matrix with offset timestamps for the given event_to_align.
+    Any index corresponding to where aligned_events is empty will also be empty.
     
     Args:
         aligned_events (n_trial, n_event): events per trial
@@ -388,11 +447,16 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
     # For each row, find the column that matches the given event, 
     # then subtract its timestamps from the entire row
     trial_aligned_times = np.zeros(aligned_times.shape)
-    for idx_trial in range(len(aligned_events)):
-        idx_time = np.where(aligned_events[idx_trial,:] == event_to_align)[0]
+    for idx_trial in range(aligned_events.shape[0]):
+        idx_time = np.where(aligned_events[idx_trial,:] == event_to_align)[0][0] # take the first match
         time_offset = aligned_times[idx_trial, idx_time]
         offset_row = aligned_times[idx_trial, :] - time_offset
         trial_aligned_times[idx_trial] = offset_row
+
+        # Handle case where the input row of aligned_events has missing values.
+        zero_idx = np.where(np.logical_or(aligned_events[idx_trial,:] == -1, aligned_events[idx_trial,:] == ''))[0]
+        if len(zero_idx) > 0:
+            trial_aligned_times[idx_trial,zero_idx] = 0
 
     return trial_aligned_times
 
@@ -650,8 +714,11 @@ def _parse_bmi3d_v0(data_dir, files):
     }) 
 
     # Estimate timestamps
-    bmi3d_timestamps = np.arange(len(bmi3d_task))/bmi3d_task_metadata['fps']
-    bmi3d_clock = np.array(bmi3d_timestamps, dtype=[('timestamp', 'f8')])
+    bmi3d_cycles = np.arange(len(bmi3d_task))
+    bmi3d_timestamps = bmi3d_cycles/bmi3d_task_metadata['fps']
+    bmi3d_clock = np.empty((len(bmi3d_task),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
+    bmi3d_clock['time'] = bmi3d_cycles
+    bmi3d_clock['timestamp'] = bmi3d_timestamps
 
     # Put data into dictionary
     bmi3d_data = dict(
@@ -717,7 +784,7 @@ def _parse_bmi3d_v1(data_dir, files):
 
         # Load ecube analog data for the strobe and reward system
         analog_channels = [bmi3d_event_metadata['screen_measure_ach'], bmi3d_event_metadata['reward_measure_ach']] # [5, 0]
-        ecube_analog, metadata = load_eCube_analog(data_dir, ecube_filename, channels=analog_channels)
+        ecube_analog, metadata = load_ecube_analog(data_dir, ecube_filename, channels=analog_channels)
         clock_measure_analog = ecube_analog[0,:]
         reward_system_analog = ecube_analog[1,:]
         analog_samplerate = metadata['samplerate']
@@ -725,7 +792,7 @@ def _parse_bmi3d_v1(data_dir, files):
         # Mask and detect BMI3D computer events from ecube
         event_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['event_sync_dch']) # 0xff0000
         ecube_sync_data = mask_and_shift(digital_data, event_bit_mask)
-        ecube_sync_timestamps, ecube_sync_events = detect_edges(ecube_sync_data, digital_samplerate, lowhi=True, hilow=False)
+        ecube_sync_timestamps, ecube_sync_events = detect_edges(ecube_sync_data, digital_samplerate, rising=True, falling=False)
         sync_events = np.empty((len(ecube_sync_timestamps),), dtype=[('timestamp', 'f8'), ('code', 'u1')])
         sync_events['timestamp'] = ecube_sync_timestamps
         sync_events['code'] = ecube_sync_events
@@ -734,26 +801,26 @@ def _parse_bmi3d_v1(data_dir, files):
         else:
             clock_sync_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['screen_sync_dch']) 
         clock_sync_data = mask_and_shift(digital_data, clock_sync_bit_mask)
-        clock_sync_timestamps, _ = detect_edges(clock_sync_data, digital_samplerate, lowhi=True, hilow=False)
+        clock_sync_timestamps, _ = detect_edges(clock_sync_data, digital_samplerate, rising=True, falling=False)
         sync_clock = np.empty((len(clock_sync_timestamps),), dtype=[('timestamp', 'f8')])
         sync_clock['timestamp'] = clock_sync_timestamps
 
         # Mask and detect screen sensor events (A5 and D5)
         clock_measure_bit_mask = convert_channels_to_mask(bmi3d_event_metadata['screen_measure_dch']) # 1 << 5
         clock_measure_data_online = mask_and_shift(digital_data, clock_measure_bit_mask)
-        clock_measure_timestamps_online, clock_measure_values_online = detect_edges(clock_measure_data_online, digital_samplerate, lowhi=True, hilow=True)
+        clock_measure_timestamps_online, clock_measure_values_online = detect_edges(clock_measure_data_online, digital_samplerate, rising=True, falling=True)
         measure_clock_online = np.empty((len(clock_measure_timestamps_online),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
         measure_clock_online['timestamp'] = clock_measure_timestamps_online
         measure_clock_online['value'] = clock_measure_values_online
         clock_measure_digitized = convert_analog_to_digital(clock_measure_analog, thresh=0.5)
-        clock_measure_timestamps_offline, clock_measure_values_offline = detect_edges(clock_measure_digitized, analog_samplerate, lowhi=True, hilow=True)
+        clock_measure_timestamps_offline, clock_measure_values_offline = detect_edges(clock_measure_digitized, analog_samplerate, rising=True, falling=True)
         measure_clock_offline = np.empty((len(clock_measure_timestamps_offline),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
         measure_clock_offline['timestamp'] = clock_measure_timestamps_offline
         measure_clock_offline['value'] = clock_measure_values_offline
 
         # And reward system (A0)
         reward_system_digitized = convert_analog_to_digital(reward_system_analog)
-        reward_system_timestamps, reward_system_values = detect_edges(reward_system_digitized, analog_samplerate, lowhi=True, hilow=True)
+        reward_system_timestamps, reward_system_values = detect_edges(reward_system_digitized, analog_samplerate, rising=True, falling=True)
         reward_system = np.empty((len(reward_system_timestamps),), dtype=[('timestamp', 'f8'), ('state', '?')])
         reward_system['timestamp'] = reward_system_timestamps
         reward_system['state'] = reward_system_values
@@ -807,7 +874,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         bmi3d_start_time = 0
 
     # Estimate display latency
-    if metadata['sync_protocol_version'] >= 3:
+    if metadata['sync_protocol_version'] >= 3 and 'sync_clock' in data and 'measure_clock_offline' in data:
 
         # Estimate the latency based on the "sync" state at the beginning of the experiment
         sync_impulse = data['sync_clock']['timestamp'][1:3]
@@ -827,27 +894,33 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
 
     # By default use the internal clock and events
     corrected_clock = internal_clock.copy()
-    corrected_events = rfn.append_fields(internal_events, 'timestamp', corrected_clock['timestamp'][internal_events['time']], dtypes='f8')
+    event_cycles = internal_events['time']
+    valid_cycles = np.in1d(event_cycles, corrected_clock['time'])
+    event_idx = np.in1d(corrected_clock['time'], event_cycles[valid_cycles])
+    event_timestamps = np.empty((len(event_cycles),), dtype='f')
+    event_timestamps[:] = np.nan
+    event_timestamps[valid_cycles] = corrected_clock['timestamp'][event_idx]
+    corrected_events = rfn.append_fields(internal_events, 'timestamp', event_timestamps, dtypes='f8')
 
     # Correct the timestamps and events based on sync and measure if present
-    if 'measure_clock_offline' in data:
+    if 'sync_events' in data and 'sync_clock' in data and 'measure_clock_offline' in data:
         
         # Check that the events are all present
         sync_events = data['sync_events']
         event_dict = metadata['event_sync_dict']
         if sync_events['code'][0] != internal_events['code'][0]:
             print("Warning: first event ({}) doesn't match bmi3d records ({})".format(sync_events['code'][0], internal_events['code'][0]))
-            event = np.empty((1,), dtype=corrected_events.dtype)
+            event = np.zeros((1,), dtype=corrected_events.dtype)
             event['code'] = sync_events['code'][0]
-            event['time'] = -1
+            event['time'] = 0
             event['timestamp'] = sync_events['timestamp'][0]
             # TODO decode
             corrected_events = np.insert(corrected_events, event, 0)
         if sync_events['code'][-1] != internal_events['code'][-1]:
             print("Warning: last event ({}) doesn't match bmi3d records ({})".format(sync_events['code'][-1], internal_events['code'][-1]))
-            event = np.empty((1,), dtype=corrected_events.dtype)
+            event = np.zeros((1,), dtype=corrected_events.dtype)
             event['code'] = sync_events['code'][-1]
-            event['time'] = -1
+            event['time'] = internal_events['time'][-1]
             event['timestamp'] = sync_events['timestamp'][-1]
             # TODO decode
             corrected_events = np.append(corrected_events, event)
@@ -887,6 +960,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         corrected_timestamps, uncorrected_timestamps = get_measured_frame_timestamps(
             approx_clock['timestamp'], measured_clock['timestamp'], 
             latency_estimate, search_radius)
+        metadata['latency_measured'] = np.nanmean(corrected_timestamps - uncorrected_timestamps) - latency_estimate
         metadata['n_missing_markers'] = np.count_nonzero(np.isnan(uncorrected_timestamps))
 
         # Abort if there are too many missing markers
@@ -923,7 +997,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
     corrected_clock['timestamp'] -= bmi3d_start_time
 
     # Trim / pad everything to the same length
-    n_cycles = len(task)
+    n_cycles = corrected_clock['time'][-1]
     if metadata['sync_protocol_version'] >= 3:
 
         # Due to the "sync" state at the beginning of the experiment, we need 
@@ -931,14 +1005,16 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         state_log = data['bmi3d_state']
         n_sync_cycles = state_log['time'][1] # 120, approximately
         n_sync_clocks = np.count_nonzero(corrected_clock['time'] < n_sync_cycles)
-        n_cycles = state_log['time'][-1]
 
         padded_clock = np.zeros((n_cycles,), dtype=corrected_clock.dtype)
         padded_clock[n_sync_cycles:] = corrected_clock[n_sync_clocks:]
         padded_clock['time'][:n_sync_cycles] = range(n_sync_cycles)
-        padded_clock['time'][:n_sync_cycles] = np.arange(n_sync_cycles)/metadata['fps']
+        padded_clock['timestamp'][:n_sync_cycles] = np.arange(n_sync_cycles)/metadata['fps']
         corrected_clock = padded_clock
         
+    # Update the event timestamps according to the corrected clock    
+    corrected_events['timestamp'] = corrected_clock['timestamp'][corrected_events['time']]
+
     # Also put the reward system data into bmi3d time?
     if 'reward_system' in data and 'reward_system' in metadata['features']:
         metadata['has_reward_system'] = True
@@ -999,7 +1075,7 @@ def parse_optitrack(data_dir, files):
         samplerate = metadata['samplerate']
         optitrack_bit_mask = 1 << optitrack_strobe_channel
         optitrack_strobe = mask_and_shift(digital_data, optitrack_bit_mask)
-        optitrack_strobe_timestamps, _ = detect_edges(optitrack_strobe, samplerate, lowhi=True, hilow=False)
+        optitrack_strobe_timestamps, _ = detect_edges(optitrack_strobe, samplerate, rising=True, falling=False)
         # - check that eCube captured the same number of timestamps from esync as there are positions/rotations in the file
         if len(optitrack_pos) == len(optitrack_strobe_timestamps):
             optitrack_timestamps = optitrack_strobe_timestamps
@@ -1029,16 +1105,34 @@ def parse_optitrack(data_dir, files):
     optitrack['rotation'] = optitrack_rot
     data_dict = {
         'data': optitrack,
+    }
+    optitrack_metadata.update({
         'source_dir': data_dir,
         'source_files': files,
-    }
-
+    }) 
     # TODO: add metadata about where the timestamps came from
     return data_dict, optitrack_metadata
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
-    Process experiment data files
+    Process experiment data files: 
+        Loads 'hdf' and 'ecube' (if present) data
+        Parses 
+    The above data is prepared into structured arrays:
+        exp_data:
+            task ([('cursor', '<f8', (3,)), ('trial', 'u8', (1,)), ('time', 'u8', (1,)), ...])
+            state ([('msg', 'S', (1,)), ('time', 'u8', (1,))])
+            clock ([('timestamp', 'f8', (1,)), ('time', 'u8', (1,))])
+            events ([('timestamp', 'f8', (1,)), ('time', 'u8', (1,)), ('event', 'S32', (1,)), 
+                ('data', 'u2', (1,)), ('code', 'u2', (1,))])
+            trials ([('trial', 'u8'), ('index', 'u8'), (condition_name, 'f8', (3,)))])
+        exp_metadata:
+            source_dir (str)
+            source_files (dict)
+            bmi3d_start_time (float)
+            n_cycles (int)
+            n_trials (int)
+            <other metadata from bmi3d>
     
     Args:
         data_dir (str): where the data files are located
@@ -1065,7 +1159,18 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
 
 def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
-    Process motion capture files
+    Process motion capture files:
+        Loads metadata, position data, and rotation data from 'optitrack' files
+        If present, reads 'hdf' metadata to find appropriate strobe channel
+        If present, loads 'ecube' analog data representing optitrack camera strobe
+    The data is prepared along with timestamps into HDF datasets:
+        mocap_data:
+            optitrack [('position', 'f8', (3,)), ('rotation', 'f8', (4,)), ('timestamp', 'f8', (1,)]
+        mocap_metadata:
+            source_dir (str)
+            source_files (dict)
+            samplerate (float)
+            <other metadata from motive>
     
     Args:
         data_dir (str): where the data files are located
@@ -1090,3 +1195,32 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
 
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
+    '''
+    Process lfp data:
+        Loads 'ecube' headstage data and metadata
+    Saves broadband data into the HDF datasets:
+        Headstages (nt, nch)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool): whether to remove existing processed files if they exist
+
+    Returns:
+        None
+    '''  
+    # Check if a processed file already exists
+    result_path = os.path.join(result_dir, result_filename)
+    if overwrite and os.path.exists(result_path):
+        os.remove(result_path)
+    elif os.path.exists(result_path):
+        print("File {} already exists, doing nothing.".format(result_filename))
+        return
+
+    # Preprocess neural data into lfp
+    if 'ecube' in files:
+        data_path = os.path.join(data_dir, files['ecube'])
+        broadband = proc_ecube_data(data_path, 'Headstages', result_path)
+        # TODO filter broadband data into LFP

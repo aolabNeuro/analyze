@@ -5,6 +5,7 @@ Welcome to aopy's documentation!
    :maxdepth: 2
    :caption: Contents:
 
+   quickstart
    analysis
    data
    postproc

@@ -1,25 +1,33 @@
 # test_data.py 
 # tests of aopy.data
 from aopy.data import *
+from aopy.visualization import *
 import unittest
 import os
+import numpy as np
+from matplotlib.testing.compare import compare_images
 
-data_dir = 'tests/data/'
-write_dir = 'tests/tmp'
+test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
+write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
-filename = 'Take 2021-03-10 17_56_55 (1039).csv'
-test_filepath = "tests/data/short headstage test"
+test_filepath = os.path.join(data_dir, "short headstage test")
+sim_filepath = os.path.join(data_dir, "fake ecube data")
 
 class LoadDataTests(unittest.TestCase):
 
-    def test_get_filenames(self):
-        files = get_filenames(data_dir, 1039)
-        self.assertIn('optitrack', files)
-        self.assertEqual(files['optitrack'], filename)
+    def test_get_filenames_in_dir(self):
+        test_dir = os.path.join(data_dir, 'test_filenames_dir')
+        files = get_filenames_in_dir(test_dir, 1039)
+        self.assertIn('foo', files)
+        self.assertIn('bar', files)
+        self.assertEqual(files['foo'], 'foo/1039_foo')
+        self.assertEqual(files['bar'], 'bar/1039_bar.txt')
 
     def test_load_mocap(self):
         # Data directory and filepath
+        filename = 'Take 2021-03-10 17_56_55 (1039).csv'
 
         # Load Meta data
         mocap_metadata = load_optitrack_metadata(data_dir, filename)
@@ -56,8 +64,8 @@ class LoadDataTests(unittest.TestCase):
     def test_process_channels(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
         data = process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
-        assert data.shape[0] == 1
-        assert data.shape[1] == 214032
+        assert data.shape[1] == 1
+        assert data.shape[0] == 214032
 
     def test_load_ecube_metadata(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
@@ -65,9 +73,44 @@ class LoadDataTests(unittest.TestCase):
         assert metadata['n_channels'] == 64
 
     def test_load_ecube_data(self):
+        # Make a 'ground truth' figure from simulated data
+        sim_filename = 'Headstages_8_Channels_int16_2021-05-06_11-47-02.bin'
+        filepath = os.path.join(sim_filepath, sim_filename)
+        with open(filepath, 'rb') as f:
+            f.seek(8) # first uint64 is timestamp
+            databuf = bytes(f.read())
+            flatarray = np.frombuffer(databuf, dtype='<i2')
+            shapedarray = flatarray.reshape(-1, 8).swapaxes(0,1)
+        data = shapedarray.T
+        self.assertEqual(data.shape[1], 8)
+        self.assertEqual(data.shape[0], 25000)
+        figname = 'load_ecube_data_groundtruth.png'
+        plt.figure()
+        plot_timeseries(data, 25000)
+        savefig(write_dir, figname)
+
+        # Compare to using the load_ecube_data() function
+        data = load_ecube_data(sim_filepath, 'Headstages')
+        self.assertEqual(data.shape[1], 8)
+        self.assertEqual(data.shape[0], 25000)
+        plt.figure()
+        plot_timeseries(data, 25000)
+        savefig(write_dir, 'load_ecube_data.png')
+
+        fig1 = os.path.join(write_dir, figname)
+        fig2 = os.path.join(write_dir, 'load_ecube_data.png')
+        str = compare_images(fig1, fig2, 0.001)
+        self.assertIsNone(str)
+
+        # Load real data
         data = load_ecube_data(test_filepath, 'Headstages')
-        assert data.shape[0] == 64
-        assert data.shape[1] == 214032
+        assert data.shape[1] == 64
+        assert data.shape[0] == 214032
+
+        # Test that channels work
+        data = load_ecube_data(test_filepath, 'Headstages', channels=[4])
+        assert data.shape[1] == 1
+        assert data.shape[0] == 214032
 
     def test_proc_ecube_data(self):
         import os
@@ -80,8 +123,8 @@ class LoadDataTests(unittest.TestCase):
         hdf = h5py.File(hdf_filepath, 'r')
         assert 'Headstages' in hdf
         assert hdf['Headstages'].attrs['samplerate'] == 25000.
-        assert hdf['Headstages'].shape[0] == 64
-        assert hdf['Headstages'].shape[1] == 214032
+        assert hdf['Headstages'].shape[1] == 64
+        assert hdf['Headstages'].shape[0] == 214032
     
     def test_save_hdf(self):
         import os
@@ -105,6 +148,20 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(test_metadata['key2'][()], 2)
         self.assertTrue(np.allclose(test_data['test_data_array'], np.arange(1000)))
         self.assertRaises(FileExistsError, lambda: save_hdf(write_dir, testfile, data, "/", append=False))
+
+    def test_get_hdf_contents(self):
+        testfile = 'load_hdf_contents_test.hdf'
+        testpath = os.path.join(write_dir, testfile)
+        if os.path.exists(testpath):
+            os.remove(testpath)
+        data_dict = {'test_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=data_dict, data_group="/", append=False)
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
+        result = get_hdf_contents(write_dir, testfile, show_tree=True)
+        self.assertIn('test_data', result)
+        self.assertIn('group1', result)
+        self.assertIn('group_data', result['group1'])
 
     def test_load_hdf_data(self):
         import os
@@ -155,6 +212,58 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(len(data), 534)
         data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'sync_events')
         self.assertEqual(len(data), 6)
+
+        self.assertRaises(ValueError, lambda: load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
+
+class SignalPathTests(unittest.TestCase):
+
+    def test_lookup_excel_value(self):
+        testfile = '210118_ecog_channel_map.xls'
+        self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'electrode', 119), 1)
+        self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'zif61GroupID', 119), '_A')
+
+    def test_lookup_acq2elec(self):
+        testfile = '210118_ecog_channel_map.xls'
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 118), 0)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 63), -1)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 119, zero_index=False), 1)
+        self.assertEqual(lookup_acq2elec(data_dir, testfile, 64, zero_index=False), 0)
+
+    def test_lookup_elec2acq(self):
+        testfile = '210118_ecog_channel_map.xls'
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 0), 118)
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 321), -1)
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 1, zero_index=False), 119)
+        self.assertEqual(lookup_elec2acq(data_dir, testfile, 320, zero_index=False), 0)
+
+    def test_load_electrode_pos(self):
+        testfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        x, y = load_electrode_pos(data_dir, testfile)
+        self.assertEqual(len(x), 244)
+        self.assertEqual(len(y), 244)
+
+class FakeDataTests(unittest.TestCase):
+
+    def test_gen_save_test_signal(self):
+
+        # Generate a signal
+        samplerate = 25000
+        data = gen_test_signal(1, 6, duration=1, n_channels=8, samplerate=samplerate)
+
+        self.assertEqual(data.shape, (25000, 8))
+
+        # Pack it into bits
+        voltsperbit = 1e-4
+        base_dir = os.path.join(write_dir, 'test_ecube_data')
+        if not os.path.exists(base_dir):
+            os.mkdir(base_dir)
+        filename = save_test_signal_ecube(data, base_dir, voltsperbit)
+
+        self.assertTrue('Headstages' in filename)
+
+        plot_timeseries(data, samplerate)
+        figname = 'gen_test_signal.png'
+        savefig(write_dir, figname)
     
 if __name__ == "__main__":
     unittest.main()

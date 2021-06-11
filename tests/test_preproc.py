@@ -2,8 +2,9 @@ from aopy.preproc import *
 import numpy as np
 import unittest
 
-data_dir = 'tests/data/'
-write_dir = 'tests/tmp'
+test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
+write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -27,27 +28,41 @@ class DigitalCalcTests(unittest.TestCase):
         test_bool = [True, False, False, True, True, False, True, True, False, False, False, True]
         test_01 = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
         test_02 = [0b11, 0, 0, 0, 0, 0, 0, 0b01, 0b10, 0b01, 0b11, 0b01, 0b00, 0b10, 0b00, 0b01, 0, 0b01, 0, 0b01, 0, 0b01, 0]
+        test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
 
         ts, values = detect_edges(test_bool, 1)
-        assert len(ts) == 6
-        assert np.array_equal(ts, [1, 3, 5, 6, 8, 11])
-        assert np.array_equal(values, [0, 1, 0, 1, 0, 1])
-        ts, values = detect_edges(test_bool, 1, hilow=False)
-        assert len(ts) == 3
-        assert np.array_equal(ts, [3, 6, 11])
-        assert np.array_equal(values, [1, 1, 1])
-        ts, values = detect_edges(test_bool, 1, lowhi=False)
-        assert len(ts) == 3
-        assert np.array_equal(ts, [1, 5, 8])
-        assert np.array_equal(values, [0, 0, 0])
-        ts, values = detect_edges(test_01, 1, hilow=False)
-        assert len(ts) == 6
-        assert np.array_equal(ts, [7, 13, 15, 17, 19, 21])
-        assert np.array_equal(values, [1, 1, 1, 1, 1, 1])
-        ts, values = detect_edges(test_02, 1, hilow=False)
-        assert len(ts) == 9
-        assert np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21])
-        assert np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1])
+        self.assertEqual(len(ts), 6)
+        self.assertTrue(np.array_equal(ts, [1, 3, 5, 6, 8, 11]))
+        self.assertTrue(np.array_equal(values, [0, 1, 0, 1, 0, 1]))
+
+        # check rising edges only
+        ts, values = detect_edges(test_bool, 1, falling=False)
+        self.assertEqual(len(ts), 3)
+        self.assertTrue(np.array_equal(ts, [3, 6, 11]))
+        self.assertTrue(np.array_equal(values, [1, 1, 1]))
+        
+        # check falling edges only
+        ts, values = detect_edges(test_bool, 1, rising=False)
+        self.assertEqual(len(ts), 3)
+        self.assertTrue(np.array_equal(ts, [1, 5, 8]))
+        self.assertTrue(np.array_equal(values, [0, 0, 0]))
+
+        # check numeric boolean data
+        ts, values = detect_edges(test_01, 1, falling=False)
+        self.assertEqual(len(ts), 6)
+        self.assertTrue(np.array_equal(ts, [7, 13, 15, 17, 19, 21]))
+        self.assertTrue(np.array_equal(values, [1, 1, 1, 1, 1, 1]))
+
+        # check data values instead of a single bit
+        ts, values = detect_edges(test_02, 1, falling=False, check_alternating=False)
+        self.assertEqual(len(ts), 9)
+        self.assertTrue(np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21]))
+        self.assertTrue(np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1]))
+
+        # test that if there are multiple of the same edge only the last one counts
+        ts, values = detect_edges(test_valid, 1)
+        self.assertTrue(np.array_equal(ts, [2, 3, 4, 7, 9, 13]))
+        self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
 
     def test_find_first_significant_bit(self):
         data = 0b0100
@@ -225,36 +240,38 @@ class EventFilterTests(unittest.TestCase):
 
     def test_trial_align_events(self):
         # test trial_separate
-        events = np.array([6, 5, 2, 7, 2, 5, 7, 4, 2, 3, 6, 2, 3, 6, 4, 6, 3, 1, 3, 2, 4, 2,
+        events = np.array([2, 7, 5, 7, 2, 5, 7, 4, 2, 3, 6, 2, 3, 6, 4, 6, 3, 1, 3, 2, 4, 2,
             6, 4, 5, 5, 0, 3, 2, 4, 2, 4, 2, 5, 3, 2, 4, 0, 5, 2, 2, 7, 4, 6,
             3, 0, 6, 0, 1, 2, 3, 5, 3, 1, 4, 1, 2, 2, 7, 1, 1, 0, 6, 0, 1, 7,
             4, 5, 3, 3, 2, 4, 4, 1, 1, 5, 2, 3, 1, 4, 0, 5, 0, 0, 4, 2, 2, 6,
-            3, 4, 0, 0, 1, 6, 5, 2, 1, 0, 7, 0])
+            3, 4, 0, 0, 1, 6, 5, 2, 1, 0, 7, 2], dtype=np.uint32)
         times = np.arange(0, 10, 0.1)
+        times[5] = 0.45 # Check that trial align works with different delta(T)
 
-        expected_aligned_events = np.array([[2., 7.],
-            [2., 5.],
-            [2., 3.],
-            [2., 3.],
-            [2., 4.],
-            [2., 6.],
-            [2., 4.],
-            [2., 4.],
-            [2., 5.],
-            [2., 4.],
-            [2., 2.],
-            [2., 7.],
-            [2., 3.],
-            [2., 2.],
-            [2., 7.],
-            [2., 4.],
-            [2., 3.],
-            [2., 2.],
-            [2., 6.],
-            [2., 1.]])
+        expected_aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6],
+            [2, 4],
+            [2, 4],
+            [2, 5],
+            [2, 4],
+            [2, 2],
+            [2, 7],
+            [2, 3],
+            [2, 2],
+            [2, 7],
+            [2, 4],
+            [2, 3],
+            [2, 2],
+            [2, 6],
+            [2, 1],
+            [2, -1]])
         
-        expected_aligned_times = np.array([[0.2, 0.3],
-            [0.4, 0.5],
+        expected_aligned_times = np.array([[0.0, 0.1],
+            [0.4, 0.45],
             [0.8, 0.9],
             [1.1, 1.2],
             [1.9, 2. ],
@@ -272,15 +289,41 @@ class EventFilterTests(unittest.TestCase):
             [7.6, 7.7],
             [8.5, 8.6],
             [8.6, 8.7],
-            [9.5, 9.6]])
+            [9.5, 9.6],
+            [9.9, -1.]])
         
-        NUM_TO_ALIGN = 2
-        aligned_events, aligned_times = trial_separate(events, times, NUM_TO_ALIGN, n_events=2)
+        event_to_align = 2
+        aligned_events, aligned_times = trial_separate(events, times, event_to_align, n_events=2)
+        aligned_events_offset, aligned_times_offset = trial_separate(events[:15], times[:15], event_to_align, n_events=2,nevent_offset=-1)
+        aligned_events_offset2, aligned_times_offset2 = trial_separate(events[-15:], times[-15:], event_to_align, n_events=2,nevent_offset=1)
+        expected_aligned_events_offset = np.array([[-1, 2],
+            [7, 2],
+            [4, 2],
+            [6, 2]])
+        expected_aligned_times_offset = np.array([[-1, 0.0],
+            [0.3, 0.4],
+            [0.7, 0.8],
+            [1, 1.1]])
+        expected_aligned_events_offset2 = np.array([[2, 6],
+            [6, 3],
+            [1, 0],
+            [-1, -1]])
+        expected_aligned_times_offset2 = np.array([[8.6, 8.7],
+            [8.7, 8.8],
+            [9.6, 9.7],
+            [-1, -1]])
+
+
 
         np.testing.assert_allclose(expected_aligned_events, aligned_events)
         np.testing.assert_allclose(expected_aligned_times, aligned_times)
+        np.testing.assert_allclose(expected_aligned_events_offset, aligned_events_offset)
+        np.testing.assert_allclose(expected_aligned_times_offset, aligned_times_offset)
+        np.testing.assert_allclose(expected_aligned_events_offset2, aligned_events_offset2)
+        np.testing.assert_allclose(expected_aligned_times_offset2, aligned_times_offset2)
 
         expected_aligned_times = np.array([[0. , 0.1],
+            [0. , 0.05],
             [0. , 0.1],
             [0. , 0.1],
             [0. , 0.1],
@@ -290,19 +333,32 @@ class EventFilterTests(unittest.TestCase):
             [0. , 0.1],
             [0. , 0.1],
             [0. , 0.1],
-            [0. , 0. ],
-            [0. , 0.1],
-            [0. , 0.1],
-            [0. , 0. ],
             [0. , 0.1],
             [0. , 0.1],
             [0. , 0.1],
-            [0. , 0. ],
             [0. , 0.1],
-            [0. , 0.1]])
+            [0. , 0.1],
+            [0. , 0.1],
+            [0. , 0.1],
+            [0. , 0.1],
+            [0. , 0.1],
+            [0. , 0.]])
 
-        trial_aligned_times = trial_align_events(aligned_events, aligned_times, NUM_TO_ALIGN)
+        trial_aligned_times = trial_align_events(aligned_events, aligned_times, event_to_align)
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
+
+        events, times = zip(*event_log_events_in_str)
+        event_to_align = 'wait'
+
+        expected_events = np.array([
+            ['wait', 'target', 'reward'],
+            ['wait', 'target', 'reward'],
+            ['wait', 'target', 'wait'],
+            ['wait', '', ''],
+        ])
+
+        aligned_events, aligned_times = trial_separate(np.array(events), np.array(times), event_to_align, n_events=3)
+        np.testing.assert_array_equal(expected_events, aligned_events)
 
     def test_trial_align_events_to_list_of_tuples(self):
 
@@ -480,7 +536,9 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_proc_exp(self):
         result_filename = 'test_proc_exp.hdf'
-        files = get_filenames(data_dir, 1315)
+        files = {}
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
         proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
         exp_data = load_hdf_group(write_dir, result_filename, 'exp_data')
         exp_metadata = load_hdf_group(write_dir, result_filename, 'exp_metadata')
@@ -489,7 +547,9 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_proc_mocap(self):
         result_filename = 'test_proc_mocap.hdf'
-        files = get_filenames(data_dir, 1315)
+        files = {}
+        files['optitrack'] = 'Pretend take (1315).csv'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
         proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
         mocap = load_hdf_group(write_dir, result_filename, 'mocap_data')
         mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')

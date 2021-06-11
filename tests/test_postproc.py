@@ -129,6 +129,29 @@ class TestCalcFuncs(unittest.TestCase):
         values = np.array([1,1,1,1,1,1,])
         self.assertRaises(ValueError, lambda: calc_reward_intervals(timestamps, values))
 
+    def test_sample_events(self):
+        events = ["reward", "reward", "penalty", "reward"]
+        times = [0.3, 0.5, 0.7, 1.0]
+        samplerate = 10
+        frame_events, event_names = sample_events(events, times, samplerate)
+        expected_result = [
+            [False, False],
+            [False, False],
+            [False, False],
+            [False, True ],
+            [False, False],
+            [False, True ],
+            [False, False],
+            [ True, False],
+            [False, False],
+            [False, False],
+            [False, True ]
+        ]
+        print(frame_events)
+        
+        np.testing.assert_array_equal(expected_result, frame_events)
+        np.testing.assert_array_equal(["penalty", "reward"], event_names)
+
 class TestGetFuncs(unittest.TestCase):
 
     def test_get_trial_targets(self):

@@ -4,3 +4,5 @@ bmi3d/.ipynb_checkpoints
 *.egg-info
 .vscode
 tests/tmp
+docs/source/_build
+docs/_build
