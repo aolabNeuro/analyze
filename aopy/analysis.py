@@ -46,7 +46,7 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
             log_likelihood_score[dim_idx,fold_idx] = fafit.score(data_in.T)
             iterations_required[dim_idx,fold_idx] = fafit.n_iter_
             warnings.warn("Without cross validation the highest dimensional model will always fit best.")
-        
+
         # Every other case with cross validation
         else:
             for trainidx, testidx in model_selection.KFold(n_splits=nfold).split(data_in.T):
@@ -55,10 +55,10 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
                 log_likelihood_score[dim_idx,fold_idx] = fafit.score(data_in[:,testidx].T)
                 iterations_required[dim_idx,fold_idx] = fafit.n_iter_
                 fold_idx += 1
-        
+
         if verbose == True:
             print(str((100*(dim_idx+1))//len(dimensions)) + "% Complete")
-            
+
     return log_likelihood_score, iterations_required
 
 def find_trough_peak_idx(unit_data):
