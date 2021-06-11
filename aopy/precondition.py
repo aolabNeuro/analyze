@@ -14,35 +14,37 @@ from nitime.viz import plot_spectral_estimate
 '''
 Filter functions
 '''
-def generate_test_signal(T, fs, freq, a=0.02):
+def generate_test_signal(T, fs, freq, a):
     '''
+    Generates a test time series signal with multiple frequencies, specified in freq, for T timelength at a sampling rate of fs
 
     Args:
         T (float): Time period in seconds
         fs (int): Sampling frequency in Hz
         freq (1D array): Frequencies to be mixed in the test signal. main frequency in the first element
-        plot_true (bool): boolean value if true, plots the test signal in the provided axes
-        ax (plot axis handle): axis to plot the noisy test signal
+        a (1D array) : amplitudes for each frequencies and last element of the array to be amplitude of noise (size : len(freq) + 1)
 
     Returns:
         x (1D array): cosine wave with multiple frequencies and noise
+        t (1D array): time vector for x
     '''
     nsamples = int(T * fs)
     t = np.linspace(0, T, nsamples, endpoint=False)
     # a = 0.02
     f0 = freq[0]
     # noise_power = 0.001 * fs / 2
-
-    x = a * 2 * np.cos(2 * np.pi * f0 * t)  # adding primary frequency
-    x += a * 0.5 * np.cos(2 * np.pi * freq[1] * t)
-    x += a * 1.5 * np.cos(2 * np.pi * freq[2] * t)
-    x += a * 20 * np.sin(2 * np.pi * 1.2 * np.sqrt(t))  # noise
+    x = a[-1] * np.sin(2 * np.pi * 1.2 * np.sqrt(t))  # noise
     # x += np.random.normal(scale=np.sqrt(noise_power), size=t.shape)  # noise
 
-    return x, t, f0
+    for i in range(len(freq)):
+        x += a[i] * np.cos(2 * np.pi * freq[i] * t)
+
+    return x, t
 
 def bandpass_butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'bandpass'):
     '''
+    Design Nth-order digital Butterworth filter and return the filter coefficients.
+
     Args:
         cutoff_low (int): lower cut-off frequency (in Hz)
         cutoff_high (int): higher cutoff frequency (in Hz)
@@ -51,7 +53,7 @@ def bandpass_butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_t
         filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
 
     Returns:
-        bandpass filter parameters
+        tuple (b,a): bandpass filter parameters
 
     '''
     nyq = 0.5 * fs
@@ -63,6 +65,8 @@ def bandpass_butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_t
 
 def bandpass_butterworth_filter_data(data, cutoff_low, cutoff_high, fs, order = 4,filter_type = 'bandpass' ):
     '''
+    Apply a digital butterworth filter forward and backward to a timeseries signal.
+
     Args:
         data (array): neural data
         cutoff_low (float): lower cut-off frequency (in Hz)
@@ -83,6 +87,7 @@ def bandpass_butterworth_filter_data(data, cutoff_low, cutoff_high, fs, order = 
 
 def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknife = True, sides = 'default'):
     '''
+     Computes power spectral density using Multitaper functions
 
     Args:
         data (ndarray):  time series data where time axis is assumed to be on the last axis (n_channels , n_samples)
@@ -103,6 +108,7 @@ def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknif
 
 def multitaper_lfp_bandpower(f,psd_est, bands, n_channels, no_log):
     '''
+    Estimate band power in specified frequency bands using multitaper power spectral density estimate
 
     Args:
         psd_est (ndarray): power spectral density - output of bandpass_multitaper_filter_data
@@ -143,7 +149,7 @@ def get_psd_welch(data, fs,l = None):
         data (ndarray): time series data.
         fs (float): sampling rate
         l (int): no. of frequency points expected
-        average (str):  { ‘mean’, ‘median’ }, optional method to use when averaging periodograms. Defaults to ‘mean’.
+        # average (str):  { ‘mean’, ‘median’ }, optional method to use when averaging periodograms. Defaults to ‘mean’.
 
     Returns:
         f (ndarray) : frequency points vector

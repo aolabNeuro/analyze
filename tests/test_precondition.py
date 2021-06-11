@@ -10,6 +10,7 @@ write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
+
 class FilterTests(unittest.TestCase):
 
     def __init_subclass__(self, **kwargs):
@@ -17,8 +18,9 @@ class FilterTests(unittest.TestCase):
         self.fs = 25000
         self.freq = [600, 312, 2000]
         self.a = 0.02
+        self.f0 = self.freq[0]
         # testing generate test_signal
-        _x, _t, _f0 = precondition.generate_test_signal(self.T, self.fs, self.freq, self.a)
+        _x, _t = precondition.generate_test_signal(self.T, self.fs, self.freq, self.a)
 
     def setUp(self):
         self.T = 0.05
@@ -26,11 +28,11 @@ class FilterTests(unittest.TestCase):
         self.freq = [600, 312, 2000]
         self.a = 0.02
         # testing generate test_signal
-        _x, _t, _f0 = precondition.generate_test_signal(self.T, self.fs, self.freq, self.a)
+        self.f0 = self.freq[0]
+        _x, _t = precondition.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
 
         self.x = _x
         self.t = _t
-        self.f0 = _f0
 
     def test_butterworth(self):
         # Sample rate and desired cutoff frequencies (in Hz).
@@ -80,6 +82,7 @@ class FilterTests(unittest.TestCase):
         plt.show()
         fname = 'lfp_bandpower.png'
         savefig(write_dir, fname)
+
 
 if __name__ == "__main__":
     unittest.main()
