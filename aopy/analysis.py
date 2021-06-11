@@ -74,30 +74,66 @@ Curve fitting
 
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
 def func(target, b1, b2, b3):
+    '''
+
+    Args:
+        target (int) center out task target index ( takes values from 0 to 7)
+        b1, b2, b3 : parameters used for curve fitting
+
+    .. math::
+    b1 * cos(theta) + b2 * sin(theta) + b3
+
+    Returns: result from above equation
+
+    '''
     theta = 45 * (target - 1)
     return b1 * np.cos(np.deg2rad(theta)) + b2 * np.sin(np.deg2rad(theta)) + b3
 
 
 def get_modulation_depth(b1, b2):
+    '''
+    Calculates modulation depth from curve fitting parameters as follows:
+    .. math::
+    \sqrt{b1^2+b2^2}
+
+    '''
     return np.sqrt((b1 ** 2) + (b2 ** 2))
 
 
 def get_preferred_direction(b1, b2):
+    '''
+    Calculates preferred direction from curve fitting parameters as follows:
+    .. math:: arctan(b1^2 / b2^2)
+    '''
     return np.arctan2(b2 ** 2, b1 ** 2)
 
 
-def get_mean_fr_per_direction(data, target):
+def get_mean_fr_per_direction(data, target_dir):
+    '''
+
+    Args:
+        data (3D array): Neural data in the form of a 3D array neurons X trials x timebins
+        target_dir (1D array): target direction
+
+    Returns:
+        means_d = mean firing rate per neuron per target direction
+        stds_d = standard deviation from mean firing rate per neuron
+    '''
     means_d = []
     stds_d = []
 
     for i in range(1, 9):
-        means_d.append(np.mean(data[target == i], axis=(0, 2)))
-        stds_d.append(np.std(data[target == i], axis=(0, 2)))
+        means_d.append(np.mean(data[target_dir == i], axis=(0, 2)))
+        stds_d.append(np.std(data[target_dir == i], axis=(0, 2)))
 
     return means_d, stds_d
 
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
+    '''
+    generate a plot of mean firing rate per target direction
+
+    '''
     sns.set_context('talk')
     ax.plot(np.array(means_d)[:, neuron_id], c=color, alpha=this_alpha, label=this_label)
 
