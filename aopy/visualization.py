@@ -14,7 +14,7 @@ import os
 import copy
 
 
-from aopy import precondition
+from . import precondition
 from scipy.signal import freqz
 
 from . import postproc
