@@ -149,7 +149,7 @@ class LoadDataTests(unittest.TestCase):
         self.assertTrue(np.allclose(test_data['test_data_array'], np.arange(1000)))
         self.assertRaises(FileExistsError, lambda: save_hdf(write_dir, testfile, data, "/", append=False))
 
-    def test_get_hdf_contents(self):
+    def test_get_hdf_dictionary(self):
         testfile = 'load_hdf_contents_test.hdf'
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):
@@ -158,10 +158,11 @@ class LoadDataTests(unittest.TestCase):
         save_hdf(write_dir, testfile, data_dict=data_dict, data_group="/", append=False)
         group_data_dict = {'group_data': np.arange(1000)}
         save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
-        result = get_hdf_contents(write_dir, testfile, show_tree=True)
+        result = get_hdf_dictionary(write_dir, testfile, show_tree=True)
         self.assertIn('test_data', result)
         self.assertIn('group1', result)
         self.assertIn('group_data', result['group1'])
+        print(result)
 
     def test_load_hdf_data(self):
         import os

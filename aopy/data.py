@@ -422,16 +422,33 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     if debug: print("Done!")
     return
 
-def get_hdf_contents(data_dir, hdf_filename, show_tree=False):
+def get_hdf_dictionary(data_dir, hdf_filename, show_tree=False):
     '''
-    Lists the hdf contents in a dictionary
+    Lists the hdf contents in a dictionary. Does not read any data! For example,
+    calling get_hdf_dictionary() with show_tree will result in something like this::
+
+        >>> dict = get_hdf_dictionary('/exampledir', 'example.hdf', show_tree=True)
+        example.hdf
+        └──group1
+        |  └──group_data: [shape: (1000,), type: int64]
+        └──test_data: [shape: (1000,), type: int64]
+        >>> print(dict)
+        {
+            'group1': {
+                'group_data': ((1000,), dtype('int64'))
+            }, 
+            'test_data': ((1000,), dtype('int64'))
+        }
 
     Args:
         data_dir (str): folder where data is located
         hdf_filename (str): name of hdf file
     
     Returns:
-        dict: contents of the file
+        dict: contents of the file keyed by name as tuples containing:
+
+            shape (tuple): size of the data
+            dtype (np.dtype): type of the data
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
