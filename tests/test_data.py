@@ -22,8 +22,8 @@ class LoadDataTests(unittest.TestCase):
         files = get_filenames_in_dir(test_dir, 1039)
         self.assertIn('foo', files)
         self.assertIn('bar', files)
-        self.assertEqual(files['foo'], 'foo/1039_foo')
-        self.assertEqual(files['bar'], 'bar/1039_bar.txt')
+        self.assertEqual(files['foo'], os.path.join('foo','1039_foo'))
+        self.assertEqual(files['bar'], os.path.join('bar','1039_bar.txt'))
 
     def test_load_mocap(self):
         # Data directory and filepath
@@ -165,8 +165,6 @@ class LoadDataTests(unittest.TestCase):
         print(result)
 
     def test_load_hdf_data(self):
-        import os
-        import h5py
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):

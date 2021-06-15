@@ -518,7 +518,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
-    full_data_name = os.path.join(data_group, data_name)
+    full_data_name = os.path.join(data_group, data_name).replace("\\", "/")
     if full_data_name not in hdf:
         raise ValueError('{} not found in file {}'.format(full_data_name, hdf_filename))
     _, data = _load_hdf_dataset(hdf[full_data_name], data_name)
