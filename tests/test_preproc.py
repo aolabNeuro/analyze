@@ -458,24 +458,24 @@ class EventFilterTests(unittest.TestCase):
         self.assertEqual(len(segments), 2)
         self.assertEqual(segments[0].shape, (4,3))
 
-    def test_get_unique_trials(self):
+    def test_get_unique_conditions(self):
         trial_idx = np.array(range(10))
         conditions = np.array(range(10))
-        trials = get_unique_trials(trial_idx, conditions, condition_name='idx')
+        trials = get_unique_conditions(trial_idx, conditions, condition_name='idx')
         self.assertEqual(len(trials), 10)
         self.assertEqual(trials[0]['trial'], 0)
         self.assertEqual(trials[-1]['idx'], [9])
         
         trial_idx = np.array([0, 0, 0, 0, 1, 1, 1, 1])
         conditions = np.array([[1, 1], [np.pi/2, 2], [1, 1], [np.pi/2, 2], [1, 1], [4, 4], [1, 1], [4, 4]])
-        trials = get_unique_trials(trial_idx, conditions, condition_name='foobar')
+        trials = get_unique_conditions(trial_idx, conditions, condition_name='foobar')
         self.assertEqual(len(trials), 4)
         self.assertCountEqual(trials['trial'], [0, 0, 1, 1])
         np.testing.assert_array_almost_equal(trials['foobar'], np.array([[1, 1], [np.pi/2, 2], [1, 1], [4, 4]]))
 
         trial_idx = np.array([0, 0, 0, 0, 1, 1, 1, 1])
         conditions = np.random.uniform(size=(8,))
-        trials = get_unique_trials(trial_idx, conditions, condition_name='rando')
+        trials = get_unique_conditions(trial_idx, conditions, condition_name='rando')
         self.assertEqual(len(trials), 8)
         self.assertCountEqual(trials['trial'], [0, 0, 0, 0, 1, 1, 1, 1])
         self.assertEqual(np.sum(trials['index']), 28)
