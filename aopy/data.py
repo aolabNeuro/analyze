@@ -219,7 +219,7 @@ def load_ecube_data(data_dir, data_source, channels=None):
 
     Args:
         data_dir (str): folder containing the data you want to load
-        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         channels (int array or None): list of channel numbers (0-indexed) to load. If None, will load all channels by default
 
     Returns:
@@ -240,7 +240,7 @@ def load_ecube_data(data_dir, data_source, channels=None):
         dtype = np.int16
 
     # Fetch all the data for all the channels
-    timeseries_data = process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
+    timeseries_data = _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
     return timeseries_data
 
 def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
@@ -251,7 +251,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
 
     Args:
         data_dir (str): folder containing the data you want to load
-        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         result_filepath (str): path to hdf file to be written (or appended)
         dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
 
@@ -272,7 +272,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
 
     # Open and read the eCube data into the new hdf dataset
-    process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset, **dataset_kwargs)
+    _process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset, **dataset_kwargs)
     dat = Dataset(data_dir)
     dset.attrs['samplerate'] = dat.samplerate
     dset.attrs['data_source'] = data_source
@@ -293,7 +293,7 @@ def get_ecube_data_sources(data_dir):
     dat = Dataset(data_dir)
     return dat.listsources()
 
-def process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, **dataset_kwargs):
+def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, **dataset_kwargs):
     '''
     Reads data from an ecube data source by channel until the number of samples requested 
     has been loaded. If a processing function is supplied, it will be applied to 
@@ -301,7 +301,7 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
 
     Args:
         data_dir (str): folder containing the data you want to load
-        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         channels (int array): list of channels to process
         n_samples (int): number of samples to read. Must be geq than a single chunk
         dtype (np.dtype): format for data_out if none supplied
@@ -368,6 +368,25 @@ def load_ecube_analog(path, data_dir, channels=None):
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'AnalogPanel', channels)
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
+    return data, metadata
+
+def load_ecube_headstages(path, data_dir, channels=None):
+    '''
+    Just a wrapper around load_ecube_data() and load_ecube_metadata()
+
+    Args:
+        path (str): base directory where ecube data is stored
+        data_dir (str): folder you want to load
+        channels (int array, optional): which channels to load
+
+    Returns:
+        tuple: tuple containing:
+        
+            data (nt, nch): analog data for the requested channels
+            metadata (dict): metadata (see load_ecube_metadata() for details)
+    '''
+    data = load_ecube_data(os.path.join(path, data_dir), 'Headstages', channels)
+    metadata = load_ecube_metadata(os.path.join(path, data_dir), 'Headstages')
     return data, metadata
 
 def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, debug=False):

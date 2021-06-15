@@ -1,5 +1,6 @@
 # test_data.py 
 # tests of aopy.data
+from aopy.data import _process_channels
 from aopy.data import *
 from aopy.visualization import *
 import unittest
@@ -63,7 +64,7 @@ class LoadDataTests(unittest.TestCase):
 
     def test_process_channels(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
-        data = process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
+        data = _process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
 
