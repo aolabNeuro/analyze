@@ -523,8 +523,34 @@ class TestPrepareExperiment(unittest.TestCase):
         check_required_fields(data, metadata)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
+        self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
+        
         # Test sync version 4
-        # TODO
+        files['hdf'] = 'beig20210614_07_te1825.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        check_required_fields(data, metadata)
+        trials = data['trials']
+        self.assertEqual(len(trials), 7)        
+        files['ecube'] = '2021-06-14_BMI3D_te1825'
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        check_required_fields(data, metadata)
+        self.assertIn('sync_clock', data)
+        self.assertIn('measure_clock_offline', data)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
+        self.assertEqual(len(data['measure_clock_online']), 1682)
+        self.assertEqual(len(data['clock']['timestamp']), 1830)
+        self.assertEqual(len(data['task']), 1830)
+
+        # Run some trial alignment to make sure the number of trials makes sense
+        events = data['events']
+        start_states = [b'TARGET_ON']
+        end_states = [b'TRIAL_END'] 
+        trial_states, trial_idx = get_trial_segments(events['event'], events['time'], start_states, end_states)
+        self.assertEqual(len(trial_states), 6)
+        self.assertEqual(len(np.unique(data['trials']['trial'])), 7) # TODO maybe should fix this so trials is also len(trial_states)??
+
+
 
     def test_parse_optitrack(self):
         files = {}
