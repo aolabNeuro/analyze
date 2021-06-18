@@ -447,6 +447,45 @@ class EventFilterTests(unittest.TestCase):
         self.assertTrue(np.allclose(segments, [[2, 4], [2, 3]]))
         self.assertTrue(np.allclose(times, [[1, 2], [5, 6]]))
 
+    def test_locate_trials_with_event(self):
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        split_events1, split_events_array1 = locate_trials_with_event(aligned_events, 3, 1)
+        expected_split_events1 = np.array([2,3])
+        
+        np.testing.assert_allclose(expected_split_events1, split_events1[0])
+        np.testing.assert_allclose(expected_split_events1, split_events_array1)
+
+        # Test strings without assigned column to look at
+        aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+            ['Go', 'Target 2', 'Target 2'],
+            ['Go', 'Target 4', 'Target 1'],
+            ['Go', 'Target 1', 'Target 2'],
+            ['Go', 'Target 2', 'Target 1'],
+            ['Go', 'Target 3', 'Target 1']])
+        split_events_str, split_events_array_str = locate_trials_with_event(aligned_events_str, ['Target 1','Target 2'])
+        expected_split_events_str1 = np.array([0,2,3,4,5])
+        expected_split_events_str2 = np.array([1,3,4])
+        expected_split_events_all = np.array([0,2,3,4,5,1,3,4])
+        np.testing.assert_allclose(expected_split_events_str1, split_events_str[0])
+        np.testing.assert_allclose(expected_split_events_str2, split_events_str[1])
+        np.testing.assert_allclose(expected_split_events_all, split_events_array_str)
+
+        # Test strings with assigned column to look at
+        split_events_str, split_events_array_str = locate_trials_with_event(aligned_events_str, ['Target 1','Target 2'],1)
+        expected_split_events_str1 = np.array([0,3])
+        expected_split_events_str2 = np.array([1,4])
+        expected_split_events_all = np.array([0,3,1,4])
+        np.testing.assert_allclose(expected_split_events_str1, split_events_str[0])
+        np.testing.assert_allclose(expected_split_events_str2, split_events_str[1])
+        np.testing.assert_allclose(expected_split_events_all, split_events_array_str)
+
+
     def test_get_data_segments(self):
         data = np.arange(100)
         segment_times = np.array([[0, 4], [50, 51]])

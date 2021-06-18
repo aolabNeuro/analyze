@@ -215,6 +215,28 @@ class LoadDataTests(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
 
+    def test_parse_str_list(self):
+        str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
+        
+        # Check case where both str_include and str_avoid are used
+        parsed_strs1 = parse_str_list(str_list, str_include=['sig002', 'wf'], str_avoid=['b_wf', 'i_wf'])
+        expected_parsed_strs1 = ['sig002a_wf', 'sig002a_wf_ts']
+        self.assertListEqual(parsed_strs1, expected_parsed_strs1)
+        
+        # Check case where only str_include is used
+        parsed_strs2 = parse_str_list(str_list, str_include=['sig001'])
+        expected_parsed_strs2 = ['sig001i_wf', 'sig001i_wf_ts']
+        self.assertListEqual(parsed_strs2, expected_parsed_strs2)
+        
+        # Check case where only str_avoid is used
+        parsed_strs3 = parse_str_list(str_list, str_avoid=['sig002'])
+        expected_parsed_strs3 = ['sig001i_wf', 'sig001i_wf_ts']
+        self.assertListEqual(parsed_strs3, expected_parsed_strs3)
+
+        # Check case where neither str_include or str_avoid are used
+        parsed_strs4 = parse_str_list(str_list)
+        self.assertListEqual(parsed_strs4, str_list)
+
 class SignalPathTests(unittest.TestCase):
 
     def test_lookup_excel_value(self):

@@ -666,6 +666,48 @@ def load_electrode_pos(data_dir, pos_file):
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos
 
+
+def parse_str_list(strings, str_include=None, str_avoid=None):
+    '''
+    This function parses a list of strings to return the strings that include/avoid specific substrings
+    It was designed to parse dictionary keys
+
+    Args: 
+        strings (list of strings): List of strings 
+        str_include (list of strings): List of substrings that must be included in a string to keep it
+        str_avoid (list of strings): List of substrings that can not be included in a string to keep it
+        
+    Retruns:
+        (list of strings): List of strings fitting the input conditions
+
+    Example::
+        >>> str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 
+                        'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
+        >>> parsed_strings = parse_str_list(str_list, str_include=['sig002', 'wf'], str_avoid=['b_wf', 'i_wf'])
+        >>> print(parsed_strings)
+        ['sig002a_wf', 'sig002a_wf_ts']
+    '''
+    parsed_str = []
+    
+    for str_idx, str_val in enumerate(strings):
+        counter = 0
+        nconditions = 0
+        if str_include is not None:
+            for istr_incl, istr_incl_val in enumerate(str_include):
+                nconditions += 1
+                if istr_incl_val in strings[str_idx]:
+                    counter += 1
+        if str_avoid is not None:
+            for istr_avd, istr_avd_val in enumerate(str_avoid):
+                nconditions += 1
+                if istr_avd_val not in strings[str_idx]:
+                    counter += 1
+        
+        if counter == nconditions:
+            parsed_str.append(strings[str_idx])
+            
+    return parsed_str
+
 def gen_test_signal(amplitude, frequency, duration=1, n_channels=8, samplerate=25000):
     '''
     Generate sine waves offset in phase by 2*pi/n_channels at the given amplitude and frequency
@@ -720,3 +762,4 @@ def save_test_signal_ecube(data, save_dir, voltsperbit):
                 f.write(np.byte(intdata[t,ch] >> 8))
 
     return filename
+

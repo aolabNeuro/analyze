@@ -619,6 +619,50 @@ def get_unique_trials(trial_idx, conditions, condition_name='target'):
                 corrected_trials = np.append(corrected_trials, trial)
     return corrected_trials
 
+def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
+    '''
+    Given an array of trial separated events, this function goes through and finds the event sequences corresponding to the trials
+    that include a given event. If an array of event codes are input, the function will find the trials corresponding to
+    each event code. 
+    
+    Args:
+        trial_events (ntr, nevents): Array of trial separated event codes
+        event_codes (int, str, list, or 1D array): Event code(s) to find trials for. Can be a list of strings or ints
+        event_column (int): Column index to look for events in. Indexing starts at 0. Keep as 'None' if all columns should be analyzed.
+        
+    Returns:
+        (tuple):
+            (list of arrays): List where each index includes an array of trials containing the event_code corresponding to that index. 
+            (1D Array): Concatenated indices for which trials correspond to which event code.
+                        Can be used as indices to order 'trial_events' by the 'event_codes' input.
+
+    Example::
+        >>> aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+                ['Go', 'Target 2', 'Target 2'],
+                ['Go', 'Target 4', 'Target 1'],
+                ['Go', 'Target 1', 'Target 2'],
+                ['Go', 'Target 2', 'Target 1'],
+                ['Go', 'Target 3', 'Target 1']])
+        >>> split_events, split_events_combined = locate_trials_with_event(aligned_events_str, ['Target 1','Target 2'])
+        >>> print(split_events)
+        [array([0, 2, 3, 4, 5], dtype=int64), array([1, 3, 4], dtype=int64)]
+        >>> print(split_events_combined)
+        [0 2 3 4 5 1 3 4]      
+
+    '''
+    split_events = []
+    if type(event_codes) == int or type(event_codes) == str:
+        split_events.append(np.unique(np.where(trial_events[:,event_columnidx] == event_codes)[0]))
+        split_events_combined = np.array(split_events).flatten()
+    else:
+        nevent_codes = len(event_codes)
+        split_events_combined = np.array([]).astype(int)
+        for ievent in range(nevent_codes):
+            split_events.append(np.unique(np.where(trial_events[:,event_columnidx] == event_codes[ievent])[0]))
+            split_events_combined = np.append(split_events_combined, split_events[ievent])
+    
+    return split_events, split_events_combined
+
 def max_repeated_nans(a):
     '''
     Utility to calculate the maximum number of consecutive nans
