@@ -4,6 +4,8 @@ from aopy.data import *
 from aopy.visualization import *
 import unittest
 import os
+import numpy as np
+from matplotlib.testing.compare import compare_images
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -71,17 +73,44 @@ class LoadDataTests(unittest.TestCase):
         assert metadata['n_channels'] == 64
 
     def test_load_ecube_data(self):
+        # Make a 'ground truth' figure from simulated data
+        sim_filename = 'Headstages_8_Channels_int16_2021-05-06_11-47-02.bin'
+        filepath = os.path.join(sim_filepath, sim_filename)
+        with open(filepath, 'rb') as f:
+            f.seek(8) # first uint64 is timestamp
+            databuf = bytes(f.read())
+            flatarray = np.frombuffer(databuf, dtype='<i2')
+            shapedarray = flatarray.reshape(-1, 8).swapaxes(0,1)
+        data = shapedarray.T
+        self.assertEqual(data.shape[1], 8)
+        self.assertEqual(data.shape[0], 25000)
+        figname = 'load_ecube_data_groundtruth.png'
+        plt.figure()
+        plot_timeseries(data, 25000)
+        savefig(write_dir, figname)
+
+        # Compare to using the load_ecube_data() function
+        data = load_ecube_data(sim_filepath, 'Headstages')
+        self.assertEqual(data.shape[1], 8)
+        self.assertEqual(data.shape[0], 25000)
+        plt.figure()
+        plot_timeseries(data, 25000)
+        savefig(write_dir, 'load_ecube_data.png')
+
+        fig1 = os.path.join(write_dir, figname)
+        fig2 = os.path.join(write_dir, 'load_ecube_data.png')
+        str = compare_images(fig1, fig2, 0.001)
+        self.assertIsNone(str)
+
+        # Load real data
         data = load_ecube_data(test_filepath, 'Headstages')
         assert data.shape[1] == 64
         assert data.shape[0] == 214032
+
+        # Test that channels work
         data = load_ecube_data(test_filepath, 'Headstages', channels=[4])
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
-        data = load_ecube_data(sim_filepath, 'Headstages')
-        assert data.shape[1] == 8
-        assert data.shape[0] == 25000
-        plot_timeseries(data, 25000)
-        savefig(write_dir, 'load_ecube_data.png')
 
     def test_proc_ecube_data(self):
         import os
@@ -234,6 +263,29 @@ class SignalPathTests(unittest.TestCase):
         x, y = load_electrode_pos(data_dir, testfile)
         self.assertEqual(len(x), 244)
         self.assertEqual(len(y), 244)
+
+class FakeDataTests(unittest.TestCase):
+
+    def test_gen_save_test_signal(self):
+
+        # Generate a signal
+        samplerate = 25000
+        data = gen_test_signal(1, 6, duration=1, n_channels=8, samplerate=samplerate)
+
+        self.assertEqual(data.shape, (25000, 8))
+
+        # Pack it into bits
+        voltsperbit = 1e-4
+        base_dir = os.path.join(write_dir, 'test_ecube_data')
+        if not os.path.exists(base_dir):
+            os.mkdir(base_dir)
+        filename = save_test_signal_ecube(data, base_dir, voltsperbit)
+
+        self.assertTrue('Headstages' in filename)
+
+        plot_timeseries(data, samplerate)
+        figname = 'gen_test_signal.png'
+        savefig(write_dir, figname)
     
 if __name__ == "__main__":
     unittest.main()

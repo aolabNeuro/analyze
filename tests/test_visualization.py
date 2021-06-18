@@ -50,6 +50,39 @@ class PlottingTests(unittest.TestCase):
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
+    def test_animate_events(self):
+        events = ["hello", "world", "", "!", ""]
+        times = [0., 1.0, 1.5, 2.0, 2.5]
+        fps = 10
+        filename = os.path.join(write_dir, "animate_test.mp4")
+        ani = animate_events(events, times, fps)
+
+        from matplotlib.animation import FFMpegFileWriter
+        kwargs = {'transparent': True,}
+        writer = FFMpegFileWriter(fps=fps)
+        ani.save(filename, dpi=300, writer=writer, savefig_kwargs=kwargs)
+
+    def test_saveanim(self):
+        events = ["hello", "world", "", "!", ""]
+        times = [0., 1.0, 1.5, 2.0, 2.5]
+        fps = 10
+        filename = "animate_test_save.mp4"
+        ani = animate_events(events, times, fps)
+        saveanim(ani, write_dir, filename)
+
+    def test_showanim(self):
+        # don't know how to test this. trust me it works :)
+        pass
+
+    def test_animate_trajectory_3d(self):
+        trajectory = np.zeros((10,3))
+        trajectory[:,0] = np.arange(10)
+        samplerate = 2
+        axis_labels = ['x = Right', 'y = Forwards', 'z = Up']
+        ani = animate_trajectory_3d(trajectory, samplerate, history=5, axis_labels=axis_labels)
+        filename = "animate_trajectory_test.mp4"
+        saveanim(ani, write_dir, filename)
+
     def test_plot_targets(self):
 
         # Draw four outer targets and one center target
