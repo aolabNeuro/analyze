@@ -583,9 +583,18 @@ def get_data_segments(data, segment_times, samplerate):
         segments.append(seg)
     return segments
 
-def get_unique_trials(trial_idx, conditions, condition_name='target'):
+def get_unique_conditions(trial_idx, conditions, condition_name='target'):
     '''
-    Gets the unique trial combinations of each condition set
+    Gets the unique trial combinations of each condition set. Used to parse BMI3D
+    data when there is no 'trials' array in the HDF file. Output looks something
+    like this for a center-out experiment::
+
+        'trial'     'index'     'target'
+        0           0           (0, 0, 0)
+        0           5           (8, 0, 0)
+        1           0           (0, 0, 0)
+        1           2           (0, 8, 0)
+        ...
 
     Args:
         n_trials (int): number of trials
@@ -829,8 +838,8 @@ def _parse_bmi3d_v1(data_dir, files):
         # Load ecube analog data for the strobe and reward system
         analog_channels = [bmi3d_event_metadata['screen_measure_ach'], bmi3d_event_metadata['reward_measure_ach']] # [5, 0]
         ecube_analog, metadata = load_ecube_analog(data_dir, ecube_filename, channels=analog_channels)
-        clock_measure_analog = ecube_analog[0,:]
-        reward_system_analog = ecube_analog[1,:]
+        clock_measure_analog = ecube_analog[:,0]
+        reward_system_analog = ecube_analog[:,1]
         analog_samplerate = metadata['samplerate']
 
         # Mask and detect BMI3D computer events from ecube
@@ -1030,7 +1039,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
             n_trials = len(trial_events)
             trial_idx = [np.where(trial_cycles >= idx)[0] for idx in range(len(task))] # needs testing
 
-        corrected_trials = get_unique_trials(trial_idx, task['target_location'])
+        corrected_trials = get_unique_conditions(trial_idx, task['target_location'])
     else:
 
         # TODO maybe should check if the last trial is incomplete

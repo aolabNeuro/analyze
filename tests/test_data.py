@@ -1,5 +1,6 @@
 # test_data.py 
 # tests of aopy.data
+from aopy.data import _process_channels
 from aopy.data import *
 from aopy.visualization import *
 import unittest
@@ -22,8 +23,8 @@ class LoadDataTests(unittest.TestCase):
         files = get_filenames_in_dir(test_dir, 1039)
         self.assertIn('foo', files)
         self.assertIn('bar', files)
-        self.assertEqual(files['foo'], 'foo/1039_foo')
-        self.assertEqual(files['bar'], 'bar/1039_bar.txt')
+        self.assertEqual(files['foo'], os.path.join('foo','1039_foo'))
+        self.assertEqual(files['bar'], os.path.join('bar','1039_bar.txt'))
 
     def test_load_mocap(self):
         # Data directory and filepath
@@ -63,7 +64,7 @@ class LoadDataTests(unittest.TestCase):
 
     def test_process_channels(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
-        data = process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
+        data = _process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
 
@@ -149,7 +150,7 @@ class LoadDataTests(unittest.TestCase):
         self.assertTrue(np.allclose(test_data['test_data_array'], np.arange(1000)))
         self.assertRaises(FileExistsError, lambda: save_hdf(write_dir, testfile, data, "/", append=False))
 
-    def test_get_hdf_contents(self):
+    def test_get_hdf_dictionary(self):
         testfile = 'load_hdf_contents_test.hdf'
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):
@@ -158,14 +159,13 @@ class LoadDataTests(unittest.TestCase):
         save_hdf(write_dir, testfile, data_dict=data_dict, data_group="/", append=False)
         group_data_dict = {'group_data': np.arange(1000)}
         save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
-        result = get_hdf_contents(write_dir, testfile, show_tree=True)
+        result = get_hdf_dictionary(write_dir, testfile, show_tree=True)
         self.assertIn('test_data', result)
         self.assertIn('group1', result)
         self.assertIn('group_data', result['group1'])
+        print(result)
 
     def test_load_hdf_data(self):
-        import os
-        import h5py
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):
