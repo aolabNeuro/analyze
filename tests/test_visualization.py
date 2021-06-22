@@ -19,12 +19,12 @@ class PlottingTests(unittest.TestCase):
         plot_timeseries(data, samplerate)
         savefig(write_dir, filename)
 
-    def test_plot_freq_domain_power(self):
+    def test_plot_freq_domain_amplitude(self):
         filename = 'freqdomain.png'
         data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
         samplerate = 1000
         plt.figure()
-        plot_freq_domain_power(data, samplerate)
+        plot_freq_domain_amplitude(data, samplerate)
         savefig(write_dir, filename)
 
     def test_spatial_map(self):

@@ -76,14 +76,15 @@ def plot_freq_domain_power(data, samplerate, ax=None):
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (uV)')
 
-def plot_freq_domain_power(data, samplerate, ax=None):
+def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
-    Plots a power spectrum of each channel on the given axis
+    Plots a amplitude spectrum of each channel on the given axis
 
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
+        rms (bool, optional): compute root-mean square amplitude instead of peak amplitude
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -93,12 +94,16 @@ def plot_freq_domain_power(data, samplerate, ax=None):
     length = np.shape(freq_data)[0]
     freq = np.fft.fftfreq(length, d=1./samplerate)
     data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
+    if rms:
+        data_ampl[1:] = data_ampl[1:]/np.sqrt(2)
     non_negative_freq = freq[freq>=0]
     for ch in range(np.shape(freq_data)[1]):
         ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Frequency (Hz)')
-    ax.set_ylabel('Power (uV)')
-
+    if rms:
+        ax.set_ylabel('RMS amplitude (uV)')
+    else:
+        ax.set_ylabel('Peak amplitude (uV)')
 
 def get_data_map(data, x_pos, y_pos):
     '''
