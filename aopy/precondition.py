@@ -31,7 +31,17 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
         tuple (b,a): bandpass filter parameters
 
     '''
-    b,a = butter( order, [cutoff_low, cutoff_high], btype=filter_type, fs =fs)
+
+    if filter_type == 'lowpass':
+        Wn = cutoff_high
+
+    if filter_type == 'highpass':
+        Wn = cutoff_low
+
+    if filter_type == 'bandpass' or 'bandstop':
+        Wn = [cutoff_low, cutoff_high]
+
+    b,a = butter( order, Wn, btype=filter_type, fs =fs)
     return b,a
 
 def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= None ,filter_type = 'bandpass' ):
