@@ -11,35 +11,10 @@ import nitime.algorithms as tsa
 import nitime.utils as utils
 from nitime.viz import winspect
 from nitime.viz import plot_spectral_estimate
+from . import utils
 '''
 Filter functions
 '''
-def generate_test_signal(T, fs, freq, a):
-    '''
-    Generates a test time series signal with multiple frequencies, specified in freq, for T timelength at a sampling rate of fs
-
-    Args:
-        T (float): Time period in seconds
-        fs (int): Sampling frequency in Hz
-        freq (1D array): Frequencies to be mixed in the test signal. main frequency in the first element
-        a (1D array) : amplitudes for each frequencies and last element of the array to be amplitude of noise (size : len(freq) + 1)
-
-    Returns:
-        x (1D array): cosine wave with multiple frequencies and noise
-        t (1D array): time vector for x
-    '''
-    nsamples = int(T * fs)
-    t = np.linspace(0, T, nsamples, endpoint=False)
-    # a = 0.02
-    f0 = freq[0]
-    # noise_power = 0.001 * fs / 2
-    x = a[-1] * np.sin(2 * np.pi * 1.2 * np.sqrt(t))  # noise
-    # x += np.random.normal(scale=np.sqrt(noise_power), size=t.shape)  # noise
-
-    for i in range(len(freq)):
-        x += a[i] * np.cos(2 * np.pi * freq[i] * t)
-
-    return x, t
 
 def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'bandpass'):
     '''
@@ -56,30 +31,60 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
         tuple (b,a): bandpass filter parameters
 
     '''
-    b,a = butter( order, [cutoff_low, cutoff_high], btype=filter_type, fs =fs)
+
+    if filter_type == 'lowpass':
+        Wn = cutoff_high
+
+    if filter_type == 'highpass':
+        Wn = cutoff_low
+
+    if filter_type == 'bandpass' or 'bandstop':
+        Wn = [cutoff_low, cutoff_high]
+
+    b,a = butter( order, Wn, btype=filter_type, fs =fs)
     return b,a
 
-def butterworth_filter_data(data, cutoff_low, cutoff_high, fs, order = 4,filter_type = 'bandpass' ):
+def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= None ,filter_type = 'bandpass' ):
     '''
     Apply a digital butterworth filter forward and backward to a timeseries signal.
 
     Args:
-        data (array): neural data
-        cutoff_low (float): lower cut-off frequency (in Hz)
-        cutoff_high (float): higher cutoff frequency (in Hz)
+        data (array): neural data (n_channels x n_samples)
         fs (int): sampling rate (in Hz)
-        order: Order of the butterworth filter
+        cutoff_freq(float): cut-off frequency (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
+        bands (list): frequency bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
+        order: Order of the butterworth filter. If no order is specified, the function will find the minimum order of filter required to maintain +3dB gain in the bandpass range.
         filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
 
     Returns:
-        filtered_data: output bandpass filtered data
-
+        filtered_data (list): output bandpass filtered data in the form of a list. Each list item is filtered data in corresponding frequency band
+        Wn (list) : frequency bands
     '''
 
-    b,a = butter(order, [cutoff_low, cutoff_high], btype=filter_type, fs= fs)
-    # filtered_data = lfilter(b,a,data)
-    filtered_data = filtfilt(b, a, data)
-    return filtered_data
+    if filter_type == 'lowpass' or 'highpass':
+        Wn = cutoff_freq
+
+    if filter_type == 'bandpass' or 'bandstop':
+        if not bands:
+            raise ValueError("Must provide lower and higher cut off frequency")
+
+        Wn = np.zeros((len(bands),2))
+        for ib, band in enumerate(bands):
+            Wn[ib] = [band[0], band[1]]
+
+    filtered_data = []
+    for _, w in enumerate(Wn):
+        if order is None:
+            wp = w/(2 * fs)
+            if len(wp) == 2:
+                ws = [wp[0] - 0.1 , wp[1] + 1]
+            else:
+                ws = wp -0.1
+            order, _ = signal.buttord(wp, ws, 3, 40, False)
+        b,a = butter(order, w, btype=filter_type, fs= fs)
+        # filtered_data = lfilter(b,a,data)
+        filtered_data.append(filtfilt(b, a, data, axis = -1))
+    return filtered_data, Wn
 
 def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknife = True, sides = 'default'):
     '''
@@ -107,6 +112,7 @@ def multitaper_lfp_bandpower(f,psd_est, bands, n_channels, no_log):
     Estimate band power in specified frequency bands using multitaper power spectral density estimate
 
     Args:
+        f (ndarray) : Frequency points vector
         psd_est (ndarray): power spectral density - output of bandpass_multitaper_filter_data
         bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
         n_channels: number of channels
@@ -137,22 +143,21 @@ def multitaper_lfp_bandpower(f,psd_est, bands, n_channels, no_log):
 
     return lfp_power
 
-def get_psd_welch(data, fs,l = None):
+def get_psd_welch(data, fs,n_freq = None):
     '''
-    Computes power spectral density using Welch's method
+    Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
 
     Args:
         data (ndarray): time series data.
         fs (float): sampling rate
-        l (int): no. of frequency points expected
-        # average (str):  { ‘mean’, ‘median’ }, optional method to use when averaging periodograms. Defaults to ‘mean’.
+        n_freq (int): no. of frequency points expected
 
     Returns:
         f (ndarray) : frequency points vector
         psd_est (ndarray): estimated power spectral density (PSD)
     '''
-    if l:
-        f, psd = signal.welch(data, fs, average = 'median',nperseg=2*l)
+    if n_freq:
+        f, psd = signal.welch(data, fs, average = 'median',nperseg=2*n_freq)
     else:
         f, psd = signal.welch(data, fs, average = 'median')
     return f,psd
