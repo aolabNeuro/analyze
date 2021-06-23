@@ -46,22 +46,22 @@ class FilterTests(unittest.TestCase):
         print(f" Butterworth filter executed in {toc - tic:0.4f} seconds")
 
         fname = 'test_signal_filtered_Signal.png'
-        plot_filtered_signal(self.t, self.x, x_filter, lowcut, highcut)
+        plot_filtered_signal(self.t, self.x, x_filter[0], lowcut, highcut)
         plt.show()
         savefig(write_dir, fname)
 
         fname = 'test_phase_locking.png'
-        plot_phase_locking(self.t, self.a, self.f0, x_filter)
+        plot_phase_locking(self.t, self.a, self.f0, x_filter[0])
         plt.show()
         savefig(write_dir, fname)
 
         fname = 'freq_response_vs_filter_order.png'
-        plot_freq_response_vs_filter_order(self.x, lowcut, highcut, self.fs)
+        plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
         plt.show()
         savefig(write_dir, fname)
 
         fname = 'plot_psd.png'
-        plot_psd(self.x, x_filter, self.fs)
+        plot_psd(self.x, x_filter[0], self.fs)
         plt.show()
         savefig(write_dir, fname)
 

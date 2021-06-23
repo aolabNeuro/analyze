@@ -252,12 +252,9 @@ def plot_phase_locking(t, a, f0, x_filter):
     plt.show()
 
 
-def plot_freq_response_vs_filter_order(x, lowcut, highcut, fs):
+def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
     # Plot the frequency response for a few different orders
-    for order in [2, 3, 4, 5,
-                  6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
-        precondition.butterworth_filter_data(x, lowcut, highcut, fs, order=order)
-
+    for order in [2, 3, 4, 5, 6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
         b, a = precondition.butterworth_params(lowcut, highcut, fs, order=order)
         w, h = freqz(b, a, worN=2000)
         plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
