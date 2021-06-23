@@ -112,6 +112,7 @@ def multitaper_lfp_bandpower(f,psd_est, bands, n_channels, no_log):
     Estimate band power in specified frequency bands using multitaper power spectral density estimate
 
     Args:
+        f (ndarray) : Frequency points vector
         psd_est (ndarray): power spectral density - output of bandpass_multitaper_filter_data
         bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
         n_channels: number of channels
