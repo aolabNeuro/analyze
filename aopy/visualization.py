@@ -14,7 +14,7 @@ import os
 import copy
 
 
-from aopy import precondition
+from . import precondition
 from scipy.signal import freqz
 
 from . import postproc
@@ -195,10 +195,9 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     ax.set_ylabel('y position')
 
 
-
-def plot_rastor(data, plot_cue, cue_bin, ax):
+def plot_raster(data, plot_cue, cue_bin, ax):
     '''
-       Create a rastor plot of neural data
+       Create a raster plot of neural data
 
        Args:
            data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix

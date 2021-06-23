@@ -3,6 +3,7 @@ import unittest
 from aopy.visualization import *
 import matplotlib.pyplot as plt
 from aopy import precondition
+from aopy import utils
 import time
 
 test_dir = os.path.dirname(__file__)
@@ -20,7 +21,7 @@ class FilterTests(unittest.TestCase):
         self.a = 0.02
         self.f0 = self.freq[0]
         # testing generate test_signal
-        _x, _t = precondition.generate_test_signal(self.T, self.fs, self.freq, self.a)
+        _x, _t = utils.generate_test_signal(self.T, self.fs, self.freq, self.a)
 
     def setUp(self):
         self.T = 0.05
@@ -29,7 +30,7 @@ class FilterTests(unittest.TestCase):
         self.a = 0.02
         # testing generate test_signal
         self.f0 = self.freq[0]
-        _x, _t = precondition.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
+        _x, _t = utils.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
 
         self.x = _x
         self.t = _t
@@ -40,7 +41,7 @@ class FilterTests(unittest.TestCase):
         lowcut = 500.0
         highcut = 1200.0
         tic = time.perf_counter()
-        x_filter = precondition.butterworth_filter_data(self.x, lowcut, highcut, self.fs)
+        x_filter, f_band = precondition.butterworth_filter_data(self.x, fs = self.fs, bands= [(lowcut, highcut)])
         toc = time.perf_counter()
         print(f" Butterworth filter executed in {toc - tic:0.4f} seconds")
 
