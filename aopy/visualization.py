@@ -211,7 +211,7 @@ def plot_raster(data, plot_cue, cue_bin, ax):
     n_neurons = np.shape(data)[1]
     n_bins = np.shape(data)[2]
 
-    color_palette = sns.set_palette("Accent", n_neurons)
+    color_palette = sns.set_palette("Accent", n_neurons) #TODO: make this into a separate function
     for n in range(n_neurons):  # set this to 1 if we need rastor plot for only one neuron
         for tr in range(n_trial):
             for t in range(n_bins):
@@ -223,70 +223,7 @@ def plot_raster(data, plot_cue, cue_bin, ax):
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
 
-'''
-Plots to test filter performance
-'''
 
-
-def plot_filtered_signal(t, x, x_filter, low, high):
-    # Plotting noisy test signal and filtered signal
-    plt.plot(t, x, label='Noisy signal')
-    plt.plot(t, x_filter, label='Filtered signal')
-    plt.xlabel('time (seconds)')
-    # plt.hlines([-self.a, self.a], 0, self.T, linestyles='--')
-    plt.grid(True)
-    plt.axis('tight')
-    plt.legend(loc='best')
-    plt.show()
-
-
-def plot_phase_locking(t, a, f0, x_filter):
-    # Plotting filtered signal with original signal frequency
-    x_f0 = a * 2 * np.cos(2 * np.pi * f0 * t)
-    plt.plot(t, x_f0, label='Original signal (%g Hz)' % f0)
-    plt.plot(t, x_filter, label='Filtered signal (%g Hz)' % f0)
-    plt.xlabel('time (seconds)')
-    plt.ylabel('amplitude')
-    plt.title('Comparison of Original Vs Filtered Signal')
-    plt.legend(loc='best')
-    plt.show()
-
-
-def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
-    # Plot the frequency response for a few different orders
-    for order in [2, 3, 4, 5, 6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
-        b, a = precondition.butterworth_params(lowcut, highcut, fs, order=order)
-        w, h = freqz(b, a, worN=2000)
-        plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
-
-    plt.plot([0, 0.5 * fs], [np.sqrt(0.5), np.sqrt(0.5)], '--', label='sqrt(0.5)')
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Gain')
-    plt.grid(True)
-    plt.legend(loc='best')
-    plt.title('Comparison of Frequency response for Diff. Orders of Butterworth Filter')
-    plt.show()
-
-
-def plot_psd(x, x_filter, fs):
-    # Plot power spectral density of the signal
-    f, psd = precondition.get_psd_welch(x, fs)
-    f_filtered, psd_filtered = precondition.get_psd_welch(x_filter, fs)
-    plt.semilogy(f, psd, label='test signal')
-    plt.semilogy(f_filtered, psd_filtered, label='filtered output')
-    plt.xlabel('frequency [Hz]')
-    plt.ylabel('PSD')
-    plt.legend()
-    plt.title('Power Spectral Density Comparison')
-    plt.show()
-
-
-def plot_db_spectral_estimate(freq, psd, psd_filter, labels):
-    psd = 10 * np.log10(psd)
-    psd_filter = 10 * np.log10(psd_filter)
-    plt.figure()
-    precondition.plot_spectral_estimate(freq, psd, (psd_filter,), elabels=(labels,))
-    plt.show()
 
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
     '''

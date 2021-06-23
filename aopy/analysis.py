@@ -107,7 +107,7 @@ def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha,
     plt.tight_layout()
 
 
-def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_rows=5, n_cols=11):
+def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_rows=None, n_subplot_cols= None):
     '''
     Args:
         means (2D array) : Mean firing rate [n_targets x n_neurons]
@@ -126,7 +126,7 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_rows=5, 
     pd = []
 
     if make_plot:
-        sns.set_context('paper')
+        # sns.set_context('paper')
         plt.figure(figsize=(20, 10))
 
     for this_neuron in range(np.shape(means)[1]):
@@ -142,7 +142,7 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_rows=5, 
         pd.append(get_preferred_direction(params[0], params[1]))
 
         if make_plot:
-            plt.subplot(n_rows, n_cols, this_neuron + 1)
+            plt.subplot(n_subplot_rows, n_subplot_cols, this_neuron + 1)
             plt.plot(xdata, ydata, 'b-', label='data')
             plt.plot(xdata, func(xdata, params[0], params[1], params[2]), 'b--', label='fit')
             plt.suptitle(fig_title, y=1.01)
