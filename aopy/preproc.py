@@ -343,28 +343,33 @@ def calc_events_duration(event_log):
     events_duration = last_event_timestamp - first_event_timestamp
     return events_duration
 
-def calc_event_rate(trial_log, event_name):
+def calc_event_rate(trial_events, event_codes, debug = False):
     '''
     Given an trial_log and event_name, calculate the fraction of trials with the event
 
     Args:
-        event_log (iterable of iterables): iterable can be a list or a tuple, eg. a list of lists of segmented codes
-        event_name (str or int): event to be matched to
+        trial_events (ntr, nevents): Array of trial separated event codes
+        event_codes (int, str, list, or 1D array): event codes to calculate the fractions for. 
 
     Returns:
-        float: fraction of matching events divided by total events
+        float or an array: fraction of matching events divided by total events
     '''
-    num_of_occurances = 0.0
+    
+    if type(event_codes) == int or type(event_codes) == str:
+        event_codes = np.array([event_codes])
 
+    event_occurances = np.zeros(len(event_codes))
 
-    for single_trial_log in trial_log:
-        if event_name in single_trial_log:
-            num_of_occurances += 1
+    num_trials = len(trial_events)
 
-    num_of_trials = len(trial_log)
+    split_events, _ = locate_trials_with_event(trial_events, event_codes)
 
-    event_rate = float(num_of_occurances) / float(num_of_trials)
-    return event_rate
+    event_occurances = np.array([len(e) for e in split_events])
+    event_rates = event_occurances / num_trials
+
+    if len(event_rates) == 1: return event_rates[0]
+    
+    return event_rates
 
 
 

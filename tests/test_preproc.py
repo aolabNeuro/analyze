@@ -201,15 +201,47 @@ class EventFilterTests(unittest.TestCase):
 
     def test_calc_event_rate(self):
 
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, 7)
+        expected_rate = 1/6.
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
+
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, [2,7])
+        expected_rate = np.array([1,1/6.])
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
+
+
         #set up test
-        trial_log = [['wait', 'reach'],
-                    ['wait, reach', 'reward']]
-        reward_event = 'reward'
-        expected_reward_rate = 0.5
+        aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+                ['Go', 'Target 2', 'Target 2'],
+                ['Go', 'Target 4', 'Target 1'],
+                ['Go', 'Target 1', 'Target 2'],
+                ['Go', 'Target 2', 'Reward'],
+                ['Go', 'Target 3', 'Target 1']])
+        
+        expected_reward_rate = 1.0/6.0
 
-        calculated_reward_rate = calc_event_rate(trial_log, event_name='reward')
-
+        calculated_reward_rate = calc_event_rate(aligned_events_str, ['Reward'])
         np.testing.assert_equal(expected_reward_rate, calculated_reward_rate)
+
+        calculated_event_rates = calc_event_rate(aligned_events_str, ['Go','Reward'])
+        expected_event_rates = np.array([1.0, 1.0/6.0])
+
+        np.testing.assert_equal(calculated_event_rates, expected_event_rates)
+        
 
     def test_trial_align_events(self):
         # test trial_separate
