@@ -343,22 +343,30 @@ def calc_events_duration(event_log):
     events_duration = last_event_timestamp - first_event_timestamp
     return events_duration
 
-def calc_event_rate(event_log, event_name):
+def calc_event_rate(trial_log, event_name):
     '''
-    Given an event_log and event_name, calculate the rate of that event
+    Given an trial_log and event_name, calculate the fraction of trials with the event
 
     Args:
-        event_log (list of (event, timestamp) tuples): log of events and times
+        event_log (iterable of iterables): iterable can be a list or a tuple, eg. a list of lists of segmented codes
         event_name (str or int): event to be matched to
 
     Returns:
         float: fraction of matching events divided by total events
     '''
-    events_duration = calc_events_duration(event_log)
-    num_of_events = get_event_occurrences(event_log, event_name)
+    num_of_occurances = 0.0
 
-    event_rate = float(num_of_events) / float(events_duration)
+
+    for single_trial_log in trial_log:
+        if event_name in single_trial_log:
+            num_of_occurances += 1
+
+    num_of_trials = len(trial_log)
+
+    event_rate = float(num_of_occurances) / float(num_of_trials)
     return event_rate
+
+
 
 def calc_reward_rate(event_log, event_name='REWARD'):
     '''
