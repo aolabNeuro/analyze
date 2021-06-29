@@ -923,7 +923,7 @@ def _prepare_bmi3d_v0(data, metadata):
     state = data['bmi3d_state']
 
     # Calculate t0
-    if 'sync_events' in data and 'sync_clock' in data:
+    if 'sync_events' in data and 'sync_clock' in data and len(data['sync_clock']) > 0:
 
         event_exp_start = internal_events[internal_events['event'] == b'EXP_START']
         sync_events = data['sync_events']
@@ -941,7 +941,8 @@ def _prepare_bmi3d_v0(data, metadata):
         bmi3d_start_time = 0
 
     # Estimate display latency
-    if metadata['sync_protocol_version'] >= 3 and 'sync_clock' in data and 'measure_clock_offline' in data:
+    if metadata['sync_protocol_version'] >= 3 and 'sync_clock' in data and 'measure_clock_offline' in data \
+        and len(data['sync_clock']) > 0:
 
         # Estimate the latency based on the "sync" state at the beginning of the experiment
         sync_impulse = data['sync_clock']['timestamp'][1:3]
@@ -969,7 +970,7 @@ def _prepare_bmi3d_v0(data, metadata):
     corrected_events = rfn.append_fields(internal_events, 'timestamp_bmi3d', event_timestamps, dtypes='f8')
 
     # Correct the events based on sync if present
-    if 'sync_events' in data and 'sync_clock' in data:
+    if 'sync_events' in data and 'sync_clock' in data and len(data['sync_clock']) > 0:
         
         # Check that the events are all present
         sync_events = data['sync_events']
@@ -1113,9 +1114,14 @@ def _prepare_bmi3d_v0(data, metadata):
         
     # Update the event timestamps according to the corrected clock    
     if not metadata['has_measured_timestamps']:
-        corrected_clock = corrected_clock[ [ name for name in corrected_clock.dtype.names if name not in 'timestamp' ] ]
+        corrected_clock = corrected_clock[ [ name for name in corrected_clock.dtype.names if name not in 'timestamp' ] ] # remove 'timestamp'
     if 'timestamp_measure' in corrected_clock.dtype.names:
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_clock['timestamp_measure'][corrected_events['time']], dtypes='f8')
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp_measure', corrected_clock['timestamp_measure'][corrected_events['time']], dtypes='f8')
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_measure'], dtypes='f8')
+    elif 'timestamp_sync' in corrected_events.dtype.names:
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_sync'], dtypes='f8')
+    else:
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_bmi3d'], dtypes='f8')
 
     # Also put the reward system data into bmi3d time?
     if 'reward_system' in data and 'reward_system' in metadata['features']:

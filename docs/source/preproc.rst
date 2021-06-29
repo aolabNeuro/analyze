@@ -89,6 +89,8 @@ Information needed to reconstruct the structure of the experiment.
      - Time at which the event was received in ecube  
    * - ``timestamp_measure`` (float)
      - Time at which the event was measured to have occurred on the screen
+   * - ``timestamp`` (float)
+     - Default timestamp to make analysis code neater. Preference ``timestamp_measure`` >> ``timestamp_sync`` >> ``timestamp_bmi3d``
 
 
 **task**
