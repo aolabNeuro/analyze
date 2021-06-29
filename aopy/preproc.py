@@ -902,7 +902,7 @@ def _parse_bmi3d_v1(data_dir, files):
         })    
     return data_dict, metadata_dict
 
-def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
+def _prepare_bmi3d_v0(data, metadata):
     '''
     Organizes the bmi3d data and metadata and computes some automatic conversions
 
@@ -1035,6 +1035,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', timestamp_sync, dtypes='f8')
 
     measure_search_radius = 0.01
+    max_missing_markers = len(corrected_clock) * 0.05 # maximum 5 percent missing
     metadata['has_measured_timestamps'] = False
     if 'measure_clock_online' in data and len(data['measure_clock_online']) > 0:
         # Find the timestamps for each cycle of bmi3d's state machine from all the clock sources
@@ -1052,7 +1053,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
             metadata['has_measured_timestamps'] = True
             corrected_clock['timestamp'] = corrected_timestamps
         else:
-            print("Something has gone wrong with the digital screen sensor. Ignoring")
+            print(f"Digital screen sensor missing too many markers ({n_consecutive_missing_markers}/{max_missing_markers}). Ignoring")
 
     if 'measure_clock_offline' in data and len(data['measure_clock_offline']) > 0:
         timestamp_measure_offline = get_measured_frame_timestamps(
@@ -1069,7 +1070,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
             corrected_clock['timestamp'] = corrected_timestamps
             metadata['has_measured_timestamps'] = True
         else:
-            print("Something has gone wrong with the analog screen sensor. Ignoring")
+            print(f"Analog screen sensor missing too many markers ({n_consecutive_missing_markers}/{max_missing_markers}). Ignoring")
 
     # Create a 'trials' table if it doesn't exist
     if not 'bmi3d_trials' in data:

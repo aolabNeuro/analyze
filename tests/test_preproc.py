@@ -529,7 +529,6 @@ class TestPrepareExperiment(unittest.TestCase):
     def test_parse_bmi3d(self):
 
         # Test empty
-        files = {}
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
 
         def check_required_fields(data, metadata):
@@ -545,6 +544,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
 
         # Test sync version 0
+        files = {}
         files['hdf'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
         check_required_fields(data, metadata)
@@ -557,6 +557,7 @@ class TestPrepareExperiment(unittest.TestCase):
         # Test sync version 2
 
         # Test sync version 3 
+        files = {}
         files['hdf'] = 'beig20210407_01_te1315.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
@@ -569,8 +570,10 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
+        self.assertTrue(metadata['has_measured_timestamps'])
         
         # Test sync version 4
+        files = {}
         files['hdf'] = 'beig20210614_07_te1825.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
@@ -583,6 +586,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
         self.assertEqual(len(data['measure_clock_online']), 1682)
+        self.assertTrue(metadata['has_measured_timestamps'])
         self.assertEqual(len(data['clock']['timestamp']), 1830)
         self.assertEqual(len(data['task']), 1830)
 
