@@ -293,7 +293,7 @@ def get_ecube_data_sources(data_dir):
     dat = Dataset(data_dir)
     return dat.listsources()
 
-def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, **dataset_kwargs):
+def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, debug=False, **dataset_kwargs):
     '''
     Reads data from an ecube data source by channel until the number of samples requested 
     has been loaded. If a processing function is supplied, it will be applied to 
@@ -316,7 +316,7 @@ def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, da
 
     dat = Dataset(data_dir, **dataset_kwargs)
     dat.selectsource(data_source)
-    chunk = dat.emitchunk(startat=0, debug=True)
+    chunk = dat.emitchunk(startat=0, debug=debug)
     datastream = ChunkedStream(chunkemitter=chunk)
 
     idx_samples = 0 # keeps track of the number of samples already read/written
