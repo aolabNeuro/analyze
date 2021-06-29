@@ -142,11 +142,16 @@ class DigitalCalcTests(unittest.TestCase):
         estimated_timestamps = np.arange(10000)/100
         measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
         measured_timestamps = np.delete(measured_timestamps, [500])
-        corrected, uncorrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
-        self.assertEqual(len(corrected), len(estimated_timestamps))
-        self.assertEqual(corrected[500], corrected[501])
-        self.assertEqual(len(uncorrected), len(corrected))
+        uncorrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        self.assertEqual(len(uncorrected), len(estimated_timestamps))
         self.assertEqual(np.count_nonzero(np.isnan(uncorrected)), 1)
+        self.assertTrue(np.isnan(uncorrected[500]))
+
+    def test_fill_missing_timestamps(self):
+        uncorrected_timestamps = [0.01, 0.08, np.nan, np.nan, 0.25, np.nan, 0.38]
+        expected = [0.01, 0.08, 0.25, 0.25, 0.25, 0.38, 0.38]
+        filled = fill_missing_timestamps(uncorrected_timestamps)
+        self.assertCountEqual(expected, filled)
 
 event_log_events_in_str = [
             ('wait', 0.),
