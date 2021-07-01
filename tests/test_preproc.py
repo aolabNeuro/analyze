@@ -136,17 +136,22 @@ class DigitalCalcTests(unittest.TestCase):
         expected_array = np.array([0.1, 0.75, 1.2, np.nan])
         np.testing.assert_allclose(parsed_times, expected_array)
 
-    def test_get_measured_frame_timestamps(self):
+    def test_get_measured_clock_timestamps(self):
         latency_estimate = 0.1
         search_radius = 0.001
         estimated_timestamps = np.arange(10000)/100
         measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
         measured_timestamps = np.delete(measured_timestamps, [500])
-        corrected, uncorrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
-        self.assertEqual(len(corrected), len(estimated_timestamps))
-        self.assertEqual(corrected[500], corrected[501])
-        self.assertEqual(len(uncorrected), len(corrected))
+        uncorrected = get_measured_clock_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        self.assertEqual(len(uncorrected), len(estimated_timestamps))
         self.assertEqual(np.count_nonzero(np.isnan(uncorrected)), 1)
+        self.assertTrue(np.isnan(uncorrected[500]))
+
+    def test_fill_missing_timestamps(self):
+        uncorrected_timestamps = [0.01, 0.08, np.nan, np.nan, 0.25, np.nan, 0.38]
+        expected = [0.01, 0.08, 0.25, 0.25, 0.25, 0.38, 0.38]
+        filled = fill_missing_timestamps(uncorrected_timestamps)
+        self.assertCountEqual(expected, filled)
 
 event_log_events_in_str = [
             ('wait', 0.),
@@ -524,7 +529,6 @@ class TestPrepareExperiment(unittest.TestCase):
     def test_parse_bmi3d(self):
 
         # Test empty
-        files = {}
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
 
         def check_required_fields(data, metadata):
@@ -540,6 +544,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
 
         # Test sync version 0
+        files = {}
         files['hdf'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
         check_required_fields(data, metadata)
@@ -552,6 +557,7 @@ class TestPrepareExperiment(unittest.TestCase):
         # Test sync version 2
 
         # Test sync version 3 
+        files = {}
         files['hdf'] = 'beig20210407_01_te1315.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
@@ -564,8 +570,10 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
+        self.assertTrue(metadata['has_measured_timestamps'])
         
         # Test sync version 4
+        files = {}
         files['hdf'] = 'beig20210614_07_te1825.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
@@ -578,6 +586,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
         self.assertEqual(len(data['measure_clock_online']), 1682)
+        self.assertTrue(metadata['has_measured_timestamps'])
         self.assertEqual(len(data['clock']['timestamp']), 1830)
         self.assertEqual(len(data['task']), 1830)
 

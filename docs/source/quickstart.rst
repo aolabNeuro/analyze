@@ -51,7 +51,7 @@ Once preprocessed, you can inspect the hdf file using ``aopy.data.get_hdf_conten
         ├── bmi3d_start_time
         └── <raw bmi3d metadata>
 
-Anything with the ``bmi3d_`` prefix is raw bmi3d data. Likewise, the ``sync_`` and ``measure_`` prefixes are raw timing data from the ecube.
+See :doc:`preproc.rst` for more details on the data format. 
 To add mocap and spiking data you would call:
 
 .. code-block:: python
