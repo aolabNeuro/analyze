@@ -306,6 +306,7 @@ def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, da
         n_samples (int): number of samples to read. Must be geq than a single chunk
         dtype (np.dtype): format for data_out if none supplied
         data_out (nt, nch): array of data to be written to. If None, it will be created
+        debug (bool): whether the data is read in debug mode
         dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
         
     Returns:
