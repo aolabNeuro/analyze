@@ -106,7 +106,7 @@ Information about things that change on every cycle of the finite state machine 
    * - Field
      - Contents
    * - ``cursor`` (float, (3,))
-     - (x, z, y) cursor coordinates
+     - (x, z, y) cursor coordinates (in cm)
    * - ``sync_square`` (bool)
      - State of the sync square
    * - ``manual_input`` (float, (3,))
@@ -229,35 +229,35 @@ The `exp_metadata` dataset contains
    * - ``iod``: (float)
      - intraocular distance (for 3d displays)
    * - ``latency_estimate``: (float)
-     - 
+     - preprocessing statistic of estimated screen latency before correction
    * - ``latency_measured``: (float)
-     - 
+     - preprocessing statistic of measured screen latency
    * - ``max_attempts``: (int)
      - number of penalties before moving to the next condition in the sequence
    * - ``n_consecutive_missing_markers``: (int)
-     - 
+     - preprocessing statistic of consecutive missing frame markers
    * - ``n_cycles``: (unsigned int)
      - number of cycles the bmi3d state machine ran
    * - ``n_missing_markers``: (int)
-     - 
+     - preprocessing statistic of missing frame markers from the screen sensor
    * - ``n_trials``: (int)
      - number of trials the bmi3d state machine counted
    * - ``notes``: (string)
      - notes on this task entry from the bmi3d database
    * - ``offset``: (int, (3,))
-     - for manual control tasks, the (x, y, z) offset applied to inputs
+     - for manual control tasks, the (x, y, z) offset applied to raw inputs (for optitrack, in m)
    * - ``penalty_sound``: (string)
      - sound file played for penalties
    * - ``plant_hide_rate``: (float)
-     - 
+     - rate at which the cursor is hidden?
    * - ``plant_type``: (string)
-     - 
+     - 'cursor' is the only option
    * - ``plant_visible``: (bool)
      - whether or not the endpoint is visible to the subject
    * - ``random_rewards``: (bool)
-     - 
+     - whether reward timing is randomized 
    * - ``record_headstage``: (bool)
-     - 
+     - whether ecube headstage data is recorded by bmi3d 
    * - ``report``: (string)
      - the offline report saved to the bmi3d database
    * - ``reward_measure_ach``: (int)
@@ -269,9 +269,9 @@ The `exp_metadata` dataset contains
    * - ``rig_name``: (string)
      - name of the rig where the experiment was run
    * - ``rotation``: (string)
-     - for manual control tasks, the name of the rotation matrix applied to inputs
+     - for manual control tasks, the name of the rotation matrix applied to raw inputs
    * - ``scale``: (float)
-     - for manual control tasks, the multiplication factor applied to inputs
+     - for manual control tasks, the multiplication factor applied to raw inputs
    * - ``screen_dist``: (float)
      - for 3D tasks, the distance the display is located away from the subjects eyes
    * - ``screen_half_height``: (float)
@@ -283,7 +283,7 @@ The `exp_metadata` dataset contains
    * - ``screen_sync_dch``: (int)
      - the digital channel used to measure bmi3d's sync clock
    * - ``screen_sync_nidaq_pin``: (int)
-     - 
+     - pin used by bmi3d to send clock pulses
    * - ``sequence``: (string)
      - the name of the bmi3d sequence used in this task
    * - ``sequence_params``: (string)
@@ -329,7 +329,7 @@ The `exp_metadata` dataset contains
    * - ``trials_per_reward``: (float)
      - how many successful trials are required before a reward is delivered
    * - ``velocity_control``: (bool)
-     - 
+     - for manual control tasks, whether the cursor is under velocity control (true) or position control (false)
    * - ``wait_time``: (float)
      - time between each trial (if autostart is disabled)
    * - ``window_size``: (int, (2,))
