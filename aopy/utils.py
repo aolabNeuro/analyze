@@ -2,34 +2,88 @@
 # all extra utility functions belong here
 import numpy as np
 import re
+from datetime import datetime
+import os
 
-def generate_test_signal(T, fs, freq, a):
+def generate_test_signal(duration, samplerate, frequencies, amplitudes, noise_amplitude=0.):
     '''
     Generates a test time series signal with multiple frequencies, specified in freq, for T timelength at a sampling rate of fs
 
     Args:
-        T (float): Time period in seconds
-        fs (int): Sampling frequency in Hz
-        freq (1D array): Frequencies to be mixed in the test signal. main frequency in the first element
-        a (1D array) : amplitudes for each frequencies and last element of the array to be amplitude of noise (size : len(freq) + 1)
+        duration (float): time period in seconds
+        samplerate (int): sampling frequency in Hz
+        frequencies (1D array): list of frequencies to be mixed in the test signal
+        amplitudes (1D array): list of amplitudes for each frequency
+        noise_amplitude (float, optional): amplitude of noise added on top of test signal
 
     Returns:
-        x (1D array): cosine wave with multiple frequencies and noise
+        x (1D array): cosine wave with multiple frequencies (and noise)
         t (1D array): time vector for x
     '''
-    nsamples = int(T * fs)
-    t = np.linspace(0, T, nsamples, endpoint=False)
-    # a = 0.02
-    f0 = freq[0]
-    # noise_power = 0.001 * fs / 2
-    x = a[-1] * np.sin(2 * np.pi * 1.2 * np.sqrt(t))  # noise
-    # x += np.random.normal(scale=np.sqrt(noise_power), size=t.shape)  # noise
+    n_samples = int(duration * samplerate)
+    t = np.linspace(0, duration, n_samples, endpoint=False)
 
-    for i in range(len(freq)):
-        x += a[i] * np.cos(2 * np.pi * freq[i] * t)
+    x = np.random.normal(0,noise_amplitude,n_samples) # start with some noise
+
+    for i in range(len(frequencies)):
+        x += amplitudes[i] * np.cos(2 * np.pi * frequencies[i] * t)
 
     return x, t
 
+def generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude):
+    '''
+    Generate sine waves offset in phase by 2*pi/n_channels at the given amplitude and frequency
+
+    Args: 
+        duration (float): time in seconds
+        samplerate (int): sampling rate of the signal in Hz
+        n_channels (int): number of channels to generate
+        frequency (float): frequency in Hz
+        amplitude (float): amplitude of each sine wave
+
+    Returns:
+        (nt, nch) array: timeseries data across channels
+    '''    
+    time = np.arange(0, duration, 1/samplerate)
+    data = []
+    for i in range(n_channels):
+        theta = 2*i*np.pi/8 # shift phase for each channel
+        sinewave = amplitude * np.sin(2 * np.pi * frequency * time + theta)
+        data.append(sinewave)
+    data = np.array(data).T
+
+    return data
+
+def save_test_signal_ecube(data, save_dir, voltsperbit):
+    '''
+    Create a binary file with eCube formatting using the given data
+
+    Args:
+        data (nt, nch): test_signal to save
+        save_dir (str): where to save the file
+        voltsperbit (float): gain of the headstage data you are creating
+
+    Returns:
+        str: filename of the new data
+    '''
+    intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
+    flatdata = data.reshape(-1)
+    timestamp = [1, 2, 3, 4]
+    flatdata = np.insert(flatdata, timestamp, 0)
+
+    # Save it to the test file
+    datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
+    filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
+    filepath = os.path.join(save_dir, filename)
+    with open(filepath, 'wb') as f:
+        for _ in range(8):
+            f.write(np.byte(1)) # 8 byte timestamp
+        for t in range(intdata.shape[0]):
+            for ch in range(intdata.shape[1]):
+                f.write(np.byte(intdata[t,ch]))
+                f.write(np.byte(intdata[t,ch] >> 8))
+
+    return filename
 
 def count_unique_symbols(files):
     '''
