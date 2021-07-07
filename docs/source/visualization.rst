@@ -19,7 +19,7 @@ and ``plot_spatial_map()`` functions.
     data_map = get_data_map(data_missing, x_missing, y_missing)
     plot_spatial_map(data_map, x_missing, y_missing)
 
-.. image:: /docs/images/posmap.png
+.. image:: _images/posmap.png
 
 API
 ---
