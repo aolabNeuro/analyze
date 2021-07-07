@@ -94,7 +94,7 @@ def get_modulation_depth(b1, b2):
     '''
     Calculates modulation depth from curve fitting parameters as follows:
     .. math::
-    \sqrt{b1^2+b2^2}
+        \sqrt{b1^2+b2^2}
 
     '''
     return np.sqrt((b1 ** 2) + (b2 ** 2))
@@ -103,7 +103,8 @@ def get_modulation_depth(b1, b2):
 def get_preferred_direction(b1, b2):
     '''
     Calculates preferred direction from curve fitting parameters as follows:
-    .. math:: arctan(b1^2 / b2^2)
+    .. math:: 
+        arctan(b1^2 / b2^2)
     '''
     return np.arctan2(b2 ** 2, b1 ** 2)
 
