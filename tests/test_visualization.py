@@ -9,7 +9,7 @@ write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
-class PlottingTests(unittest.TestCase):
+class NeuralDataPlottingTests(unittest.TestCase):
 
     def test_plot_timeseries(self):
         filename = 'timeseries.png'
@@ -50,6 +50,8 @@ class PlottingTests(unittest.TestCase):
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
+class AnimationTests(unittest.TestCase):
+
     def test_animate_events(self):
         events = ["hello", "world", "", "!", ""]
         times = [0., 1.0, 1.5, 2.0, 2.5]
@@ -82,6 +84,8 @@ class PlottingTests(unittest.TestCase):
         ani = animate_trajectory_3d(trajectory, samplerate, history=5, axis_labels=axis_labels)
         filename = "animate_trajectory_test.mp4"
         saveanim(ani, write_dir, filename)
+
+class OtherPlottingTests(unittest.TestCase):
 
     def test_plot_targets(self):
 
@@ -149,6 +153,22 @@ class PlottingTests(unittest.TestCase):
         plt.figure()
         plot_trajectories(trajectories, bounds)
         savefig(write_dir, filename)
+
+    def test_plot_columns_by_date(self):
+        from datetime import date, timedelta
+        date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
+        n_trials = [40, 10, 60]
+        n_rewards = [20, 6, 40]
+
+        df = pd.DataFrame({'date':date, 'n_trials':n_trials, 'n_rewards':n_rewards})
+        fig, ax = plt.subplots(1,1)
+        plot_columns_by_date(df, 'n_trials', 'n_rewards', method='sum', ax=ax)
+        ax.set_ylabel('number of trials')
+
+        filename = 'columns_by_date.png'
+        savefig(write_dir, filename) # expect 50 (25) trials (rewards) yesterday and 60 (40) today
+
+
 
 if __name__ == "__main__":
     unittest.main()
