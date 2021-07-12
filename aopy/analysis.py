@@ -82,7 +82,7 @@ def func(target, b1, b2, b3):
 
     .. math::
     
-    b1 * cos(\\theta) + b2 * sin(\\theta) + b3
+        b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
     Returns: result from above equation
 
@@ -97,7 +97,7 @@ def get_modulation_depth(b1, b2):
     
     .. math::
     
-    \\sqrt{b1\\^2+b2\\^2}
+        \\sqrt{b_1^2+b_2^2}
 
     '''
     return np.sqrt((b1 ** 2) + (b2 ** 2))
@@ -108,7 +108,8 @@ def get_preferred_direction(b1, b2):
     Calculates preferred direction from curve fitting parameters as follows:
     
     .. math:: 
-    arctan(b1\\^2 / b2\\^2)
+        
+        arctan(\\frac{b_1^2}{b_2^2})
         
     '''
     return np.arctan2(b2 ** 2, b1 ** 2)
