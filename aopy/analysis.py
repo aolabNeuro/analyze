@@ -3,6 +3,7 @@ Code for basic neural data analysis
 """
 
 import numpy as np
+from numpy import linalg, matlib
 from matplotlib import pyplot as plt
 import seaborn as sns
 
@@ -15,12 +16,12 @@ import warnings
 
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
-    Estimate the latent dimensionality of an input dataset by appling cross validated 
-    factor analysis (FA) to input data and returning the maximum likelihood values. 
-    
+    Estimate the latent dimensionality of an input dataset by appling cross validated
+    factor analysis (FA) to input data and returning the maximum likelihood values.
+
     Args:
         data_in (nt, nch): Time series data in
-        dimensions (ndim): 1D Array of dimensions to compute FA for 
+        dimensions (ndim): 1D Array of dimensions to compute FA for
         nfold (int): Number of cross validation folds to compute. Must be >= 1
         maxiter (int): Maximum number of FA iterations to compute if there is no convergence. Defaults to 1000.
         verbose (bool): Display % of dimensions completed. Defaults to False
@@ -29,7 +30,7 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
         tuple: tuple containing:
 
         (ndim, nfold): Array of MLE FA score for each dimension for each fold
-        
+
         (ndim, nfold): How many iterations of FA were required to converge for each fold
     '''
 
@@ -40,7 +41,7 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
     if verbose == True:
         print('Cross validating and fitting ...')
 
-    # Compute the maximum likelihood score for each dimension using factor analysis    
+    # Compute the maximum likelihood score for each dimension using factor analysis
     for dim_idx in range(len(dimensions)):
         fold_idx = 0
 
@@ -81,7 +82,7 @@ def func(target, b1, b2, b3):
         b1, b2, b3 : parameters used for curve fitting
 
     .. math::
-    
+
         b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
     Returns: result from above equation
@@ -94,9 +95,9 @@ def func(target, b1, b2, b3):
 def get_modulation_depth(b1, b2):
     '''
     Calculates modulation depth from curve fitting parameters as follows:
-    
+
     .. math::
-    
+
         \\sqrt{b_1^2+b_2^2}
 
     '''
@@ -106,11 +107,11 @@ def get_modulation_depth(b1, b2):
 def get_preferred_direction(b1, b2):
     '''
     Calculates preferred direction from curve fitting parameters as follows:
-    
-    .. math:: 
-        
+
+    .. math::
+
         arctan(\\frac{b_1^2}{b_2^2})
-        
+
     '''
     return np.arctan2(b2 ** 2, b1 ** 2)
 
@@ -197,10 +198,10 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
 def find_trough_peak_idx(unit_data):
     '''
     This function calculates the trough-to-peak time at the index level (0th order) by finding the minimum value of
-    the waveform, and identifying that as the trough index. To calculate the peak index, this function finds the 
+    the waveform, and identifying that as the trough index. To calculate the peak index, this function finds the
     index corresponding to the first negative derivative of the waveform. If there is no next negative derivative of
     the waveform, this function returns the last index as the peak time.
-    
+
     Args:
         unit_data (nt, nch): Array of waveforms (Can be a 1D array with dimension nt)
 
@@ -208,26 +209,26 @@ def find_trough_peak_idx(unit_data):
         tuple: A tuple containing
         troughidx (nch): Array of indices corresponding to the trough time for each channel
 
-        peakidx (nch): Array of indices corresponding ot the peak time for each channel. 
+        peakidx (nch): Array of indices corresponding ot the peak time for each channel.
     '''
     # Handle condition where the input data is a 1D array
     if len(unit_data.shape) == 1:
         troughidx = np.argmin(unit_data)
-        
+
         wfdecreaseidx = np.where(np.diff(unit_data[troughidx:])<0)
-        
+
         if np.size(wfdecreaseidx) == 0:
             peakidx = len(unit_data)-1
         else:
             peakidx = np.min(wfdecreaseidx) + troughidx
 
-    # Handle 2D input data array  
+    # Handle 2D input data array
     else:
         troughidx = np.argmin(unit_data, axis = 0)
         peakidx = np.empty(troughidx.shape)
 
         for trialidx in range(len(peakidx)):
-            
+
             wfdecreaseidx = np.where(np.diff(unit_data[troughidx[trialidx]:,trialidx])<0)
 
             # Handle the condition where there is no negative derivative.
@@ -235,16 +236,16 @@ def find_trough_peak_idx(unit_data):
                 peakidx[trialidx] = len(unit_data[:,trialidx])-1
             else:
                 peakidx[trialidx] = np.min(wfdecreaseidx) + troughidx[trialidx]
-        
+
     return troughidx, peakidx
 
 def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
     '''
     This function finds the extremum approximation around an index by fitting a second order polynomial (using a lagrange polynomial) to
-    the index input, the point before, and the point after it. In the case where the input index is either 
+    the index input, the point before, and the point after it. In the case where the input index is either
     at the end or the beginning of the data array, the function can either fit the data using the closest 3
     data points and return the extrapolated peak value or just return the input index. This extrapolation
-    functionality is controlled with the 'extrap_peaks' input variable. Note: the extrapolation function may choose an 
+    functionality is controlled with the 'extrap_peaks' input variable. Note: the extrapolation function may choose an
     index within the input data length if chosen points result in a polynomial with an extremum at that point.
 
     Args:
@@ -252,14 +253,14 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
         data (n): data used to interpolate (or extrapolate) with
         extrap_peaks (bool): If the extremum_idx is at the start or end of the data, indicate if the closest 3 points
                                 should be used to extrapolate a peak index.
-        
+
     Returns:
-        tuple: A tuple containing 
-        
+        tuple: A tuple containing
+
         extremum_time (float): Interpolated (or extrapolated) peak time
-        
+
         extremum_value (float): Approximated peak value.
-        
+
         f (np.poly): Polynomial used to calculate peak time
     '''
 
@@ -268,23 +269,23 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
         edge_idx = True
         xpts = np.arange((extremum_idx), extremum_idx+3, 1)
         ypts = data[extremum_idx:extremum_idx+3]
-    
+
     # Handle condition where the peak is at the end of a dataset
     elif extremum_idx == len(data)-1:
         edge_idx = True
         xpts = np.arange((extremum_idx-2), extremum_idx+1, 1)
         ypts = data[extremum_idx-2:extremum_idx+1]
-        
+
     # Condition where the peak is in the middle of the dataset
     else:
         edge_idx = False
         xpts = np.arange((extremum_idx-1), extremum_idx+2, 1)
         ypts = data[extremum_idx-1:extremum_idx+2]
-    
+
     f = interpolate.lagrange(xpts, ypts)
     extremum_time = -f[1]/(2*f[2])
     extremum_value = (f[2]*(extremum_time**2)) + (f[1]*extremum_time) + f[0]
-    
+
     # If end points should not be extrapolated from...
     if extrap_peaks==False and edge_idx:
         extremum_time = extremum_idx
@@ -292,3 +293,63 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
 
     return extremum_time, extremum_value, f
 
+
+ # run kalman filter forward
+
+# assume that A, W, H, Q, Y and Xo are numpy arrays
+# dimensions:
+# A - state-transition matrix for the KF [#states x #states];
+# W - state-transition covariance matrix [#states x #states];
+# H - observation model matrix [#observations x #states];
+# Q - observation model covariance matrix [#observations x #observations];
+# Y - Observation data (e.g. spike firing rates) [#observations x time]
+# Xo - initial state (i.e. state at t=0) [#states x 1];
+def runKalmanForward(A, W, H, Q, Y, Xo):
+
+  # get the size of the observations, states and time
+  (n_obs, n_time) = Y.shape
+  n_states = A.shape[0]
+
+  # initialize matrices to store estimates
+  X = np.zeros( (n_states, n_time) ) # predicted states
+  X_hat = np.zeros( (n_states, n_time) ) # a-priori estimate of state
+  P_AP = np.zeros( (n_states, n_states, n_time) ) #a-priori estimate of covariance
+  P = np.zeros( (n_states, n_states, n_time) ) #a-posterior estimate of co-variances
+  K = np.zeros( (n_states, n_obs, n_times) ) #kalman gain
+
+  Y_tilda = np.zeros((n_obs, n_times))
+  S = np.zeros((n_obs, n_obs, n_times))
+
+  # initialize X to last observed state
+  X[:, 0] = Xo
+
+  # loop through time
+  progCount = 0 #counter to display progress estimates
+  for k in range(n_times):
+
+    if k/n_times*100 <= progCount*10:
+      print(str(progCnt))
+      progCount = progCount + 1
+
+    # (1) a priori estimate of x ( x_hat(k|k-1) = A*X(k-1) )
+    X_hat[:, k] = A@X[:, k-1]
+
+    # (2) a priori estimate of x covariance ( P(k) = A*P(k-1)*A' + W )
+    P_AP[:,:, k] = A@(P[:,:,k-1]@A.T + W)
+
+    # (3) compute the difference between expected and observed measurement
+    # i.e. measurement residual
+    Y_tilda[:, k] = Y[:, k] - H@X_hat[:, k]
+
+    # (4) Compute the covariance of the measurement residual
+    S[:, :, k] = H@(P_AP[:,:,k]@H.T) + Q
+
+    # (5) a posteriori estimate
+    X[:,k] = X_hat[:, k] + K@Y_tilda[:, k]
+
+    # Update Kalman Gain
+    K[:,:,k] = (P_AP[:,:,k]@H.T)@np.linalg.pinv(S[:, :, k])
+
+    # Compute the covariance of the a posteriori estimate
+    P[:,:,k] = ( np.identity(n_states) - K[:, :, k]@H)@P_AP[:,:,k]
+  return X
