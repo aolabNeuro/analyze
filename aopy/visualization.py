@@ -5,6 +5,7 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import matplotlib.dates as mdates
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -13,9 +14,7 @@ import numpy as np
 import os
 import copy
 
-
-from . import precondition
-from scipy.signal import freqz
+import pandas as pd
 
 from . import postproc
 
@@ -413,3 +412,59 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     ax.set_xlabel('x')
     ax.set_ylabel('y')
 
+def plot_columns_by_date(df, *columns, method='sum', ax=None):
+    '''
+    Plot columns in a dataframe organized by date and aggregated such that if there are multiple
+    rows on a given date they are combined into a single value using the given method. If the method
+    is 'mean' then the values will be averaged for each day, for example for size of cursor. If the 
+    method is 'sum' then the values will be added together on each day, for example for number of trials.
+    
+    Example:
+        Plotting my weight data averaged across days.
+        ::
+
+            from datetime import date, timedelta
+            date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
+            weight = [65.5, 66.0, 65.0]
+
+            df = pd.DataFrame({'date':date, 'weight':weight})
+            fig, ax = plt.subplots(1,1)
+            plot_columns_by_date(df, 'weight', method='mean', ax=ax)
+            ax.set_ylabel('weight (kg)')
+
+        ..image: _images/columns_by_date.png
+
+    Args:
+        df (pd.DataFrame): dataframe with 'date' column
+        *columns (str): dataframe column names to plot
+        method (str, optional): how to combine data within a single date. Can be 'sum' or 'mean'.
+        ax (pyplot.Axes, optional): axis on which to plot
+    '''
+    first_day = np.min(df['date'])
+    last_day = np.max(df['date'])
+    days = pd.date_range(start=first_day, end=last_day).to_list()
+    n_columns = len(columns)
+    n_days = len(days)
+    aggregate = np.zeros((n_columns, n_days))
+
+    for idx_day in range(n_days):
+        day = days[idx_day]
+        for idx_column in range(n_columns):
+            values = df[columns[idx_column]][df['date'] == day]
+            if len(values) == 0:
+                aggregate[idx_column, idx_day] = np.nan
+            elif method == 'sum':
+                aggregate[idx_column, idx_day] = values.sum()
+            elif method == 'mean':
+                aggregate[idx_column, idx_day] = values.mean()
+            else:
+                raise ValueError("Unknown method for combining data")
+
+    if ax == None:
+        ax = plt.gca()
+    for idx_column in range(n_columns):
+        ax.plot(days, aggregate[idx_column,:], '.-', label=columns[idx_column])
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+    plt.setp(ax.get_xticklabels(), rotation=80)
+    ax.legend()
