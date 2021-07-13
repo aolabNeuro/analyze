@@ -357,22 +357,35 @@ def calc_events_duration(event_log):
     events_duration = last_event_timestamp - first_event_timestamp
     return events_duration
 
-def calc_event_rate(event_log, event_name):
+def calc_event_rate(trial_events, event_codes, debug = False):
     '''
-    Given an event_log and event_name, calculate the rate of that event
+    Given an trial_log and event_name, calculate the fraction of trials with the event
 
     Args:
-        event_log (list of (event, timestamp) tuples): log of events and times
-        event_name (str or int): event to be matched to
+        trial_events (ntr, nevents): Array of trial separated event codes
+        event_codes (int, str, list, or 1D array): event codes to calculate the fractions for. 
 
     Returns:
-        float: fraction of matching events divided by total events
+        float or an array: fraction of matching events divided by total events
     '''
-    events_duration = calc_events_duration(event_log)
-    num_of_events = get_event_occurrences(event_log, event_name)
+    
+    if type(event_codes) == int or type(event_codes) == str:
+        event_codes = np.array([event_codes])
 
-    event_rate = float(num_of_events) / float(events_duration)
-    return event_rate
+    event_occurances = np.zeros(len(event_codes))
+
+    num_trials = len(trial_events)
+
+    split_events, _ = locate_trials_with_event(trial_events, event_codes)
+
+    event_occurances = np.array([len(e) for e in split_events])
+    event_rates = event_occurances / num_trials
+
+    if len(event_rates) == 1: return event_rates[0]
+    
+    return event_rates
+
+
 
 def calc_reward_rate(event_log, event_name='REWARD'):
     '''
