@@ -1,7 +1,7 @@
 import unittest
 from aopy.utils import *
-import numpy
-import aopy
+import numpy as np
+
 
 class utils_test(unittest.TestCase):
     def pkl_test(self):
