@@ -1,7 +1,8 @@
 # utils.py
 # all extra utility functions belong here
 import numpy as np
-
+import os
+import pickle
 
 def generate_test_signal(T, fs, freq, a):
     '''
@@ -29,3 +30,15 @@ def generate_test_signal(T, fs, freq, a):
         x += a[i] * np.cos(2 * np.pi * freq[i] * t)
 
     return x, t
+
+
+def pkl_write(file_to_write, values_to_dump, write_dir):
+  file = os.path.join(write_dir, file_to_write)
+  with open(file, 'wb') as pickle_file:
+      pickle.dump(values_to_dump, pickle_file)
+
+
+def pkl_read(file_to_read, read_dir):
+  file = os.path.join(read_dir, file_to_read)
+  this_dat = pickle.load(open(file_to_read, "rb"))
+  return this_dat
