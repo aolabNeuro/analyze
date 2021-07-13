@@ -417,6 +417,22 @@ def plot_columns_by_date(df, *columns, method='sum', ax=None):
     Plot columns in a dataframe organized by date and aggregated such that if there are multiple
     rows on a given date they are combined into a single value using the given method
     
+    Example:
+        Plotting number of trials and number of rewards on two days of data, summing across days.
+        ::
+
+            from datetime import date, timedelta
+            date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
+            n_trials = [40, 10, 60]
+            n_rewards = [20, 6, 40]
+
+            df = pd.DataFrame({'date':date, 'n_trials':n_trials, 'n_rewards':n_rewards})
+            fig, ax = plt.subplots(1,1)
+            plot_columns_by_date(df, 'n_trials', 'n_rewards', method='sum', ax=ax)
+            ax.set_ylabel('number of trials')
+
+        ..image: _images/columns_by_date.png
+
     Args:
         df (pd.DataFrame): dataframe with 'date' column
         *columns (str): dataframe column names to plot
@@ -451,3 +467,13 @@ def plot_columns_by_date(df, *columns, method='sum', ax=None):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     ax.legend()
+
+def test_function(arg1, arg2, param1='foobar'):
+    '''
+    [summary]
+
+    Args:
+        arg1 ([type]): [description]
+        arg2 ([type]): [description]
+        param1 (str, optional): [description]. Defaults to 'foobar'.
+    '''
