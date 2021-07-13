@@ -33,12 +33,22 @@ def generate_test_signal(T, fs, freq, a):
 
 
 def pkl_write(file_to_write, values_to_dump, write_dir):
-  file = os.path.join(write_dir, file_to_write)
-  with open(file, 'wb') as pickle_file:
-      pickle.dump(values_to_dump, pickle_file)
+    '''
+    This functions write data into a pickle file
+    Args:
+        file_to_write (str): filename
+        values_to_dump (): values to write in a pickle file
+        write_dir: where do you want to write this file
+
+    Returns: None
+
+    '''
+    file = os.path.join(write_dir, file_to_write)
+    with open(file, 'wb') as pickle_file:
+        pickle.dump(values_to_dump, pickle_file)
 
 
 def pkl_read(file_to_read, read_dir):
-  file = os.path.join(read_dir, file_to_read)
-  this_dat = pickle.load(open(file_to_read, "rb"))
-  return this_dat
+    file = os.path.join(read_dir, file_to_read)
+    this_dat = pickle.load(open(file, "rb"))
+    return this_dat
