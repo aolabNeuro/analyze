@@ -415,21 +415,22 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
 def plot_columns_by_date(df, *columns, method='sum', ax=None):
     '''
     Plot columns in a dataframe organized by date and aggregated such that if there are multiple
-    rows on a given date they are combined into a single value using the given method
+    rows on a given date they are combined into a single value using the given method. If the method
+    is 'mean' then the values will be averaged for each day, for example for size of cursor. If the 
+    method is 'sum' then the values will be added together on each day, for example for number of trials.
     
     Example:
-        Plotting number of trials and number of rewards on two days of data, summing across days.
+        Plotting my weight data averaged across days.
         ::
 
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
-            n_trials = [40, 10, 60]
-            n_rewards = [20, 6, 40]
+            weight = [65.5, 66.0, 65.0]
 
-            df = pd.DataFrame({'date':date, 'n_trials':n_trials, 'n_rewards':n_rewards})
+            df = pd.DataFrame({'date':date, 'weight':weight})
             fig, ax = plt.subplots(1,1)
-            plot_columns_by_date(df, 'n_trials', 'n_rewards', method='sum', ax=ax)
-            ax.set_ylabel('number of trials')
+            plot_columns_by_date(df, 'weight', method='mean', ax=ax)
+            ax.set_ylabel('weight (kg)')
 
         ..image: _images/columns_by_date.png
 

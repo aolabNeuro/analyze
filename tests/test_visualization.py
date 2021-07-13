@@ -157,17 +157,15 @@ class OtherPlottingTests(unittest.TestCase):
     def test_plot_columns_by_date(self):
         from datetime import date, timedelta
         date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
-        n_trials = [40, 10, 60]
-        n_rewards = [20, 6, 40]
+        weight = [65.5, 66.0, 65.0]
 
-        df = pd.DataFrame({'date':date, 'n_trials':n_trials, 'n_rewards':n_rewards})
+        df = pd.DataFrame({'date':date, 'weight':weight})
         fig, ax = plt.subplots(1,1)
-        plot_columns_by_date(df, 'n_trials', 'n_rewards', method='sum', ax=ax)
-        ax.set_ylabel('number of trials')
+        plot_columns_by_date(df, 'weight', method='mean', ax=ax)
+        ax.set_ylabel('weight (kg)')
 
         filename = 'columns_by_date.png'
-        savefig(write_dir, filename) # expect 50 (25) trials (rewards) yesterday and 60 (40) today
-
+        savefig(write_dir, filename) # expect a plot of weight by date
 
 
 if __name__ == "__main__":
