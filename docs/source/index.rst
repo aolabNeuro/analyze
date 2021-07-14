@@ -13,6 +13,7 @@ Welcome to aopy's documentation!
    preproc
    visualization
    utils
+   examples
 
 Indices and tables
 ==================
