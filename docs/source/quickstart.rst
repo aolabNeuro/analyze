@@ -1,6 +1,18 @@
 Getting Started:
 ================
 
+Installation
+------------
+
+Clone the repo from github, then install. If you are planning to make changes, use the -e flag to install
+in editable mode rather than installing a fixed version.
+
+::
+
+    > git clone https://github.com/aolabNeuro/analyze.git
+    > cd analyze
+    > pip install -e .
+
 Example usage
 -------------
 Data from experiments comes from several sources (e.g. experiment hdf files, optitrack csv, binary neural data).
@@ -9,7 +21,7 @@ contents of these files.
 
 A simple example:
 
-::
+.. code-block:: console
 
     /data/raw/   
     ├── hdf/
@@ -51,7 +63,7 @@ Once preprocessed, you can inspect the hdf file using ``aopy.data.get_hdf_conten
         ├── bmi3d_start_time
         └── <raw bmi3d metadata>
 
-Anything with the ``bmi3d_`` prefix is raw bmi3d data. Likewise, the ``sync_`` and ``measure_`` prefixes are raw timing data from the ecube.
+See :doc:`preproc.rst` for more details on the data format. 
 To add mocap and spiking data you would call:
 
 .. code-block:: python

@@ -81,7 +81,8 @@ def func(target, b1, b2, b3):
         b1, b2, b3 : parameters used for curve fitting
 
     .. math::
-    b1 * cos(theta) + b2 * sin(theta) + b3
+    
+        b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
     Returns: result from above equation
 
@@ -93,8 +94,10 @@ def func(target, b1, b2, b3):
 def get_modulation_depth(b1, b2):
     '''
     Calculates modulation depth from curve fitting parameters as follows:
+    
     .. math::
-    \sqrt{b1^2+b2^2}
+    
+        \\sqrt{b_1^2+b_2^2}
 
     '''
     return np.sqrt((b1 ** 2) + (b2 ** 2))
@@ -103,7 +106,11 @@ def get_modulation_depth(b1, b2):
 def get_preferred_direction(b1, b2):
     '''
     Calculates preferred direction from curve fitting parameters as follows:
-    .. math:: arctan(b1^2 / b2^2)
+    
+    .. math:: 
+        
+        arctan(\\frac{b_1^2}{b_2^2})
+        
     '''
     return np.arctan2(b2 ** 2, b1 ** 2)
 
@@ -284,3 +291,60 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
         extremum_value = data[extremum_time]
 
     return extremum_time, extremum_value, f
+
+def get_unit_spiking_mean_variance(spiking_data):
+    '''
+    This function calculates the mean spiking count and the spiking count variance in spiking data across 
+    trials for each unit. 
+
+    Args:
+        spiking_data (ntime, nunits, ntr): Input spiking data
+
+    Returns:
+        Tuple:  A tuple containing
+            unit_mean: The mean spike counts for each unit across the input time
+            unit_variance: The spike count variance for each unit across the input time
+    '''
+
+    counts = np.sum(spiking_data, axis=1) # Counts has the shape (nunits, ntr)
+    unit_mean = np.mean(counts, axis=1) # Averge the counts for each unit across all trials
+    unit_variance = np.var(counts, axis=1) # Calculate the count variance for each unit across all trials
+
+    return unit_mean, unit_variance
+
+def get_pca_dimensions(data, max_dims=None, VAF=0.9):
+    """
+    Use PCA to estimate the dimensionality required to account for the variance in the given data
+    
+    Args:
+        data (nt, nch): time series data
+        max_dims (int): (default None) the maximum number of dimensions
+                        if left unset, will equal the dimensions (number of columns) in the dataset
+        VAF (float): (default 0.9) variance accounted for (VAF)
+
+    Returns: 
+        dimensions (list): list of principal components accounting for the variance
+        explained_variance (list): variance accounted for by each principal component
+        num_dims (int): number of principal components required to account for variance
+    """
+    if max_dims is None:
+            max_dims = np.shape(data)[1]
+
+    num_dims = None
+    explained_variance = []
+    dimensions = range(1, max_dims + 1)
+
+    pca = PCA()
+    pca.fit(data)
+
+    for dims in dimensions:
+
+        explained_here = sum(pca.explained_variance_ratio_[0:dims])
+        explained_variance.append(explained_here)
+
+        # If we have not yet reached the threshold, check if we have now reached the threshold
+        if num_dims is None and explained_here > VAF:
+            num_dims = dims
+
+    return dimensions, explained_variance, num_dims
+
