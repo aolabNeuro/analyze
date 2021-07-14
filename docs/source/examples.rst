@@ -1,4 +1,4 @@
 .. toctree::
     :hidden:
 
-    examples/kinematics-demo.ipynb
+    examples/simple-demo.ipynb
