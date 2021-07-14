@@ -94,5 +94,21 @@ class fano_factor_tests(unittest.TestCase):
         np.testing.assert_allclose(unit_mean, np.array([2, 0]))
         np.testing.assert_allclose(unit_var, np.array([0, 0]))
 
+class pca_tests(unittest.TestCase):
+    # test variance accounted for
+    def test_VAF(self):
+        # test single dimension returns correctly
+        single_dim_data = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
+        single_dim = 1
+        single_dim_VAF = 100
+        single_num_dims = 1
+
+        dimensions, VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
+        self.assertAlmostEqual(dimensions, single_dim)
+        self.assertAlmostEqual(VAF, single_dim_VAF)
+        self.assertAlmostEqual(num_dims, single_num_dims)
+
+        
+
 if __name__ == "__main__":
     unittest.main()

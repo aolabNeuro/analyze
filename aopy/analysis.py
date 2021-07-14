@@ -311,3 +311,40 @@ def get_unit_spiking_mean_variance(spiking_data):
     unit_variance = np.var(counts, axis=1) # Calculate the count variance for each unit across all trials
 
     return unit_mean, unit_variance
+
+def get_pca_dimensions(data, max_dims=None, VAF=0.9):
+    """
+    Use PCA to estimate the dimensionality required to account for the variance in the given data
+    
+    Args:
+        data (nt, nch): time series data
+        max_dims (int): (default None) the maximum number of dimensions
+                        if left unset, will equal the dimensions (number of columns) in the dataset
+        VAF (float): (default 0.9) variance accounted for (VAF)
+
+    Returns: 
+        dimensions (list): list of principal components accounting for the variance
+        explained_variance (list): variance accounted for by each principal component
+        num_dims (int): number of principal components required to account for variance
+    """
+    if max_dims is None:
+            max_dims = np.shape(data)[1]
+
+    num_dims = None
+    explained_variance = []
+    dimensions = range(1, max_dims + 1)
+
+    pca = PCA()
+    pca.fit(data)
+
+    for dims in dimensions:
+
+        explained_here = sum(pca.explained_variance_ratio_[0:dims])
+        explained_variance.append(explained_here)
+
+        # If we have not yet reached the threshold, check if we have now reached the threshold
+        if num_dims is None and explained_here > VAF:
+            num_dims = dims
+
+    return dimensions, explained_variance, num_dims
+
