@@ -292,14 +292,13 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
 
     return extremum_time, extremum_value, f
 
-def get_fano_factor_values_per_condition(spiking_data):
+def get_unit_spiking_mean_variance(spiking_data):
     '''
-    This function calculates the two parameters used to calculate fano factor for input spiking data based on Churchland et al. 2010.
-    These two parameters are calculated for each unit and are the mean spikes per trial and the spiking variance of each unit across trials.
+    This function calculates the mean spiking count and the spiking count variance in spiking data across 
+    trials for each unit. 
 
     Args:
         spiking_data (ntime, nunits, ntr): Input spiking data
-        weight_regression (bool): A flag to weight the linear regression based on the number of trials.
 
     Returns:
         Tuple:  A tuple containing
