@@ -1,5 +1,4 @@
 .. toctree::
-    :hidden:
     :caption: Examples:
 
-    examples/simple-demo.ipynb
+    examples/kinematics-demo.ipynb
