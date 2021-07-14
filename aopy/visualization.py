@@ -432,7 +432,7 @@ def plot_columns_by_date(df, *columns, method='sum', ax=None):
             plot_columns_by_date(df, 'weight', method='mean', ax=ax)
             ax.set_ylabel('weight (kg)')
 
-        ..image:: _images/columns_by_date.png
+        .. image:: _images/columns_by_date.png
 
     Args:
         df (pd.DataFrame): dataframe with 'date' column
