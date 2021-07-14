@@ -292,6 +292,26 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
 
     return extremum_time, extremum_value, f
 
+def get_unit_spiking_mean_variance(spiking_data):
+    '''
+    This function calculates the mean spiking count and the spiking count variance in spiking data across 
+    trials for each unit. 
+
+    Args:
+        spiking_data (ntime, nunits, ntr): Input spiking data
+
+    Returns:
+        Tuple:  A tuple containing
+            unit_mean: The mean spike counts for each unit across the input time
+            unit_variance: The spike count variance for each unit across the input time
+    '''
+
+    counts = np.sum(spiking_data, axis=1) # Counts has the shape (nunits, ntr)
+    unit_mean = np.mean(counts, axis=1) # Averge the counts for each unit across all trials
+    unit_variance = np.var(counts, axis=1) # Calculate the count variance for each unit across all trials
+
+    return unit_mean, unit_variance
+
 def get_pca_dimensions(data, max_dims=None, VAF=0.9):
     """
     Use PCA to estimate the dimensionality required to account for the variance in the given data
@@ -327,3 +347,4 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9):
             num_dims = dims
 
     return dimensions, explained_variance, num_dims
+
