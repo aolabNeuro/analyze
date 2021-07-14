@@ -34,13 +34,15 @@ def generate_test_signal(T, fs, freq, a):
 
 def pkl_write(file_to_write, values_to_dump, write_dir):
     '''
-    This functions write data into a pickle file
+    This functions write data into a pickle file.
+    
     Args:
         file_to_write (str): filename with '.pkl' extension
         values_to_dump (any): values to write in a pickle file
         write_dir (str): Path - where do you want to write this file
 
-    Returns: None
+    Returns:
+        None
 
     examples: pkl_write(meta.pkl, data, '/data_dir')
     '''
@@ -52,11 +54,13 @@ def pkl_write(file_to_write, values_to_dump, write_dir):
 def pkl_read(file_to_read, read_dir):
     '''
     This function takes in path to a pickle file and returns data as it is stored
+    
     Args:
         file_to_read (str): filename with '.pkl' extension
         read_dir (str): Path to folder where the file is stored
 
-    Returns: data in a format as it is stored
+    Returns:
+        data in a format as it is stored
 
     '''
     file = os.path.join(read_dir, file_to_read)
