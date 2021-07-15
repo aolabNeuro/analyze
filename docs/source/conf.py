@@ -23,7 +23,7 @@ copyright = '2021, aolab'
 author = 'aolab'
 
 # The full version, including alpha/beta/rc tags
-release = '0.0.0'
+release = '0.1'
 
 
 # -- General configuration ---------------------------------------------------
@@ -31,7 +31,14 @@ release = '0.0.0'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.coverage', 'sphinx.ext.napoleon', 'sphinx.ext.mathjax']
+extensions = [
+    'sphinx.ext.autodoc', 
+    'sphinx.ext.coverage', 
+    'sphinx.ext.napoleon', 
+    'sphinx.ext.mathjax', 
+    'sphinx.ext.viewcode',
+    'nbsphinx'
+]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -48,6 +55,7 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 #html_theme = 'alabaster'
+html_show_sourcelink = True
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

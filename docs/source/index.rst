@@ -12,6 +12,8 @@ Welcome to aopy's documentation!
    precondition
    preproc
    visualization
+   utils
+   examples
 
 Indices and tables
 ==================

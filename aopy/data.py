@@ -3,7 +3,6 @@
 import numpy as np
 import torch
 from .whitematter import ChunkedStream, Dataset
-from datetime import datetime
 import h5py
 import tables
 import csv
@@ -745,6 +744,7 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
             parsed_str.append(strings[str_idx])
             
     return parsed_str
+
 
 def gen_test_signal(amplitude, frequency, duration=1, n_channels=8, samplerate=25000):
     '''
