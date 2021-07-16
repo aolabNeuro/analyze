@@ -748,8 +748,8 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
 # - - -- --- ----- -------- ---PYTORCH--- -------- ----- --- -- - -
 # - - -- --- ----- -------- ---DATASETS-- -------- ----- --- -- - -
 
-class EcogTensorDataset(torch.utils.data.Dataset):
-    r"""Dataset wrapping tensors of ECoG data. Implements the pytorch Dataset parent class.
+class TensorDataset(torch.utils.data.Dataset):
+    r"""Dataset wrapping tensors. Implements the pytorch Dataset parent class.
 
     Each sample will be retrieved by indexing tensors along the first dimension. These samples are collected and returned in a list of tensors in the same order as their source tensors.
 
@@ -786,13 +786,13 @@ class EcogTensorDataset(torch.utils.data.Dataset):
                 if self.transform_mask[idx]:
                     sample[idx] = self.transform(s)
         # assign device
-        sample = list_or_tuple_recursive_to(sample,self.device)
+        sample = recursive_assign_device(sample,self.device)
         return sample
 
     def __len__(self):
         return self.tensors[0].size(0)
 
-def list_or_tuple_recursive_to(x,device):
+def recursive_assign_device(x, device: str):
     """Recursively assign tensor elements in a nested list or tuple of arbitrary depth to a specified device memory location.
 
     Args:
@@ -803,7 +803,7 @@ def list_or_tuple_recursive_to(x,device):
         [Tensor,[Tensor],...]: Copy of input x, memory relocated to designated location.
     """
     if isinstance(x,(list,tuple)):
-        x = [list_or_tuple_recursive_to(_x,device) for _x in x]
+        x = [recursive_assign_device(_x,device) for _x in x]
     else:
         x = x.to(device)
     return x
