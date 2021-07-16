@@ -310,7 +310,7 @@ class DatasetTests(unittest.TestCase):
         sample_idx = 0
         sample = next(iter(tensor_dataset))
         self.assertTrue(
-            sample[0] == tensor_1[sample_idx,:,:] and sample[1] == tensor_2[sample_idx,:,:]
+            (sample[0] == tensor_1[sample_idx,:,:]).all().item() and (sample[1] == tensor_2[sample_idx,:,:]).all().item()
         )
 
 if __name__ == "__main__":
