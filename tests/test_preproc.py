@@ -204,44 +204,49 @@ class EventFilterTests(unittest.TestCase):
         reward_counts = get_event_occurrences(event_log_events_in_str, 'banana')
         assert reward_counts == 0
 
-    def test_calc_events(self):
-        # Events as strings
-        EVENT_LOG_DURATION = 18.0
-        NUM_TAREGET_OCCURANCES = 3
-        NUM_REWARD_OCCURANCES = 2
-        REWARD_RATE = NUM_REWARD_OCCURANCES / EVENT_LOG_DURATION
-        TARGET_RATE = NUM_TAREGET_OCCURANCES / EVENT_LOG_DURATION
+    def test_calc_event_rate(self):
 
-        expected_duration = calc_events_duration(event_log_events_in_str)
-        np.testing.assert_allclose(EVENT_LOG_DURATION,
-                                    expected_duration)
-        expected_target_rate = calc_event_rate(event_log_events_in_str, 'target')
-        np.testing.assert_almost_equal(TARGET_RATE, expected_target_rate)
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, 7)
+        expected_rate = 1/6.
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
 
-        expected_reward_rate = calc_reward_rate(event_log_events_in_str, 'reward')
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, [2,7])
+        expected_rate = np.array([1,1/6.])
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
 
-        # Events as numbers
-        EVENT_LOG_DURATION = 10.0
-        NUM_TAREGET_OCCURANCES = 2
-        NUM_REWARD_OCCURANCES = 2
-        REWARD_RATE = NUM_REWARD_OCCURANCES / EVENT_LOG_DURATION
-        TARGET_RATE = NUM_TAREGET_OCCURANCES / EVENT_LOG_DURATION
-        np.testing.assert_almost_equal(EVENT_LOG_DURATION,
-                                        calc_events_duration(event_log_with_events_in_number))
+
+        #set up test
+        aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+                ['Go', 'Target 2', 'Target 2'],
+                ['Go', 'Target 4', 'Target 1'],
+                ['Go', 'Target 1', 'Target 2'],
+                ['Go', 'Target 2', 'Reward'],
+                ['Go', 'Target 3', 'Target 1']])
         
-        expected_target_rate = calc_event_rate(event_log_with_events_in_number, NUM_TARGET)
-        np.testing.assert_almost_equal(TARGET_RATE, expected_target_rate)
+        expected_reward_rate = 1.0/6.0
 
-        expected_reward_rate = calc_reward_rate(event_log_with_events_in_number, NUM_REWARD)
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        calculated_reward_rate = calc_event_rate(aligned_events_str, ['Reward'])
+        np.testing.assert_equal(expected_reward_rate, calculated_reward_rate)
 
-        expected_reward_rate = calc_reward_rate(event_log_with_events_in_number, NUM_REWARD)
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        calculated_event_rates = calc_event_rate(aligned_events_str, ['Go','Reward'])
+        expected_event_rates = np.array([1.0, 1.0/6.0])
 
-        # Missing events
-        rate = calc_event_rate(event_log_events_in_str, 'foobar')
-        assert rate == 0
+        np.testing.assert_equal(calculated_event_rates, expected_event_rates)
+        
 
     def test_trial_align_events(self):
         # test trial_separate
