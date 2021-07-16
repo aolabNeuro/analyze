@@ -1,6 +1,4 @@
 # analyze
-Code for specific analysis computations on processed data (e.g. spectral coherence)
+For installing and using the code, see the documentation [on readthedocs](https://analyze.readthedocs.io/en/latest/)
 
-See documentation [here](https://analyze.readthedocs.io/en/latest/)
-
-To run the tests, use `python -m unittest discover -s tests`
+For contributing, see the [wiki](https://github.com/aolabNeuro/analyze/wiki)

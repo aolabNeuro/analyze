@@ -3,7 +3,6 @@
 import numpy as np
 import torch
 from .whitematter import ChunkedStream, Dataset
-from datetime import datetime
 import h5py
 import tables
 import csv
@@ -745,61 +744,6 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
             parsed_str.append(strings[str_idx])
             
     return parsed_str
-
-def gen_test_signal(amplitude, frequency, duration=1, n_channels=8, samplerate=25000):
-    '''
-    Generate sine waves offset in phase by 2*pi/n_channels at the given amplitude and frequency
-
-    Args: 
-        amplitude (float): amplitude of each sine wave
-        frequency (float): frequency in Hz
-        duration (float, optional): time in seconds (default 1)
-        n_channels (int, optional): number of channels to generate (default 8)
-        samplerate (int, optional): sampling rate of the signal in Hz (default 25,000)
-
-    Returns:
-        (nt, nch) array: timeseries data across channels
-    '''    
-    time = np.arange(0, duration, 1/samplerate)
-    data = []
-    for i in range(n_channels):
-        theta = 2*i*np.pi/8 # shift phase for each channel
-        sinewave = amplitude * np.sin(2 * np.pi * frequency * time + theta)
-        data.append(sinewave)
-    data = np.array(data).T
-
-    return data
-
-def save_test_signal_ecube(data, save_dir, voltsperbit):
-    '''
-    Create a binary file with eCube formatting using the given data
-
-    Args:
-        data (nt, nch): test_signal to save
-        save_dir (str): where to save the file
-        voltsperbit (float): gain of the headstage data you are creating
-
-    Returns:
-        str: filename of the new data
-    '''
-    intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
-    flatdata = data.reshape(-1)
-    timestamp = [1, 2, 3, 4]
-    flatdata = np.insert(flatdata, timestamp, 0)
-
-    # Save it to the test file
-    datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
-    filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
-    filepath = os.path.join(save_dir, filename)
-    with open(filepath, 'wb') as f:
-        for _ in range(8):
-            f.write(np.byte(1)) # 8 byte timestamp
-        for t in range(intdata.shape[0]):
-            for ch in range(intdata.shape[1]):
-                f.write(np.byte(intdata[t,ch]))
-                f.write(np.byte(intdata[t,ch] >> 8))
-
-    return filename
 
 # - - -- --- ----- -------- ---PYTORCH--- -------- ----- --- -- - -
 # - - -- --- ----- -------- ---DATASETS-- -------- ----- --- -- - -
