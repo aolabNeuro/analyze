@@ -1272,11 +1272,11 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''   
     # Check if a processed file already exists
     filepath = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(filepath):
-        os.remove(filepath)
-    elif os.path.exists(filepath):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "exp_data" in contents or "exp_metadata" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
     
     # Prepare the BMI3D data
     if 'hdf' in files:
@@ -1310,11 +1310,11 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
     '''  
     # Check if a processed file already exists
     filepath = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(filepath):
-        os.remove(filepath)
-    elif os.path.exists(filepath):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "mocap_data" in contents or "mocap_metadata" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
 
     # Parse Optitrack data
     if 'optitrack' in files:
@@ -1339,12 +1339,12 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         None
     '''  
     # Check if a processed file already exists
-    result_path = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(result_path):
-        os.remove(result_path)
-    elif os.path.exists(result_path):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "Headstages" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
 
     # Preprocess neural data into lfp
     if 'ecube' in files:
