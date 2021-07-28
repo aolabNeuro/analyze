@@ -291,7 +291,7 @@ class KFDecoder(object):
         Q = (Y-CX)(Y-CX)' / (# time points)
         """
 
-        #First we'll rename and reformat the variables to be in a more standard kalman filter nomenclature (specifically that from Wu et al, 2003):
+        #First we'll rename and reformat the variables to be in a more standard kalman filter nomenclature (I am following notations from Wu et al, 2003):
         #xs are the state (here, the variable we're predicting, i.e. y_train)
         #zs are the observed variable (neural data here, i.e. X_kf_train)
         X=np.matrix(y_train.T)
@@ -337,7 +337,7 @@ class KFDecoder(object):
       Q = (Y-CX)(Y-CX)' / (# time points)
       """
 
-      #First we'll rename and reformat the variables to be in a more standard kalman filter nomenclature (specifically that from Wu et al, 2003):
+      #First we'll rename and reformat the variables to be in a more standard kalman filter nomenclature (following Wu et al, 2003):
       #xs are the state (here, the variable we're predicting, i.e. y_train)
       #zs are the observed variable (neural data here, i.e. X_kf_train)
       X=np.matrix(y_train.T)
@@ -387,7 +387,7 @@ class KFDecoder(object):
         #Extract parameters
         A,W,H,Q=self.model
 
-        #First we'll rename and reformat the variables to be in a more standard kalman filter nomenclature (specifically that from Wu et al):
+        #First we'll rename and reformat the variables to be in a more standard kalman filter nomenclature (following Wu et al, 2003):
         #xs are the state (here, the variable we're predicting, i.e. y_train)
         #zs are the observed variable (neural data here, i.e. X_kf_train)
         X=np.matrix(y_test.T)
