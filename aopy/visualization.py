@@ -515,6 +515,3 @@ def plot_columns_by_date(df, *columns, method='sum', ax=None):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     ax.legend()
-
-def plot_heatmap():
-    pass
