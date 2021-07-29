@@ -412,6 +412,53 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     ax.set_xlabel('x')
     ax.set_ylabel('y')
 
+def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
+    '''
+    Draws the given trajectories but with the color of each trajectory corresponding to its given label.
+    Works for 2D and 3D axes
+
+    Example:
+
+        ::
+
+            >>> trajectories =[
+                    np.array([
+                        [0, 0, 0],
+                        [1, 1, 0],
+                        [2, 2, 0],
+                        [3, 3, 0],
+                        [4, 2, 0]
+                    ]),
+                    np.array([
+                        [-1, 1, 0],
+                        [-2, 2, 0],
+                        [-3, 3, 0],
+                        [-3, 4, 0]
+                    ])
+                ]
+            >>> labels = [0, 0, 1, 0]
+            >>> colors = ['r', 'b']
+            >>> color_trajectories(trajectories, labels, colors)
+
+        .. image:: _images/colored_trajectories.png
+
+    Args:
+        trajectories (ntrials): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
+        labels (ntrials): integer array of labels for each trajectory. Basically an index for each trajectory
+        colors (ncolors): list of colors. The number of colors should be the same as the number of unique labels.
+        ax (plt.Axis, optional): axis to plot the targets on
+        **kwargs (dict): other arguments for plot_trajectories(), e.g. bounds
+    '''
+
+    # Initialize a cycler with the appropriate colors
+    style = plt.cycler(color=[colors[i] for i in labels])
+    if ax is None:
+        ax = plt.gca()
+    ax.set_prop_cycle(style)
+
+    # Use the regular trajectory plotting function
+    plot_trajectories(trajectories, **kwargs)
+
 def plot_columns_by_date(df, *columns, method='sum', ax=None):
     '''
     Plot columns in a dataframe organized by date and aggregated such that if there are multiple
@@ -468,3 +515,6 @@ def plot_columns_by_date(df, *columns, method='sum', ax=None):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     ax.legend()
+
+def plot_heatmap():
+    pass

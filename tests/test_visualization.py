@@ -47,6 +47,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         interp_map = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=0.01)
         self.assertEqual(interp_map.shape, (10, 10))
         self.assertTrue(np.isnan(interp_map[0,0]))
+        plt.figure()
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
@@ -152,6 +153,36 @@ class OtherPlottingTests(unittest.TestCase):
         trajectories = aopy.preproc.get_data_segments(cursor, trial_times, samplerate)
         plt.figure()
         plot_trajectories(trajectories, bounds)
+        savefig(write_dir, filename)
+
+    def test_color_trajectories(self):
+
+        trajectories =[
+                    np.array([
+                        [0, 0, 0],
+                        [1, 1, 0],
+                        [2, 2, 0],
+                        [3, 3, 0],
+                        [4, 2, 0]
+                    ]),
+                    np.array([
+                        [-1, 1, 0],
+                        [-2, 2, 0],
+                        [-3, 3, 0],
+                        [-3, 4, 0]
+                    ]),
+                    np.array([
+                        [2, 1, 0],
+                        [2, -1, 0],
+                        [3, -5, 0],
+                        [5, -5, 0]
+                    ])
+                ]
+        labels = [0, 0, 1]
+        colors = ['r', 'b']
+        plt.figure()
+        color_trajectories(trajectories, labels, colors)
+        filename = 'color_trajectories.png'
         savefig(write_dir, filename)
 
     def test_plot_columns_by_date(self):
