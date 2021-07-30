@@ -203,7 +203,24 @@ class OtherPlottingTests(unittest.TestCase):
         # Also make sure it works with dataframe columns
         df = pd.DataFrame({'trials': trials, 'dates': dates, 'success': success})
         fig, ax = plt.subplots(1,1)
-        plot_sessions_by_date(df['trials'], df['dates'], df['success'], method='mean', labels=['success rate'], ax=ax)
+        plot_sessions_by_date(df['trials'], df['dates'], df['success'], method='mean', ax=ax)
+
+    def test_plot_sessions_by_trial(self):
+        success = [70, 65, 60]
+        trials = [10, 20, 10]
+
+        fig, ax = plt.subplots(1,1)
+        plot_sessions_by_trial(trials, success, labels=['success rate'], ax=ax)
+        ax.set_ylabel('success (%)')
+        filename = 'sessions_by_trial.png'
+        savefig(write_dir, filename) 
+        # expect a plot of success with 40 trials, with success rates of 70% for 10 trials,
+        # 65% for 20 trials, and 60% for 10 trials
+
+        # Also make sure it works with dataframe columns
+        df = pd.DataFrame({'trials': trials, 'success': success})
+        fig, ax = plt.subplots(1,1)
+        plot_sessions_by_trial(df['trials'], df['success'], ax=ax)
 
 if __name__ == "__main__":
     unittest.main()

@@ -476,10 +476,9 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
             success = [70, 65, 65]
             trials = [10, 20, 10]
 
-            df = pd.DataFrame({'date':date, 'weight':weight})
             fig, ax = plt.subplots(1,1)
-            plot_sessions_by_date(df, 'weight', method='mean', ax=ax)
-            ax.set_ylabel('weight (kg)')
+            plot_sessions_by_date(trials, dates, success, method='mean', labels=['success rate'], ax=ax)
+            ax.set_ylabel('success (%)')
 
         .. image:: _images/sessions_by_date.png
         
@@ -525,6 +524,50 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
+    if labels:
+        ax.legend(labels)
+    else:
+        ax.legend()
+
+def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
+    '''
+    Plot session data by absolute number of trials completed
+    
+    Example:
+        Plotting success rate over three sessions.
+        ::
+
+            success = [70, 65, 60]
+            trials = [10, 20, 10]
+
+            fig, ax = plt.subplots(1,1)
+            plot_sessions_by_trial(trials, success, labels=['success rate'], ax=ax)
+            ax.set_ylabel('success (%)')
+
+        .. image:: _images/sessions_by_trial.png
+        
+    Args:
+        trials (nsessions): number of trials in each session
+        *columns (nsessions): dataframe columns or numpy arrays to plot
+        labels (list, optional): string label for each column to go into the legend
+        ax (pyplot.Axes, optional): axis on which to plot
+    '''
+    if ax == None:
+        ax = plt.gca()
+    for idx_column in range(len(columns)):
+        values = columns[idx_column]
+        trial_values = []
+        
+        # Accumulate individual trials with the values given for each session
+        for v, t in zip(values, trials):
+            trial_values = np.concatenate((trial_values, np.tile(v, t)))
+        
+        if hasattr(columns[idx_column], 'name'):
+            ax.plot(trial_values,  '.-', label=values.name)
+        else:
+            ax.plot(trial_values,  '.-')
+
+    ax.set_xlabel('trials')
     if labels:
         ax.legend(labels)
     else:
