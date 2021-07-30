@@ -459,59 +459,73 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     # Use the regular trajectory plotting function
     plot_trajectories(trajectories, **kwargs)
 
-def plot_columns_by_date(df, *columns, method='sum', ax=None):
+def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax=None):
     '''
-    Plot columns in a dataframe organized by date and aggregated such that if there are multiple
-    rows on a given date they are combined into a single value using the given method. If the method
-    is 'mean' then the values will be averaged for each day, for example for size of cursor. If the 
-    method is 'sum' then the values will be added together on each day, for example for number of trials.
+    Plot session data organized by date and aggregated such that if there are multiple rows on 
+    a given date they are combined into a single value using the given method. If the method
+    is 'mean' then the values will be averaged for each day, for example for size of cursor. The 
+    average is weighted by the number of trials in that session. If the  method is 'sum' then the 
+    values will be added together on each day, for example for number of trials.
     
     Example:
-        Plotting my weight data averaged across days.
+        Plotting success rate averaged across days.
         ::
 
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
-            weight = [65.5, 66.0, 65.0]
+            success = [70, 65, 65]
+            trials = [10, 20, 10]
 
             df = pd.DataFrame({'date':date, 'weight':weight})
             fig, ax = plt.subplots(1,1)
-            plot_columns_by_date(df, 'weight', method='mean', ax=ax)
+            plot_sessions_by_date(df, 'weight', method='mean', ax=ax)
             ax.set_ylabel('weight (kg)')
 
-        .. image:: _images/columns_by_date.png
-
+        .. image:: _images/sessions_by_date.png
+        
     Args:
-        df (pd.DataFrame): dataframe with 'date' column
-        *columns (str): dataframe column names to plot
+        trials (nsessions):
+        dates (nsessions): 
+        *columns (nsessions): dataframe columns or numpy arrays to plot
         method (str, optional): how to combine data within a single date. Can be 'sum' or 'mean'.
+        labels (list, optional): string label for each column to go into the legend
         ax (pyplot.Axes, optional): axis on which to plot
     '''
-    first_day = np.min(df['date'])
-    last_day = np.max(df['date'])
-    days = pd.date_range(start=first_day, end=last_day).to_list()
+    dates = np.array(dates)
+    first_day = np.min(dates)
+    last_day = np.max(dates)
+    plot_days = pd.date_range(start=first_day, end=last_day).to_list()
     n_columns = len(columns)
-    n_days = len(days)
+    n_days = len(plot_days)
     aggregate = np.zeros((n_columns, n_days))
 
     for idx_day in range(n_days):
-        day = days[idx_day]
+        day = plot_days[idx_day]
         for idx_column in range(n_columns):
-            values = df[columns[idx_column]][df['date'] == day]
-            if len(values) == 0:
+            values = np.array(columns[idx_column])[dates == day]
+            
+            try:
+                if method == 'sum':
+                    aggregate[idx_column, idx_day] = np.sum(values)
+                elif method == 'mean':
+                    day_trials = np.array(trials)[dates == day]
+                    aggregate[idx_column, idx_day] = np.average(values, weights=day_trials)
+                else:
+                    raise ValueError("Unknown method for combining data")
+            except:
                 aggregate[idx_column, idx_day] = np.nan
-            elif method == 'sum':
-                aggregate[idx_column, idx_day] = values.sum()
-            elif method == 'mean':
-                aggregate[idx_column, idx_day] = values.mean()
-            else:
-                raise ValueError("Unknown method for combining data")
 
     if ax == None:
         ax = plt.gca()
     for idx_column in range(n_columns):
-        ax.plot(days, aggregate[idx_column,:], '.-', label=columns[idx_column])
+        if hasattr(columns[idx_column], 'name'):
+            ax.plot(plot_days, aggregate[idx_column,:], '.-', label=columns[idx_column].name)
+        else:
+            ax.plot(plot_days, aggregate[idx_column,:], '.-')
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
-    ax.legend()
+    if labels:
+        ax.legend(labels)
+    else:
+        ax.legend()

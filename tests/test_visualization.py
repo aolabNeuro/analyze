@@ -185,19 +185,25 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'color_trajectories.png'
         savefig(write_dir, filename)
 
-    def test_plot_columns_by_date(self):
+    def test_plot_sessions_by_date(self):
         from datetime import date, timedelta
-        date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
-        weight = [65.5, 66.0, 65.0]
+        dates = [date.today() - timedelta(days=2), date.today() - timedelta(days=2), date.today()]
+        success = [70, 65, 65]
+        trials = [10, 20, 10]
 
-        df = pd.DataFrame({'date':date, 'weight':weight})
         fig, ax = plt.subplots(1,1)
-        plot_columns_by_date(df, 'weight', method='mean', ax=ax)
-        ax.set_ylabel('weight (kg)')
+        plot_sessions_by_date(trials, dates, success, method='mean', labels=['success rate'], ax=ax)
+        ax.set_ylabel('success (%)')
 
-        filename = 'columns_by_date.png'
-        savefig(write_dir, filename) # expect a plot of weight by date
+        filename = 'sessions_by_date.png'
+        savefig(write_dir, filename) 
+        # expect a plot of success with three days, with success rate of 
+        # (70 * 10 + 65 * 20)/30 = 66.6% on the first day and 65% on the last day with a gap in between
 
+        # Also make sure it works with dataframe columns
+        df = pd.DataFrame({'trials': trials, 'dates': dates, 'success': success})
+        fig, ax = plt.subplots(1,1)
+        plot_sessions_by_date(df['trials'], df['dates'], df['success'], method='mean', labels=['success rate'], ax=ax)
 
 if __name__ == "__main__":
     unittest.main()
