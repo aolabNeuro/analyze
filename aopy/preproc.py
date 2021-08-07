@@ -962,11 +962,14 @@ def _prepare_bmi3d_v0(data, metadata):
 
     # By default use the internal clock and events
     event_cycles = internal_events['time']
-    valid_cycles = np.in1d(event_cycles, internal_clock['time'])
-    event_idx = np.in1d(internal_clock['time'], event_cycles[valid_cycles])
-    event_timestamps = np.empty((len(event_cycles),), dtype='f')
-    event_timestamps[:] = np.nan
-    event_timestamps[valid_cycles] = internal_clock['timestamp'][event_idx]
+    if metadata['sync_protocol_version'] < 6:
+        valid_cycles = np.in1d(event_cycles, internal_clock['time'])
+        event_idx = np.in1d(internal_clock['time'], event_cycles[valid_cycles])
+        event_timestamps = np.empty((len(event_cycles),), dtype='f')
+        event_timestamps[:] = np.nan
+        event_timestamps[valid_cycles] = internal_clock['timestamp'][event_idx]
+    else:
+        event_timestamps = internal_clock['timestamp'][event_cycles]
     corrected_events = rfn.append_fields(internal_events, 'timestamp_bmi3d', event_timestamps, dtypes='f8')
 
     # Correct the events based on sync if present
@@ -1098,7 +1101,7 @@ def _prepare_bmi3d_v0(data, metadata):
 
     # Trim / pad everything to the same length
     n_cycles = corrected_clock['time'][-1]
-    if metadata['sync_protocol_version'] >= 3:
+    if metadata['sync_protocol_version'] >= 3 and metadata['sync_protocol_version'] < 6:
 
         # Due to the "sync" state at the beginning of the experiment, we need 
         # to add some (meaningless) cycles to the beginning of the clock
