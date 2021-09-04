@@ -11,6 +11,7 @@ Welcome to aopy's documentation!
    postproc
    precondition
    preproc
+   torch
    visualization
    utils
    examples
