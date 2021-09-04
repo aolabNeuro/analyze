@@ -254,11 +254,10 @@ def load_ecube_data(data_dir, data_source, channels=None):
 
     # Fetch all the data for all the channels
     n_samples = metadata['n_samples']
-    n_channels = metadata['n_channels']
-    timeseries_data = np.zeros((n_samples, n_channels), dtype=dtype)
+    timeseries_data = np.zeros((n_samples, len(channels)), dtype=dtype)
     n_read = 0
     for chunk in _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype):
-        chunk_len = chunk.size[0]
+        chunk_len = chunk.shape[0]
         timeseries_data[n_read:n_read+chunk_len,:] = chunk
         n_read += chunk_len
     return timeseries_data
@@ -292,8 +291,8 @@ def load_ecube_data_chunked(data_dir, data_source, channels=None, chunksize=728)
     # Fetch all the channels but just return the generator
     n_samples = metadata['n_samples']
     n_channels = metadata['n_channels']
-    kwargs = dict(maxchunksize=chunksize*len(channels)*dtype.itemsize)
-    return _process_channels(data_dir, data_source, range(n_channels), n_samples, **kwargs)
+    kwargs = dict(maxchunksize=chunksize*n_channels*np.dtype(dtype).itemsize)
+    return _process_channels(data_dir, data_source, channels, n_samples, **kwargs)
 
 def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     '''
@@ -326,7 +325,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     # Open and read the eCube data into the new hdf dataset
     n_read = 0
     for chunk in _process_channels(data_dir, data_source, range(n_channels), n_samples, **dataset_kwargs):
-        chunk_len = chunk.size[0]
+        chunk_len = chunk.shape[0]
         dset[n_read:n_read+chunk_len,:] = chunk
         n_read += chunk_len
 
