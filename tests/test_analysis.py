@@ -87,10 +87,10 @@ class find_extrema_tests(unittest.TestCase):
         self.assertLess(extremum_value_edge2, 0)
 
 class fano_factor_tests(unittest.TestCase):
-    def test_get_fano_factor_values_per_condition(self): 
+    def test_get_unit_spiking_mean_variance(self): 
         spiking_data = np.zeros((2,2,2)) #(ntime, nunits, ntr)
         spiking_data[0,:,:] = 1
-        unit_mean, unit_var = aopy.analysis.get_fano_factor_values_per_condition(spiking_data)
+        unit_mean, unit_var = aopy.analysis.get_unit_spiking_mean_variance(spiking_data)
         np.testing.assert_allclose(unit_mean, np.array([2, 0]))
         np.testing.assert_allclose(unit_var, np.array([0, 0]))
 

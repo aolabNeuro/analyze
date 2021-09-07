@@ -635,5 +635,17 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIsNotNone(mocap)
         self.assertIsNotNone(mocap_meta)
 
+    def preproc_multiple(self):
+        result_filename = 'test_proc_multiple.hdf'
+        files = {}
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
+        files['optitrack'] = 'Pretend take (1315).csv'
+        proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
+        proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
+        contents = get_hdf_dictionary(data_dir, result_filename)
+        self.assertIn('exp_data', contents)
+        self.assertIn('mocap_data', contents)
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,7 @@
 # precondition.py
 # code for preconditioning neural data
 from scipy import signal
-from scipy.signal import butter, lfilter, filtfilt, windows, freqz
+from scipy.signal import butter, lfilter, filtfilt
 import math
 import numpy as np
 import os

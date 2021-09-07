@@ -422,7 +422,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     # Write each key, unless it exists and append is False
     for key in data_dict.keys():
         if key in group:
-            print("Warning: dataset " + key + " already exists in " + data_group + "!")
+            if debug: print("Warning: dataset " + key + " already exists in " + data_group + "!")
             del group[key]
         data = data_dict[key]
         if hasattr(data, 'dtype') and data.dtype.char == 'U':
