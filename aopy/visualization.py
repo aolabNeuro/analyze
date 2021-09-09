@@ -473,7 +473,9 @@ def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blu
     '''
     This function plots multiple different events on the same plot. The first event (item in the list)
     will be displayed on the bottom of the plot.
-    .. image:: _images/events_time.png 
+    
+    .. image:: _images/events_time.png
+    
     Args:
         events (list (nevents) of 1D arrays (ntime)): List of Logical arrays that denote when an 
         event(for example: a reward) occurred during an experimental session. Each item in the list
