@@ -477,9 +477,8 @@ def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blu
     .. image:: _images/events_time.png
     
     Args:
-        events (list (nevents) of 1D arrays (ntime)): List of Logical arrays that denote when an 
-        event(for example: a reward) occurred during an experimental session. Each item in the list
-        corresponds to a different event to plot. 
+        events (list (nevents) of 1D arrays (ntime)): List of Logical arrays that denote when an event(for example, a reward) occurred during an experimental session. Each item in the list corresponds to a different event to plot. 
+	event_timestamps (list (nevents) of 1D arrays ntime)): List of 1D arrays of timestamps corresponding to the events list. 
         labels (list (nevents) of str) : Event names for each list item.
         ax (axes handle): Axes to plot
         colors (list of str): Color to use for each list item
