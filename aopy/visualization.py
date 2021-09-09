@@ -484,7 +484,6 @@ def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blu
     Returns:
         chronological event plot
     '''
-    from matplotlib.cm import get_cmap
 
     if ax is None:
         ax = plt.gca()
