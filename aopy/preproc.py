@@ -304,10 +304,30 @@ def fill_missing_timestamps(uncorrected_timestamps):
 
     return corrected_timestamps
 
+def get_edges_from_onsets(onsets, pulse_width):
+    '''
+    This function calculates the values and timepoints corresponding to a given time series 
+    of pulse onsets (timestamp corresponding to the rising edge of a pulse). 
+    Args:
+        onsets (nonsets): Time point corresponding to a pulse onset. 
+        pulse_width (float): Pulse duration 
+    Returns:
+        tuple: tuple containing:
+        timestampes (2*nonsets + 1): Timestamps of the rising and falling edges. Always starts at 0.
+        values (2*nonsets + 1): Values corresponding to the output timestamps.
+    '''
+    timestamps = np.zeros((1+len(onsets)*2,))
+    values = np.zeros((1+len(onsets)*2,))
+    for t in range(len(onsets)):
+        timestamps[1+2*t] = onsets[t]
+        values[1+2*t] = 1
+        timestamps[2+2*t] = onsets[t]+pulse_width
+        values[2+2*t] = 0
+    return timestamps, values
 
-'''
+''' =========================================================================================================
 Event filtering
-'''
+''' 
 def get_matching_events(event_log, event_to_match):
     '''
     Given a list of tuple of (events, timestamps), find the matched event and the timestamps

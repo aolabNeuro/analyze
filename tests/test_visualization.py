@@ -167,6 +167,19 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'columns_by_date.png'
         savefig(write_dir, filename) # expect a plot of weight by date
 
+    def test_plot_events_time(self):
+        events = np.zeros(10)
+        events[1::2] = 1
+        event_list = [events, events[1:]]
+        timestamps = np.arange(10)
+        timestamps_list = [timestamps, 0.25+timestamps[1:]]
+        labels_list = ['Event 1', 'Event 2']
+
+        fig, ax = plt.subplots(1,1)
+        plot_events_time(event_list, timestamps_list, labels_list, ax=ax)
+        filename = 'events_time'
+        savefig(write_dir,filename)
+
 
 if __name__ == "__main__":
     unittest.main()

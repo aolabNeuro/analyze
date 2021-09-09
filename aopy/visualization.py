@@ -468,3 +468,39 @@ def plot_columns_by_date(df, *columns, method='sum', ax=None):
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     ax.legend()
+
+def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blue','tab:orange','tab:green']):
+    '''
+    This function plots multiple different events on the same plot. The first event (item in the list)
+    will be displayed on the bottom of the plot.
+    .. image:: _images/events_time.png 
+    Args:
+        events (list (nevents) of 1D arrays (ntime)): List of Logical arrays that denote when an 
+        event(for example: a reward) occurred during an experimental session. Each item in the list
+        corresponds to a different event to plot. 
+        labels (list (nevents) of str) : Event names for each list item.
+        ax (axes handle): Axes to plot
+        colors (list of str): Color to use for each list item
+    Returns:
+        chronological event plot
+    '''
+    from matplotlib.cm import get_cmap
+
+    if ax is None:
+        ax = plt.gca()
+
+    n_events = len(events)
+    for i in range(n_events):
+        this_events = events[i]
+        this_timestamps = event_timestamps[i]
+        n_timebins = np.shape(this_events)[0]
+
+        if n_events <= len(colors):
+            this_color = colors[i]
+            ax.step(this_timestamps, 0.9*(this_events)+i+0.1, where='post', c=this_color)
+        else:
+            ax.step(this_timestamps, 0.9*(this_events)+i+0.1, where='post')
+    ax.set_yticks(np.arange(n_events)+0.5)
+    ax.set_yticklabels(labels)
+
+    ax.set_xlabel('Time (s)') 
