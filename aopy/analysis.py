@@ -9,6 +9,7 @@ import seaborn as sns
 from sklearn.decomposition import PCA, FactorAnalysis
 from scipy.optimize import curve_fit
 from sklearn import model_selection
+from sklearn import linear_model
 from scipy import interpolate
 import warnings
 
@@ -292,6 +293,7 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
 
     return extremum_time, extremum_value, f
 
+# Fano factor related functions
 def get_unit_spiking_mean_variance(spiking_data):
     '''
     This function calculates the mean spiking count and the spiking count variance in spiking data across 
@@ -312,6 +314,71 @@ def get_unit_spiking_mean_variance(spiking_data):
 
     return unit_mean, unit_variance
 
+def calc_fano_factor(count_mean, count_variance, count_weights=None):
+    '''Fano factor calculation performed following the approach of Churchland et al. 2010 
+    (https://doi.org/10.1038/nn.2501). A the mean spike count (:math:`X`) across trials and the 
+    corresponding variance (:math:`Y`) for each unit for each condition have a linear fit applied
+    through the origin such that :math:`Y=mX`. The slope of the line (:math:`m`) is the fano factor
+    giving a measure of the trial to trial variability across all units and conditions. The fit 
+    through the origin can be weighted by SEM to account for a varying number of trials averaged
+    over. 
+
+    Args:
+        count_mean (nunits, nconditions): Mean spike counts across trials
+        count_variance (nunits, nconditions): Variance of spike counts across trials
+        count_weights (nunits, nconditions): Weights derived from SEM across trials
+
+    Returns:
+        [tuple]: A tuple containing
+            fanofactor (float): Fano factor
+            regress_score (float): :math:`R^2` value from linear fit to data
+    '''
+    if count_weights is None:
+        reg_total = linear_model.LinearRegression(fit_intercept=False).fit(count_mean.reshape(-1, 1),
+                        count_variance.reshape(-1, 1))
+
+        regress_score = reg_total.score(count_mean.reshape(-1, 1), count_variance.reshape(-1, 1))
+
+    else:
+        reg_total = linear_model.LinearRegression(fit_intercept=False).fit(count_mean.reshape(-1, 1),
+                                    count_variance.reshape(-1, 1), sample_weight=count_weights.flatten())
+
+        regress_score = reg_total.score(count_mean.reshape(-1, 1), count_variance.reshape(-1, 1),
+            sample_weight=count_weights.flatten())
+
+    fanofactor = reg_total.coef_[0][0]
+    return fanofactor, regress_score
+
+def calc_rolling_fano_factor(count_mean, count_variance, count_weights=None):
+    '''A wrapper that calculates the fano factor across multiple time points using analysis.calc_fano_factor.
+    Documentation of the specific calculations performed is under this function. The approach
+    is take from Churchland et al. 2010 (https://doi.org/10.1038/nn.2501).
+
+    Args:
+        count_mean (ntime, nunits, nconditions): Mean spike counts across trials for each time window
+        count_variance (ntime, nunits, nconditions): Variance of spike counts across trials for each time window
+        count_weights (ntime, nunits, nconditions): Weights derived from SEM across trials for each time window
+
+    Returns:
+        [tuple]: A tuple containing
+            fanofactor_total (ntime): Fano factor calculated at each time window
+            regress_score_total (ntime): :math:`R^2` value from linear fit to data
+    '''
+    ntime = count_mean.shape[0]
+    regress_score_total = np.zeros((ntime))
+    fanofactor_total = np.zeros((ntime))
+
+    for itime in range(ntime):
+        if count_weights is None:
+            fanofactor_total[itime], regress_score_total[itime] = calc_fano_factor(count_mean[itime,:,:], 
+                                            count_variance[itime,:,:])
+        else:
+            fanofactor_total[itime], regress_score_total[itime] = calc_fano_factor(count_mean[itime,:,:], 
+                                            count_variance[itime,:,:], count_weights[itime,:,:])
+    
+    return fanofactor_total, regress_score_total
+
+# PCA functions
 def get_pca_dimensions(data, max_dims=None, VAF=0.9):
     """
     Use PCA to estimate the dimensionality required to account for the variance in the given data
