@@ -481,8 +481,6 @@ def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blu
         labels (list (nevents) of str) : Event names for each list item.
         ax (axes handle): Axes to plot
         colors (list of str): Color to use for each list item
-    Returns:
-        chronological event plot
     '''
 
     if ax is None:
