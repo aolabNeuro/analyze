@@ -1,6 +1,8 @@
 Preproc:
 ===============
 
+.. contents:: :local:
+
 Preprocessed data format
 ------------------------
 
