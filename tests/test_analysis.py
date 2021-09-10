@@ -96,16 +96,14 @@ class fano_factor_tests(unittest.TestCase):
 
 class pca_tests(unittest.TestCase):
     # test variance accounted for
-    def test_VAF(self):
+    def test_get_pca_dimensions(self):
         # test single dimension returns correctly
-        single_dim_data = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
-        single_dim = 1
-        single_dim_VAF = 100
+        single_dim_data = [[2, 2, 2], [1, 1, 1], [1, 1, 1]]
+        single_dim_VAF = [1.,0.,0.]
         single_num_dims = 1
 
-        dimensions, VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
-        self.assertAlmostEqual(dimensions, single_dim)
-        self.assertAlmostEqual(VAF, single_dim_VAF)
+        VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
+        np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
 
         
