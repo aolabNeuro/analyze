@@ -215,6 +215,12 @@ class LoadDataTests(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
 
+    def test_load_matlab_cell_strings(self):
+        testfile = 'matlab_cell_str.mat'
+        strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+        expected_strings = ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
+        self.assertListEqual(strings[:5], expected_strings)
+
     def test_parse_str_list(self):
         str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
         

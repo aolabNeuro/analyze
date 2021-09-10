@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.cluster import KMeans
 from scipy.optimize import curve_fit
 from sklearn import model_selection
 from scipy import interpolate
@@ -348,3 +349,26 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9):
 
     return dimensions, explained_variance, num_dims
 
+def find_outliers(data, std_threshold):   
+    '''
+    Use kmeans clustering to find the center point of a dataset and distances from each data point
+    to the center point. Data points further than a specified number of standard deviations away
+    from the center point are labeled as outliers. 
+    
+    Inputs:
+        data [n, nfeatures]: 
+        std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
+        
+    Outputs: 
+        good_data_idx [n]: Labels each data point if it is an outlier (True = good, False = outlier)
+        distances [n]: Distance of each data point from center
+    '''
+    
+    # Check ncluster input
+    kmeans_model = KMeans(n_clusters = 1).fit(data)
+    distances = kmeans_model.transform(data)
+    cluster_labels = kmeans_model.labels_
+    dist_std = np.std(distances)
+    good_data_idx = (distances < (dist_std*std_threshold))
+                  
+    return good_data_idx.flatten(), distances.flatten()
