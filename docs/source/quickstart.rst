@@ -1,6 +1,8 @@
 Getting Started:
 ================
 
+.. contents:: :local:
+
 Installation
 ------------
 
