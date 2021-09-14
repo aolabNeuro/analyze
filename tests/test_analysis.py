@@ -3,7 +3,7 @@ import numpy as np
 import warnings
 import unittest
 
-class factor_analysis_tests(unittest.TestCase):
+class FactorAnalysisTests(unittest.TestCase):
 
     def test_kfold_factor_analysis(self):
         n = 100
@@ -41,7 +41,7 @@ class factor_analysis_tests(unittest.TestCase):
         data_dimensionality = np.argmax(np.mean(log_likelihood_score, 1))
         self.assertEqual(data_dimensionality, 2)
 
-class find_extrema_tests(unittest.TestCase):
+class FindExtremaTests(unittest.TestCase):
     def test_find_trough_peak_idx(self):
         #Test single waveform
         deg_step = np.pi/8
@@ -86,7 +86,7 @@ class find_extrema_tests(unittest.TestCase):
         self.assertGreater(extremum_time_edge2, len(theta_edge)-1) 
         self.assertLess(extremum_value_edge2, 0)
 
-class fano_factor_tests(unittest.TestCase):
+class FanoFactorTests(unittest.TestCase):
     def test_get_fano_factor_values_per_condition(self): 
         spiking_data = np.zeros((2,2,2)) #(ntime, nunits, ntr)
         spiking_data[0,:,:] = 1
@@ -94,7 +94,7 @@ class fano_factor_tests(unittest.TestCase):
         np.testing.assert_allclose(unit_mean, np.array([2, 0]))
         np.testing.assert_allclose(unit_var, np.array([0, 0]))
 
-class pca_tests(unittest.TestCase):
+class PCATests(unittest.TestCase):
     # test variance accounted for
     def test_VAF(self):
         # test single dimension returns correctly
