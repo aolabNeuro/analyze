@@ -8,7 +8,6 @@ with open("README.md", "r") as f:
 
 install_requires = [
     'numpy',
-    'torch',
     'pandas',
     'psutil',
     'h5py',

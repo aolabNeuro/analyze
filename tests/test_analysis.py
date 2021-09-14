@@ -87,25 +87,23 @@ class FindExtremaTests(unittest.TestCase):
         self.assertLess(extremum_value_edge2, 0)
 
 class FanoFactorTests(unittest.TestCase):
-    def test_get_fano_factor_values_per_condition(self): 
+    def test_get_unit_spiking_mean_variance(self): 
         spiking_data = np.zeros((2,2,2)) #(ntime, nunits, ntr)
         spiking_data[0,:,:] = 1
-        unit_mean, unit_var = aopy.analysis.get_fano_factor_values_per_condition(spiking_data)
+        unit_mean, unit_var = aopy.analysis.get_unit_spiking_mean_variance(spiking_data)
         np.testing.assert_allclose(unit_mean, np.array([2, 0]))
         np.testing.assert_allclose(unit_var, np.array([0, 0]))
 
 class PCATests(unittest.TestCase):
     # test variance accounted for
-    def test_VAF(self):
+    def test_get_pca_dimensions(self):
         # test single dimension returns correctly
-        single_dim_data = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
-        single_dim = 1
-        single_dim_VAF = 100
+        single_dim_data = [[2, 2, 2], [1, 1, 1], [1, 1, 1]]
+        single_dim_VAF = [1.,0.,0.]
         single_num_dims = 1
 
-        dimensions, VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
-        self.assertAlmostEqual(dimensions, single_dim)
-        self.assertAlmostEqual(VAF, single_dim_VAF)
+        VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
+        np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
 
 class CalcTests(unittest.TestCase):

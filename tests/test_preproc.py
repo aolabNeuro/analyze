@@ -153,6 +153,15 @@ class DigitalCalcTests(unittest.TestCase):
         filled = fill_missing_timestamps(uncorrected_timestamps)
         self.assertCountEqual(expected, filled)
 
+    def test_get_edges_from_onsets(self):
+        onsets = np.array([1, 1.5, 2])
+        expected_timestamps = np.array([0, 1, 1.1, 1.5, 1.6, 2, 2.1])
+        expected_values = np.array([0,1,0,1,0,1,0])
+
+        timestamps, values = get_edges_from_onsets(onsets, 0.1)
+        np.testing.assert_allclose(timestamps, expected_timestamps)
+        np.testing.assert_allclose(values, expected_values)
+
 event_log_events_in_str = [
             ('wait', 0.),
             ('target',1.),
@@ -634,6 +643,18 @@ class TestPrepareExperiment(unittest.TestCase):
         mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')
         self.assertIsNotNone(mocap)
         self.assertIsNotNone(mocap_meta)
+
+    def preproc_multiple(self):
+        result_filename = 'test_proc_multiple.hdf'
+        files = {}
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
+        files['optitrack'] = 'Pretend take (1315).csv'
+        proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
+        proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
+        contents = get_hdf_dictionary(data_dir, result_filename)
+        self.assertIn('exp_data', contents)
+        self.assertIn('mocap_data', contents)
 
 if __name__ == "__main__":
     unittest.main()
