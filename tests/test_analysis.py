@@ -108,7 +108,19 @@ class PCATests(unittest.TestCase):
         self.assertAlmostEqual(VAF, single_dim_VAF)
         self.assertAlmostEqual(num_dims, single_num_dims)
 
-        
+class CalcTests(unittest.TestCase):
+
+    def test_calc_rms(self):
+        # sanity check
+        signal = np.array([1])
+        rms = aopy.analysis.calc_rms(signal)
+        self.assertEqual(rms, 0)
+
+        # check dimensions are preserved
+        signal = np.array([[0.5, -0.5], [1., -1.]]).T
+        rms = aopy.analysis.calc_rms(signal)
+        self.assertCountEqual(rms, np.array([0.5, 1.]))
+
 
 if __name__ == "__main__":
     unittest.main()

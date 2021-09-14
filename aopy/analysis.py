@@ -348,3 +348,19 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9):
 
     return dimensions, explained_variance, num_dims
 
+def calc_rms(signal, remove_offset=True):
+    '''
+    Root mean square voltage of a signal
+    
+    Args:
+        signal (nt, ...): voltage along time, other dimensions will be preserved
+
+    Returns:
+        float: rms of the signal along the first axis
+    '''
+    if remove_offset:
+        m = np.mean(signal, axis=0)
+    else:
+        m = 0
+    
+    return np.sqrt(np.mean(np.square(signal - m), axis=0))
