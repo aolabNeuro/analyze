@@ -179,6 +179,9 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         y (list): list of y positions
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
+
+    Returns:
+        mappable: image object which you can use to add colorbar, etc.
     '''
     # Calculate the proper extents
     extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
@@ -194,10 +197,11 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Plot
     if ax is None:
         ax = plt.gca()
-    ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
+    return image
 
 def plot_raster(data, plot_cue, cue_bin, ax):
     '''
