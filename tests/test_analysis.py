@@ -117,7 +117,12 @@ class CalcTests(unittest.TestCase):
         # check dimensions are preserved
         signal = np.array([[0.5, -0.5], [1., -1.]]).T
         rms = aopy.analysis.calc_rms(signal)
-        self.assertCountEqual(rms, np.array([0.5, 1.]))
+        np.testing.assert_allclose(rms, np.array([0.5, 1.]))
+
+        # check without remove offset
+        signal = np.array([1])
+        rms = aopy.analysis.calc_rms(signal, remove_offset=False)
+        self.assertAlmostEqual(rms, 1.)
 
 
 if __name__ == "__main__":
