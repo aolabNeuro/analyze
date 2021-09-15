@@ -389,7 +389,7 @@ def load_ecube_headstages(path, data_dir, channels=None):
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'Headstages')
     return data, metadata
 
-def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, debug=False):
+def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", compression=None, append=False, debug=False):
     '''
     Writes data_dict and params into a hdf file in the data_dir folder 
 
@@ -398,6 +398,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
         hdf_filename (str): name of the hdf file to be saved
         data_dict (dict, optional): the data to be saved as a hdf file
         data_group (str, optional): where to store the data in the hdf
+        compression(int, optional): gzip compression level. None or 0 indicate no compression. Compression not added to existing datasets. (default: None)
         append (bool, optional): append an existing hdf file or create a new hdf file
 
     Returns: None
@@ -407,7 +408,10 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     if append:
         hdf = h5py.File(full_file_name, 'a')
     elif not os.path.exists(full_file_name):
-        hdf = h5py.File(full_file_name, 'w')
+        if compression > 0:
+            hdf = h5py.File(full_file_name, 'w', compression='gzip', compression_opts=compression)
+        else:
+            hdf = h5py.File(full_file_name, 'w')
     else:
         raise FileExistsError("Will not overwrite existing file!")
         
