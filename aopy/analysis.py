@@ -366,18 +366,18 @@ def find_outliers(data, std_threshold):
     Note: This function only uses the kmeans function to calculate centerpoint distances but does
     not output any useful information about data clusters. 
     
-    example::
+    Example::
 
         >>> data = np.array([[0.5,0.5], [0.75,0.75], [1,1], [10,10]])
         >>> outliers_labels, distance = aopy.analysis.find_outliers(data, 2)
         >>> print(outliers_labels, distance)
         [True, True, True, False] [3.6239, 3.2703, 2.9168, 9.8111]
 
-    Inputs:
+    Args:
         data [n, nfeatures]: Input data to plot in an nfeature dimensional space and compute outliers
         std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
         
-    Outputs: 
+    Returns: 
         good_data_idx [n]: Labels each data point if it is an outlier (True = good, False = outlier)
         distances [n]: Distance of each data point from center
     '''
