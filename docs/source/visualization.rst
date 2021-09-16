@@ -1,6 +1,8 @@
 Visualization:
 ==============
 
+.. contents:: :local:
+
 Channel mapping
 --------------
 

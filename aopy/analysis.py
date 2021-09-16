@@ -324,30 +324,38 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9):
         VAF (float): (default 0.9) variance accounted for (VAF)
 
     Returns: 
-        dimensions (list): list of principal components accounting for the variance
         explained_variance (list): variance accounted for by each principal component
         num_dims (int): number of principal components required to account for variance
     """
     if max_dims is None:
-            max_dims = np.shape(data)[1]
-
-    num_dims = None
-    explained_variance = []
-    dimensions = range(1, max_dims + 1)
+        max_dims = np.shape(data)[1]
 
     pca = PCA()
     pca.fit(data)
+    explained_variance = pca.explained_variance_ratio_
+    total_explained_variance = np.cumsum(explained_variance)
+    num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
 
-    for dims in dimensions:
+    return list(explained_variance), num_dims
 
-        explained_here = sum(pca.explained_variance_ratio_[0:dims])
-        explained_variance.append(explained_here)
+def calc_rms(signal, remove_offset=True):
+    '''
+    Root mean square of a signal
+    
+    Args:
+        signal (nt, ...): voltage along time, other dimensions will be preserved
+        remove_offset (bool): if true, subtract the mean before calculating RMS
 
-        # If we have not yet reached the threshold, check if we have now reached the threshold
-        if num_dims is None and explained_here > VAF:
-            num_dims = dims
-
-    return dimensions, explained_variance, num_dims
+    Returns:
+        float array: rms of the signal along the first axis. output dimensions will 
+            be the same non-time dimensions as the input signal
+    '''
+    if remove_offset:
+        m = np.mean(signal, axis=0)
+    else:
+        m = 0
+    
+    return np.sqrt(np.mean(np.square(signal - m), axis=0))
 
 def find_outliers(data, std_threshold):   
     '''
