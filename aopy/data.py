@@ -743,3 +743,42 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
             parsed_str.append(strings[str_idx])
             
     return parsed_str
+
+def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
+    '''
+    This function extracts strings from an object within .mat file that was saved from 
+    matlab in version -7.3 (-v7.3). 
+
+    example::
+
+        >>> testfile = 'matlab_cell_str.mat'
+        >>> strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+        >>> print(strings)
+        ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
+
+    Args:
+        data_dir (str): where the matlab file is located
+        hdf_filename (str): .mat filename
+        object_name (str): Name of object to load. This is typically the variable name saved from matlab
+    
+    Returns:
+        (list of strings): List of strings in the hdf file object
+
+    '''
+    full_file_name = os.path.join(data_dir, hdf_filename)
+    strings = []
+    with h5py.File(full_file_name, 'r') as f:
+        objects = f[object_name]
+        
+        if objects.shape[0] == 1:
+            for iobject in objects[0]:
+                string_unicode = f[iobject]
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                strings.append(temp_string)
+        else:
+            for iobject in objects:  
+                string_unicode = f[iobject[0]]
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                strings.append(temp_string)
+    
+    return strings

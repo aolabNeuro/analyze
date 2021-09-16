@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.cluster import KMeans
 from scipy.optimize import curve_fit
 from sklearn import model_selection
 from scipy import interpolate
@@ -355,3 +356,37 @@ def calc_rms(signal, remove_offset=True):
         m = 0
     
     return np.sqrt(np.mean(np.square(signal - m), axis=0))
+
+def find_outliers(data, std_threshold):   
+    '''
+    Use kmeans clustering to find the center point of a dataset and distances from each data point
+    to the center point. Data points further than a specified number of standard deviations away
+    from the center point are labeled as outliers. This is particularily useful for high dimensional data
+    
+    Note: This function only uses the kmeans function to calculate centerpoint distances but does
+    not output any useful information about data clusters. 
+    
+    example::
+
+        >>> data = np.array([[0.5,0.5], [0.75,0.75], [1,1], [10,10]])
+        >>> outliers_labels, distance = aopy.analysis.find_outliers(data, 2)
+        >>> print(outliers_labels, distance)
+        [True, True, True, False] [3.6239, 3.2703, 2.9168, 9.8111]
+
+    Inputs:
+        data [n, nfeatures]: Input data to plot in an nfeature dimensional space and compute outliers
+        std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
+        
+    Outputs: 
+        good_data_idx [n]: Labels each data point if it is an outlier (True = good, False = outlier)
+        distances [n]: Distance of each data point from center
+    '''
+    
+    # Check ncluster input
+    kmeans_model = KMeans(n_clusters = 1).fit(data)
+    distances = kmeans_model.transform(data)
+    cluster_labels = kmeans_model.labels_
+    dist_std = np.std(distances)
+    good_data_idx = (distances < (dist_std*std_threshold))
+                  
+    return good_data_idx.flatten(), distances.flatten()

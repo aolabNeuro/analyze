@@ -106,6 +106,20 @@ class PCATests(unittest.TestCase):
         np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
 
+class misc_tests(unittest.TestCase):
+    def test_find_outliers(self):
+        # Test correct identification of outliers
+        data = np.array([[0.5,0.5], [0.75,0.75], [1,1], [10,10]])
+        outliers_labels, _ = aopy.analysis.find_outliers(data, 2)
+        expected_outliers_labels = np.array([True, True, True, False])
+        np.testing.assert_allclose(outliers_labels, expected_outliers_labels)
+
+        # Test correct distance calculation
+        data = np.array([[1,0], [0,0], [0,0], [-1,0]])
+        _, outliers_dist = aopy.analysis.find_outliers(data, 2)
+        expected_outliers_dist = np.array([1, 0, 0, 1])
+        np.testing.assert_allclose(outliers_dist, expected_outliers_dist)
+        
 class CalcTests(unittest.TestCase):
 
     def test_calc_rms(self):
