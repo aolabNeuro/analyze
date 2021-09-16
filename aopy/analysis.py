@@ -313,20 +313,23 @@ def get_unit_spiking_mean_variance(spiking_data):
 
     return unit_mean, unit_variance
 
-def get_pca_dimensions(data, max_dims=None, VAF=0.9):
+def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
     """
-    Use PCA to estimate the dimensionality required to account for the variance in the given data
+    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
     
     Args:
-        data (nt, nch): time series data
+        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
         max_dims (int): (default None) the maximum number of dimensions
                         if left unset, will equal the dimensions (number of columns) in the dataset
         VAF (float): (default 0.9) variance accounted for (VAF)
+        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
 
     Returns: 
         explained_variance (list): variance accounted for by each principal component
         num_dims (int): number of principal components required to account for variance
+        projected_data (nt, ndims): Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
     """
+
     if max_dims is None:
         max_dims = np.shape(data)[1]
 
@@ -336,7 +339,13 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9):
     total_explained_variance = np.cumsum(explained_variance)
     num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
 
-    return list(explained_variance), num_dims
+    if project_data:
+        all_projected_data = pca.transform(data)
+        projected_data = all_projected_data[:,:num_dims]
+    else:
+        projected_data = None
+
+    return list(explained_variance), num_dims, projected_data
 
 def calc_rms(signal, remove_offset=True):
     '''
