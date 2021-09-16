@@ -749,10 +749,17 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
     This function extracts strings from an object within .mat file that was saved from 
     matlab in version -7.3 (-v7.3). 
 
+    example::
+
+        >>> testfile = 'matlab_cell_str.mat'
+        >>> strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+        >>> print(strings)
+        ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
+
     Args:
-        data_dir (str): where the signal path file is located
+        data_dir (str): where the matlab file is located
         hdf_filename (str): .mat filename
-        object_name (str): Name of object to load. This is typically the variable name save from matlab
+        object_name (str): Name of object to load. This is typically the variable name saved from matlab
     
     Returns:
         (list of strings): List of strings in the hdf file object
