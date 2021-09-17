@@ -1,4 +1,18 @@
+Examples:
+===============
+
+.. contents:: :local:
+
+Kinematics Demo
+---------------
+
 .. toctree::
-    :caption: Examples:
 
     examples/kinematics-demo.ipynb
+
+Screen Latency Demo
+---------------
+
+.. toctree::
+
+    examples/screen_latency_calculations.ipynb
