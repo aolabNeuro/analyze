@@ -702,6 +702,65 @@ def load_electrode_pos(data_dir, pos_file):
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos
 
+def map_acq2pos(config_dir, signalpath_filename, elec2pos_filename):
+    '''
+    Create index mapping from acquisition channel to electrode position. 
+    Input file types must be compatible with pd.read_excel. 
+    Electrode position column names must be 'topdown_x' and 'topdown_y'
+    
+    Args:
+        configdir (str): Directory holding the configuration files
+        signalpath_filename (str): Filename of the signal path information (Mapping between electrode and acquisition ch)
+        posmap_filename (str): Filenmae of the electrode position information. (Mapping between electrode and position on array)
+    
+    Returns:
+        acq_ch_position (nelec, 2): X and Y coordinates of the electrode each acquisition channel gets data from.
+                                    X position is in the first column and Y position is in the second column
+        acq_chs (nelec): Acquisition channels that map to electrodes (240/264)
+        connected_elecs (nelec): Electrodes used (240/244)    
+    '''
+    # Load excel files into 
+    acq2elec = pd.read_excel(os.path.join(config_dir, signalpath_filename))
+    elec2pos = pd.read_excel(os.path.join(config_dir, elec2pos_filename))
+    
+    # Parse acquisition channels used and the connected electrodes
+    connected_elecs_mask = np.logical_not(np.isnan(acq2elec['acq']))
+    connected_elecs = acq2elec['electrode'][connected_elecs_mask].to_numpy()
+    acq_chs = acq2elec['acq'][connected_elecs_mask].to_numpy(dtype=int)
+
+    nelec = len(connected_elecs)
+    
+    # Map connected electrodes to their position
+    acq_ch_position = np.empty((nelec, 2))
+
+    for ielec, elecid in enumerate(connected_elecs):
+        acq_ch_position[ielec,0] = elec2pos['topdown_x'][elec2pos['electrode']==elecid]
+        acq_ch_position[ielec,1] = elec2pos['topdown_y'][elec2pos['electrode']==elecid]
+
+    return acq_ch_position, acq_chs, connected_elecs
+
+def map_data2elec(datain, config_dir, signalpath_filename, elec2pos_filename):
+    '''
+    Map data from its acquisition channel to the electrodes recorded from. Wrapper for aopy.data.map_acq2pos
+    
+    Args:
+        datain (nt, nacqch): Data recoded from an array.
+        configdir (str): Directory holding the configuration files
+        signalpath_filename (str): Filename of the signal path information (Mapping between electrode and acquisition ch)
+        posmap_filename (str): Filenmae of the electrode position information. (Mapping between electrode and position on array)
+    
+    Returns:
+        dataout (nt, nelec): Data from the connected electrodes
+        acq_ch_position (nelec, 2): X and Y coordinates of the electrode each acquisition channel gets data from.
+                                    X position is in the first column and Y position is in the second column
+        acq_chs (nelec): Acquisition channels that map to electrodes (240/264)
+        connected_elecs (nelec): Electrodes used (240/244)  
+    '''
+    
+    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(config_dir, signalpath_filename, elec2pos_filename)
+    dataout = datain[:,acq_chs-1]
+    
+    return dataout, acq_ch_position, acq_chs, connected_elecs
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''

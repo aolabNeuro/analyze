@@ -6,6 +6,7 @@ from aopy.visualization import *
 import unittest
 import os
 import numpy as np
+import pandas as pd
 from matplotlib.testing.compare import compare_images
 
 test_dir = os.path.dirname(__file__)
@@ -269,7 +270,42 @@ class SignalPathTests(unittest.TestCase):
         x, y = load_electrode_pos(data_dir, testfile)
         self.assertEqual(len(x), 244)
         self.assertEqual(len(y), 244)
-    
+
+    def test_map_acq2pos(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_mappingfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        acq_ch_position, acq_chs, connected_elecs = map_acq2pos(data_dir, test_signalpathfile, test_mappingfile)
+        
+        signal_path_data = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        np.testing.assert_array_equal(signal_path_data['acq'].to_numpy()[:240], acq_chs)
+        np.testing.assert_array_equal(signal_path_data['electrode'].to_numpy()[:240], connected_elecs)
+        
+        # Manually test a few electrode positions and output array shape
+        self.assertEqual(acq_ch_position.shape[0], 240)
+        self.assertEqual(acq_ch_position.shape[1], 2)
+
+        self.assertEqual(2.25, acq_ch_position[0,0])
+        self.assertEqual(9, acq_ch_position[0,1])
+
+        self.assertEqual(7.5, acq_ch_position[100,0])
+        self.assertEqual(5.25, acq_ch_position[100,1])
+        
+        self.assertEqual(3.75, acq_ch_position[200,0])
+        self.assertEqual(4.5, acq_ch_position[200,1])
+
+    def test_map_data2elec(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_mappingfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        datain = np.zeros((10, 256))
+        for i in range(256):
+            datain[:,i] = i+1
+
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elec(datain, data_dir, test_signalpathfile, test_mappingfile)
+
+        self.assertEqual(dataout.shape[0], 10)
+        self.assertEqual(dataout.shape[1], 240)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
 if __name__ == "__main__":
     unittest.main()
 
