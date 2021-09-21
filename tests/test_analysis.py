@@ -138,9 +138,9 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
-class KalmanFilterTests(unittest.TestCase):
+# class KalmanFilterTests(unittest.TestCase):
 
-    def test_decoder():
+#     def test_decoder():
 
 
 if __name__ == "__main__":

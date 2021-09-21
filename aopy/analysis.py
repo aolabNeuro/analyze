@@ -321,17 +321,22 @@ KALMAN FILTER
 class KFDecoder(object):
     """
     Class for the Kalman Filter Decoder
-    Parameters
-    -----------
-    C - float, optional, default 1
-    This parameter scales the noise matrix associated with the transition in kinematic states.
-    It effectively allows changing the weight of the new neural evidence in the current update.
-    Our implementation of the Kalman filter for neural decoding is based on that of Wu et al 2003 (https://papers.nips.cc/paper/2178-neural-decoding-of-cursor-motion-using-a-kalman-filter.pdf)
+    
+    Our implementation of the Kalman filter for neural decoding is based on that of Wu et al 2003 
+        (https://papers.nips.cc/paper/2178-neural-decoding-of-cursor-motion-using-a-kalman-filter.pdf)
     with the exception of the addition of the parameter C.
-    The original implementation has previously been coded in Matlab by Dan Morris (http://dmorris.net/projects/neural_decoding.html#code)
+    The original implementation has previously been coded in Matlab by Dan Morris 
+        (http://dmorris.net/projects/neural_decoding.html#code)
+    
     """
 
+
     def __init__(self, C=1):
+        '''
+        Args:
+        C (float): kalman gain, optional, scales the noise matrix associated with the transition in kinematic states
+        '''
+
         self.C = C
 
     def fit(self, X_kf_train, y_train):
