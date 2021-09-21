@@ -243,6 +243,32 @@ class LoadDataTests(unittest.TestCase):
         parsed_strs4 = parse_str_list(str_list)
         self.assertListEqual(parsed_strs4, str_list)
 
+    def test_load_kalman_data(self):
+        # change into kalman testing directory
+        os.chdir('decoder_tests')
+        # data files
+        calib_sensor_data = 'string'
+        datafile = 'string'
+        kalman_known_good = 'kalman_known_good'
+
+        self.data = pd.read_csv(datafile,skiprows=10)
+        self.calib_sensor_data = pd.read_csv(calib_datafile)
+        #convert data to correct format
+        self.calib_sensor_data = calib_sensor_data.to_numpy()
+        self.calib_sensor_data = calib_sensor_data[0:len(calib_sensor_data)-1,1:23]
+        #calib_sensor_data = calib_sensor_data[:,1:23]
+        data = data.to_numpy()
+        realtime = data[:,1]
+        ref_position = data[:,2]
+        rt_diff = np.diff(realtime,axis=0)
+        rt_diff[np.where(rt_diff == 0)] = 0.0001
+        # TODO: is this velocity? or is this the position divided by time difference between samples? should this be ref_diff/rt_diff?
+        self.vel_data = np.diff(ref_position,axis=0)/rt_diff
+        self.vel_data = np.float32(self.vel_data) #change to float 32 from 64 bc will error otherwise
+        self.calib_sensor_data = np.float32(self.calib_sensor_data)
+
+
+
 class SignalPathTests(unittest.TestCase):
 
     def test_lookup_excel_value(self):
