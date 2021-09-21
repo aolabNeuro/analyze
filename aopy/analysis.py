@@ -347,11 +347,11 @@ class KFDecoder(object):
 
         Calculations for A,W,H,Q are as follows:
 
-        .. math:: A = X2*X1' (X1*X1')^{-1}
+        .. math:: A = X2@X1' (X1@X1')^{-1}
 
-        .. math:: W = \frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
+        .. math:: W = \frac{(X_2 - A@X_1)(X_2 - A@X_1)'}{(timepoints - 1)}
 
-        .. math:: H = Y*X'(X*X')^{-1}
+        .. math:: H = Y@X'(X@X')^{-1}
 
         .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
 
@@ -371,14 +371,14 @@ class KFDecoder(object):
         X2 = X[:, 1:]
         X1 = X[:, 0:nt - 1]
 
-        A = X2 * X1.T * inv(X1 * X1.T)  # Transition matrix
-        W = (X2 - A * X1) * (X2 - A * X1).T / (
+        A = X2 @ X1.T @ inv(X1 @ X1.T)  # Transition matrix
+        W = (X2 - A @ X1) @ (X2 - A @ X1).T / (
                     nt - 1) / self.C  # Covariance of transition matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1 and X2). We also introduce the extra parameter C here.
 
         # Calculate the measurement matrix (from x_t to z_t) using least-squares, and compute its covariance
         # In our case, this is the transformation from kinematics to spikes
-        H = Z * X.T * (inv(X * X.T))  # Measurement matrix
-        Q = ((Z - H * X) * ((Z - H * X).T)) / nt  # Covariance of measurement matrix
+        H = Z @ X.T @ (inv(X @ X.T))  # Measurement matrix
+        Q = ((Z - H @ X) @ ((Z - H @ X).T)) / nt  # Covariance of measurement matrix
 
         params = [A, W, H, Q]
         print('Shape of State Transition model (A) :' + str(A.shape))
@@ -400,7 +400,7 @@ class KFDecoder(object):
             This is the outputs that are being predicted
 
         Calculations as follows:
-        .. math:: H = Y*X'(X*X')^{-1}
+        .. math:: H = Y@X'(X@X')^{-1}
         .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
         """
 
@@ -418,14 +418,14 @@ class KFDecoder(object):
         X2 = X[:, 1:]
         X1 = X[:, 0:nt - 1]
 
-        # A=X2*X1.T*inv(X1*X1.T) #Transition matrix W=(X2-A*X1)*(X2-A*X1).T/(nt-1)/self.C #Covariance of transition
+        # A=X2@X1.T@inv(X1@X1.T) #Transition matrix W=(X2-A@X1)@(X2-A@X1).T/(nt-1)/self.C #Covariance of transition
         # matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1
         # and X2). We also introduce the extra parameter C here.
 
         # Calculate the measurement matrix (from x_t to z_t) using least-squares, and compute its covariance
         # In our case, this is the transformation from kinematics to spikes
-        H = Z * X.T * (inv(X * X.T))  # Measurement matrix
-        Q = ((Z - H * X) * ((Z - H * X).T)) / nt  # Covariance of measurement matrix
+        H = Z @ X.T @ (inv(X @ X.T))  # Measurement matrix
+        Q = ((Z - H @ X) @ ((Z - H @ X).T)) / nt  # Covariance of measurement matrix
 
         print('Shape of State Transition model (A) :' + str(A.shape))
         print('Shape of Covariance of State Transition model :' + str(W.shape))
@@ -473,13 +473,13 @@ class KFDecoder(object):
         # Get predicted state for every time bin
         for t in range(X.shape[1] - 1):
             # Do first part of state update - based on transition matrix
-            P_m = A * P * A.T + W  # a priori estimate of x covariance ( P(k) = A*P(k-1)*A' + W )
-            state_m = A * state  # a priori estimate of x ( X(k|k-1) = A*X(k-1) )
+            P_m = A @ P @ A.T + W  # a priori estimate of x covariance ( P(k) = A@P(k-1)@A' + W )
+            state_m = A @ state  # a priori estimate of x ( X(k|k-1) = A@X(k-1) )
 
             # Do second part of state update - based on measurement matrix
-            K = P_m * H.T * inv(H * P_m * H.T + Q)  # Calculate Kalman gain ( K = P_ap*H'* inv(H*P_ap*H' + Q) )
-            P = (np.matrix(np.eye(num_states)) - K * H) * P_m  # (a posteriori estimate, P (I - K*H)*P_ap )
-            state = state_m + K * (Z[:,t + 1] - H * state_m)  # compute a posteriori estimate of x (X(k) = X(k|k-1) + K*(Z - H*X(k|k-1))
+            K = P_m @ H.T @ inv(H @ P_m @ H.T + Q)  # Calculate Kalman gain ( K = P_ap@H'@ inv(H@P_ap@H' + Q) )
+            P = (np.matrix(np.eye(num_states)) - K @ H) @ P_m  # (a posteriori estimate, P (I - K@H)@P_ap )
+            state = state_m + K @ (Z[:,t + 1] - H @ state_m)  # compute a posteriori estimate of x (X(k) = X(k|k-1) + K@(Z - H@X(k|k-1))
             states[:, t + 1] = np.squeeze(state)  # Record state at the timestep
         y_test_predicted = states.T
         return y_test_predicted
