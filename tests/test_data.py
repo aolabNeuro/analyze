@@ -275,11 +275,13 @@ class SignalPathTests(unittest.TestCase):
         # Note, this also tests map_acq2elec
         test_signalpathfile = '210910_ecog_signal_path.xlsx'
         test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
-        acq_ch_position, acq_chs, connected_elecs = map_acq2pos(data_dir, test_signalpathfile, test_layoutfile, xpos_name='topdown_x', ypos_name='topdown_y')
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
+
+        acq_ch_position, acq_chs, connected_elecs = map_acq2pos(test_signalpath_table, test_eleclayout_table, xpos_name='topdown_x', ypos_name='topdown_y')
         
-        signal_path_data = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
-        np.testing.assert_array_equal(signal_path_data['acq'].to_numpy()[:240], acq_chs)
-        np.testing.assert_array_equal(signal_path_data['electrode'].to_numpy()[:240], connected_elecs)
+        np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
+        np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
         
         # Manually test a few electrode positions and output array shape
         self.assertEqual(acq_ch_position.shape[0], 240)
@@ -296,12 +298,27 @@ class SignalPathTests(unittest.TestCase):
 
     def test_map_data2elec(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'
-        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
         datain = np.zeros((10, 256))
         for i in range(256):
             datain[:,i] = i+1
 
-        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elec(datain, data_dir, test_signalpathfile, test_layoutfile,  xpos_name='topdown_x', ypos_name='topdown_y')
+        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table)
+
+        self.assertEqual(dataout.shape[0], 10)
+        self.assertEqual(dataout.shape[1], 240)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+    def test_map_data2elecandpos(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
+        datain = np.zeros((10, 256))
+        for i in range(256):
+            datain[:,i] = i+1
+
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table,  xpos_name='topdown_x', ypos_name='topdown_y')
 
         self.assertEqual(dataout.shape[0], 10)
         self.assertEqual(dataout.shape[1], 240)
@@ -310,7 +327,7 @@ class SignalPathTests(unittest.TestCase):
         # Test acquisition channel subset selection
         acq_ch_subset = np.array([1,3,5,8,10])
         expected_acq_ch_pos = np.array([[2.25, 9], [5.25, 6.75],[3.75, 9]])
-        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elec(datain, data_dir, test_signalpathfile, test_layoutfile, acq_ch_subset=acq_ch_subset)
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, acq_ch_subset=acq_ch_subset)
         np.testing.assert_allclose(dataout[0,:].flatten(), np.array([1,5,10]))
         np.testing.assert_allclose(acq_chs, np.array([1,5,10]))
         np.testing.assert_allclose(connected_elecs, np.array([54,52,42]))

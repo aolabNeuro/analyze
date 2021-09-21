@@ -703,27 +703,23 @@ def load_electrode_pos(data_dir, pos_file):
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos
 
-def map_acq2elec(config_dir, signalpath_filename, acq_ch_subset=None):
+def map_acq2elec(signalpath_table, acq_ch_subset=None):
     '''
     Create index mapping from acquisition channel to electrode number. 
-    Input file types must be compatible with pd.read_excel. 
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
     
     Args:
-        configdir (str): Directory holding the configuration files
-        signalpath_filename (str): Filename of the signal path information (Mapping between electrode and acquisition ch)
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
 
     Returns:
         acq_chs (nelec): Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
         connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array)   
-    '''
-    # Load excel files into a pandas dataframe 
-    acq2elec = pd.read_excel(os.path.join(config_dir, signalpath_filename))
-    
+    '''    
     # Parse acquisition channels used and the connected electrodes
-    connected_elecs_mask = np.logical_not(np.isnan(acq2elec['acq']))
-    connected_elecs = acq2elec['electrode'][connected_elecs_mask].to_numpy()
-    acq_chs = acq2elec['acq'][connected_elecs_mask].to_numpy(dtype=int)
+    connected_elecs_mask = np.logical_not(np.isnan(signalpath_table['acq']))
+    connected_elecs = signalpath_table['electrode'][connected_elecs_mask].to_numpy()
+    acq_chs = signalpath_table['acq'][connected_elecs_mask].to_numpy(dtype=int)
 
     if acq_ch_subset is not None:
         acq_chs_mask = np.where(np.in1d(acq_chs, acq_ch_subset))[0]
@@ -736,15 +732,14 @@ def map_acq2elec(config_dir, signalpath_filename, acq_ch_subset=None):
 
     return acq_chs, connected_elecs
 
-def map_acq2pos(config_dir, signalpath_filename, elec2pos_filename, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
+def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
-    Input file types must be compatible with pd.read_excel. 
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
     
     Args:
-        configdir (str): Directory holding the configuration files
-        signalpath_filename (str): Filename of the signal path information (Mapping between electrode and acquisition ch)
-        posmap_filename (str): Filenmae of the electrode position information. (Mapping between electrode and position on array)
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
@@ -756,30 +751,48 @@ def map_acq2pos(config_dir, signalpath_filename, elec2pos_filename, acq_ch_subse
         connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array)   
     '''
     # Get index mapping from acquisition channel to electrode number
-    acq_chs, connected_elecs = map_acq2elec(config_dir, signalpath_filename, acq_ch_subset=acq_ch_subset)
+    acq_chs, connected_elecs = map_acq2elec(signalpath_table, acq_ch_subset=acq_ch_subset)
     nelec = len(connected_elecs)
-
-    # Load electrode position data as a pandas dataframe
-    elec2pos = pd.read_excel(os.path.join(config_dir, elec2pos_filename))
     
     # Map connected electrodes to their position
     acq_ch_position = np.empty((nelec, 2))
 
     for ielec, elecid in enumerate(connected_elecs):
-        acq_ch_position[ielec,0] = elec2pos[xpos_name][elec2pos['electrode']==elecid]
-        acq_ch_position[ielec,1] = elec2pos[ypos_name][elec2pos['electrode']==elecid]
+        acq_ch_position[ielec,0] = eleclayout_table[xpos_name][eleclayout_table['electrode']==elecid]
+        acq_ch_position[ielec,1] = eleclayout_table[ypos_name][eleclayout_table['electrode']==elecid]
 
     return acq_ch_position, acq_chs, connected_elecs
 
-def map_data2elec(datain, config_dir, signalpath_filename, elec2pos_filename, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
+def map_data2elec(datain, signalpath_table, acq_ch_subset=None):
     '''
-    Map data from its acquisition channel to the electrodes recorded from. Wrapper for aopy.data.map_acq2pos
-    
+    Map data from its acquisition channel to the electrodes recorded from. Wrapper for aopy.data.map_acq2elec
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
+
     Args:
         datain (nt, nacqch): Data recoded from an array.
-        configdir (str): Directory holding the configuration files
-        signalpath_filename (str): Filename of the signal path information (Mapping between electrode and acquisition ch)
-        posmap_filename (str): Filenmae of the electrode position information. (Mapping between electrode and position on array)
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+
+    Returns:
+        dataout (nt, nelec): Data from the connected electrodes
+        acq_chs (nelec): Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+        connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array) 
+    '''
+    
+    acq_chs, connected_elecs = map_acq2elec(signalpath_table, acq_ch_subset=acq_ch_subset)
+    dataout = datain[:,acq_chs-1]
+    
+    return dataout, acq_chs, connected_elecs
+
+def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
+    '''
+    Map data from its acquisition channel to the electrodes recorded from and their position. Wrapper for aopy.data.map_acq2pos
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
+
+    Args:
+        datain (nt, nacqch): Data recoded from an array.
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
@@ -792,7 +805,7 @@ def map_data2elec(datain, config_dir, signalpath_filename, elec2pos_filename, ac
         connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
     
-    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(config_dir, signalpath_filename, elec2pos_filename, acq_ch_subset=acq_ch_subset, xpos_name='topdown_x', ypos_name='topdown_y')
+    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, xpos_name='topdown_x', ypos_name='topdown_y')
     dataout = datain[:,acq_chs-1]
     
     return dataout, acq_ch_position, acq_chs, connected_elecs
