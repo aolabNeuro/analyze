@@ -153,6 +153,15 @@ class DigitalCalcTests(unittest.TestCase):
         filled = fill_missing_timestamps(uncorrected_timestamps)
         self.assertCountEqual(expected, filled)
 
+    def test_get_edges_from_onsets(self):
+        onsets = np.array([1, 1.5, 2])
+        expected_timestamps = np.array([0, 1, 1.1, 1.5, 1.6, 2, 2.1])
+        expected_values = np.array([0,1,0,1,0,1,0])
+
+        timestamps, values = get_edges_from_onsets(onsets, 0.1)
+        np.testing.assert_allclose(timestamps, expected_timestamps)
+        np.testing.assert_allclose(values, expected_values)
+
 event_log_events_in_str = [
             ('wait', 0.),
             ('target',1.),
@@ -204,44 +213,49 @@ class EventFilterTests(unittest.TestCase):
         reward_counts = get_event_occurrences(event_log_events_in_str, 'banana')
         assert reward_counts == 0
 
-    def test_calc_events(self):
-        # Events as strings
-        EVENT_LOG_DURATION = 18.0
-        NUM_TAREGET_OCCURANCES = 3
-        NUM_REWARD_OCCURANCES = 2
-        REWARD_RATE = NUM_REWARD_OCCURANCES / EVENT_LOG_DURATION
-        TARGET_RATE = NUM_TAREGET_OCCURANCES / EVENT_LOG_DURATION
+    def test_calc_event_rate(self):
 
-        expected_duration = calc_events_duration(event_log_events_in_str)
-        np.testing.assert_allclose(EVENT_LOG_DURATION,
-                                    expected_duration)
-        expected_target_rate = calc_event_rate(event_log_events_in_str, 'target')
-        np.testing.assert_almost_equal(TARGET_RATE, expected_target_rate)
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, 7)
+        expected_rate = 1/6.
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
 
-        expected_reward_rate = calc_reward_rate(event_log_events_in_str, 'reward')
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, [2,7])
+        expected_rate = np.array([1,1/6.])
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
 
-        # Events as numbers
-        EVENT_LOG_DURATION = 10.0
-        NUM_TAREGET_OCCURANCES = 2
-        NUM_REWARD_OCCURANCES = 2
-        REWARD_RATE = NUM_REWARD_OCCURANCES / EVENT_LOG_DURATION
-        TARGET_RATE = NUM_TAREGET_OCCURANCES / EVENT_LOG_DURATION
-        np.testing.assert_almost_equal(EVENT_LOG_DURATION,
-                                        calc_events_duration(event_log_with_events_in_number))
+
+        #set up test
+        aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+                ['Go', 'Target 2', 'Target 2'],
+                ['Go', 'Target 4', 'Target 1'],
+                ['Go', 'Target 1', 'Target 2'],
+                ['Go', 'Target 2', 'Reward'],
+                ['Go', 'Target 3', 'Target 1']])
         
-        expected_target_rate = calc_event_rate(event_log_with_events_in_number, NUM_TARGET)
-        np.testing.assert_almost_equal(TARGET_RATE, expected_target_rate)
+        expected_reward_rate = 1.0/6.0
 
-        expected_reward_rate = calc_reward_rate(event_log_with_events_in_number, NUM_REWARD)
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        calculated_reward_rate = calc_event_rate(aligned_events_str, ['Reward'])
+        np.testing.assert_equal(expected_reward_rate, calculated_reward_rate)
 
-        expected_reward_rate = calc_reward_rate(event_log_with_events_in_number, NUM_REWARD)
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        calculated_event_rates = calc_event_rate(aligned_events_str, ['Go','Reward'])
+        expected_event_rates = np.array([1.0, 1.0/6.0])
 
-        # Missing events
-        rate = calc_event_rate(event_log_events_in_str, 'foobar')
-        assert rate == 0
+        np.testing.assert_equal(calculated_event_rates, expected_event_rates)
+        
 
     def test_trial_align_events(self):
         # test trial_separate
@@ -629,6 +643,18 @@ class TestPrepareExperiment(unittest.TestCase):
         mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')
         self.assertIsNotNone(mocap)
         self.assertIsNotNone(mocap_meta)
+
+    def preproc_multiple(self):
+        result_filename = 'test_proc_multiple.hdf'
+        files = {}
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
+        files['optitrack'] = 'Pretend take (1315).csv'
+        proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
+        proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
+        contents = get_hdf_dictionary(data_dir, result_filename)
+        self.assertIn('exp_data', contents)
+        self.assertIn('mocap_data', contents)
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import matplotlib.dates as mdates
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -13,9 +14,7 @@ import numpy as np
 import os
 import copy
 
-
-from . import precondition
-from scipy.signal import freqz
+import pandas as pd
 
 from . import postproc
 
@@ -413,3 +412,93 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     ax.set_xlabel('x')
     ax.set_ylabel('y')
 
+def plot_columns_by_date(df, *columns, method='sum', ax=None):
+    '''
+    Plot columns in a dataframe organized by date and aggregated such that if there are multiple
+    rows on a given date they are combined into a single value using the given method. If the method
+    is 'mean' then the values will be averaged for each day, for example for size of cursor. If the 
+    method is 'sum' then the values will be added together on each day, for example for number of trials.
+    
+    Example:
+        Plotting my weight data averaged across days.
+        ::
+
+            from datetime import date, timedelta
+            date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
+            weight = [65.5, 66.0, 65.0]
+
+            df = pd.DataFrame({'date':date, 'weight':weight})
+            fig, ax = plt.subplots(1,1)
+            plot_columns_by_date(df, 'weight', method='mean', ax=ax)
+            ax.set_ylabel('weight (kg)')
+
+        .. image:: _images/columns_by_date.png
+
+    Args:
+        df (pd.DataFrame): dataframe with 'date' column
+        *columns (str): dataframe column names to plot
+        method (str, optional): how to combine data within a single date. Can be 'sum' or 'mean'.
+        ax (pyplot.Axes, optional): axis on which to plot
+    '''
+    first_day = np.min(df['date'])
+    last_day = np.max(df['date'])
+    days = pd.date_range(start=first_day, end=last_day).to_list()
+    n_columns = len(columns)
+    n_days = len(days)
+    aggregate = np.zeros((n_columns, n_days))
+
+    for idx_day in range(n_days):
+        day = days[idx_day]
+        for idx_column in range(n_columns):
+            values = df[columns[idx_column]][df['date'] == day]
+            if len(values) == 0:
+                aggregate[idx_column, idx_day] = np.nan
+            elif method == 'sum':
+                aggregate[idx_column, idx_day] = values.sum()
+            elif method == 'mean':
+                aggregate[idx_column, idx_day] = values.mean()
+            else:
+                raise ValueError("Unknown method for combining data")
+
+    if ax == None:
+        ax = plt.gca()
+    for idx_column in range(n_columns):
+        ax.plot(days, aggregate[idx_column,:], '.-', label=columns[idx_column])
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+    plt.setp(ax.get_xticklabels(), rotation=80)
+    ax.legend()
+
+def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blue','tab:orange','tab:green']):
+    '''
+    This function plots multiple different events on the same plot. The first event (item in the list)
+    will be displayed on the bottom of the plot.
+    
+    .. image:: _images/events_time.png
+    
+    Args:
+        events (list (nevents) of 1D arrays (ntime)): List of Logical arrays that denote when an event(for example, a reward) occurred during an experimental session. Each item in the list corresponds to a different event to plot. 
+        event_timestamps (list (nevents) of 1D arrays ntime): List of 1D arrays of timestamps corresponding to the events list. 
+        labels (list (nevents) of str) : Event names for each list item.
+        ax (axes handle): Axes to plot
+        colors (list of str): Color to use for each list item
+    '''
+
+    if ax is None:
+        ax = plt.gca()
+
+    n_events = len(events)
+    for i in range(n_events):
+        this_events = events[i]
+        this_timestamps = event_timestamps[i]
+        n_timebins = np.shape(this_events)[0]
+
+        if n_events <= len(colors):
+            this_color = colors[i]
+            ax.step(this_timestamps, 0.9*(this_events)+i+0.1, where='post', c=this_color)
+        else:
+            ax.step(this_timestamps, 0.9*(this_events)+i+0.1, where='post')
+    ax.set_yticks(np.arange(n_events)+0.5)
+    ax.set_yticklabels(labels)
+
+    ax.set_xlabel('Time (s)') 

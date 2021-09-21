@@ -215,6 +215,12 @@ class LoadDataTests(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
 
+    def test_load_matlab_cell_strings(self):
+        testfile = 'matlab_cell_str.mat'
+        strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+        expected_strings = ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
+        self.assertListEqual(strings[:5], expected_strings)
+
     def test_parse_str_list(self):
         str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
         
@@ -263,29 +269,9 @@ class SignalPathTests(unittest.TestCase):
         x, y = load_electrode_pos(data_dir, testfile)
         self.assertEqual(len(x), 244)
         self.assertEqual(len(y), 244)
-
-class FakeDataTests(unittest.TestCase):
-
-    def test_gen_save_test_signal(self):
-
-        # Generate a signal
-        samplerate = 25000
-        data = gen_test_signal(1, 6, duration=1, n_channels=8, samplerate=samplerate)
-
-        self.assertEqual(data.shape, (25000, 8))
-
-        # Pack it into bits
-        voltsperbit = 1e-4
-        base_dir = os.path.join(write_dir, 'test_ecube_data')
-        if not os.path.exists(base_dir):
-            os.mkdir(base_dir)
-        filename = save_test_signal_ecube(data, base_dir, voltsperbit)
-
-        self.assertTrue('Headstages' in filename)
-
-        plot_timeseries(data, samplerate)
-        figname = 'gen_test_signal.png'
-        savefig(write_dir, figname)
     
 if __name__ == "__main__":
     unittest.main()
+
+
+

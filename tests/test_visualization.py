@@ -9,7 +9,7 @@ write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
-class PlottingTests(unittest.TestCase):
+class NeuralDataPlottingTests(unittest.TestCase):
 
     def test_plot_timeseries(self):
         filename = 'timeseries.png'
@@ -50,6 +50,8 @@ class PlottingTests(unittest.TestCase):
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
+class AnimationTests(unittest.TestCase):
+
     def test_animate_events(self):
         events = ["hello", "world", "", "!", ""]
         times = [0., 1.0, 1.5, 2.0, 2.5]
@@ -82,6 +84,8 @@ class PlottingTests(unittest.TestCase):
         ani = animate_trajectory_3d(trajectory, samplerate, history=5, axis_labels=axis_labels)
         filename = "animate_trajectory_test.mp4"
         saveanim(ani, write_dir, filename)
+
+class OtherPlottingTests(unittest.TestCase):
 
     def test_plot_targets(self):
 
@@ -149,6 +153,33 @@ class PlottingTests(unittest.TestCase):
         plt.figure()
         plot_trajectories(trajectories, bounds)
         savefig(write_dir, filename)
+
+    def test_plot_columns_by_date(self):
+        from datetime import date, timedelta
+        date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
+        weight = [65.5, 66.0, 65.0]
+
+        df = pd.DataFrame({'date':date, 'weight':weight})
+        fig, ax = plt.subplots(1,1)
+        plot_columns_by_date(df, 'weight', method='mean', ax=ax)
+        ax.set_ylabel('weight (kg)')
+
+        filename = 'columns_by_date.png'
+        savefig(write_dir, filename) # expect a plot of weight by date
+
+    def test_plot_events_time(self):
+        events = np.zeros(10)
+        events[1::2] = 1
+        event_list = [events, events[1:]]
+        timestamps = np.arange(10)
+        timestamps_list = [timestamps, 0.25+timestamps[1:]]
+        labels_list = ['Event 1', 'Event 2']
+
+        fig, ax = plt.subplots(1,1)
+        plot_events_time(event_list, timestamps_list, labels_list, ax=ax)
+        filename = 'events_time'
+        savefig(write_dir,filename)
+
 
 if __name__ == "__main__":
     unittest.main()

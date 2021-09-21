@@ -2,7 +2,6 @@
 # code for accessing neural data collected by the aoLab
 import numpy as np
 from .whitematter import ChunkedStream, Dataset
-from datetime import datetime
 import h5py
 import tables
 import csv
@@ -423,7 +422,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     # Write each key, unless it exists and append is False
     for key in data_dict.keys():
         if key in group:
-            print("Warning: dataset " + key + " already exists in " + data_group + "!")
+            if debug: print("Warning: dataset " + key + " already exists in " + data_group + "!")
             del group[key]
         data = data_dict[key]
         if hasattr(data, 'dtype') and data.dtype.char == 'U':
@@ -745,58 +744,41 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
             
     return parsed_str
 
-def gen_test_signal(amplitude, frequency, duration=1, n_channels=8, samplerate=25000):
+def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
     '''
-    Generate sine waves offset in phase by 2*pi/n_channels at the given amplitude and frequency
+    This function extracts strings from an object within .mat file that was saved from 
+    matlab in version -7.3 (-v7.3). 
 
-    Args: 
-        amplitude (float): amplitude of each sine wave
-        frequency (float): frequency in Hz
-        duration (float, optional): time in seconds (default 1)
-        n_channels (int, optional): number of channels to generate (default 8)
-        samplerate (int, optional): sampling rate of the signal in Hz (default 25,000)
+    example::
 
-    Returns:
-        (nt, nch) array: timeseries data across channels
-    '''    
-    time = np.arange(0, duration, 1/samplerate)
-    data = []
-    for i in range(n_channels):
-        theta = 2*i*np.pi/8 # shift phase for each channel
-        sinewave = amplitude * np.sin(2 * np.pi * frequency * time + theta)
-        data.append(sinewave)
-    data = np.array(data).T
-
-    return data
-
-def save_test_signal_ecube(data, save_dir, voltsperbit):
-    '''
-    Create a binary file with eCube formatting using the given data
+        >>> testfile = 'matlab_cell_str.mat'
+        >>> strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+        >>> print(strings)
+        ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
 
     Args:
-        data (nt, nch): test_signal to save
-        save_dir (str): where to save the file
-        voltsperbit (float): gain of the headstage data you are creating
-
+        data_dir (str): where the matlab file is located
+        hdf_filename (str): .mat filename
+        object_name (str): Name of object to load. This is typically the variable name saved from matlab
+    
     Returns:
-        str: filename of the new data
+        (list of strings): List of strings in the hdf file object
+
     '''
-    intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
-    flatdata = data.reshape(-1)
-    timestamp = [1, 2, 3, 4]
-    flatdata = np.insert(flatdata, timestamp, 0)
-
-    # Save it to the test file
-    datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
-    filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
-    filepath = os.path.join(save_dir, filename)
-    with open(filepath, 'wb') as f:
-        for _ in range(8):
-            f.write(np.byte(1)) # 8 byte timestamp
-        for t in range(intdata.shape[0]):
-            for ch in range(intdata.shape[1]):
-                f.write(np.byte(intdata[t,ch]))
-                f.write(np.byte(intdata[t,ch] >> 8))
-
-    return filename
-
+    full_file_name = os.path.join(data_dir, hdf_filename)
+    strings = []
+    with h5py.File(full_file_name, 'r') as f:
+        objects = f[object_name]
+        
+        if objects.shape[0] == 1:
+            for iobject in objects[0]:
+                string_unicode = f[iobject]
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                strings.append(temp_string)
+        else:
+            for iobject in objects:  
+                string_unicode = f[iobject[0]]
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                strings.append(temp_string)
+    
+    return strings

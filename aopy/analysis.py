@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.cluster import KMeans
 from scipy.optimize import curve_fit
 from sklearn import model_selection
 from scipy import interpolate
@@ -292,14 +293,13 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
 
     return extremum_time, extremum_value, f
 
-def get_fano_factor_values_per_condition(spiking_data):
+def get_unit_spiking_mean_variance(spiking_data):
     '''
-    This function calculates the two parameters used to calculate fano factor for input spiking data based on Churchland et al. 2010.
-    These two parameters are calculated for each unit and are the mean spikes per trial and the spiking variance of each unit across trials.
+    This function calculates the mean spiking count and the spiking count variance in spiking data across 
+    trials for each unit. 
 
     Args:
         spiking_data (ntime, nunits, ntr): Input spiking data
-        weight_regression (bool): A flag to weight the linear regression based on the number of trials.
 
     Returns:
         Tuple:  A tuple containing
@@ -312,7 +312,7 @@ def get_fano_factor_values_per_condition(spiking_data):
     unit_variance = np.var(counts, axis=1) # Calculate the count variance for each unit across all trials
 
     return unit_mean, unit_variance
-
+  
 '''
 KALMAN FILTER 
 '''
@@ -483,3 +483,82 @@ class KFDecoder(object):
             states[:, t + 1] = np.squeeze(state)  # Record state at the timestep
         y_test_predicted = states.T
         return y_test_predicted
+
+def get_pca_dimensions(data, max_dims=None, VAF=0.9):
+    """
+    Use PCA to estimate the dimensionality required to account for the variance in the given data
+    
+    Args:
+        data (nt, nch): time series data
+        max_dims (int): (default None) the maximum number of dimensions
+                        if left unset, will equal the dimensions (number of columns) in the dataset
+        VAF (float): (default 0.9) variance accounted for (VAF)
+
+    Returns: 
+        explained_variance (list): variance accounted for by each principal component
+        num_dims (int): number of principal components required to account for variance
+    """
+    if max_dims is None:
+        max_dims = np.shape(data)[1]
+
+    pca = PCA()
+    pca.fit(data)
+    explained_variance = pca.explained_variance_ratio_
+    total_explained_variance = np.cumsum(explained_variance)
+    num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+
+    return list(explained_variance), num_dims
+
+def calc_rms(signal, remove_offset=True):
+    '''
+    Root mean square of a signal
+    
+    Args:
+        signal (nt, ...): voltage along time, other dimensions will be preserved
+        remove_offset (bool): if true, subtract the mean before calculating RMS
+
+    Returns:
+        float array: rms of the signal along the first axis. output dimensions will 
+            be the same non-time dimensions as the input signal
+    '''
+    if remove_offset:
+        m = np.mean(signal, axis=0)
+    else:
+        m = 0
+    
+    return np.sqrt(np.mean(np.square(signal - m), axis=0))
+
+def find_outliers(data, std_threshold):   
+    '''
+    Use kmeans clustering to find the center point of a dataset and distances from each data point
+    to the center point. Data points further than a specified number of standard deviations away
+    from the center point are labeled as outliers. This is particularily useful for high dimensional data
+    
+    Note: This function only uses the kmeans function to calculate centerpoint distances but does
+    not output any useful information about data clusters. 
+    
+    Example::
+
+        >>> data = np.array([[0.5,0.5], [0.75,0.75], [1,1], [10,10]])
+        >>> outliers_labels, distance = aopy.analysis.find_outliers(data, 2)
+        >>> print(outliers_labels, distance)
+        [True, True, True, False] [3.6239, 3.2703, 2.9168, 9.8111]
+
+    Args:
+        data [n, nfeatures]: Input data to plot in an nfeature dimensional space and compute outliers
+        std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
+        
+    Returns: 
+        good_data_idx [n]: Labels each data point if it is an outlier (True = good, False = outlier)
+        distances [n]: Distance of each data point from center
+    '''
+    
+    # Check ncluster input
+    kmeans_model = KMeans(n_clusters = 1).fit(data)
+    distances = kmeans_model.transform(data)
+    cluster_labels = kmeans_model.labels_
+    dist_std = np.std(distances)
+    good_data_idx = (distances < (dist_std*std_threshold))
+                  
+    return good_data_idx.flatten(), distances.flatten()
+
