@@ -247,23 +247,32 @@ class LoadDataTests(unittest.TestCase):
         # change into kalman testing directory
         os.chdir('decoder_tests')
         # data files
-        calib_sensor_data = 'string'
-        datafile = 'string'
-        kalman_known_good = 'kalman_known_good'
 
-        self.data = pd.read_csv(datafile,skiprows=10)
-        self.calib_sensor_data = pd.read_csv(calib_datafile)
-        #convert data to correct format
-        self.calib_sensor_data = calib_sensor_data.to_numpy()
-        self.calib_sensor_data = calib_sensor_data[0:len(calib_sensor_data)-1,1:23]
-        #calib_sensor_data = calib_sensor_data[:,1:23]
-        data = data.to_numpy()
-        realtime = data[:,1]
-        ref_position = data[:,2]
-        rt_diff = np.diff(realtime,axis=0)
-        rt_diff[np.where(rt_diff == 0)] = 0.0001
-        # TODO: is this velocity? or is this the position divided by time difference between samples? should this be ref_diff/rt_diff?
-        self.vel_data = np.diff(ref_position,axis=0)/rt_diff
+        # sensor readings
+        self.calib_sensor_data = 'kalman_test_calib'
+        # task data (position/velocity...)
+        self.calib_datafile = 'string'
+        # known good kalman filter generated off of this dataset
+        self.kalman_known_good = 'kalman_known_good'
+
+        # read in datasets
+        self.calib_data = pd.read_csv(self.calib_datafile,skiprows=10)
+        self.calib_sensor_data = pd.read_csv(self.calib_sensor_data)
+
+        # convert data to correct format
+        self.calib_sensor_data = self.calib_sensor_data.to_numpy()
+        self.calib_sensor_data = self.calib_sensor_data[0:len(self.calib_sensor_data)-1,1:23]
+
+        self.calib_data = self.calib_data.to_numpy()
+        realtime = self.calib_data[:,1]
+        self.ref_position = self.calib_data[:,2]
+        self.rt_diff = np.diff(realtime,axis=0)
+        # exception handling
+        self.rt_diff[np.where(self.rt_diff == 0)] = 0.0001
+        # get velocity from reference_position, change in position over time
+        self.vel_data = np.diff(self.ref_position,axis=0)/self.rt_diff
+
+        # convert to float32 - processed sensor and observation data
         self.vel_data = np.float32(self.vel_data) #change to float 32 from 64 bc will error otherwise
         self.calib_sensor_data = np.float32(self.calib_sensor_data)
 
