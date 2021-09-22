@@ -17,7 +17,7 @@ import copy
 import pandas as pd
 
 from . import postproc
-
+from . import analysis
 
 def savefig(base_dir, filename, **kwargs):
     '''
@@ -66,24 +66,25 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
     Plots a amplitude spectrum of each channel on the given axis
 
+    Example:
+        Plotting my weight data averaged across days.
+        ::
+            data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
+            samplerate = 1000
+            plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
+
+        .. image:: _images/freqdomain.png
+
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
         rms (bool, optional): compute root-mean square amplitude instead of peak amplitude
     '''
-    if np.ndim(data) < 2:
-        data = np.expand_dims(data, 1)
     if ax is None:
         ax = plt.gca()
-    freq_data = np.fft.fft(data, axis=0)
-    length = np.shape(freq_data)[0]
-    freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
-    if rms:
-        data_ampl[1:] = data_ampl[1:]/np.sqrt(2)
-    non_negative_freq = freq[freq>=0]
-    for ch in range(np.shape(freq_data)[1]):
+    non_negative_freq, data_ampl = analysis.calc_freq_domain_amplitude(data, samplerate, rms)
+    for ch in range(np.shape(data_ampl)[1]):
         ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Frequency (Hz)')
     if rms:

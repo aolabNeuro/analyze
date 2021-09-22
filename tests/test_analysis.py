@@ -138,6 +138,22 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
+    def test_calc_freq_domain_amplitude(self):
+        data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
+        samplerate = 1000
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate)
+        self.assertEqual(freqs.size, 500)
+        self.assertEqual(ampls.size, 500)
+
+        # Expect 100 and 50 Hz peaks at 1 V each
+        self.assertAlmostEqual(ampls[freqs==100., 0][0], 1)
+        self.assertAlmostEqual(ampls[freqs==50., 0][0], 1)
+        self.assertAlmostEqual(ampls[freqs==25., 0][0], 0)
+
+        # Expect 1/sqrt(2) V RMS
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate, rms=True)
+        self.assertAlmostEqual(ampls[freqs==100., 0][0], 1/np.sqrt(2))
+
 
 if __name__ == "__main__":
     unittest.main()

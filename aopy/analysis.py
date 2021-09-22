@@ -568,11 +568,26 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
     amplitude of the positive frequency components
 
     Args:
+        data (nt, nch): timeseries data in volts, can also be a single channel vector
+        samplerate (float): sampling rate of the data
+        rms (bool, optional): compute root-mean square amplitude instead of peak amplitude
+
+    Returns:
+        tuple: Tuple containing:
+        | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
+        | **amplitudes (nt):** array of amplitudes at the above frequencies (the y axis)
     '''
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
+
+    # Compute FFT along time dimension
     freq_data = np.fft.fft(data, axis=0)
     length = np.shape(freq_data)[0]
     freq = np.fft.fftfreq(length, d=1./samplerate)
     data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
+    non_negative_freq = freq[freq>=0]
+
+    # Apply factor of root 2 to turn amplitude into RMS amplitude
     if rms:
         data_ampl[1:] = data_ampl[1:]/np.sqrt(2)
-    non_negative_freq = freq[freq>=0]
+    return non_negative_freq, data_ampl
