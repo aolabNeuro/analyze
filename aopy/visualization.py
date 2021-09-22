@@ -46,6 +46,15 @@ def plot_timeseries(data, samplerate, ax=None):
     '''
     Plots data along time on the given axis
 
+    Example:
+        Plot 50 and 100 Hz sine wave.
+        ::
+            data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
+            samplerate = 1000
+            plot_timeseries(data, samplerate)
+
+        .. image:: _images/timeseries.png
+
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
@@ -67,7 +76,7 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     Plots a amplitude spectrum of each channel on the given axis
 
     Example:
-        Plotting my weight data averaged across days.
+        Plot 50 and 100 Hz sine wave amplitude spectrum.
         ::
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000
@@ -161,6 +170,21 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     '''
     Wrapper around plt.imshow for spatial data
 
+    Example:
+        Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        ::
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plot_spatial_map(data_map, x_missing, y_missing)
+
+        .. image:: _images/posmap.png
+
     Args:
         data_map (2,n array): map of x,y data
         x (list): list of x positions
@@ -192,10 +216,11 @@ def plot_raster(data, plot_cue, cue_bin, ax):
        Create a raster plot of neural data
 
        Args:
-           data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
-           plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-           cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
+            data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
+            plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
+            cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
             ax: axis to plot rastor plot
+        
        Returns:
            raster plot in appropriate axis
     '''
@@ -329,6 +354,21 @@ def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), a
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
 
+    Example:
+        Plot four peripheral and one central target.
+        ::
+            target_position = np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [-1, 1, 0],
+                [1, -1, 0],
+                [-1, -1, 0]
+            ])
+            target_radius = 0.1
+            plot_targets(target_position, target_radius, (-2, 2, -2, 2))
+
+        .. image:: _images/targets.png
+
     Args:
         target_positions (ntarg, 3): array of target (x, y, z) locations
         target_radius (float): radius of each target
@@ -374,6 +414,29 @@ def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), a
 def plot_trajectories(trajectories, bounds=None, ax=None):
     '''
     Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
+
+    Example:
+        Two random trajectories.
+        ::
+            trajectories =[
+                np.array([
+                    [0, 0, 0],
+                    [1, 1, 0],
+                    [2, 2, 0],
+                    [3, 3, 0],
+                    [4, 2, 0]
+                ]),
+                np.array([
+                    [-1, 1, 0],
+                    [-2, 2, 0],
+                    [-3, 3, 0],
+                    [-3, 4, 0]
+                ])
+            ]
+            bounds = (-5., 5., -5., 5., 0., 0.)
+            plot_trajectories(trajectories, bounds)
+
+        .. image:: _images/trajectories.png
 
     Args:
         trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
