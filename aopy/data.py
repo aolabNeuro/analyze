@@ -763,7 +763,7 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_nam
 
     return acq_ch_position, acq_chs, connected_elecs
 
-def map_data2elec(datain, signalpath_table, acq_ch_subset=None):
+def map_data2elec(datain, signalpath_table, acq_ch_subset=None, zero_indexing=False):
     '''
     Map data from its acquisition channel to the electrodes recorded from. Wrapper for aopy.data.map_acq2elec
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -772,6 +772,7 @@ def map_data2elec(datain, signalpath_table, acq_ch_subset=None):
         datain (nt, nacqch): Data recoded from an array.
         signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
 
     Returns:
         dataout (nt, nelec): Data from the connected electrodes
@@ -780,11 +781,14 @@ def map_data2elec(datain, signalpath_table, acq_ch_subset=None):
     '''
     
     acq_chs, connected_elecs = map_acq2elec(signalpath_table, acq_ch_subset=acq_ch_subset)
-    dataout = datain[:,acq_chs-1]
+    if zero_indexing:
+        dataout = datain[:,acq_chs]
+    else:
+        dataout = datain[:,acq_chs-1]
     
     return dataout, acq_chs, connected_elecs
 
-def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
+def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
     '''
     Map data from its acquisition channel to the electrodes recorded from and their position. Wrapper for aopy.data.map_acq2pos
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -796,6 +800,7 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
+        zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
 
     Returns:
         dataout (nt, nelec): Data from the connected electrodes
@@ -806,7 +811,10 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
     '''
     
     acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, xpos_name='topdown_x', ypos_name='topdown_y')
-    dataout = datain[:,acq_chs-1]
+    if zero_indexing:
+        dataout = datain[:,acq_chs]
+    else:
+        dataout = datain[:,acq_chs-1]
     
     return dataout, acq_ch_position, acq_chs, connected_elecs
 

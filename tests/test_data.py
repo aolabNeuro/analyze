@@ -309,6 +309,12 @@ class SignalPathTests(unittest.TestCase):
         self.assertEqual(dataout.shape[1], 240)
         np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
 
+        # Check zero_indexing flag
+        datain = datain - 1
+        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table, zero_indexing=True)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
     def test_map_data2elecandpos(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'
         test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
@@ -332,6 +338,13 @@ class SignalPathTests(unittest.TestCase):
         np.testing.assert_allclose(acq_chs, np.array([1,5,10]))
         np.testing.assert_allclose(connected_elecs, np.array([54,52,42]))
         np.testing.assert_allclose(acq_ch_position, expected_acq_ch_pos)
+
+        # Test zero_indexing flag
+        datain = datain - 1
+        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, zero_indexing=True)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
 
 
 if __name__ == "__main__":
