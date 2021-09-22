@@ -562,3 +562,17 @@ def find_outliers(data, std_threshold):
                   
     return good_data_idx.flatten(), distances.flatten()
 
+def calc_freq_domain_amplitude(data, samplerate, rms=False):
+    '''
+    Use FFT to decompose time series data into frequency domain to calculate the
+    amplitude of the positive frequency components
+
+    Args:
+    '''
+    freq_data = np.fft.fft(data, axis=0)
+    length = np.shape(freq_data)[0]
+    freq = np.fft.fftfreq(length, d=1./samplerate)
+    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
+    if rms:
+        data_ampl[1:] = data_ampl[1:]/np.sqrt(2)
+    non_negative_freq = freq[freq>=0]

@@ -62,19 +62,6 @@ def plot_timeseries(data, samplerate, ax=None):
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (uV)')
 
-
-def plot_freq_domain_power(data, samplerate, ax=None):
-    '''
-    Plots a power spectrum of each channel on the given axis
-    Args:
-        data (nt, nch): timeseries data, can also be a single channel vector
-    '''
-    time = np.arange(np.shape(data)[0])/samplerate
-    for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:,ch]*1e6) # convert to microvolts
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Voltage (uV)')
-
 def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
     Plots a amplitude spectrum of each channel on the given axis
@@ -209,7 +196,7 @@ def plot_raster(data, plot_cue, cue_bin, ax):
            cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
             ax: axis to plot rastor plot
        Returns:
-           rastor plot in appropriate axis
+           raster plot in appropriate axis
     '''
     n_trial = np.shape(data)[0]
     n_neurons = np.shape(data)[1]
@@ -225,8 +212,6 @@ def plot_raster(data, plot_cue, cue_bin, ax):
                     ax.plot(x2, x1, color=color_palette(n))
     if plot_cue:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
-
-
 
 
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
