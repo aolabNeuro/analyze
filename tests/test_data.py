@@ -132,18 +132,29 @@ class LoadDataTests(unittest.TestCase):
         import os
         import h5py
         testfile = 'save_hdf_test.hdf'
+        testfile_comp = 'save_hdf_test_comp.hdf'
         testpath = os.path.join(write_dir, testfile)
+        testpath_comp = os.path.join(write_dir, testfile_comp)
         if os.path.exists(testpath):
             os.remove(testpath)
+        if os.path.exists(testpath_comp):
+            os.remove(testpath_comp)
         data = {'test_data_array': np.arange(1000)}
         params = {'key1': 'value1', 'key2': 2}
+        compression = 3
         save_hdf(write_dir, testfile, data_dict=data, data_group="/", append=False)
         save_hdf(write_dir, testfile, data_dict=data, data_group="/test_data", append=True)
         save_hdf(write_dir, testfile, data_dict=params, data_group="/test_metadata", append=True)
+        save_hdf(write_dir, testfile_comp, data_dict=data, data_group="/", append=False, compression=compression)
         f = h5py.File(testpath, 'r')
         self.assertIn('test_data_array', f)
         self.assertIn('test_data', f)
         self.assertIn('test_metadata', f)
+        f_comp = h5py.File(testpath_comp,'r')
+        self.assertTrue(f_comp['/test_data_array'].compression == 'gzip')
+        self.assertTrue(f_comp['/test_data_array'].compression_opts == compression)
+        self.assertTrue(np.allclose(f_comp['/test_data_array'][()],data['test_data_array']))
+        # add check to assert data is compressed in this record
         test_data = f['test_data']
         test_metadata = f['test_metadata']
         self.assertEqual(test_metadata['key1'][()], b'value1') # note that the hdf doesn't save unicode strings
