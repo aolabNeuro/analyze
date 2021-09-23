@@ -210,33 +210,33 @@ class KalmanFilterTests(unittest.TestCase):
 
         self.assertTrue(np.abs(x_t_est.mean[0,0] - y*K_expected*(-1)) < tol)
         self.assertTrue(np.abs(x_t_est.mean[1,0] - y*K_expected*(1)) < tol)
-def test_kfdecoder_prediction(self):
-        tol = 1e-10
+# def test_kfdecoder_prediction(self):
+#         tol = 1e-10
 
-        a = 0.9
-        q = 2
-        A = np.diag([a, a])
-        W = np.diag([1.0, 1.0])
-        C = np.array([[0.0, 1.0], [1.0, 0.0]]) # these are intentionally crossed
-        Q = np.diag([q, q])
-        kf = KalmanFilter(A, W, C, Q)
+#         a = 0.9
+#         q = 2
+#         A = np.diag([a, a])
+#         W = np.diag([1.0, 1.0])
+#         C = np.array([[0.0, 1.0], [1.0, 0.0]]) # these are intentionally crossed
+#         Q = np.diag([q, q])
+#         kf = KalmanFilter(A, W, C, Q)
 
-        units = [(1, 1), (2, 1)]
-        ssm = StateSpace(State("state1", stochastic=True, drives_obs=True, order=0), State("state2", stochastic=True, drives_obs=True, order=0))
+#         units = [(1, 1), (2, 1)]
+#         ssm = StateSpace(State("state1", stochastic=True, drives_obs=True, order=0), State("state2", stochastic=True, drives_obs=True, order=0))
 
-        decoder = KFDecoder(kf, units, ssm)
-        p = 1.0/a**2
+#         decoder = KFDecoder(kf, units, ssm)
+#         p = 1.0/a**2
 
-        y = 0.1
-        y_t = np.array([y, -y])
+#         y = 0.1
+#         y_t = np.array([y, -y])
 
-        kf._init_state(np.array([0, 0]), np.diag([p, p]))
-        x_t_est = decoder.predict(y_t)
+#         kf._init_state(np.array([0, 0]), np.diag([p, p]))
+#         x_t_est = decoder.predict(y_t)
 
-        K_expected = 0.5
+#         K_expected = 0.5
 
-        self.assertTrue(np.abs(x_t_est[0] - y*K_expected*(-1)) < tol)
-        self.assertTrue(np.abs(x_t_est[1] - y*K_expected*(1)) < tol)
+#         self.assertTrue(np.abs(x_t_est[0] - y*K_expected*(-1)) < tol)
+#         self.assertTrue(np.abs(x_t_est[1] - y*K_expected*(1)) < tol)
 
 
 if __name__ == "__main__":
