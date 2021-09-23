@@ -6,6 +6,7 @@ from aopy.visualization import *
 import unittest
 import os
 import numpy as np
+import pandas as pd
 from matplotlib.testing.compare import compare_images
 
 test_dir = os.path.dirname(__file__)
@@ -269,7 +270,83 @@ class SignalPathTests(unittest.TestCase):
         x, y = load_electrode_pos(data_dir, testfile)
         self.assertEqual(len(x), 244)
         self.assertEqual(len(y), 244)
-    
+
+    def test_map_acq2pos(self):
+        # Note, this also tests map_acq2elec
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
+
+        acq_ch_position, acq_chs, connected_elecs = map_acq2pos(test_signalpath_table, test_eleclayout_table, xpos_name='topdown_x', ypos_name='topdown_y')
+        
+        np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
+        np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
+        
+        # Manually test a few electrode positions and output array shape
+        self.assertEqual(acq_ch_position.shape[0], 240)
+        self.assertEqual(acq_ch_position.shape[1], 2)
+
+        self.assertEqual(2.25, acq_ch_position[0,0])
+        self.assertEqual(9, acq_ch_position[0,1])
+
+        self.assertEqual(7.5, acq_ch_position[100,0])
+        self.assertEqual(5.25, acq_ch_position[100,1])
+        
+        self.assertEqual(3.75, acq_ch_position[200,0])
+        self.assertEqual(4.5, acq_ch_position[200,1])
+
+    def test_map_data2elec(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        datain = np.zeros((10, 256))
+        for i in range(256):
+            datain[:,i] = i+1
+
+        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table)
+
+        self.assertEqual(dataout.shape[0], 10)
+        self.assertEqual(dataout.shape[1], 240)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+        # Check zero_indexing flag
+        datain = datain - 1
+        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table, zero_indexing=True)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+    def test_map_data2elecandpos(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
+        datain = np.zeros((10, 256))
+        for i in range(256):
+            datain[:,i] = i+1
+
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table,  xpos_name='topdown_x', ypos_name='topdown_y')
+
+        self.assertEqual(dataout.shape[0], 10)
+        self.assertEqual(dataout.shape[1], 240)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+        # Test acquisition channel subset selection
+        acq_ch_subset = np.array([1,3,5,8,10])
+        expected_acq_ch_pos = np.array([[2.25, 9], [5.25, 6.75],[3.75, 9]])
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, acq_ch_subset=acq_ch_subset)
+        np.testing.assert_allclose(dataout[0,:].flatten(), np.array([1,5,10]))
+        np.testing.assert_allclose(acq_chs, np.array([1,5,10]))
+        np.testing.assert_allclose(connected_elecs, np.array([54,52,42]))
+        np.testing.assert_allclose(acq_ch_position, expected_acq_ch_pos)
+
+        # Test zero_indexing flag
+        datain = datain - 1
+        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, zero_indexing=True)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+
+
 if __name__ == "__main__":
     unittest.main()
 
