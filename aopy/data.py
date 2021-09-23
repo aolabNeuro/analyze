@@ -174,6 +174,20 @@ def load_optitrack_time(data_dir, filename):
     timestamps = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
     return timestamps
 
+
+def get_ecube_data_sources(data_dir):
+    '''
+    Lists the available data sources in a given data directory
+
+    Args: 
+        data_dir (str): eCube data directory
+
+    Returns:
+        str array: available sources (AnalogPanel, Headstages, etc.)
+    '''
+    dat = Dataset(data_dir)
+    return dat.listsources()
+    
 def load_ecube_metadata(data_dir, data_source):
     '''
     Sums the number of channels and samples across all files in the data_dir
@@ -238,8 +252,46 @@ def load_ecube_data(data_dir, data_source, channels=None):
         dtype = np.int16
 
     # Fetch all the data for all the channels
-    timeseries_data = _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
+    n_samples = metadata['n_samples']
+    timeseries_data = np.zeros((n_samples, len(channels)), dtype=dtype)
+    n_read = 0
+    for chunk in _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype):
+        chunk_len = chunk.shape[0]
+        timeseries_data[n_read:n_read+chunk_len,:] = chunk
+        n_read += chunk_len
     return timeseries_data
+
+def load_ecube_data_chunked(data_dir, data_source, channels=None, chunksize=728):
+    '''
+    Loads a data file one "chunk" at a time. Useful for replaying files as if they were online data.
+
+    Args:
+        data_dir (str): folder containing the data you want to load
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
+        channels (int array or None): list of channel numbers (0-indexed) to load. If None, will load all channels by default
+        chunksize (int): how many samples to include in each chunk
+
+    Yields:
+        (chunksize, nch): one chunk of data for the given source
+    '''
+    # Read metadata, check inputs
+    metadata = load_ecube_metadata(data_dir, data_source)
+    if channels is None:
+        channels = range(metadata['n_channels'])
+    elif len(channels) > metadata['n_channels']:
+        raise ValueError("Supplied channel numbers are invalid")
+
+    # Datatype is currently fixed for each data_source
+    if data_source == 'DigitalPanel':
+        dtype = np.uint64
+    else:
+        dtype = np.int16
+    
+    # Fetch all the channels but just return the generator
+    n_samples = metadata['n_samples']
+    n_channels = metadata['n_channels']
+    kwargs = dict(maxchunksize=chunksize*n_channels*np.dtype(dtype).itemsize)
+    return _process_channels(data_dir, data_source, channels, n_samples, **kwargs)
 
 def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     '''
@@ -270,7 +322,12 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
 
     # Open and read the eCube data into the new hdf dataset
-    _process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset, **dataset_kwargs)
+    n_read = 0
+    for chunk in _process_channels(data_dir, data_source, range(n_channels), n_samples, **dataset_kwargs):
+        chunk_len = chunk.shape[0]
+        dset[n_read:n_read+chunk_len,:] = chunk
+        n_read += chunk_len
+
     dat = Dataset(data_dir)
     dset.attrs['samplerate'] = dat.samplerate
     dset.attrs['data_source'] = data_source
@@ -278,20 +335,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
 
     return dset
 
-def get_ecube_data_sources(data_dir):
-    '''
-    Lists the available data sources in a given data directory
-
-    Args: 
-        data_dir (str): eCube data directory
-
-    Returns:
-        str array: available sources (AnalogPanel, Headstages, etc.)
-    '''
-    dat = Dataset(data_dir)
-    return dat.listsources()
-
-def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, debug=False, **dataset_kwargs):
+def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
     Reads data from an ecube data source by channel until the number of samples requested 
     has been loaded. If a processing function is supplied, it will be applied to 
@@ -307,11 +351,9 @@ def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, da
         debug (bool): whether the data is read in debug mode
         dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
         
-    Returns:
-        (nt, nch): Requested samples for requested channels
+    Yields:
+        (nt, nch): Chunks of the requested samples for requested channels
     '''
-    if data_out == None:
-        data_out = np.zeros((n_samples, len(channels)), dtype=dtype)
 
     dat = Dataset(data_dir, **dataset_kwargs)
     dat.selectsource(data_source)
@@ -324,13 +366,12 @@ def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, da
             data_chunk = next(datastream)
             data_len = np.shape(data_chunk)[1]
             if len(channels) == 1:
-                data_out[idx_samples:idx_samples+data_len,:] = data_chunk[channels,:].T 
+                yield data_chunk[channels,:].T 
             else:
-                data_out[idx_samples:idx_samples+data_len,:] = np.squeeze(data_chunk[channels,:]).T # this might be where you filter data
+                yield np.squeeze(data_chunk[channels,:]).T # this might be where you filter data
             idx_samples += data_len
         except StopIteration:
             break
-    return data_out
 
 def load_ecube_digital(path, data_dir):
     '''
