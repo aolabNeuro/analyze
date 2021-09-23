@@ -49,15 +49,15 @@ def load_optitrack_metadata(data_dir, filename, metadata_row=0):
     This function loads optitrack metadata from .csv file that has 1 rigid body
     exported with the following settings:
 
-        Markers: Off
-        Unlabeled markers: Off
-        Quality Statistics: Off
-        Rigid Bodies: On
-        Rigid Body Markers: Off
-        Bones: Off
-        Bone Markers: Off
-        Header Information: On
-        Optitrack format Version(s): 1.23
+        | **Markers:** Off
+        | **Unlabeled markers:** Off
+        | **Quality Statistics:** Off
+        | **Rigid Bodies:** On
+        | **Rigid Body Markers:** Off
+        | **Bones:** Off
+        | **Bone Markers:** Off
+        | **Header Information:** On
+        | **Optitrack format Version(s):** 1.23
 
     Required packages: csv, pandas
 
@@ -111,15 +111,15 @@ def load_optitrack_data(data_dir, filename):
     This function loads a series of x, y, z positional data from the optitrack
     .csv file that has 1 rigid body exported with the following settings:
 
-        Markers: Off
-        Unlabeled markers: Off
-        Quality Statistics: Off
-        Rigid Bodies: On
-        Rigid Body Markers: Off
-        Bones: Off
-        Bone Markers: Off
-        Header Information: On
-        Optitrack format Version(s): 1.23
+        | **Markers:** Off
+        | **Unlabeled markers:** Off
+        | **Quality Statistics:** Off
+        | **Rigid Bodies:** On
+        | **Rigid Body Markers:** Off
+        | **Bones:** Off
+        | **Bone Markers:** Off
+        | **Header Information:** On
+        | **Optitrack format Version(s):** 1.23
 
     Required packages: pandas, numpy
 
@@ -128,10 +128,9 @@ def load_optitrack_data(data_dir, filename):
         filename (string): File name to load within the data directory
 
     Returns:
-        tuple: tuple containing:
-        
-            mocap_data_pos (nt, 3): Positional mocap data
-            mocap_data_rot (nt, 4): Rotational mocap data
+        tuple: Tuple containing:
+            | **mocap_data_pos (nt, 3):** Positional mocap data
+            | **mocap_data_rot (nt, 4):** Rotational mocap data
     '''
 
     # Load the metadata to check the columns are going to line up
@@ -185,11 +184,10 @@ def load_ecube_metadata(data_dir, data_source):
 
     Returns:
         dict: Dictionary of metadata with fields:
-
-            samplerate (float): sampling rate of data for this source
-            data_source (str): copied from the function argument
-            n_channels (int): number of channels
-            n_samples (int): number of samples for one channel
+            | **samplerate (float):** sampling rate of data for this source
+            | **data_source (str):** copied from the function argument
+            | **n_channels (int):** number of channels
+            | **n_samples (int):** number of samples for one channel
     '''
 
     # For now just load the metadata provieded by pyECubeSig
@@ -343,10 +341,9 @@ def load_ecube_digital(path, data_dir):
         data_dir (str): folder you want to load
 
     Returns:
-        tuple: tuple containing:
-        
-            data (nt): digital data, arranged as 64-bit numbers representing the 64 channels
-            metadata (dict): metadata (see load_ecube_metadata() for details)
+        tuple: Tuple containing:
+            | **data (nt):** digital data, arranged as 64-bit numbers representing the 64 channels
+            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'DigitalPanel')
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
@@ -362,10 +359,9 @@ def load_ecube_analog(path, data_dir, channels=None):
         channels (int array, optional): which channels to load
 
     Returns:
-        tuple: tuple containing:
-        
-            data (nt, nch): analog data for the requested channels
-            metadata (dict): metadata (see load_ecube_metadata() for details)
+        tuple: Tuple containing:
+            | **data (nt, nch):** analog data for the requested channels
+            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'AnalogPanel', channels)
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
@@ -381,10 +377,9 @@ def load_ecube_headstages(path, data_dir, channels=None):
         channels (int array, optional): which channels to load
 
     Returns:
-        tuple: tuple containing:
-        
-            data (nt, nch): analog data for the requested channels
-            metadata (dict): metadata (see load_ecube_metadata() for details)
+        tuple: Tuple containing:
+            | **data (nt, nch):** analog data for the requested channels
+            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'Headstages', channels)
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'Headstages')
@@ -401,7 +396,8 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
         data_group (str, optional): where to store the data in the hdf
         append (bool, optional): append an existing hdf file or create a new hdf file
 
-    Returns: None
+    Returns: 
+        None
     '''
 
     full_file_name = os.path.join(data_dir, hdf_filename)
@@ -466,9 +462,8 @@ def get_hdf_dictionary(data_dir, hdf_filename, show_tree=False):
     
     Returns:
         dict: contents of the file keyed by name as tuples containing:
-
-            shape (tuple): size of the data
-            dtype (np.dtype): type of the data
+            | **shape (tuple):** size of the data
+            | **dtype (np.dtype):** type of the data
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
@@ -507,10 +502,9 @@ def _load_hdf_dataset(dataset, name):
         name (str): name of the dataset
 
     Returns:
-        tuple: tuple containing:
-
-            name (str): name of the dataset (might be modified)
-            data (object): loaded data
+        tuple: Tuple containing:
+            | **name (str):** name of the dataset (might be modified)
+            | **data (object):** loaded data
     '''
     data = dataset[()]
     if '_json' in name:
@@ -589,10 +583,9 @@ def load_bmi3d_hdf_table(data_dir, filename, table_name):
         table_name (str): name of the table you want to load
 
     Returns:
-        tuple: tuple containing:
-        
-            data (ndarray): data from bmi3d
-            metadata (dict): attributes associated with the table
+        tuple: Tuple containing:
+            | **data (ndarray):** data from bmi3d
+            | **metadata (dict):** attributes associated with the table
     '''
     filepath = os.path.join(data_dir, filename)
     with tables.open_file(filepath, 'r') as f:
@@ -692,10 +685,9 @@ def load_electrode_pos(data_dir, pos_file):
         pos_file (str): the excel file
 
     Returns:
-        tuple: tuple containing:
-
-            x_pos (nch): x position of each electrode
-            y_pos (nch): y position of each electrode
+        tuple: Tuple containing:
+            | **x_pos (nch):** x position of each electrode
+            | **y_pos (nch):** y position of each electrode
     '''
     fullfile = os.path.join(data_dir, pos_file)
     electrode_pos = pd.read_excel(fullfile)
@@ -713,8 +705,9 @@ def map_acq2elec(signalpath_table, acq_ch_subset=None):
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
 
     Returns:
-        acq_chs (nelec): Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
-        connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array)   
+        tuple: Tuple containing:
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
     '''    
     # Parse acquisition channels used and the connected electrodes
     connected_elecs_mask = np.logical_not(np.isnan(signalpath_table['acq']))
@@ -745,10 +738,11 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_nam
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
 
     Returns:
-        acq_ch_position (nelec, 2): X and Y coordinates of the electrode each acquisition channel gets data from.
-                                    X position is in the first column and Y position is in the second column
-        acq_chs (nelec): Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
-        connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array)   
+        tuple: Tuple Containing:
+            | **acq_ch_position (nelec, 2):** X and Y coordinates of the electrode each acquisition channel gets data from.
+                                        X position is in the first column and Y position is in the second column
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
     '''
     # Get index mapping from acquisition channel to electrode number
     acq_chs, connected_elecs = map_acq2elec(signalpath_table, acq_ch_subset=acq_ch_subset)
@@ -775,9 +769,10 @@ def map_data2elec(datain, signalpath_table, acq_ch_subset=None, zero_indexing=Fa
         zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
 
     Returns:
-        dataout (nt, nelec): Data from the connected electrodes
-        acq_chs (nelec): Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
-        connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array) 
+        tuple: Tuple containing:
+            | **dataout (nt, nelec):** Data from the connected electrodes
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
     
     acq_chs, connected_elecs = map_acq2elec(signalpath_table, acq_ch_subset=acq_ch_subset)
@@ -803,11 +798,12 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
         zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
 
     Returns:
-        dataout (nt, nelec): Data from the connected electrodes
-        acq_ch_position (nelec, 2): X and Y coordinates of the electrode each acquisition channel gets data from.
-                                    X position is in the first column and Y position is in the second column
-        acq_chs (nelec): Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
-        connected_elecs (nelec): Electrodes used (e.g. 240/244 for viventi ECoG array) 
+        tuple: Tuple containing:
+            | **dataout (nt, nelec):** Data from the connected electrodes
+            | **acq_ch_position (nelec, 2):** X and Y coordinates of the electrode each acquisition channel gets data from.
+                                        X position is in the first column and Y position is in the second column
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
     
     acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, xpos_name='topdown_x', ypos_name='topdown_y')
