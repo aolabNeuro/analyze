@@ -140,7 +140,45 @@ class CalcTests(unittest.TestCase):
 
 class KalmanFilterTests(unittest.TestCase):
 
-    # TODO: format this for pavi's kalman
+    # TODO: format this for pavi's kalman\
+
+    # GaussianState from riglib.bmi.bmi.py: called to create test states
+    class GaussianState(object):
+        '''
+        Class representing a multivariate Gaussian. Gaussians are
+        commonly used to represent the state
+        of the BMI in decoders, including the KF and PPF decoders
+        '''
+        def __init__(self, mean, cov):
+            '''
+            Parameters
+            mean: np.array of shape (N, 1) or (N,)
+                N-dimensional vector representing the mean of the multivariate Gaussian distribution
+            cov: np.array of shape (N, N)
+                N-dimensional covariance matrix
+            '''
+            if isinstance(mean, np.matrix):
+                assert mean.shape[1] == 1 # column vector
+                self.mean = mean
+            elif isinstance(mean, (float, int)):
+                mean = float(mean)
+                if isinstance(cov, float):
+                    self.mean = mean
+                else:
+                    self.mean = mean * np.mat(np.ones([cov.shape[0], 1]))
+
+            elif isinstance(mean, np.ndarray):
+                if np.ndim(mean) == 1:
+                    mean = mean.reshape(-1,1)
+                self.mean = np.mat(mean)
+            else:
+                raise Exception(str(type(mean)))
+
+            # Covariance
+            assert cov.shape[0] == cov.shape[1] # Square matrix
+            if isinstance(cov, np.ndarray):
+                cov = np.mat(cov)
+            self.cov = cov
 
     # call aopy.analysis.KFDecoder
     def test_kf_prediction(self):
@@ -162,7 +200,7 @@ class KalmanFilterTests(unittest.TestCase):
 
 
         p = 1.0/a**2
-        x_t = GaussianState(np.mat([0, 0]).reshape(-1,1), np.diag([p, p]))
+        x_t = self.GaussianState(np.mat([0, 0]).reshape(-1,1), np.diag([p, p]))
 
         y = 0.1
         y_t = np.mat([y, -y]).reshape(-1,1)

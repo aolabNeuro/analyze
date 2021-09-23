@@ -276,6 +276,8 @@ class LoadDataTests(unittest.TestCase):
         self.vel_data = np.float32(self.vel_data) #change to float 32 from 64 bc will error otherwise
         self.calib_sensor_data = np.float32(self.calib_sensor_data)
 
+        return self.vel_data, self.calib_sensor_data
+
 
 
 class SignalPathTests(unittest.TestCase):
