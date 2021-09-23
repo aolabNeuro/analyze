@@ -9,6 +9,7 @@ import pandas as pd
 import os
 import glob
 import warnings
+import pickle
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -939,3 +940,39 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
                 strings.append(temp_string)
     
     return strings
+
+
+def pkl_write(file_to_write, values_to_dump, write_dir):
+    '''
+    Write data into a pickle file.
+    
+    Args:
+        file_to_write (str): filename with '.pkl' extension
+        values_to_dump (any): values to write in a pickle file
+        write_dir (str): Path - where do you want to write this file
+
+    Returns:
+        None
+
+    examples: pkl_write(meta.pkl, data, '/data_dir')
+    '''
+    file = os.path.join(write_dir, file_to_write)
+    with open(file, 'wb') as pickle_file:
+        pickle.dump(values_to_dump, pickle_file)
+
+
+def pkl_read(file_to_read, read_dir):
+    '''
+    Reads data stored in a pickle file.
+    
+    Args:
+        file_to_read (str): filename with '.pkl' extension
+        read_dir (str): Path to folder where the file is stored
+
+    Returns:
+        data in a format as it is stored
+
+    '''
+    file = os.path.join(read_dir, file_to_read)
+    this_dat = pickle.load(open(file, "rb"))
+    return this_dat
