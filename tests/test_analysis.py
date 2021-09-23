@@ -138,9 +138,67 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
-# class KalmanFilterTests(unittest.TestCase):
+class KalmanFilterTests(unittest.TestCase):
 
-#     def test_decoder():
+    # TODO: format this for pavi's kalman
+
+    # call aopy.analysis.KFDecoder
+    def test_kf_prediction(self):
+        """Single iteration of KF prediction shall match hand-verifable reference output."""
+        tol = 1e-10
+
+        a = 0.9
+        q = 2
+        A = np.diag([a, a])
+        W = np.diag([1.0, 1.0])
+        C = np.array([[0.0, 1.0], [1.0, 0.0]])
+        Q = np.diag([q, q])
+        kf = aopy.analysis.KFDecoder()
+
+        # set kalman object parameters for test A, W, C, Q
+        # note C=H in analysis.py (conventions)
+        kf.model = [A, W, C, Q]
+
+
+
+        p = 1.0/a**2
+        x_t = GaussianState(np.mat([0, 0]).reshape(-1,1), np.diag([p, p]))
+
+        y = 0.1
+        y_t = np.mat([y, -y]).reshape(-1,1)
+        x_t_est = kf._forward_infer(x_t, y_t)
+
+        K_expected = 0.5
+
+        self.assertTrue(np.abs(x_t_est.mean[0,0] - y*K_expected*(-1)) < tol)
+        self.assertTrue(np.abs(x_t_est.mean[1,0] - y*K_expected*(1)) < tol)
+def test_kfdecoder_prediction(self):
+        tol = 1e-10
+
+        a = 0.9
+        q = 2
+        A = np.diag([a, a])
+        W = np.diag([1.0, 1.0])
+        C = np.array([[0.0, 1.0], [1.0, 0.0]]) # these are intentionally crossed
+        Q = np.diag([q, q])
+        kf = KalmanFilter(A, W, C, Q)
+
+        units = [(1, 1), (2, 1)]
+        ssm = StateSpace(State("state1", stochastic=True, drives_obs=True, order=0), State("state2", stochastic=True, drives_obs=True, order=0))
+
+        decoder = KFDecoder(kf, units, ssm)
+        p = 1.0/a**2
+
+        y = 0.1
+        y_t = np.array([y, -y])
+
+        kf._init_state(np.array([0, 0]), np.diag([p, p]))
+        x_t_est = decoder.predict(y_t)
+
+        K_expected = 0.5
+
+        self.assertTrue(np.abs(x_t_est[0] - y*K_expected*(-1)) < tol)
+        self.assertTrue(np.abs(x_t_est[1] - y*K_expected*(1)) < tol)
 
 
 if __name__ == "__main__":
