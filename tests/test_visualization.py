@@ -24,7 +24,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
         samplerate = 1000
         plt.figure()
-        plot_freq_domain_amplitude(data, samplerate)
+        plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
         savefig(write_dir, filename)
 
     def test_spatial_map(self):
