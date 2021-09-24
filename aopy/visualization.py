@@ -73,10 +73,11 @@ def plot_timeseries(data, samplerate, ax=None):
 
 def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
-    Plots a amplitude spectrum of each channel on the given axis
+    Plots a amplitude spectrum of each channel on the given axis. Just need to input time series
+    data and this will calculate and plot the amplitude spectrum. 
 
     Example:
-        Plot 50 and 100 Hz sine wave amplitude spectrum.
+        Plot 50 and 100 Hz sine wave amplitude spectrum. 
         ::
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000

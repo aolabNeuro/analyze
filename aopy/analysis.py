@@ -565,17 +565,17 @@ def find_outliers(data, std_threshold):
 def calc_freq_domain_amplitude(data, samplerate, rms=False):
     '''
     Use FFT to decompose time series data into frequency domain to calculate the
-    amplitude of the positive frequency components
+    amplitude of the non-negative frequency components
 
     Args:
-        data (nt, nch): timeseries data in volts, can also be a single channel vector
+        data (nt, nch): timeseries data, can be a single channel vector
         samplerate (float): sampling rate of the data
         rms (bool, optional): compute root-mean square amplitude instead of peak amplitude
 
     Returns:
         tuple: Tuple containing:
         | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-        | **amplitudes (nt):** array of amplitudes at the above frequencies (the y axis)
+        | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -589,5 +589,5 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     # Apply factor of root 2 to turn amplitude into RMS amplitude
     if rms:
-        data_ampl[1:] = data_ampl[1:]/np.sqrt(2)
+        data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl

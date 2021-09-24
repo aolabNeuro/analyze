@@ -154,6 +154,14 @@ class CalcTests(unittest.TestCase):
         freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate, rms=True)
         self.assertAlmostEqual(ampls[freqs==100., 0][0], 1/np.sqrt(2))
 
+        # Expect 2 channels with different signals
+        data = np.vstack((np.sin(np.pi*np.arange(1000)/10), np.sin(2*np.pi*np.arange(1000)/10))).T
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate)
+        self.assertEqual(freqs.size, 500)
+        self.assertEqual(ampls.shape[0], 500)
+        self.assertEqual(ampls.shape[1], 2)
+        self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
+        self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
 if __name__ == "__main__":
     unittest.main()
