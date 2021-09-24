@@ -50,6 +50,13 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
+    def test_plot_raster(self):
+        filename = 'raster_plot_example.png'
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        plot_raster(data, True, cue_bin=0.2, ax=ax)
+        savefig(write_dir, filename)
+
 class AnimationTests(unittest.TestCase):
 
     def test_animate_events(self):
