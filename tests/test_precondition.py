@@ -149,6 +149,11 @@ class FilterTests(unittest.TestCase):
         fname = 'lfp_bandpower.png'
         savefig(write_dir, fname)
 
+    def test_binspikes(self):
+        data = [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1]
+        fs = 100
+        binned_spikes = precondition.bin_spikes(data, fs, 5)
+        print(binned_spikes)
 
 if __name__ == "__main__":
     unittest.main()

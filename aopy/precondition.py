@@ -162,5 +162,29 @@ def get_psd_welch(data, fs,n_freq = None):
         f, psd = signal.welch(data, fs, average = 'median')
     return f,psd
 
+def bin_spikes(data, fs, bin_width):
+    '''
+    bins spikes
 
+    Args:
+        data (ndarray): time series spike data (nt x 1).
+        fs (float): sampling rate of data
+        bin width (int): width of bin
+
+    Returns:
+        binned_spikes (ndarray): binned spikes 
+    '''
+
+    dT = 1/fs # time width of bin
+    nbins = math.ceil(len(data)/bin_width) # the number of bins
+    binned_spikes = np.zeros(nbins)
+
+    for idx in range(nbins):
+        if idx == nbins - 1:
+            binned_spikes[idx] = np.mean(data[idx*bin_width :])
+        else:
+            binned_spikes[idx] = np.mean(data[idx*bin_width : (idx + 1)*bin_width])
+
+    binned_spikes = binned_spikes/dT # convert from [spikes/bin] to [spikes/s]    
+    return binned_spikes
 
