@@ -973,5 +973,6 @@ def pkl_read(file_to_read, read_dir):
 
     '''
     file = os.path.join(read_dir, file_to_read)
-    this_dat = pickle.load(open(file, "rb"))
+    with open(file, "rb") as f:
+        this_dat = pickle.load(f)
     return this_dat
