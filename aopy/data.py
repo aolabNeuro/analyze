@@ -870,7 +870,7 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
         str_include (list of strings): List of substrings that must be included in a string to keep it
         str_avoid (list of strings): List of substrings that can not be included in a string to keep it
         
-    Retruns:
+    Returns:
         (list of strings): List of strings fitting the input conditions
 
     Example::
@@ -880,6 +880,7 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
         >>> print(parsed_strings)
         ['sig002a_wf', 'sig002a_wf_ts']
     '''
+
     parsed_str = []
     
     for str_idx, str_val in enumerate(strings):
