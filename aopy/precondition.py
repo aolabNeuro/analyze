@@ -1,17 +1,13 @@
 # precondition.py
-# code for preconditioning neural data
+# code for cleaning and preparing neural data for users to interact with,
+# for example: down-sampling, outlier detection, and initial filtering
+
 from scipy import signal
 from scipy.signal import butter, lfilter, filtfilt
-import math
 import numpy as np
-import os
-import matplotlib.pyplot as plt
-#
+
 import nitime.algorithms as tsa
-import nitime.utils as utils
-from nitime.viz import winspect
-from nitime.viz import plot_spectral_estimate
-from . import utils
+
 '''
 Filter functions
 '''
