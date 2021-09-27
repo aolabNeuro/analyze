@@ -1,3 +1,5 @@
+# torch.py
+# code using the pytorch library which isn't installed by default. to install use `pip install torch`
 import torch
 
 # - - -- --- ----- -------- ---PYTORCH--- -------- ----- --- -- - -
