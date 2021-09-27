@@ -135,21 +135,6 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-
-def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
-    '''
-    generate a plot of mean firing rate per target direction
-
-    '''
-    sns.set_context('talk')
-    ax.plot(np.array(means_d)[:, neuron_id], c=color, alpha=this_alpha, label=this_label)
-
-    ax.legend()
-    ax.set_xlabel("Target", fontsize=16)
-    ax.set_ylabel("Spike Rate (Hz)", fontsize=16)
-    plt.tight_layout()
-
-
 def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_rows=None, n_subplot_cols= None):
     '''
     Args:
