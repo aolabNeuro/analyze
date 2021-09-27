@@ -1,6 +1,20 @@
 Getting Started:
 ================
 
+.. contents:: :local:
+
+Installation
+------------
+
+Clone the repo from github, then install. If you are planning to make changes, use the -e flag to install
+in editable mode rather than installing a fixed version.
+
+::
+
+    > git clone https://github.com/aolabNeuro/analyze.git
+    > cd analyze
+    > pip install -e .
+
 Example usage
 -------------
 Data from experiments comes from several sources (e.g. experiment hdf files, optitrack csv, binary neural data).
@@ -9,7 +23,7 @@ contents of these files.
 
 A simple example:
 
-::
+.. code-block:: console
 
     /data/raw/   
     ├── hdf/
@@ -31,7 +45,7 @@ A simple example:
     result_filename = aopy.data.get_exp_filename(block)
     aopy.preproc.proc_exp(data_dir, files, result_dir, result_filename)
 
-Once preprocessed, you can inspect the hdf file using ``aopy.data.get_hdf_contents()``:
+Once preprocessed, you can inspect the hdf file using ``aopy.data.get_hdf_dictionary()``:
 
 ::
 
