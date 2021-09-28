@@ -17,7 +17,7 @@ import copy
 import pandas as pd
 
 from . import postproc
-
+from . import analysis
 
 def savefig(base_dir, filename, **kwargs):
     '''
@@ -46,6 +46,15 @@ def plot_timeseries(data, samplerate, ax=None):
     '''
     Plots data along time on the given axis
 
+    Example:
+        Plot 50 and 100 Hz sine wave.
+        ::
+            data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
+            samplerate = 1000
+            plot_timeseries(data, samplerate)
+
+        .. image:: _images/timeseries.png
+
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
@@ -62,22 +71,19 @@ def plot_timeseries(data, samplerate, ax=None):
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (uV)')
 
-
-def plot_freq_domain_power(data, samplerate, ax=None):
-    '''
-    Plots a power spectrum of each channel on the given axis
-    Args:
-        data (nt, nch): timeseries data, can also be a single channel vector
-    '''
-    time = np.arange(np.shape(data)[0])/samplerate
-    for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:,ch]*1e6) # convert to microvolts
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Voltage (uV)')
-
 def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
-    Plots a amplitude spectrum of each channel on the given axis
+    Plots a amplitude spectrum of each channel on the given axis. Just need to input time series
+    data and this will calculate and plot the amplitude spectrum. 
+
+    Example:
+        Plot 50 and 100 Hz sine wave amplitude spectrum. 
+        ::
+            data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
+            samplerate = 1000
+            plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
+
+        .. image:: _images/freqdomain.png
 
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
@@ -85,18 +91,10 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
         ax (pyplot axis, optional): where to plot
         rms (bool, optional): compute root-mean square amplitude instead of peak amplitude
     '''
-    if np.ndim(data) < 2:
-        data = np.expand_dims(data, 1)
     if ax is None:
         ax = plt.gca()
-    freq_data = np.fft.fft(data, axis=0)
-    length = np.shape(freq_data)[0]
-    freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
-    if rms:
-        data_ampl[1:] = data_ampl[1:]/np.sqrt(2)
-    non_negative_freq = freq[freq>=0]
-    for ch in range(np.shape(freq_data)[1]):
+    non_negative_freq, data_ampl = analysis.calc_freq_domain_amplitude(data, samplerate, rms)
+    for ch in range(np.shape(data_ampl)[1]):
         ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Frequency (Hz)')
     if rms:
@@ -173,6 +171,21 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     '''
     Wrapper around plt.imshow for spatial data
 
+    Example:
+        Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        ::
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plot_spatial_map(data_map, x_missing, y_missing)
+
+        .. image:: _images/posmap.png
+
     Args:
         data_map (2,n array): map of x,y data
         x (list): list of x positions
@@ -204,12 +217,13 @@ def plot_raster(data, plot_cue, cue_bin, ax):
        Create a raster plot of neural data
 
        Args:
-           data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
-           plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-           cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
+            data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
+            plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
+            cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
             ax: axis to plot rastor plot
+        
        Returns:
-           rastor plot in appropriate axis
+           raster plot in appropriate axis
     '''
     n_trial = np.shape(data)[0]
     n_neurons = np.shape(data)[1]
@@ -225,8 +239,6 @@ def plot_raster(data, plot_cue, cue_bin, ax):
                     ax.plot(x2, x1, color=color_palette(n))
     if plot_cue:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
-
-
 
 
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
@@ -343,6 +355,21 @@ def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), a
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
 
+    Example:
+        Plot four peripheral and one central target.
+        ::
+            target_position = np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [-1, 1, 0],
+                [1, -1, 0],
+                [-1, -1, 0]
+            ])
+            target_radius = 0.1
+            plot_targets(target_position, target_radius, (-2, 2, -2, 2))
+
+        .. image:: _images/targets.png
+
     Args:
         target_positions (ntarg, 3): array of target (x, y, z) locations
         target_radius (float): radius of each target
@@ -388,6 +415,29 @@ def plot_targets(target_positions, target_radius, bounds=None, origin=(0,0,0), a
 def plot_trajectories(trajectories, bounds=None, ax=None):
     '''
     Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
+
+    Example:
+        Two random trajectories.
+        ::
+            trajectories =[
+                np.array([
+                    [0, 0, 0],
+                    [1, 1, 0],
+                    [2, 2, 0],
+                    [3, 3, 0],
+                    [4, 2, 0]
+                ]),
+                np.array([
+                    [-1, 1, 0],
+                    [-2, 2, 0],
+                    [-3, 3, 0],
+                    [-3, 4, 0]
+                ])
+            ]
+            bounds = (-5., 5., -5., 5., 0., 0.)
+            plot_trajectories(trajectories, bounds)
+
+        .. image:: _images/trajectories.png
 
     Args:
         trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
