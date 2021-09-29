@@ -139,5 +139,44 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(rms, 1.)
 
 
+class CurveFittingTests(unittest.TestCase):
+
+    def test_fit_linear_regression(self):
+
+        """
+        creates same columns of elements 1 through 9, and linearly transform with known slope and intercept
+        """
+    
+        NUM_ROWS, NUM_COLUMNS = 10,3
+        
+        X = np.arange(NUM_ROWS).reshape(-1,1)
+        X = np.tile(X, (1,NUM_COLUMNS) )
+        
+        #create dependant vars.
+        slope = 2.0
+        intercept = 3.0
+        r = 1.0 
+        Y = slope * X + intercept
+        dtype = np.dtype([
+        ('slope', float),
+        ('intercept', float),
+        ('corr_coefficient', float)
+        ])
+    
+        expected_results = np.empty(NUM_COLUMNS, dtype=dtype)
+        expected_results['slope'] = slope
+        expected_results['intercept'] = intercept
+        expected_results['corr_coefficient'] = r
+        
+        
+        results = fit_linear_regression(X, Y)
+        np.testing.assert_array_equal(expected_results, results)
+
+
+
+
+
+
+
 if __name__ == "__main__":
     unittest.main()

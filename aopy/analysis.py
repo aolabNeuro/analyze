@@ -5,14 +5,18 @@ Code for basic neural data analysis
 import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
-
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
-from scipy.optimize import curve_fit
+
 from sklearn import model_selection
+
+import scipy
 from scipy import interpolate
-import warnings
+from scipy.optimize import curve_fit
+
 from numpy.linalg import inv as inv # used in Kalman Filter
+
+import warnings
 
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
@@ -561,4 +565,52 @@ def find_outliers(data, std_threshold):
     good_data_idx = (distances < (dist_std*std_threshold))
                   
     return good_data_idx.flatten(), distances.flatten()
+
+
+def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_level:float = 0.5) -> np.ndarray:
+
+    """
+    function that fits a linear regression to each matching column of X and Y arrays.
+    
+    Args:
+        X[np.ndarray]: number of data points by number of columns 
+        X[np.ndarray]: number of data points by number of columns
+        coeffcient_coeff_warning_level: if any column returns a corr coeff less than this level 
+
+    returns
+        results[np.ndarray]: number of columns of dtype slope, intercept,  and 
+    """
+    
+    #make sure the same shape
+    assert X.shape == Y.shape
+    
+    
+    #create results array
+    NUM_DATA_POINTS, NUM_VARS = X.shape
+    
+    dtype = np.dtype([
+        ('slope', float),
+        ('intercept', float),
+        ('corr_coefficient', float)
+    ])
+    
+    results = np.empty(NUM_VARS, dtype=dtype)
+    
+    #iterate through the columns
+    for i in range(NUM_VARS):
+        
+        x = X[:,i]
+        y = Y[:,i]
+        
+        slope, intercept, r_value,  *_ = scipy.stats.linregress(x, y)
+        
+        results['slope'] = slope
+        results['intercept'] = intercept
+        results['corr_coefficient'] = r_value
+        
+        if r_value <= coefficient_coeff_warning_level: 
+            warnings.warn(f'when fitting column number {i}, the correlation coefficient is {r_value}, less than {coefficient_coeff_warning_level} ')
+        
+    return results
+
 
