@@ -1,5 +1,6 @@
 # preproc.py
 # code for preprocessing neural data
+from aopy import analysis
 import numpy as np
 import numpy.lib.recfunctions as rfn
 from .data import *
@@ -1466,7 +1467,11 @@ def calc_eye_calibration(exp_data, exp_metadata, debug=True):
     
     Args:
         exp_data(np.ndarray): parsed bmi3d data with 'eye_data' as an variable
-        exp_metadata(dict): 
+        exp_metadata(dict): parsed  bmi3d metadata
+
+    Returns:
+        caliberation_profile(dict): with keys of  'left_coefficients', 'left_correlation_coeff', 'right_correlation_coeff'
+                                    the 
     """
     #get cursor kinematics
     cursor_kinematics = exp_data['task']['cursor'][:,[0,2,1]] # cursor (x, z, y) position on each bmi3d cycle
@@ -1480,15 +1485,18 @@ def calc_eye_calibration(exp_data, exp_metadata, debug=True):
     le_aligned = eye_data_aligned[:, exp_metadata['eye_metadata']['left_eye_ach_proc']]
     re_aligned = eye_data_aligned[:, exp_metadata['eye_metadata']['right_eye_ach_proc']]
     
-    left_eye_caliberation = calc_single_eye_caliberation(aligned_cursor, le_aligned)
-    right_eye_caliberation = calc_single_eye_caliberation(aligned_cursor, re_aligned)
-    
-    caliberation_file = {
-        'left_eye':left_eye_caliberation,
-        'right_eye':right_eye_caliberation
+    (left_coefficients, left_correlation_coeff) = calc_single_eye_caliberation(aligned_cursor, le_aligned)
+    (right_coefficients, right_correlation_coeff) = calc_single_eye_caliberation(aligned_cursor, re_aligned)
+
+    caliberation_profile = {
+        'left_coefficients': left_coefficients,
+        'left_correlation_coeff': left_correlation_coeff,
+        'right_coefficients': right_coefficients,
+        'right_correlation_coeff': right_correlation_coeff,
     }
+
     
-    return caliberation_file
+    return caliberation_profile
     
     
 
@@ -1496,6 +1504,7 @@ def calc_eye_calibration(exp_data, exp_metadata, debug=True):
 def calc_single_eye_caliberation(cursor_trajectories_aligned, eye_aligned):
     """
     use aligned cursor and eye data to calculate least square fitting coefficients
+    wraps around analysis.fit_regression
     
     Args:
         aligned_cursor(np.ndarray): number of time points by 2 directions (i.e. x,y).
@@ -1509,23 +1518,18 @@ def calc_single_eye_caliberation(cursor_trajectories_aligned, eye_aligned):
 
     #do square fitting for each eye
     import scipy
-    #fitting the x directions. 
-    eye_x = eye_aligned[:,0]
-    cursor_x = cursor_trajectories_aligned[:,0]
+
+
+    results = analysis.fit_linear_regression(eye_aligned, cursor_trajectories_aligned)
+
+    coefficients = np.array([[results[0]['slope'], results[0]['intercept']],  #left eye
+                             [results[1]['slope'], results[1]['intercept']]])#right eye
     
-    eye_y = eye_aligned[:,1]
-    cursor_y = cursor_trajectories_aligned[:,1]
-    
-    slope_x, intercept_x, r_value_x, p_value, std_err = scipy.stats.linregress(eye_x, cursor_x)
-    slope_y, intercept_y, r_value_y, p_value_y, std_err_y = scipy.stats.linregress(eye_y, cursor_y)
+    correlation_coeff = np.array([results[0]['corr_coefficient'], 
+                                  results[1]['corr_coefficient']])
 
         
-    return {
-            'coefficients_x': np.array([slope_x, intercept_x]),
-            'correlation_coeff_x': r_value_x,
-            'coefficients_y': np.array([slope_y, intercept_y]),
-            'correlation_coeff_y': r_value_y,
-        }
+    return (coefficients, correlation_coeff)
 
 def align_eye_data(events, cursor_pos, eye_data, analog_FS = 25000, debug=True):
     """
