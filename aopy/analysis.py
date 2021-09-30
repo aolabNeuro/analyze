@@ -570,15 +570,15 @@ def find_outliers(data, std_threshold):
 def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_level:float = 0.5) -> np.ndarray:
 
     """
-    function that fits a linear regression to each matching column of X and Y arrays.
+    function that fits a linear regression to each matching column of X and Y arrays. 
     
     Args:
-        X[np.ndarray]: number of data points by number of columns 
-        X[np.ndarray]: number of data points by number of columns
+        X[np.ndarray]: number of data points by number of columns. columns of independant vars. 
+        Y[np.ndarray]: number of data points by number of columns. columns of dependant vars
         coeffcient_coeff_warning_level: if any column returns a corr coeff less than this level 
 
     returns
-        results[np.ndarray]: number of columns of dtype slope, intercept,  and 
+        results[np.ndarray]: number of columns by  1 with the  dtype 'slope', 'intercept',  and 'corr_coefficient'
     """
     
     #make sure the same shape
@@ -604,9 +604,9 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
         
         slope, intercept, r_value,  *_ = scipy.stats.linregress(x, y)
         
-        results['slope'] = slope
-        results['intercept'] = intercept
-        results['corr_coefficient'] = r_value
+        results[i]['slope'] = slope
+        results[i]['intercept'] = intercept
+        results[i]['corr_coefficient'] = r_value
         
         if r_value <= coefficient_coeff_warning_level: 
             warnings.warn(f'when fitting column number {i}, the correlation coefficient is {r_value}, less than {coefficient_coeff_warning_level} ')
