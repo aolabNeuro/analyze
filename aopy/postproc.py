@@ -183,3 +183,47 @@ def sample_events(events, times, samplerate):
         frame_events[event_frame,unique_idx] = True
         
     return frame_events, unique_events
+
+
+
+def caliberate_single_eye_data(eye_data, lsq_coefficients, debug = True):
+    """
+    apply the least square coefficients calculated from calc_eye_caliberation to eye_data
+    
+    args: 
+        eye_data[np.ndarray]: number of data points by 2 channels ()
+        lsq_coefficients[np.ndarray]: an array of [[x slope, x_intercept],
+                                                   [y slope, y_intercept]]
+    """
+    
+    num_time_points, num_dims = eye_data.shape
+    
+    caliberated_eye_data_segments = np.empty((num_time_points, num_dims))
+    caliberated_eye_data_segments[: , 0] = eye_data[:,0] * lsq_coefficients[0,0] + lsq_coefficients[0,1]
+    caliberated_eye_data_segments[: , 1] = eye_data[:,1] * lsq_coefficients[1,0] + lsq_coefficients[1,1]
+    
+    return caliberated_eye_data_segments
+    
+
+def caliberate_eye_data(eye_data, eye_metadata, caliberation_profile, debug = True):
+    """
+    applying the least square fitting coefficients to segments of eye data
+    
+    Args:
+        eye_data[np.ndarray]: num_timepoints by 4 channels (left eye x, left eye y, )
+        eye_metadata[np.ndarray]: parsed bmi3d eye_metadata 
+        caliberation_profile[dict]: caliberation file calculated from aopy.preproc. calc_eye_calibration
+        
+    returns:
+        caliberatede_eye_data[np.ndarray] 
+    """
+    
+    caliberated_left_eye =  caliberate_single_eye_data(eye_data[:, eye_metadata['left_eye_ach_proc']],
+                                                      caliberation_profile['left_coefficients'])
+
+    caliberated_right_eye =  caliberate_single_eye_data(eye_data[:, eye_metadata['right_eye_ach_proc']],
+                                                      caliberation_profile['left_coefficients'])
+    
+    caliberated_eye_data = np.hstack((caliberated_left_eye, caliberated_right_eye))
+
+    return caliberated_eye_data
