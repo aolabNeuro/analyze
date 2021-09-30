@@ -1540,6 +1540,10 @@ def align_eye_data(events, cursor_pos, eye_data, analog_FS = 25000, debug=True):
         events[dict]: parsed events dictionary that has entries of 'time' in BMI3D cycle counts and 'timestamp_sync'  in ecube time
         cursor_pos[np.ndarray]: cursor position in number of time points by dimensions in (x,y,z)
         eye_data[np.ndarray]: parsed eye_data in number of time points by 4; the four columns are [left_eye_x, left_eye_y, right_eye_x, right_eye_y]
+    
+    returns:
+        tuple( cursor_trajectories_aligned[np.ndarray], eye_data_aligned[np.ndarray])
+    
     """
     # define the task codes when the cursor enters 8 peripheral targets
     target_codes = range(81,89)
