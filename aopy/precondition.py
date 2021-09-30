@@ -164,26 +164,39 @@ def get_psd_welch(data, fs,n_freq = None):
 
 def bin_spikes(data, fs, bin_width):
     '''
-    bins spikes
+    Computes binned spikes [spikes/s]. The input data is the sampled thresholded data (0 or 1 data).
+    Binned spikes are calculated at each bin whose width is determined by bin_width. 
+
+        For example,
+        >>> data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        >>> data_T = data.T
+        >>> fs = 100
+        >>> binned_spikes = precondition.bin_spikes(data_T, fs, 5)
+        >>> print(binned_spikes)
+        [[40.         60.        ]
+        [40.         40.        ]
+        [60.         40.        ]
+        [33.33333333 33.33333333]]
 
     Args:
-        data (ndarray): time series spike data (nt x 1).
+        data (ndarray): time series spike data with multiple channels. The size is (n_time x n_channel).
         fs (float): sampling rate of data
-        bin width (int): width of bin
+        bin_width (int): Spikes are averaged within 'bin_width' then devided by 'fs'
 
     Returns:
-        binned_spikes (ndarray): binned spikes 
+        binned_spikes (ndarray): binned spikes [spikes/s]. The size is (n_bins x n_channel).
     '''
 
-    dT = 1/fs # time width of bin
-    nbins = math.ceil(len(data)/bin_width) # the number of bins
-    binned_spikes = np.zeros(nbins)
+    dT = 1/fs
+    nbins = math.ceil(data.shape[0]/bin_width) # the number of bins
+    nch = data.shape[1]
+    binned_spikes = np.zeros((nbins,nch))
 
     for idx in range(nbins):
-        if idx == nbins - 1:
-            binned_spikes[idx] = np.mean(data[idx*bin_width :])
-        else:
-            binned_spikes[idx] = np.mean(data[idx*bin_width : (idx + 1)*bin_width])
+            if idx == nbins - 1:
+                binned_spikes[idx,:] = np.mean(data[idx * bin_width :, :], axis = 0)
+            else:
+                binned_spikes[idx,:] = np.mean(data[idx * bin_width : (idx + 1) * bin_width, :], axis = 0)
 
     binned_spikes = binned_spikes/dT # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes

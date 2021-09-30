@@ -150,9 +150,10 @@ class FilterTests(unittest.TestCase):
         savefig(write_dir, fname)
 
     def test_binspikes(self):
-        data = [0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1]
+        data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        data_T = data.T
         fs = 100
-        binned_spikes = precondition.bin_spikes(data, fs, 5)
+        binned_spikes = precondition.bin_spikes(data_T, fs, 5)
         print(binned_spikes)
 
 if __name__ == "__main__":
