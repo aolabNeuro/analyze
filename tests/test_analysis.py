@@ -169,7 +169,7 @@ class CurveFittingTests(unittest.TestCase):
         expected_results['corr_coefficient'] = r
         
         
-        results = fit_linear_regression(X, Y)
+        results = aopy.analysis.fit_linear_regression(X, Y)
         np.testing.assert_array_equal(expected_results, results)
 
 
