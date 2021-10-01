@@ -79,14 +79,6 @@ def plot_db_spectral_estimate(freq, psd, psd_filter, labels):
 
 class FilterTests(unittest.TestCase):
 
-    def __init_subclass__(self, **kwargs):
-        self.T = 0.05
-        self.fs = 25000
-        self.freq = [600, 312, 2000]
-        self.a = 0.02
-        self.f0 = self.freq[0]
-        # testing generate test_signal
-        _x, _t = utils.generate_test_signal(self.T, self.fs, self.freq, self.a)
 
     def setUp(self):
         self.T = 0.05
