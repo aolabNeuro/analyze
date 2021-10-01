@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from aopy import precondition
 from aopy import utils
 import time
+from scipy.signal import freqz
+
 
 test_dir = os.path.dirname(__file__)
 write_dir = os.path.join(test_dir, 'tmp')

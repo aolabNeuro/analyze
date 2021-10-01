@@ -136,17 +136,31 @@ class DigitalCalcTests(unittest.TestCase):
         expected_array = np.array([0.1, 0.75, 1.2, np.nan])
         np.testing.assert_allclose(parsed_times, expected_array)
 
-    def test_get_measured_frame_timestamps(self):
+    def test_get_measured_clock_timestamps(self):
         latency_estimate = 0.1
         search_radius = 0.001
         estimated_timestamps = np.arange(10000)/100
         measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
         measured_timestamps = np.delete(measured_timestamps, [500])
-        corrected, uncorrected = get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
-        self.assertEqual(len(corrected), len(estimated_timestamps))
-        self.assertEqual(corrected[500], corrected[501])
-        self.assertEqual(len(uncorrected), len(corrected))
+        uncorrected = get_measured_clock_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        self.assertEqual(len(uncorrected), len(estimated_timestamps))
         self.assertEqual(np.count_nonzero(np.isnan(uncorrected)), 1)
+        self.assertTrue(np.isnan(uncorrected[500]))
+
+    def test_fill_missing_timestamps(self):
+        uncorrected_timestamps = [0.01, 0.08, np.nan, np.nan, 0.25, np.nan, 0.38]
+        expected = [0.01, 0.08, 0.25, 0.25, 0.25, 0.38, 0.38]
+        filled = fill_missing_timestamps(uncorrected_timestamps)
+        self.assertCountEqual(expected, filled)
+
+    def test_get_edges_from_onsets(self):
+        onsets = np.array([1, 1.5, 2])
+        expected_timestamps = np.array([0, 1, 1.1, 1.5, 1.6, 2, 2.1])
+        expected_values = np.array([0,1,0,1,0,1,0])
+
+        timestamps, values = get_edges_from_onsets(onsets, 0.1)
+        np.testing.assert_allclose(timestamps, expected_timestamps)
+        np.testing.assert_allclose(values, expected_values)
 
 event_log_events_in_str = [
             ('wait', 0.),
@@ -199,44 +213,49 @@ class EventFilterTests(unittest.TestCase):
         reward_counts = get_event_occurrences(event_log_events_in_str, 'banana')
         assert reward_counts == 0
 
-    def test_calc_events(self):
-        # Events as strings
-        EVENT_LOG_DURATION = 18.0
-        NUM_TAREGET_OCCURANCES = 3
-        NUM_REWARD_OCCURANCES = 2
-        REWARD_RATE = NUM_REWARD_OCCURANCES / EVENT_LOG_DURATION
-        TARGET_RATE = NUM_TAREGET_OCCURANCES / EVENT_LOG_DURATION
+    def test_calc_event_rate(self):
 
-        expected_duration = calc_events_duration(event_log_events_in_str)
-        np.testing.assert_allclose(EVENT_LOG_DURATION,
-                                    expected_duration)
-        expected_target_rate = calc_event_rate(event_log_events_in_str, 'target')
-        np.testing.assert_almost_equal(TARGET_RATE, expected_target_rate)
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, 7)
+        expected_rate = 1/6.
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
 
-        expected_reward_rate = calc_reward_rate(event_log_events_in_str, 'reward')
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        calculated_event_rate = calc_event_rate(aligned_events, [2,7])
+        expected_rate = np.array([1,1/6.])
+        np.testing.assert_equal(calculated_event_rate, expected_rate)
 
-        # Events as numbers
-        EVENT_LOG_DURATION = 10.0
-        NUM_TAREGET_OCCURANCES = 2
-        NUM_REWARD_OCCURANCES = 2
-        REWARD_RATE = NUM_REWARD_OCCURANCES / EVENT_LOG_DURATION
-        TARGET_RATE = NUM_TAREGET_OCCURANCES / EVENT_LOG_DURATION
-        np.testing.assert_almost_equal(EVENT_LOG_DURATION,
-                                        calc_events_duration(event_log_with_events_in_number))
+
+        #set up test
+        aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+                ['Go', 'Target 2', 'Target 2'],
+                ['Go', 'Target 4', 'Target 1'],
+                ['Go', 'Target 1', 'Target 2'],
+                ['Go', 'Target 2', 'Reward'],
+                ['Go', 'Target 3', 'Target 1']])
         
-        expected_target_rate = calc_event_rate(event_log_with_events_in_number, NUM_TARGET)
-        np.testing.assert_almost_equal(TARGET_RATE, expected_target_rate)
+        expected_reward_rate = 1.0/6.0
 
-        expected_reward_rate = calc_reward_rate(event_log_with_events_in_number, NUM_REWARD)
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        calculated_reward_rate = calc_event_rate(aligned_events_str, ['Reward'])
+        np.testing.assert_equal(expected_reward_rate, calculated_reward_rate)
 
-        expected_reward_rate = calc_reward_rate(event_log_with_events_in_number, NUM_REWARD)
-        np.testing.assert_almost_equal(REWARD_RATE, expected_reward_rate)
+        calculated_event_rates = calc_event_rate(aligned_events_str, ['Go','Reward'])
+        expected_event_rates = np.array([1.0, 1.0/6.0])
 
-        # Missing events
-        rate = calc_event_rate(event_log_events_in_str, 'foobar')
-        assert rate == 0
+        np.testing.assert_equal(calculated_event_rates, expected_event_rates)
+        
 
     def test_trial_align_events(self):
         # test trial_separate
@@ -447,6 +466,45 @@ class EventFilterTests(unittest.TestCase):
         self.assertTrue(np.allclose(segments, [[2, 4], [2, 3]]))
         self.assertTrue(np.allclose(times, [[1, 2], [5, 6]]))
 
+    def test_locate_trials_with_event(self):
+        # Test with ints
+        aligned_events = np.array([[2, 7],
+            [2, 5],
+            [2, 3],
+            [2, 3],
+            [2, 4],
+            [2, 6]])
+        split_events1, split_events_array1 = locate_trials_with_event(aligned_events, 3, 1)
+        expected_split_events1 = np.array([2,3])
+        
+        np.testing.assert_allclose(expected_split_events1, split_events1[0])
+        np.testing.assert_allclose(expected_split_events1, split_events_array1)
+
+        # Test strings without assigned column to look at
+        aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+            ['Go', 'Target 2', 'Target 2'],
+            ['Go', 'Target 4', 'Target 1'],
+            ['Go', 'Target 1', 'Target 2'],
+            ['Go', 'Target 2', 'Target 1'],
+            ['Go', 'Target 3', 'Target 1']])
+        split_events_str, split_events_array_str = locate_trials_with_event(aligned_events_str, ['Target 1','Target 2'])
+        expected_split_events_str1 = np.array([0,2,3,4,5])
+        expected_split_events_str2 = np.array([1,3,4])
+        expected_split_events_all = np.array([0,2,3,4,5,1,3,4])
+        np.testing.assert_allclose(expected_split_events_str1, split_events_str[0])
+        np.testing.assert_allclose(expected_split_events_str2, split_events_str[1])
+        np.testing.assert_allclose(expected_split_events_all, split_events_array_str)
+
+        # Test strings with assigned column to look at
+        split_events_str, split_events_array_str = locate_trials_with_event(aligned_events_str, ['Target 1','Target 2'],1)
+        expected_split_events_str1 = np.array([0,3])
+        expected_split_events_str2 = np.array([1,4])
+        expected_split_events_all = np.array([0,3,1,4])
+        np.testing.assert_allclose(expected_split_events_str1, split_events_str[0])
+        np.testing.assert_allclose(expected_split_events_str2, split_events_str[1])
+        np.testing.assert_allclose(expected_split_events_all, split_events_array_str)
+
+
     def test_get_data_segments(self):
         data = np.arange(100)
         segment_times = np.array([[0, 4], [50, 51]])
@@ -458,24 +516,24 @@ class EventFilterTests(unittest.TestCase):
         self.assertEqual(len(segments), 2)
         self.assertEqual(segments[0].shape, (4,3))
 
-    def test_get_unique_trials(self):
+    def test_get_unique_conditions(self):
         trial_idx = np.array(range(10))
         conditions = np.array(range(10))
-        trials = get_unique_trials(trial_idx, conditions, condition_name='idx')
+        trials = get_unique_conditions(trial_idx, conditions, condition_name='idx')
         self.assertEqual(len(trials), 10)
         self.assertEqual(trials[0]['trial'], 0)
         self.assertEqual(trials[-1]['idx'], [9])
         
         trial_idx = np.array([0, 0, 0, 0, 1, 1, 1, 1])
         conditions = np.array([[1, 1], [np.pi/2, 2], [1, 1], [np.pi/2, 2], [1, 1], [4, 4], [1, 1], [4, 4]])
-        trials = get_unique_trials(trial_idx, conditions, condition_name='foobar')
+        trials = get_unique_conditions(trial_idx, conditions, condition_name='foobar')
         self.assertEqual(len(trials), 4)
         self.assertCountEqual(trials['trial'], [0, 0, 1, 1])
         np.testing.assert_array_almost_equal(trials['foobar'], np.array([[1, 1], [np.pi/2, 2], [1, 1], [4, 4]]))
 
         trial_idx = np.array([0, 0, 0, 0, 1, 1, 1, 1])
         conditions = np.random.uniform(size=(8,))
-        trials = get_unique_trials(trial_idx, conditions, condition_name='rando')
+        trials = get_unique_conditions(trial_idx, conditions, condition_name='rando')
         self.assertEqual(len(trials), 8)
         self.assertCountEqual(trials['trial'], [0, 0, 0, 0, 1, 1, 1, 1])
         self.assertEqual(np.sum(trials['index']), 28)
@@ -485,7 +543,6 @@ class TestPrepareExperiment(unittest.TestCase):
     def test_parse_bmi3d(self):
 
         # Test empty
-        files = {}
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
 
         def check_required_fields(data, metadata):
@@ -501,6 +558,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
 
         # Test sync version 0
+        files = {}
         files['hdf'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
         check_required_fields(data, metadata)
@@ -513,6 +571,7 @@ class TestPrepareExperiment(unittest.TestCase):
         # Test sync version 2
 
         # Test sync version 3 
+        files = {}
         files['hdf'] = 'beig20210407_01_te1315.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
@@ -523,8 +582,37 @@ class TestPrepareExperiment(unittest.TestCase):
         check_required_fields(data, metadata)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
+        self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
+        self.assertTrue(metadata['has_measured_timestamps'])
+        
         # Test sync version 4
-        # TODO
+        files = {}
+        files['hdf'] = 'beig20210614_07_te1825.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        check_required_fields(data, metadata)
+        trials = data['trials']
+        self.assertEqual(len(trials), 7)        
+        files['ecube'] = '2021-06-14_BMI3D_te1825'
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        check_required_fields(data, metadata)
+        self.assertIn('sync_clock', data)
+        self.assertIn('measure_clock_offline', data)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
+        self.assertEqual(len(data['measure_clock_online']), 1682)
+        self.assertTrue(metadata['has_measured_timestamps'])
+        self.assertEqual(len(data['clock']['timestamp']), 1830)
+        self.assertEqual(len(data['task']), 1830)
+
+        # Run some trial alignment to make sure the number of trials makes sense
+        events = data['events']
+        start_states = [b'TARGET_ON']
+        end_states = [b'TRIAL_END'] 
+        trial_states, trial_idx = get_trial_segments(events['event'], events['time'], start_states, end_states)
+        self.assertEqual(len(trial_states), 6)
+        self.assertEqual(len(np.unique(data['trials']['trial'])), 7) # TODO maybe should fix this so trials is also len(trial_states)??
+
+
 
     def test_parse_optitrack(self):
         files = {}
@@ -555,6 +643,18 @@ class TestPrepareExperiment(unittest.TestCase):
         mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')
         self.assertIsNotNone(mocap)
         self.assertIsNotNone(mocap_meta)
+
+    def preproc_multiple(self):
+        result_filename = 'test_proc_multiple.hdf'
+        files = {}
+        files['hdf'] = 'beig20210407_01_te1315.hdf'
+        files['ecube'] = '2021-04-07_BMI3D_te1315'
+        files['optitrack'] = 'Pretend take (1315).csv'
+        proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
+        proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
+        contents = get_hdf_dictionary(data_dir, result_filename)
+        self.assertIn('exp_data', contents)
+        self.assertIn('mocap_data', contents)
 
 if __name__ == "__main__":
     unittest.main()

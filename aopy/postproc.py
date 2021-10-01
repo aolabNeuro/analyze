@@ -12,7 +12,7 @@ def translate_spatial_data(spatial_data, new_origin):
         new_origin (ndim): Location of point that will become the origin in cartesian coordinates
 
     Returns:
-        (nt, ndim): new reach trajectory translated to the new origin
+        new_spatial_data (nt, ndim): new reach trajectory translated to the new origin
     '''
     new_spatial_data = np.subtract(spatial_data, new_origin)
 
@@ -34,7 +34,7 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
         current_axis (ndim): vector pointing along the current orientation of the dat
 
     Returns:
-        (nt, ndim): new reach trajectory rotated to the new axis
+        output_spatial_data (nt, ndim): new reach trajectory rotated to the new axis
     '''
 
     # Check if input data is a single point and enfore that it is a row vector

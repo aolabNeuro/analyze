@@ -5,6 +5,7 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+import matplotlib.dates as mdates
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -12,12 +13,10 @@ from scipy.spatial import cKDTree
 import numpy as np
 import os
 import copy
-
-from . import precondition
-from scipy.signal import freqz
+import pandas as pd
 
 from . import postproc
-
+from . import analysis
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''
@@ -60,6 +59,15 @@ def plot_timeseries(data, samplerate, ax=None):
     '''
     Plots data along time on the given axis
 
+    Example:
+        Plot 50 and 100 Hz sine wave.
+        ::
+            data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
+            samplerate = 1000
+            plot_timeseries(data, samplerate)
+
+        .. image:: _images/timeseries.png
+
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
@@ -76,43 +84,36 @@ def plot_timeseries(data, samplerate, ax=None):
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (uV)')
 
-
-def plot_freq_domain_power(data, samplerate, ax=None):
+def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
-    Plots a power spectrum of each channel on the given axis
-    Args:
-        data (nt, nch): timeseries data, can also be a single channel vector
-    '''
-    time = np.arange(np.shape(data)[0]) / samplerate
-    for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:, ch] * 1e6)  # convert to microvolts
-    ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Voltage (uV)')
+    Plots a amplitude spectrum of each channel on the given axis. Just need to input time series
+    data and this will calculate and plot the amplitude spectrum. 
 
+    Example:
+        Plot 50 and 100 Hz sine wave amplitude spectrum. 
+        ::
+            data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
+            samplerate = 1000
+            plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
 
-def plot_freq_domain_power(data, samplerate, ax=None):
-    '''
-    Plots a power spectrum of each channel on the given axis
+        .. image:: _images/freqdomain.png
 
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
+        rms (bool, optional): compute root-mean square amplitude instead of peak amplitude
     '''
-    if np.ndim(data) < 2:
-        data = np.expand_dims(data, 1)
     if ax is None:
         ax = plt.gca()
-    freq_data = np.fft.fft(data, axis=0)
-    length = np.shape(freq_data)[0]
-    freq = np.fft.fftfreq(length, d=1. / samplerate)
-    data_ampl = abs(freq_data[freq >= 0, :]) * 2 / length  # compute the one-sided amplitude
-    non_negative_freq = freq[freq >= 0]
-    for ch in range(np.shape(freq_data)[1]):
-        ax.semilogx(non_negative_freq, data_ampl[:, ch] * 1e6)  # convert to microvolts
+    non_negative_freq, data_ampl = analysis.calc_freq_domain_amplitude(data, samplerate, rms)
+    for ch in range(np.shape(data_ampl)[1]):
+        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
     ax.set_xlabel('Frequency (Hz)')
-    ax.set_ylabel('Power (uV)')
-
+    if rms:
+        ax.set_ylabel('RMS amplitude (uV)')
+    else:
+        ax.set_ylabel('Peak amplitude (uV)')
 
 def get_data_map(data, x_pos, y_pos):
     '''
@@ -186,6 +187,21 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     '''
     Wrapper around plt.imshow for spatial data
 
+    Example:
+        Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        ::
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plot_spatial_map(data_map, x_missing, y_missing)
+
+        .. image:: _images/posmap.png
+
     Args:
         data_map (2,n array): map of x,y data
         x (list): list of x positions
@@ -217,12 +233,13 @@ def plot_raster(data, plot_cue, cue_bin, ax):
        Create a raster plot of neural data
 
        Args:
-           data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
-           plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-           cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
+            data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
+            plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
+            cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
             ax: axis to plot rastor plot
+        
        Returns:
-           rastor plot in appropriate axis
+           raster plot in appropriate axis
     '''
     n_trial = np.shape(data)[0]
     n_neurons = np.shape(data)[1]
@@ -359,6 +376,21 @@ def plot_targets(target_positions, target_radius, bounds=None, origin=(0, 0, 0),
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
 
+    Example:
+        Plot four peripheral and one central target.
+        ::
+            target_position = np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [-1, 1, 0],
+                [1, -1, 0],
+                [-1, -1, 0]
+            ])
+            target_radius = 0.1
+            plot_targets(target_position, target_radius, (-2, 2, -2, 2))
+
+        .. image:: _images/targets.png
+
     Args:
         target_positions (ntarg, 3): array of target (x, y, z) locations
         target_radius (float): radius of each target
@@ -405,6 +437,29 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     '''
     Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
 
+    Example:
+        Two random trajectories.
+        ::
+            trajectories =[
+                np.array([
+                    [0, 0, 0],
+                    [1, 1, 0],
+                    [2, 2, 0],
+                    [3, 3, 0],
+                    [4, 2, 0]
+                ]),
+                np.array([
+                    [-1, 1, 0],
+                    [-2, 2, 0],
+                    [-3, 3, 0],
+                    [-3, 4, 0]
+                ])
+            ]
+            bounds = (-5., 5., -5., 5., 0., 0.)
+            plot_trajectories(trajectories, bounds)
+
+        .. image:: _images/trajectories.png
+
     Args:
         trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
@@ -427,3 +482,94 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     if bounds is not None: set_bounds(bounds, ax)
     ax.set_xlabel('x')
     ax.set_ylabel('y')
+
+def plot_columns_by_date(df, *columns, method='sum', ax=None):
+    '''
+    Plot columns in a dataframe organized by date and aggregated such that if there are multiple
+    rows on a given date they are combined into a single value using the given method. If the method
+    is 'mean' then the values will be averaged for each day, for example for size of cursor. If the 
+    method is 'sum' then the values will be added together on each day, for example for number of trials.
+    
+    Example:
+        Plotting my weight data averaged across days.
+        ::
+
+            from datetime import date, timedelta
+            date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
+            weight = [65.5, 66.0, 65.0]
+
+            df = pd.DataFrame({'date':date, 'weight':weight})
+            fig, ax = plt.subplots(1,1)
+            plot_columns_by_date(df, 'weight', method='mean', ax=ax)
+            ax.set_ylabel('weight (kg)')
+
+        .. image:: _images/columns_by_date.png
+
+    Args:
+        df (pd.DataFrame): dataframe with 'date' column
+        *columns (str): dataframe column names to plot
+        method (str, optional): how to combine data within a single date. Can be 'sum' or 'mean'.
+        ax (pyplot.Axes, optional): axis on which to plot
+    '''
+    first_day = np.min(df['date'])
+    last_day = np.max(df['date'])
+    days = pd.date_range(start=first_day, end=last_day).to_list()
+    n_columns = len(columns)
+    n_days = len(days)
+    aggregate = np.zeros((n_columns, n_days))
+
+    for idx_day in range(n_days):
+        day = days[idx_day]
+        for idx_column in range(n_columns):
+            values = df[columns[idx_column]][df['date'] == day]
+            if len(values) == 0:
+                aggregate[idx_column, idx_day] = np.nan
+            elif method == 'sum':
+                aggregate[idx_column, idx_day] = values.sum()
+            elif method == 'mean':
+                aggregate[idx_column, idx_day] = values.mean()
+            else:
+                raise ValueError("Unknown method for combining data")
+
+    if ax == None:
+        ax = plt.gca()
+    for idx_column in range(n_columns):
+        ax.plot(days, aggregate[idx_column,:], '.-', label=columns[idx_column])
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+    plt.setp(ax.get_xticklabels(), rotation=80)
+    ax.legend()
+
+def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blue','tab:orange','tab:green']):
+    '''
+    This function plots multiple different events on the same plot. The first event (item in the list)
+    will be displayed on the bottom of the plot.
+    
+    .. image:: _images/events_time.png
+    
+    Args:
+        events (list (nevents) of 1D arrays (ntime)): List of Logical arrays that denote when an event(for example, a reward) occurred during an experimental session. Each item in the list corresponds to a different event to plot. 
+        event_timestamps (list (nevents) of 1D arrays ntime): List of 1D arrays of timestamps corresponding to the events list. 
+        labels (list (nevents) of str) : Event names for each list item.
+        ax (axes handle): Axes to plot
+        colors (list of str): Color to use for each list item
+    '''
+
+    if ax is None:
+        ax = plt.gca()
+
+    n_events = len(events)
+    for i in range(n_events):
+        this_events = events[i]
+        this_timestamps = event_timestamps[i]
+        n_timebins = np.shape(this_events)[0]
+
+        if n_events <= len(colors):
+            this_color = colors[i]
+            ax.step(this_timestamps, 0.9*(this_events)+i+0.1, where='post', c=this_color)
+        else:
+            ax.step(this_timestamps, 0.9*(this_events)+i+0.1, where='post')
+    ax.set_yticks(np.arange(n_events)+0.5)
+    ax.set_yticklabels(labels)
+
+    ax.set_xlabel('Time (s)') 

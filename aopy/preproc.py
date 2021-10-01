@@ -247,9 +247,10 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
 
     return parsed_ts
 
-def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, latency_estimate=0.01, search_radius=1./100):
+def get_measured_clock_timestamps(estimated_timestamps, measured_timestamps, latency_estimate=0.01, search_radius=1./100):
     '''
-    Takes estimated frame times and measured frame times and returns a time for each frame
+    Takes estimated frame times and measured frame times and returns a time for each frame. If no closeby measurement
+    can be found for a given estimate, that frame will be filled with np.nan
 
     Args:
         estimated_timestamps (nframes): timestamps when frames were thought to be displayed
@@ -258,14 +259,27 @@ def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, lat
         search_radius (float, optional): how far away to look for a measurement before giving up
 
     Returns:
-        tuple: tuple containing:
-
-            corrected_timestamps (nframes): measured timestamps with missing values filled in with the next non-nan value
-            uncorrected_timestamps (nframes): some of which will be empty if they were not displayed
+            nframes array: measured timestamps, some of which will be np.nan if they were not displayed
     '''
 
     approx_timestamps = estimated_timestamps + latency_estimate
-    uncorrected_timestamps = find_measured_event_times(approx_timestamps, measured_timestamps, search_radius)
+    return find_measured_event_times(approx_timestamps, measured_timestamps, search_radius)
+
+def fill_missing_timestamps(uncorrected_timestamps):
+    '''
+    Fill missing timestamps by copying the subsequent timestamp over any NaNs. For example, if you have
+    timestamps `[0.01, 0.08, np.nan, np.nan, 0.25, np.nan, 0.38]`, then apply fill_missing_timestamps, 
+    the result would be `[0.01, 0.08, 0.25, 0.25, 0.25, 0.38, 0.38]`. Used by proc_exp() to give the times
+    at which things appeared on the screen, since sometimes the screen will miss a refresh period and not 
+    display something until the next cycle.
+
+    Args:
+        uncorrected_timestamps (nframes): timestamps with missing data (np.nan) because they were recorded
+        from a source which sometimes skips frames
+
+    Returns:
+        corrected_timestamps (nframes): measured timestamps with missing values filled in with the next non-nan value
+    '''
 
     # For any missing timestamps, the time at which they occurred is the next non-nan value
     missing = np.isnan(uncorrected_timestamps)
@@ -288,12 +302,32 @@ def get_measured_frame_timestamps(estimated_timestamps, measured_timestamps, lat
         np.maximum.accumulate(idx, out=idx) # apply maximum element-wise across the backwards array of indices
         corrected_timestamps[missing] = corrected_timestamps[idx[missing]]
 
-    return corrected_timestamps, uncorrected_timestamps
+    return corrected_timestamps
 
+def get_edges_from_onsets(onsets, pulse_width):
+    '''
+    This function calculates the values and timepoints corresponding to a given time series 
+    of pulse onsets (timestamp corresponding to the rising edge of a pulse). 
+    Args:
+        onsets (nonsets): Time point corresponding to a pulse onset. 
+        pulse_width (float): Pulse duration 
+    Returns:
+        tuple: tuple containing:
+        timestampes (2*nonsets + 1): Timestamps of the rising and falling edges. Always starts at 0.
+        values (2*nonsets + 1): Values corresponding to the output timestamps.
+    '''
+    timestamps = np.zeros((1+len(onsets)*2,))
+    values = np.zeros((1+len(onsets)*2,))
+    for t in range(len(onsets)):
+        timestamps[1+2*t] = onsets[t]
+        values[1+2*t] = 1
+        timestamps[2+2*t] = onsets[t]+pulse_width
+        values[2+2*t] = 0
+    return timestamps, values
 
-'''
+''' =========================================================================================================
 Event filtering
-'''
+''' 
 def get_matching_events(event_log, event_to_match):
     '''
     Given a list of tuple of (events, timestamps), find the matched event and the timestamps
@@ -343,22 +377,35 @@ def calc_events_duration(event_log):
     events_duration = last_event_timestamp - first_event_timestamp
     return events_duration
 
-def calc_event_rate(event_log, event_name):
+def calc_event_rate(trial_events, event_codes, debug = False):
     '''
-    Given an event_log and event_name, calculate the rate of that event
+    Given an trial_log and event_name, calculate the fraction of trials with the event
 
     Args:
-        event_log (list of (event, timestamp) tuples): log of events and times
-        event_name (str or int): event to be matched to
+        trial_events (ntr, nevents): Array of trial separated event codes
+        event_codes (int, str, list, or 1D array): event codes to calculate the fractions for. 
 
     Returns:
-        float: fraction of matching events divided by total events
+        float or an array: fraction of matching events divided by total events
     '''
-    events_duration = calc_events_duration(event_log)
-    num_of_events = get_event_occurrences(event_log, event_name)
+    
+    if type(event_codes) == int or type(event_codes) == str:
+        event_codes = np.array([event_codes])
 
-    event_rate = float(num_of_events) / float(events_duration)
-    return event_rate
+    event_occurances = np.zeros(len(event_codes))
+
+    num_trials = len(trial_events)
+
+    split_events, _ = locate_trials_with_event(trial_events, event_codes)
+
+    event_occurances = np.array([len(e) for e in split_events])
+    event_rates = event_occurances / num_trials
+
+    if len(event_rates) == 1: return event_rates[0]
+    
+    return event_rates
+
+
 
 def calc_reward_rate(event_log, event_name='REWARD'):
     '''
@@ -583,9 +630,18 @@ def get_data_segments(data, segment_times, samplerate):
         segments.append(seg)
     return segments
 
-def get_unique_trials(trial_idx, conditions, condition_name='target'):
+def get_unique_conditions(trial_idx, conditions, condition_name='target'):
     '''
-    Gets the unique trial combinations of each condition set
+    Gets the unique trial combinations of each condition set. Used to parse BMI3D
+    data when there is no 'trials' array in the HDF file. Output looks something
+    like this for a center-out experiment::
+
+        'trial'     'index'     'target'
+        0           0           (0, 0, 0)
+        0           5           (8, 0, 0)
+        1           0           (0, 0, 0)
+        1           2           (0, 8, 0)
+        ...
 
     Args:
         n_trials (int): number of trials
@@ -618,6 +674,50 @@ def get_unique_trials(trial_idx, conditions, condition_name='target'):
                 trial[condition_name] = unique_conditions[idx_unique_cond]
                 corrected_trials = np.append(corrected_trials, trial)
     return corrected_trials
+
+def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
+    '''
+    Given an array of trial separated events, this function goes through and finds the event sequences corresponding to the trials
+    that include a given event. If an array of event codes are input, the function will find the trials corresponding to
+    each event code. 
+    
+    Args:
+        trial_events (ntr, nevents): Array of trial separated event codes
+        event_codes (int, str, list, or 1D array): Event code(s) to find trials for. Can be a list of strings or ints
+        event_column (int): Column index to look for events in. Indexing starts at 0. Keep as 'None' if all columns should be analyzed.
+        
+    Returns:
+        (tuple):
+            (list of arrays): List where each index includes an array of trials containing the event_code corresponding to that index. 
+            (1D Array): Concatenated indices for which trials correspond to which event code.
+                        Can be used as indices to order 'trial_events' by the 'event_codes' input.
+
+    Example::
+        >>> aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
+                ['Go', 'Target 2', 'Target 2'],
+                ['Go', 'Target 4', 'Target 1'],
+                ['Go', 'Target 1', 'Target 2'],
+                ['Go', 'Target 2', 'Target 1'],
+                ['Go', 'Target 3', 'Target 1']])
+        >>> split_events, split_events_combined = locate_trials_with_event(aligned_events_str, ['Target 1','Target 2'])
+        >>> print(split_events)
+        [array([0, 2, 3, 4, 5], dtype=int64), array([1, 3, 4], dtype=int64)]
+        >>> print(split_events_combined)
+        [0 2 3 4 5 1 3 4]      
+
+    '''
+    split_events = []
+    if type(event_codes) == int or type(event_codes) == str:
+        split_events.append(np.unique(np.where(trial_events[:,event_columnidx] == event_codes)[0]))
+        split_events_combined = np.array(split_events).flatten()
+    else:
+        nevent_codes = len(event_codes)
+        split_events_combined = np.array([]).astype(int)
+        for ievent in range(nevent_codes):
+            split_events.append(np.unique(np.where(trial_events[:,event_columnidx] == event_codes[ievent])[0]))
+            split_events_combined = np.append(split_events_combined, split_events[ievent])
+    
+    return split_events, split_events_combined
 
 def max_repeated_nans(a):
     '''
@@ -670,12 +770,13 @@ def parse_bmi3d(data_dir, files):
         metadata['bmi3d_parser'] = 0
         metadata['sync_protocol_version'] = sync_version
 
-    elif sync_version < 5:
+    elif sync_version < 6:
         data, metadata = _parse_bmi3d_v1(data_dir, files)
         metadata['bmi3d_parser'] = 1
     else:
-        print("Warning: unknown bmi3d sync version!")
-        return
+        print("Warning: this bmi3d sync version is untested!")
+        data, metadata = _parse_bmi3d_v1(data_dir, files)
+        metadata['bmi3d_parser'] = 1
 
     # Standardize the parsed variable names and perform some error checking
     metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
@@ -785,8 +886,8 @@ def _parse_bmi3d_v1(data_dir, files):
         # Load ecube analog data for the strobe and reward system
         analog_channels = [bmi3d_event_metadata['screen_measure_ach'], bmi3d_event_metadata['reward_measure_ach']] # [5, 0]
         ecube_analog, metadata = load_ecube_analog(data_dir, ecube_filename, channels=analog_channels)
-        clock_measure_analog = ecube_analog[0,:]
-        reward_system_analog = ecube_analog[1,:]
+        clock_measure_analog = ecube_analog[:,0]
+        reward_system_analog = ecube_analog[:,1]
         analog_samplerate = metadata['samplerate']
 
         # Mask and detect BMI3D computer events from ecube
@@ -835,7 +936,7 @@ def _parse_bmi3d_v1(data_dir, files):
         })    
     return data_dict, metadata_dict
 
-def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
+def _prepare_bmi3d_v0(data, metadata):
     '''
     Organizes the bmi3d data and metadata and computes some automatic conversions
 
@@ -856,7 +957,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
     state = data['bmi3d_state']
 
     # Calculate t0
-    if 'sync_events' in data and 'sync_clock' in data:
+    if 'sync_events' in data and 'sync_clock' in data and len(data['sync_clock']) > 0:
 
         event_exp_start = internal_events[internal_events['event'] == b'EXP_START']
         sync_events = data['sync_events']
@@ -874,46 +975,50 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         bmi3d_start_time = 0
 
     # Estimate display latency
-    if metadata['sync_protocol_version'] >= 3 and 'sync_clock' in data and 'measure_clock_offline' in data:
+    if metadata['sync_protocol_version'] >= 3 and 'sync_clock' in data and 'measure_clock_offline' in data \
+        and len(data['sync_clock']) > 0:
 
         # Estimate the latency based on the "sync" state at the beginning of the experiment
         sync_impulse = data['sync_clock']['timestamp'][1:3]
-        measure_impulse, uncorrected = get_measured_frame_timestamps(sync_impulse, data['measure_clock_offline']['timestamp'],
+        measure_impulse = get_measured_clock_timestamps(sync_impulse, data['measure_clock_offline']['timestamp'],
             latency_estimate=0.01, search_radius=0.1)
-        if np.count_nonzero(np.isnan(uncorrected)) > 0:
+        if np.count_nonzero(np.isnan(measure_impulse)) > 0:
             print("Warning: sync failed. Using latency estimate 0.01")
-            latency_estimate = 0.01
+            measure_latency_estimate = 0.01
         else:
-            latency_estimate = np.mean(measure_impulse - sync_impulse)
-            print("Sync latency estimate: {:.4f} s".format(latency_estimate))
+            measure_latency_estimate = np.mean(measure_impulse - sync_impulse)
+            print("Sync latency estimate: {:.4f} s".format(measure_latency_estimate))
     else:
 
         # The latency in previous versions was around 10 ms
-        latency_estimate = 0.01
-    metadata['latency_estimate'] = latency_estimate
+        measure_latency_estimate = 0.01
+    metadata['measure_latency_estimate'] = measure_latency_estimate
 
-    # By default use the internal clock and events
-    corrected_clock = internal_clock.copy()
+    # By default use the internal clock and events. Just need to make sure not to include
+    # any clock cycles from the sync period at the beginning of the experiment
     event_cycles = internal_events['time']
-    valid_cycles = np.in1d(event_cycles, corrected_clock['time'])
-    event_idx = np.in1d(corrected_clock['time'], event_cycles[valid_cycles])
-    event_timestamps = np.empty((len(event_cycles),), dtype='f')
-    event_timestamps[:] = np.nan
-    event_timestamps[valid_cycles] = corrected_clock['timestamp'][event_idx]
-    corrected_events = rfn.append_fields(internal_events, 'timestamp', event_timestamps, dtypes='f8')
+    if metadata['sync_protocol_version'] < 6:
+        valid_cycles = np.in1d(event_cycles, internal_clock['time'])
+        event_idx = np.in1d(internal_clock['time'], event_cycles[valid_cycles])
+        event_timestamps = np.empty((len(event_cycles),), dtype='f')
+        event_timestamps[:] = np.nan
+        event_timestamps[valid_cycles] = internal_clock['timestamp'][event_idx]
+    else:
+        event_timestamps = internal_clock['timestamp'][event_cycles]
+    corrected_events = rfn.append_fields(internal_events, 'timestamp_bmi3d', event_timestamps, dtypes='f8')
 
-    # Correct the timestamps and events based on sync and measure if present
-    if 'sync_events' in data and 'sync_clock' in data and 'measure_clock_offline' in data:
+    # Correct the events based on sync if present
+    if 'sync_events' in data and 'sync_clock' in data and len(data['sync_clock']) > 0:
         
         # Check that the events are all present
         sync_events = data['sync_events']
-        event_dict = metadata['event_sync_dict']
+        event_dict = metadata['event_sync_dict'] # dictionary between event names and event codes
         if sync_events['code'][0] != internal_events['code'][0]:
             print("Warning: first event ({}) doesn't match bmi3d records ({})".format(sync_events['code'][0], internal_events['code'][0]))
             event = np.zeros((1,), dtype=corrected_events.dtype)
             event['code'] = sync_events['code'][0]
             event['time'] = 0
-            event['timestamp'] = sync_events['timestamp'][0]
+            event['timestamp_bmi3d'] = event_timestamps[0] # could be NaN
             # TODO decode
             corrected_events = np.insert(corrected_events, event, 0)
         if sync_events['code'][-1] != internal_events['code'][-1]:
@@ -921,19 +1026,23 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
             event = np.zeros((1,), dtype=corrected_events.dtype)
             event['code'] = sync_events['code'][-1]
             event['time'] = internal_events['time'][-1]
-            event['timestamp'] = sync_events['timestamp'][-1]
+            event['timestamp_bmi3d'] = event_timestamps[-1] # could be NaN
             # TODO decode
             corrected_events = np.append(corrected_events, event)
 
-        # Remove events that aren't in internal_events
-        invalid_idx = np.where(internal_events['code'] != corrected_events['code'][:len(internal_events)])[0]
-        while len(invalid_idx) > 0:
-            corrected_events = np.delete(corrected_events, invalid_idx[0])
-            invalid_idx = np.where(internal_events['code'] != corrected_events['code'][:len(internal_events)])[0]
+        # Add sync timestamps
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp_sync', sync_events['timestamp'], dtypes='f8')
 
-        # Check that the number of frames is consistent with the clock
+        # Remove events that aren't in internal_events
+        # invalid_idx = np.where(internal_events['code'] != corrected_events['code'][:len(internal_events)])[0]
+        # while len(invalid_idx) > 0:
+        #     corrected_events = np.delete(corrected_events, invalid_idx[0])
+        #     invalid_idx = np.where(internal_events['code'] != corrected_events['code'][:len(internal_events)])[0]
+
+    # Check that the number of frames is consistent with the clock
+    approx_clock = internal_clock.copy()
+    if 'sync_clock' in data and len(data['sync_clock']) > 0:
         sync_clock = data['sync_clock']
-        approx_clock = internal_clock.copy()
         time_zero_events = internal_events['event'] == b'TIME_ZERO'
         try:
             time_zero_code = internal_events[time_zero_events]['code']
@@ -953,25 +1062,58 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
 
-        # Find the (correct) timestamps for each cycle of bmi3d's state machine
-        measured_clock = data['measure_clock_offline']
-        corrected_clock = approx_clock.copy()
-        search_radius = 0.01
-        corrected_timestamps, uncorrected_timestamps = get_measured_frame_timestamps(
-            approx_clock['timestamp'], measured_clock['timestamp'], 
-            latency_estimate, search_radius)
-        metadata['latency_measured'] = np.nanmean(corrected_timestamps - uncorrected_timestamps) - latency_estimate
-        metadata['n_missing_markers'] = np.count_nonzero(np.isnan(uncorrected_timestamps))
+    # Correct the clock
+    corrected_clock = approx_clock.copy()
+    corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_bmi3d', approx_clock['timestamp'], dtypes='f8')
+    
+    # 1. Digital clock from BMI3D via NI DIO card
+    if 'sync_clock' in data and len(data['sync_clock']) > 0:
+        sync_latency_estimate = 0
+        sync_search_radius = 0.01
+        timestamp_sync = get_measured_clock_timestamps(
+            approx_clock['timestamp'], data['sync_clock']['timestamp'], 
+                sync_latency_estimate, sync_search_radius)
+        corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', timestamp_sync, dtypes='f8')
 
-        # Abort if there are too many missing markers
-        metadata['n_consecutive_missing_markers'] = max_repeated_nans(uncorrected_timestamps)
-        if metadata['n_consecutive_missing_markers'] < max_missing_markers:
+    # 2. Screen photodiode measurements, digitized online by NXP microcontroller
+    measure_search_radius = 0.01
+    max_consecutive_missing_cycles = metadata['fps'] # maximum 1 second missing
+    metadata['has_measured_timestamps'] = False
+    if 'measure_clock_online' in data and len(data['measure_clock_online']) > 0:
+        # Find the timestamps for each cycle of bmi3d's state machine from all the clock sources
+        timestamp_measure_online = get_measured_clock_timestamps(
+            approx_clock['timestamp'], data['measure_clock_online']['timestamp'], 
+                measure_latency_estimate, measure_search_radius)
+        corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_measure_online', timestamp_measure_online, dtypes='f8')
+
+        # If there are few missing measurements, include this as the default `timestamp`
+        corrected_timestamps = fill_missing_timestamps(timestamp_measure_online)
+        metadata['latency_measured'] = np.nanmean(corrected_timestamps - timestamp_measure_online) - measure_latency_estimate
+        metadata['n_missing_markers'] = np.count_nonzero(np.isnan(timestamp_measure_online))
+        n_consecutive_missing_cycles = max_repeated_nans(timestamp_measure_online)
+        if n_consecutive_missing_cycles < max_consecutive_missing_cycles:
             metadata['has_measured_timestamps'] = True
             corrected_clock['timestamp'] = corrected_timestamps
         else:
-            print("Something has gone wrong with the screen sensor. Ignoring")
-            metadata['has_measured_timestamps'] = False
-            corrected_clock = approx_clock
+            print(f"Digital screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
+
+    # 3. Screen photodiode measurements, raw voltage digitized offline
+    if 'measure_clock_offline' in data and len(data['measure_clock_offline']) > 0:
+        timestamp_measure_offline = get_measured_clock_timestamps(
+            approx_clock['timestamp'], data['measure_clock_offline']['timestamp'], 
+                measure_latency_estimate, measure_search_radius)
+        corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_measure_offline', timestamp_measure_offline, dtypes='f8')
+        
+        # If there are few missing measurements, include this as the default `timestamp`
+        corrected_timestamps = fill_missing_timestamps(timestamp_measure_offline)
+        metadata['latency_measured'] = np.nanmean(corrected_timestamps - timestamp_measure_offline) - measure_latency_estimate
+        metadata['n_missing_markers'] = np.count_nonzero(np.isnan(timestamp_measure_offline))
+        n_consecutive_missing_cycles = max_repeated_nans(timestamp_measure_offline)
+        if n_consecutive_missing_cycles < max_consecutive_missing_cycles:
+            corrected_clock['timestamp'] = corrected_timestamps
+            metadata['has_measured_timestamps'] = True
+        else:
+            print(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
 
     # Create a 'trials' table if it doesn't exist
     if not 'bmi3d_trials' in data:
@@ -986,7 +1128,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
             n_trials = len(trial_events)
             trial_idx = [np.where(trial_cycles >= idx)[0] for idx in range(len(task))] # needs testing
 
-        corrected_trials = get_unique_trials(trial_idx, task['target_location'])
+        corrected_trials = get_unique_conditions(trial_idx, task['target_location'])
     else:
 
         # TODO maybe should check if the last trial is incomplete
@@ -998,7 +1140,7 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
 
     # Trim / pad everything to the same length
     n_cycles = corrected_clock['time'][-1]
-    if metadata['sync_protocol_version'] >= 3:
+    if metadata['sync_protocol_version'] >= 3 and metadata['sync_protocol_version'] < 6:
 
         # Due to the "sync" state at the beginning of the experiment, we need 
         # to add some (meaningless) cycles to the beginning of the clock
@@ -1009,11 +1151,19 @@ def _prepare_bmi3d_v0(data, metadata, max_missing_markers=10):
         padded_clock = np.zeros((n_cycles,), dtype=corrected_clock.dtype)
         padded_clock[n_sync_cycles:] = corrected_clock[n_sync_clocks:]
         padded_clock['time'][:n_sync_cycles] = range(n_sync_cycles)
-        padded_clock['timestamp'][:n_sync_cycles] = np.arange(n_sync_cycles)/metadata['fps']
+        # padded_clock['timestamp'][:n_sync_cycles] = np.arange(n_sync_cycles)/metadata['fps']
         corrected_clock = padded_clock
         
     # Update the event timestamps according to the corrected clock    
-    corrected_events['timestamp'] = corrected_clock['timestamp'][corrected_events['time']]
+    if not metadata['has_measured_timestamps']:
+        corrected_clock = corrected_clock[ [ name for name in corrected_clock.dtype.names if name not in 'timestamp' ] ] # remove 'timestamp'
+    if 'timestamp_measure_offline' in corrected_clock.dtype.names:
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp_measure', corrected_clock['timestamp_measure_offline'][corrected_events['time']], dtypes='f8')
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_measure'], dtypes='f8')
+    elif 'timestamp_sync' in corrected_events.dtype.names:
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_sync'], dtypes='f8')
+    else:
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_bmi3d'], dtypes='f8')
 
     # Also put the reward system data into bmi3d time?
     if 'reward_system' in data and 'reward_system' in metadata['features']:
@@ -1145,11 +1295,11 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''   
     # Check if a processed file already exists
     filepath = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(filepath):
-        os.remove(filepath)
-    elif os.path.exists(filepath):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "exp_data" in contents or "exp_metadata" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
     
     # Prepare the BMI3D data
     if 'hdf' in files:
@@ -1183,11 +1333,11 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
     '''  
     # Check if a processed file already exists
     filepath = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(filepath):
-        os.remove(filepath)
-    elif os.path.exists(filepath):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "mocap_data" in contents or "mocap_metadata" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
 
     # Parse Optitrack data
     if 'optitrack' in files:
@@ -1212,12 +1362,12 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         None
     '''  
     # Check if a processed file already exists
-    result_path = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(result_path):
-        os.remove(result_path)
-    elif os.path.exists(result_path):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "Headstages" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
 
     # Preprocess neural data into lfp
     if 'ecube' in files:

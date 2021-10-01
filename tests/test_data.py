@@ -1,10 +1,12 @@
 # test_data.py 
 # tests of aopy.data
+from aopy.data import _process_channels
 from aopy.data import *
 from aopy.visualization import *
 import unittest
 import os
 import numpy as np
+import pandas as pd
 from matplotlib.testing.compare import compare_images
 
 test_dir = os.path.dirname(__file__)
@@ -22,8 +24,8 @@ class LoadDataTests(unittest.TestCase):
         files = get_filenames_in_dir(test_dir, 1039)
         self.assertIn('foo', files)
         self.assertIn('bar', files)
-        self.assertEqual(files['foo'], 'foo/1039_foo')
-        self.assertEqual(files['bar'], 'bar/1039_bar.txt')
+        self.assertEqual(files['foo'], os.path.join('foo','1039_foo'))
+        self.assertEqual(files['bar'], os.path.join('bar','1039_bar.txt'))
 
     def test_load_mocap(self):
         # Data directory and filepath
@@ -63,7 +65,9 @@ class LoadDataTests(unittest.TestCase):
 
     def test_process_channels(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
-        data = process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
+        data = np.zeros((0,1))
+        for chunk in  _process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16'):
+            data = np.concatenate((data, chunk), axis=0)
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
 
@@ -112,6 +116,35 @@ class LoadDataTests(unittest.TestCase):
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
 
+    def test_load_ecube_data_chunked(self):
+        # Load 738 samples at once
+        gen = load_ecube_data_chunked(test_filepath, 'Headstages')
+        data = next(gen)
+        assert data.shape[1] == 64
+        assert data.shape[0] == 728
+
+        # Load the rest
+        for chunk in gen:
+            data = np.concatenate((data, chunk), axis=0)
+
+        assert data.shape[1] == 64
+        assert data.shape[0] == 214032
+
+        # Test that channels work
+        gen = load_ecube_data_chunked(test_filepath, 'Headstages', channels=[4])
+        data = next(gen)
+        assert data.shape[1] == 1
+        assert data.shape[0] == 728
+
+        # Make a figure to test that the data is intact
+        data = np.zeros((0,8))
+        for chunk in load_ecube_data_chunked(sim_filepath, 'Headstages'):
+            data = np.concatenate((data, chunk), axis=0)
+        self.assertEqual(data.shape[0], 25000)
+        plt.figure()
+        plot_timeseries(data, 25000)
+        savefig(write_dir, 'load_ecube_data_chunked.png') # should be the same as 'load_ecube_data.png'
+
     def test_proc_ecube_data(self):
         import os
         import h5py
@@ -130,18 +163,29 @@ class LoadDataTests(unittest.TestCase):
         import os
         import h5py
         testfile = 'save_hdf_test.hdf'
+        testfile_comp = 'save_hdf_test_comp.hdf'
         testpath = os.path.join(write_dir, testfile)
+        testpath_comp = os.path.join(write_dir, testfile_comp)
         if os.path.exists(testpath):
             os.remove(testpath)
+        if os.path.exists(testpath_comp):
+            os.remove(testpath_comp)
         data = {'test_data_array': np.arange(1000)}
         params = {'key1': 'value1', 'key2': 2}
+        compression = 3
         save_hdf(write_dir, testfile, data_dict=data, data_group="/", append=False)
         save_hdf(write_dir, testfile, data_dict=data, data_group="/test_data", append=True)
         save_hdf(write_dir, testfile, data_dict=params, data_group="/test_metadata", append=True)
+        save_hdf(write_dir, testfile_comp, data_dict=data, data_group="/", append=False, compression=compression)
         f = h5py.File(testpath, 'r')
         self.assertIn('test_data_array', f)
         self.assertIn('test_data', f)
         self.assertIn('test_metadata', f)
+        f_comp = h5py.File(testpath_comp,'r')
+        self.assertTrue(f_comp['/test_data_array'].compression == 'gzip')
+        self.assertTrue(f_comp['/test_data_array'].compression_opts == compression)
+        self.assertTrue(np.allclose(f_comp['/test_data_array'][()],data['test_data_array']))
+        # add check to assert data is compressed in this record
         test_data = f['test_data']
         test_metadata = f['test_metadata']
         self.assertEqual(test_metadata['key1'][()], b'value1') # note that the hdf doesn't save unicode strings
@@ -149,7 +193,7 @@ class LoadDataTests(unittest.TestCase):
         self.assertTrue(np.allclose(test_data['test_data_array'], np.arange(1000)))
         self.assertRaises(FileExistsError, lambda: save_hdf(write_dir, testfile, data, "/", append=False))
 
-    def test_get_hdf_contents(self):
+    def test_get_hdf_dictionary(self):
         testfile = 'load_hdf_contents_test.hdf'
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):
@@ -158,14 +202,13 @@ class LoadDataTests(unittest.TestCase):
         save_hdf(write_dir, testfile, data_dict=data_dict, data_group="/", append=False)
         group_data_dict = {'group_data': np.arange(1000)}
         save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
-        result = get_hdf_contents(write_dir, testfile, show_tree=True)
+        result = get_hdf_dictionary(write_dir, testfile, show_tree=True)
         self.assertIn('test_data', result)
         self.assertIn('group1', result)
         self.assertIn('group_data', result['group1'])
+        print(result)
 
     def test_load_hdf_data(self):
-        import os
-        import h5py
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
         if os.path.exists(testpath):
@@ -215,6 +258,34 @@ class LoadDataTests(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
 
+    def test_load_matlab_cell_strings(self):
+        testfile = 'matlab_cell_str.mat'
+        strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+        expected_strings = ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
+        self.assertListEqual(strings[:5], expected_strings)
+
+    def test_parse_str_list(self):
+        str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
+        
+        # Check case where both str_include and str_avoid are used
+        parsed_strs1 = parse_str_list(str_list, str_include=['sig002', 'wf'], str_avoid=['b_wf', 'i_wf'])
+        expected_parsed_strs1 = ['sig002a_wf', 'sig002a_wf_ts']
+        self.assertListEqual(parsed_strs1, expected_parsed_strs1)
+        
+        # Check case where only str_include is used
+        parsed_strs2 = parse_str_list(str_list, str_include=['sig001'])
+        expected_parsed_strs2 = ['sig001i_wf', 'sig001i_wf_ts']
+        self.assertListEqual(parsed_strs2, expected_parsed_strs2)
+        
+        # Check case where only str_avoid is used
+        parsed_strs3 = parse_str_list(str_list, str_avoid=['sig002'])
+        expected_parsed_strs3 = ['sig001i_wf', 'sig001i_wf_ts']
+        self.assertListEqual(parsed_strs3, expected_parsed_strs3)
+
+        # Check case where neither str_include or str_avoid are used
+        parsed_strs4 = parse_str_list(str_list)
+        self.assertListEqual(parsed_strs4, str_list)
+
 class SignalPathTests(unittest.TestCase):
 
     def test_lookup_excel_value(self):
@@ -242,28 +313,84 @@ class SignalPathTests(unittest.TestCase):
         self.assertEqual(len(x), 244)
         self.assertEqual(len(y), 244)
 
-class FakeDataTests(unittest.TestCase):
+    def test_map_acq2pos(self):
+        # Note, this also tests map_acq2elec
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
 
-    def test_gen_save_test_signal(self):
+        acq_ch_position, acq_chs, connected_elecs = map_acq2pos(test_signalpath_table, test_eleclayout_table, xpos_name='topdown_x', ypos_name='topdown_y')
+        
+        np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
+        np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
+        
+        # Manually test a few electrode positions and output array shape
+        self.assertEqual(acq_ch_position.shape[0], 240)
+        self.assertEqual(acq_ch_position.shape[1], 2)
 
-        # Generate a signal
-        samplerate = 25000
-        data = gen_test_signal(1, 6, duration=1, n_channels=8, samplerate=samplerate)
+        self.assertEqual(2.25, acq_ch_position[0,0])
+        self.assertEqual(9, acq_ch_position[0,1])
 
-        self.assertEqual(data.shape, (25000, 8))
+        self.assertEqual(7.5, acq_ch_position[100,0])
+        self.assertEqual(5.25, acq_ch_position[100,1])
+        
+        self.assertEqual(3.75, acq_ch_position[200,0])
+        self.assertEqual(4.5, acq_ch_position[200,1])
 
-        # Pack it into bits
-        voltsperbit = 1e-4
-        base_dir = os.path.join(write_dir, 'test_ecube_data')
-        if not os.path.exists(base_dir):
-            os.mkdir(base_dir)
-        filename = save_test_signal_ecube(data, base_dir, voltsperbit)
+    def test_map_data2elec(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        datain = np.zeros((10, 256))
+        for i in range(256):
+            datain[:,i] = i+1
 
-        self.assertTrue('Headstages' in filename)
+        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table)
 
-        plot_timeseries(data, samplerate)
-        figname = 'gen_test_signal.png'
-        savefig(write_dir, figname)
-    
+        self.assertEqual(dataout.shape[0], 10)
+        self.assertEqual(dataout.shape[1], 240)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+        # Check zero_indexing flag
+        datain = datain - 1
+        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table, zero_indexing=True)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+    def test_map_data2elecandpos(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
+        datain = np.zeros((10, 256))
+        for i in range(256):
+            datain[:,i] = i+1
+
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table,  xpos_name='topdown_x', ypos_name='topdown_y')
+
+        self.assertEqual(dataout.shape[0], 10)
+        self.assertEqual(dataout.shape[1], 240)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+        # Test acquisition channel subset selection
+        acq_ch_subset = np.array([1,3,5,8,10])
+        expected_acq_ch_pos = np.array([[2.25, 9], [5.25, 6.75],[3.75, 9]])
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, acq_ch_subset=acq_ch_subset)
+        np.testing.assert_allclose(dataout[0,:].flatten(), np.array([1,5,10]))
+        np.testing.assert_allclose(acq_chs, np.array([1,5,10]))
+        np.testing.assert_allclose(connected_elecs, np.array([54,52,42]))
+        np.testing.assert_allclose(acq_ch_position, expected_acq_ch_pos)
+
+        # Test zero_indexing flag
+        datain = datain - 1
+        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, zero_indexing=True)
+        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+

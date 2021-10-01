@@ -2,13 +2,13 @@
 # code for accessing neural data collected by the aoLab
 import numpy as np
 from .whitematter import ChunkedStream, Dataset
-from datetime import datetime
 import h5py
 import tables
 import csv
 import pandas as pd
 import os
 import glob
+import warnings
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -49,15 +49,15 @@ def load_optitrack_metadata(data_dir, filename, metadata_row=0):
     This function loads optitrack metadata from .csv file that has 1 rigid body
     exported with the following settings:
 
-        Markers: Off
-        Unlabeled markers: Off
-        Quality Statistics: Off
-        Rigid Bodies: On
-        Rigid Body Markers: Off
-        Bones: Off
-        Bone Markers: Off
-        Header Information: On
-        Optitrack format Version(s): 1.23
+        | **Markers:** Off
+        | **Unlabeled markers:** Off
+        | **Quality Statistics:** Off
+        | **Rigid Bodies:** On
+        | **Rigid Body Markers:** Off
+        | **Bones:** Off
+        | **Bone Markers:** Off
+        | **Header Information:** On
+        | **Optitrack format Version(s):** 1.23
 
     Required packages: csv, pandas
 
@@ -111,15 +111,15 @@ def load_optitrack_data(data_dir, filename):
     This function loads a series of x, y, z positional data from the optitrack
     .csv file that has 1 rigid body exported with the following settings:
 
-        Markers: Off
-        Unlabeled markers: Off
-        Quality Statistics: Off
-        Rigid Bodies: On
-        Rigid Body Markers: Off
-        Bones: Off
-        Bone Markers: Off
-        Header Information: On
-        Optitrack format Version(s): 1.23
+        | **Markers:** Off
+        | **Unlabeled markers:** Off
+        | **Quality Statistics:** Off
+        | **Rigid Bodies:** On
+        | **Rigid Body Markers:** Off
+        | **Bones:** Off
+        | **Bone Markers:** Off
+        | **Header Information:** On
+        | **Optitrack format Version(s):** 1.23
 
     Required packages: pandas, numpy
 
@@ -128,10 +128,9 @@ def load_optitrack_data(data_dir, filename):
         filename (string): File name to load within the data directory
 
     Returns:
-        tuple: tuple containing:
-        
-            mocap_data_pos (nt, 3): Positional mocap data
-            mocap_data_rot (nt, 4): Rotational mocap data
+        tuple: Tuple containing:
+            | **mocap_data_pos (nt, 3):** Positional mocap data
+            | **mocap_data_rot (nt, 4):** Rotational mocap data
     '''
 
     # Load the metadata to check the columns are going to line up
@@ -175,6 +174,20 @@ def load_optitrack_time(data_dir, filename):
     timestamps = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
     return timestamps
 
+
+def get_ecube_data_sources(data_dir):
+    '''
+    Lists the available data sources in a given data directory
+
+    Args: 
+        data_dir (str): eCube data directory
+
+    Returns:
+        str array: available sources (AnalogPanel, Headstages, etc.)
+    '''
+    dat = Dataset(data_dir)
+    return dat.listsources()
+    
 def load_ecube_metadata(data_dir, data_source):
     '''
     Sums the number of channels and samples across all files in the data_dir
@@ -185,11 +198,10 @@ def load_ecube_metadata(data_dir, data_source):
 
     Returns:
         dict: Dictionary of metadata with fields:
-
-            samplerate (float): sampling rate of data for this source
-            data_source (str): copied from the function argument
-            n_channels (int): number of channels
-            n_samples (int): number of samples for one channel
+            | **samplerate (float):** sampling rate of data for this source
+            | **data_source (str):** copied from the function argument
+            | **n_channels (int):** number of channels
+            | **n_samples (int):** number of samples for one channel
     '''
 
     # For now just load the metadata provieded by pyECubeSig
@@ -219,7 +231,7 @@ def load_ecube_data(data_dir, data_source, channels=None):
 
     Args:
         data_dir (str): folder containing the data you want to load
-        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         channels (int array or None): list of channel numbers (0-indexed) to load. If None, will load all channels by default
 
     Returns:
@@ -240,8 +252,46 @@ def load_ecube_data(data_dir, data_source, channels=None):
         dtype = np.int16
 
     # Fetch all the data for all the channels
-    timeseries_data = process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
+    n_samples = metadata['n_samples']
+    timeseries_data = np.zeros((n_samples, len(channels)), dtype=dtype)
+    n_read = 0
+    for chunk in _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype):
+        chunk_len = chunk.shape[0]
+        timeseries_data[n_read:n_read+chunk_len,:] = chunk
+        n_read += chunk_len
     return timeseries_data
+
+def load_ecube_data_chunked(data_dir, data_source, channels=None, chunksize=728):
+    '''
+    Loads a data file one "chunk" at a time. Useful for replaying files as if they were online data.
+
+    Args:
+        data_dir (str): folder containing the data you want to load
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
+        channels (int array or None): list of channel numbers (0-indexed) to load. If None, will load all channels by default
+        chunksize (int): how many samples to include in each chunk
+
+    Yields:
+        (chunksize, nch): one chunk of data for the given source
+    '''
+    # Read metadata, check inputs
+    metadata = load_ecube_metadata(data_dir, data_source)
+    if channels is None:
+        channels = range(metadata['n_channels'])
+    elif len(channels) > metadata['n_channels']:
+        raise ValueError("Supplied channel numbers are invalid")
+
+    # Datatype is currently fixed for each data_source
+    if data_source == 'DigitalPanel':
+        dtype = np.uint64
+    else:
+        dtype = np.int16
+    
+    # Fetch all the channels but just return the generator
+    n_samples = metadata['n_samples']
+    n_channels = metadata['n_channels']
+    kwargs = dict(maxchunksize=chunksize*n_channels*np.dtype(dtype).itemsize)
+    return _process_channels(data_dir, data_source, channels, n_samples, **kwargs)
 
 def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     '''
@@ -251,7 +301,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
 
     Args:
         data_dir (str): folder containing the data you want to load
-        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         result_filepath (str): path to hdf file to be written (or appended)
         dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
 
@@ -272,7 +322,12 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
 
     # Open and read the eCube data into the new hdf dataset
-    process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset, **dataset_kwargs)
+    n_read = 0
+    for chunk in _process_channels(data_dir, data_source, range(n_channels), n_samples, **dataset_kwargs):
+        chunk_len = chunk.shape[0]
+        dset[n_read:n_read+chunk_len,:] = chunk
+        n_read += chunk_len
+
     dat = Dataset(data_dir)
     dset.attrs['samplerate'] = dat.samplerate
     dset.attrs['data_source'] = data_source
@@ -280,20 +335,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
 
     return dset
 
-def get_ecube_data_sources(data_dir):
-    '''
-    Lists the available data sources in a given data directory
-
-    Args: 
-        data_dir (str): eCube data directory
-
-    Returns:
-        str array: available sources (AnalogPanel, Headstages, etc.)
-    '''
-    dat = Dataset(data_dir)
-    return dat.listsources()
-
-def process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, **dataset_kwargs):
+def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
     Reads data from an ecube data source by channel until the number of samples requested 
     has been loaded. If a processing function is supplied, it will be applied to 
@@ -301,22 +343,21 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
 
     Args:
         data_dir (str): folder containing the data you want to load
-        data_source (str): type of data ("Headstage", "AnalogPanel", "DigitalPanel")
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         channels (int array): list of channels to process
         n_samples (int): number of samples to read. Must be geq than a single chunk
         dtype (np.dtype): format for data_out if none supplied
         data_out (nt, nch): array of data to be written to. If None, it will be created
+        debug (bool): whether the data is read in debug mode
         dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
         
-    Returns:
-        (nt, nch): Requested samples for requested channels
+    Yields:
+        (nt, nch): Chunks of the requested samples for requested channels
     '''
-    if data_out == None:
-        data_out = np.zeros((n_samples, len(channels)), dtype=dtype)
 
     dat = Dataset(data_dir, **dataset_kwargs)
     dat.selectsource(data_source)
-    chunk = dat.emitchunk(startat=0, debug=True)
+    chunk = dat.emitchunk(startat=0, debug=debug)
     datastream = ChunkedStream(chunkemitter=chunk)
 
     idx_samples = 0 # keeps track of the number of samples already read/written
@@ -325,13 +366,12 @@ def process_channels(data_dir, data_source, channels, n_samples, dtype=None, dat
             data_chunk = next(datastream)
             data_len = np.shape(data_chunk)[1]
             if len(channels) == 1:
-                data_out[idx_samples:idx_samples+data_len,:] = data_chunk[channels,:].T 
+                yield data_chunk[channels,:].T 
             else:
-                data_out[idx_samples:idx_samples+data_len,:] = np.squeeze(data_chunk[channels,:]).T # this might be where you filter data
+                yield np.squeeze(data_chunk[channels,:]).T # this might be where you filter data
             idx_samples += data_len
         except StopIteration:
             break
-    return data_out
 
 def load_ecube_digital(path, data_dir):
     '''
@@ -342,10 +382,9 @@ def load_ecube_digital(path, data_dir):
         data_dir (str): folder you want to load
 
     Returns:
-        tuple: tuple containing:
-        
-            data (nt): digital data, arranged as 64-bit numbers representing the 64 channels
-            metadata (dict): metadata (see load_ecube_metadata() for details)
+        tuple: Tuple containing:
+            | **data (nt):** digital data, arranged as 64-bit numbers representing the 64 channels
+            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'DigitalPanel')
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
@@ -361,16 +400,33 @@ def load_ecube_analog(path, data_dir, channels=None):
         channels (int array, optional): which channels to load
 
     Returns:
-        tuple: tuple containing:
-        
-            data (nt, nch): analog data for the requested channels
-            metadata (dict): metadata (see load_ecube_metadata() for details)
+        tuple: Tuple containing:
+            | **data (nt, nch):** analog data for the requested channels
+            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'AnalogPanel', channels)
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
     return data, metadata
 
-def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, debug=False):
+def load_ecube_headstages(path, data_dir, channels=None):
+    '''
+    Just a wrapper around load_ecube_data() and load_ecube_metadata()
+
+    Args:
+        path (str): base directory where ecube data is stored
+        data_dir (str): folder you want to load
+        channels (int array, optional): which channels to load
+
+    Returns:
+        tuple: Tuple containing:
+            | **data (nt, nch):** analog data for the requested channels
+            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
+    '''
+    data = load_ecube_data(os.path.join(path, data_dir), 'Headstages', channels)
+    metadata = load_ecube_metadata(os.path.join(path, data_dir), 'Headstages')
+    return data, metadata
+
+def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", compression=0, append=False, debug=False):
     '''
     Writes data_dict and params into a hdf file in the data_dir folder 
 
@@ -379,9 +435,11 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
         hdf_filename (str): name of the hdf file to be saved
         data_dict (dict, optional): the data to be saved as a hdf file
         data_group (str, optional): where to store the data in the hdf
+        compression(int, optional): gzip compression level. 0 indicate no compression. Compression not added to existing datasets. (default: 0)
         append (bool, optional): append an existing hdf file or create a new hdf file
 
-    Returns: None
+    Returns: 
+        None
     '''
 
     full_file_name = os.path.join(data_dir, hdf_filename)
@@ -403,7 +461,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     # Write each key, unless it exists and append is False
     for key in data_dict.keys():
         if key in group:
-            print("Warning: dataset " + key + " already exists in " + data_group + "!")
+            if debug: print("Warning: dataset " + key + " already exists in " + data_group + "!")
             del group[key]
         data = data_dict[key]
         if hasattr(data, 'dtype') and data.dtype.char == 'U':
@@ -413,7 +471,10 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
             key = key + '_json'
             data = json.dumps(data)
         try:
-            group.create_dataset(key, data=data)
+            if compression > 0:
+                group.create_dataset(key, data=data, compression='gzip', compression_opts=compression)
+            else:
+                group.create_dataset(key, data=data)
             if debug: print("Added " + key)
         except:
             if debug: print("Warning: could not add key {} with data {}".format(key, data))
@@ -422,16 +483,32 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", append=False, de
     if debug: print("Done!")
     return
 
-def get_hdf_contents(data_dir, hdf_filename, show_tree=False):
+def get_hdf_dictionary(data_dir, hdf_filename, show_tree=False):
     '''
-    Lists the hdf contents in a dictionary
+    Lists the hdf contents in a dictionary. Does not read any data! For example,
+    calling get_hdf_dictionary() with show_tree will result in something like this::
+
+        >>> dict = get_hdf_dictionary('/exampledir', 'example.hdf', show_tree=True)
+        example.hdf
+        └──group1
+        |  └──group_data: [shape: (1000,), type: int64]
+        └──test_data: [shape: (1000,), type: int64]
+        >>> print(dict)
+        {
+            'group1': {
+                'group_data': ((1000,), dtype('int64'))
+            }, 
+            'test_data': ((1000,), dtype('int64'))
+        }
 
     Args:
         data_dir (str): folder where data is located
         hdf_filename (str): name of hdf file
     
     Returns:
-        dict: contents of the file
+        dict: contents of the file keyed by name as tuples containing:
+            | **shape (tuple):** size of the data
+            | **dtype (np.dtype):** type of the data
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
@@ -470,10 +547,9 @@ def _load_hdf_dataset(dataset, name):
         name (str): name of the dataset
 
     Returns:
-        tuple: tuple containing:
-
-            name (str): name of the dataset (might be modified)
-            data (object): loaded data
+        tuple: Tuple containing:
+            | **name (str):** name of the dataset (might be modified)
+            | **data (object):** loaded data
     '''
     data = dataset[()]
     if '_json' in name:
@@ -501,7 +577,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
-    full_data_name = os.path.join(data_group, data_name)
+    full_data_name = os.path.join(data_group, data_name).replace("\\", "/")
     if full_data_name not in hdf:
         raise ValueError('{} not found in file {}'.format(full_data_name, hdf_filename))
     _, data = _load_hdf_dataset(hdf[full_data_name], data_name)
@@ -552,10 +628,9 @@ def load_bmi3d_hdf_table(data_dir, filename, table_name):
         table_name (str): name of the table you want to load
 
     Returns:
-        tuple: tuple containing:
-        
-            data (ndarray): data from bmi3d
-            metadata (dict): attributes associated with the table
+        tuple: Tuple containing:
+            | **data (ndarray):** data from bmi3d
+            | **metadata (dict):** attributes associated with the table
     '''
     filepath = os.path.join(data_dir, filename)
     with tables.open_file(filepath, 'r') as f:
@@ -655,10 +730,9 @@ def load_electrode_pos(data_dir, pos_file):
         pos_file (str): the excel file
 
     Returns:
-        tuple: tuple containing:
-
-            x_pos (nch): x position of each electrode
-            y_pos (nch): y position of each electrode
+        tuple: Tuple containing:
+            | **x_pos (nch):** x position of each electrode
+            | **y_pos (nch):** y position of each electrode
     '''
     fullfile = os.path.join(data_dir, pos_file)
     electrode_pos = pd.read_excel(fullfile)
@@ -666,57 +740,201 @@ def load_electrode_pos(data_dir, pos_file):
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos
 
-def gen_test_signal(amplitude, frequency, duration=1, n_channels=8, samplerate=25000):
+def map_acq2elec(signalpath_table, acq_ch_subset=None):
     '''
-    Generate sine waves offset in phase by 2*pi/n_channels at the given amplitude and frequency
-
-    Args: 
-        amplitude (float): amplitude of each sine wave
-        frequency (float): frequency in Hz
-        duration (float, optional): time in seconds (default 1)
-        n_channels (int, optional): number of channels to generate (default 8)
-        samplerate (int, optional): sampling rate of the signal in Hz (default 25,000)
+    Create index mapping from acquisition channel to electrode number. 
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
+    
+    Args:
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
 
     Returns:
-        (nt, nch) array: timeseries data across channels
+        tuple: Tuple containing:
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
     '''    
-    time = np.arange(0, duration, 1/samplerate)
-    data = []
-    for i in range(n_channels):
-        theta = 2*i*np.pi/8 # shift phase for each channel
-        sinewave = amplitude * np.sin(2 * np.pi * frequency * time + theta)
-        data.append(sinewave)
-    data = np.array(data).T
+    # Parse acquisition channels used and the connected electrodes
+    connected_elecs_mask = np.logical_not(np.isnan(signalpath_table['acq']))
+    connected_elecs = signalpath_table['electrode'][connected_elecs_mask].to_numpy()
+    acq_chs = signalpath_table['acq'][connected_elecs_mask].to_numpy(dtype=int)
 
-    return data
+    if acq_ch_subset is not None:
+        acq_chs_mask = np.where(np.in1d(acq_chs, acq_ch_subset))[0]
+        acq_chs = acq_chs[acq_chs_mask]
+        connected_elecs = connected_elecs[acq_chs_mask]
+        if len(acq_chs) < len(acq_ch_subset):
+            missing_acq_chs = acq_ch_subset[np.in1d(acq_ch_subset,acq_chs, invert=True)]      
+            warning_str = "Requested acquisition channels " + str(missing_acq_chs) + " are not connected"
+            warnings.warn(warning_str)
 
-def save_test_signal_ecube(data, save_dir, voltsperbit):
+    return acq_chs, connected_elecs
+
+def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
-    Create a binary file with eCube formatting using the given data
+    Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
+    
+    Args:
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
+        ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
+
+    Returns:
+        tuple: Tuple Containing:
+            | **acq_ch_position (nelec, 2):** X and Y coordinates of the electrode each acquisition channel gets data from.
+                                        X position is in the first column and Y position is in the second column
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
+    '''
+    # Get index mapping from acquisition channel to electrode number
+    acq_chs, connected_elecs = map_acq2elec(signalpath_table, acq_ch_subset=acq_ch_subset)
+    nelec = len(connected_elecs)
+    
+    # Map connected electrodes to their position
+    acq_ch_position = np.empty((nelec, 2))
+
+    for ielec, elecid in enumerate(connected_elecs):
+        acq_ch_position[ielec,0] = eleclayout_table[xpos_name][eleclayout_table['electrode']==elecid]
+        acq_ch_position[ielec,1] = eleclayout_table[ypos_name][eleclayout_table['electrode']==elecid]
+
+    return acq_ch_position, acq_chs, connected_elecs
+
+def map_data2elec(datain, signalpath_table, acq_ch_subset=None, zero_indexing=False):
+    '''
+    Map data from its acquisition channel to the electrodes recorded from. Wrapper for aopy.data.map_acq2elec
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
 
     Args:
-        data (nt, nch): test_signal to save
-        save_dir (str): where to save the file
-        voltsperbit (float): gain of the headstage data you are creating
+        datain (nt, nacqch): Data recoded from an array.
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
 
     Returns:
-        str: filename of the new data
+        tuple: Tuple containing:
+            | **dataout (nt, nelec):** Data from the connected electrodes
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
-    intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
-    flatdata = data.reshape(-1)
-    timestamp = [1, 2, 3, 4]
-    flatdata = np.insert(flatdata, timestamp, 0)
+    
+    acq_chs, connected_elecs = map_acq2elec(signalpath_table, acq_ch_subset=acq_ch_subset)
+    if zero_indexing:
+        dataout = datain[:,acq_chs]
+    else:
+        dataout = datain[:,acq_chs-1]
+    
+    return dataout, acq_chs, connected_elecs
 
-    # Save it to the test file
-    datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
-    filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
-    filepath = os.path.join(save_dir, filename)
-    with open(filepath, 'wb') as f:
-        for _ in range(8):
-            f.write(np.byte(1)) # 8 byte timestamp
-        for t in range(intdata.shape[0]):
-            for ch in range(intdata.shape[1]):
-                f.write(np.byte(intdata[t,ch]))
-                f.write(np.byte(intdata[t,ch] >> 8))
+def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
+    '''
+    Map data from its acquisition channel to the electrodes recorded from and their position. Wrapper for aopy.data.map_acq2pos
+    Excel files can be loaded as a pandas dataframe using pd.read_excel
 
-    return filename
+    Args:
+        datain (nt, nacqch): Data recoded from an array.
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
+        ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
+        zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
+
+    Returns:
+        tuple: Tuple containing:
+            | **dataout (nt, nelec):** Data from the connected electrodes
+            | **acq_ch_position (nelec, 2):** X and Y coordinates of the electrode each acquisition channel gets data from.
+                                        X position is in the first column and Y position is in the second column
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
+    '''
+    
+    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, xpos_name='topdown_x', ypos_name='topdown_y')
+    if zero_indexing:
+        dataout = datain[:,acq_chs]
+    else:
+        dataout = datain[:,acq_chs-1]
+    
+    return dataout, acq_ch_position, acq_chs, connected_elecs
+
+def parse_str_list(strings, str_include=None, str_avoid=None):
+    '''
+    This function parses a list of strings to return the strings that include/avoid specific substrings
+    It was designed to parse dictionary keys
+
+    Args: 
+        strings (list of strings): List of strings 
+        str_include (list of strings): List of substrings that must be included in a string to keep it
+        str_avoid (list of strings): List of substrings that can not be included in a string to keep it
+        
+    Retruns:
+        (list of strings): List of strings fitting the input conditions
+
+    Example::
+        >>> str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 
+                        'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
+        >>> parsed_strings = parse_str_list(str_list, str_include=['sig002', 'wf'], str_avoid=['b_wf', 'i_wf'])
+        >>> print(parsed_strings)
+        ['sig002a_wf', 'sig002a_wf_ts']
+    '''
+    parsed_str = []
+    
+    for str_idx, str_val in enumerate(strings):
+        counter = 0
+        nconditions = 0
+        if str_include is not None:
+            for istr_incl, istr_incl_val in enumerate(str_include):
+                nconditions += 1
+                if istr_incl_val in strings[str_idx]:
+                    counter += 1
+        if str_avoid is not None:
+            for istr_avd, istr_avd_val in enumerate(str_avoid):
+                nconditions += 1
+                if istr_avd_val not in strings[str_idx]:
+                    counter += 1
+        
+        if counter == nconditions:
+            parsed_str.append(strings[str_idx])
+            
+    return parsed_str
+
+def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
+    '''
+    This function extracts strings from an object within .mat file that was saved from 
+    matlab in version -7.3 (-v7.3). 
+
+    example::
+
+        >>> testfile = 'matlab_cell_str.mat'
+        >>> strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+        >>> print(strings)
+        ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
+
+    Args:
+        data_dir (str): where the matlab file is located
+        hdf_filename (str): .mat filename
+        object_name (str): Name of object to load. This is typically the variable name saved from matlab
+    
+    Returns:
+        (list of strings): List of strings in the hdf file object
+
+    '''
+    full_file_name = os.path.join(data_dir, hdf_filename)
+    strings = []
+    with h5py.File(full_file_name, 'r') as f:
+        objects = f[object_name]
+        
+        if objects.shape[0] == 1:
+            for iobject in objects[0]:
+                string_unicode = f[iobject]
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                strings.append(temp_string)
+        else:
+            for iobject in objects:  
+                string_unicode = f[iobject[0]]
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                strings.append(temp_string)
+    
+    return strings
