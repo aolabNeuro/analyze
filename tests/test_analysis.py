@@ -3,6 +3,7 @@ import numpy as np
 import warnings
 import unittest
 import os
+import pandas as pd
 
 class FactorAnalysisTests(unittest.TestCase):
 
@@ -141,7 +142,8 @@ class CalcTests(unittest.TestCase):
 
 class KalmanFilterTests(unittest.TestCase):
 
-    # TODO: format this for pavi's kalman\
+    # TODO: format this for pavi's kalman
+
     # call aopy.analysis.KFDecoder
     def test_kf_prediction(self):
         """Single iteration of KF prediction shall match hand-verifable reference output."""
@@ -159,41 +161,10 @@ class KalmanFilterTests(unittest.TestCase):
         # note C=H in analysis.py (conventions)
         kf.model = [A, W, C, Q]
 
-        # load data to train and validate kalman filter
-        os.chdir('decoder_tests')
-        # data files
+        x = 0.2
+        x_t = np.mat(np.mat([x,-x]).reshape(-1,1))
 
-        # sensor readings
-        self.calib_sensor_data = 'kalman_test_calib'
-        # task data (position/velocity...)
-        self.calib_datafile = 'string'
-        # known good kalman filter generated off of this dataset
-        self.kalman_known_good = 'kalman_known_good'
 
-        # read in datasets
-        self.calib_data = pd.read_csv(self.calib_datafile,skiprows=10)
-        self.calib_sensor_data = pd.read_csv(self.calib_sensor_data)
-
-        # convert data to correct format
-        self.calib_sensor_data = self.calib_sensor_data.to_numpy()
-        self.calib_sensor_data = self.calib_sensor_data[0:len(self.calib_sensor_data)-1,1:23]
-
-        self.calib_data = self.calib_data.to_numpy()
-        realtime = self.calib_data[:,1]
-        self.ref_position = self.calib_data[:,2]
-        self.rt_diff = np.diff(realtime,axis=0)
-        # exception handling
-        self.rt_diff[np.where(self.rt_diff == 0)] = 0.0001
-        # get velocity from reference_position, change in position over time
-        self.vel_data = np.diff(self.ref_position,axis=0)/self.rt_diff
-
-        # convert to float32 - processed sensor and observation data
-        self.vel_data = np.float32(self.vel_data) #change to float 32 from 64 bc will error otherwise
-        self.calib_sensor_data = np.float32(self.calib_sensor_data)
-
-        x_t, y_t = self.vel_data, self.calib_sensor_data
-
-        p = 1.0/a**2
         y = 0.1
         y_t = np.mat([y, -y]).reshape(-1,1)
         x_t_est = kf.predict(x_t, y_t)
