@@ -162,11 +162,13 @@ class KalmanFilterTests(unittest.TestCase):
         kf.model = [A, W, C, Q]
 
         x = 0.2
-        x_t = np.mat(np.mat([x,-x]).reshape(-1,1))
+        x_t = np.array(([0.2, -0.2], [0.2, -0.2]))
+        #x_t = np.mat(np.mat([x,-x]).reshape(-1,1))
 
 
         y = 0.1
-        y_t = np.mat([y, -y]).reshape(-1,1)
+        y_t = np.array(([0.1, -0.1], [0.1, -0.1]))
+        #y_t = np.mat([y, -y]).reshape(-1,1)
         x_t_est = kf.predict(x_t, y_t)
 
         K_expected = 0.5
