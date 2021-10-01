@@ -200,7 +200,9 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
 
 def plot_raster(data, plot_cue=False, cue_bin=None, ax=None):
     '''
-       Create a raster plot for input data.
+       Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
+
+        .. image:: _images/raster_plot_example.png
 
        Args:
             data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
