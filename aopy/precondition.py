@@ -167,7 +167,7 @@ def bin_spikes(data, fs, bin_width):
     Computes binned spikes [spikes/s]. The input data is the sampled thresholded data (0 or 1 data).
     Binned spikes are calculated at each bin whose width is determined by bin_width. 
 
-        For example,
+    Example:
         >>> data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
         >>> data_T = data.T
         >>> fs = 100
@@ -179,12 +179,12 @@ def bin_spikes(data, fs, bin_width):
         [33.33333333 33.33333333]]
 
     Args:
-        data (ndarray): time series spike data with multiple channels. The size is (n_time x n_channel).
+        data (nt, nch): time series spike data with multiple channels.
         fs (float): sampling rate of data
         bin_width (int): Spikes are averaged within 'bin_width' then devided by 'fs'
 
     Returns:
-        binned_spikes (ndarray): binned spikes [spikes/s]. The size is (n_bins x n_channel).
+        binned_spikes (nbin, nch): binned spikes [spikes/s].
     '''
 
     dT = 1/fs

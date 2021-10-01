@@ -152,9 +152,12 @@ class FilterTests(unittest.TestCase):
     def test_binspikes(self):
         data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
         data_T = data.T
-        fs = 100
-        binned_spikes = precondition.bin_spikes(data_T, fs, 5)
-        print(binned_spikes)
+        fs = 10
+        binned_spikes = precondition.bin_spikes(data_T, fs, 0.5)
+        # print(binned_spikes)
+        self.assertEqual(binned_spikes.shape[0], 4)
+        self.assertEqual(binned_spikes.shape[1], 2)
+        self.assertEqual(binned_spikes[0,0], 2/0.5) # 2 spikes in window size 0.5s
 
 if __name__ == "__main__":
     unittest.main()
