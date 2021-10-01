@@ -206,11 +206,11 @@ def plot_raster(data, plot_cue=False, cue_bin=None, ax=None):
 
        Args:
             data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
-            plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-            cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
-            ax: axis to plot rastor plot
+            plot_cue (bool): If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
+            cue_bin (float): time bin at which an event occurs. For example: Go Cue or Leave center
+            ax (plt.Axis): axis to plot raster plot
        Returns:
-           rastor plot in appropriate axis
+           raster plot in appropriate axis
     '''
     if ax is None:
         ax = plt.gca()
