@@ -198,7 +198,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
-def plot_raster(data, plot_cue=False, cue_bin=None, ax=None):
+def plot_raster(data, cue_bin=None, ax=None):
     '''
        Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
 
@@ -206,8 +206,7 @@ def plot_raster(data, plot_cue=False, cue_bin=None, ax=None):
 
        Args:
             data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
-            plot_cue (bool): If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-            cue_bin (float): time bin at which an event occurs. For example: Go Cue or Leave center
+            cue_bin (float): time bin at which an event occurs. Leave as 'None' to only plot data. For example: Use this to indicate 'Go Cue' or 'Leave center' timing.
             ax (plt.Axis): axis to plot raster plot
        Returns:
            raster plot in appropriate axis
@@ -217,7 +216,7 @@ def plot_raster(data, plot_cue=False, cue_bin=None, ax=None):
 
     ax.eventplot(data.T, color='black')
     
-    if plot_cue:
+    if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
 

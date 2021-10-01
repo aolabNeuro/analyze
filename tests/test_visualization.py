@@ -56,7 +56,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         data = np.random.random([50, 6])
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        plot_raster(data, True, cue_bin=0.2, ax=ax)
+        plot_raster(data, cue_bin=0.2, ax=ax)
         savefig(write_dir, filename)
 
 class AnimationTests(unittest.TestCase):
