@@ -142,9 +142,8 @@ class CalcTests(unittest.TestCase):
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):
-
         """
-        creates same columns of elements 1 through 9, and linearly transform with known slope and intercept
+        Creates same columns of elements 1 through 9, and linearly transform with known slope and intercept
         """
     
         NUM_ROWS, NUM_COLUMNS = 10,3
@@ -156,26 +155,12 @@ class CurveFittingTests(unittest.TestCase):
         slope = 2.0
         intercept = 3.0
         r = 1.0 
-        Y = slope * X + intercept
-        dtype = np.dtype([
-        ('slope', float),
-        ('intercept', float),
-        ('corr_coefficient', float)
-        ])
-    
-        expected_results = np.empty(NUM_COLUMNS, dtype=dtype)
-        expected_results['slope'] = slope
-        expected_results['intercept'] = intercept
-        expected_results['corr_coefficient'] = r
+        Y = slope * X + intercept    
         
-        
-        results = aopy.analysis.fit_linear_regression(X, Y)
-        np.testing.assert_array_equal(expected_results, results)
-
-
-
-
-
+        result_slope, result_intercept, result_coeff = aopy.analysis.fit_linear_regression(X, Y)
+        np.testing.assert_allclose(np.tile([slope], (NUM_COLUMNS,) ), result_slope)
+        np.testing.assert_allclose(np.tile([intercept], (NUM_COLUMNS,) ), result_intercept)
+        np.testing.assert_allclose(np.tile([r], (NUM_COLUMNS,) ), result_coeff)
 
 
 if __name__ == "__main__":

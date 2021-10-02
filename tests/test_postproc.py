@@ -161,5 +161,11 @@ class TestGetFuncs(unittest.TestCase):
         self.assertEqual(len(trial_targets), 3)
         self.assertEqual(len(trial_targets[1]), 2)
 
+    def test_get_calibrated_eye_data(self):
+        eye_data = np.array([[0, 1, 2], [1, 2, 3]]).T
+        coefficients = np.array([[1, 1], [0, 0]]).T
+        calibrated = get_calibrated_eye_data(eye_data, coefficients)
+        np.testing.assert_array_equal(eye_data, calibrated)
+
 if __name__ == "__main__":
     unittest.main()

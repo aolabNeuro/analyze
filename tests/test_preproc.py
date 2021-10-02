@@ -538,6 +538,23 @@ class EventFilterTests(unittest.TestCase):
         self.assertCountEqual(trials['trial'], [0, 0, 0, 0, 1, 1, 1, 1])
         self.assertEqual(np.sum(trials['index']), 28)
 
+    def test_calc_eye_calibration(self):
+        cursor_data = np.array([[1, 2, 3, 4, 5, 6], [2, 3, 4, 5, 6, 7]]).T
+        eye_data = np.array([[0, 1, 2, 3, 4, 5, 6, 7], [3, 4, 5 ,6 ,7, 8, 9, 10]]).T
+        cursor_samplerate = 1
+        eye_samplerate = 1
+        event_cycles = [2, 3, 4, 5]
+        event_times = [2, 3, 4, 5]
+        event_codes = [0, 1, 0, 1]
+        coeff, corr_coeff = calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, 
+            event_cycles, event_times, event_codes, align_events=[0], trial_end_events=[1])
+        
+        expected_coeff = [1., 1., 1., -1.]
+        expected_corr_coeff = [1., 1.]
+
+        np.testing.assert_allclose(expected_coeff, coeff)
+        np.testing.assert_allclose(expected_corr_coeff, corr_coeff)
+
 class TestPrepareExperiment(unittest.TestCase):
 
     def test_parse_bmi3d(self):
@@ -612,7 +629,11 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(trial_states), 6)
         self.assertEqual(len(np.unique(data['trials']['trial'])), 7) # TODO maybe should fix this so trials is also len(trial_states)??
 
+    def test_parse_eyedata(self):
 
+        # TODO
+
+        pass
 
     def test_parse_optitrack(self):
         files = {}
@@ -643,6 +664,12 @@ class TestPrepareExperiment(unittest.TestCase):
         mocap_meta = load_hdf_group(write_dir, result_filename, 'mocap_metadata')
         self.assertIsNotNone(mocap)
         self.assertIsNotNone(mocap_meta)
+
+    def test_proc_eyedata(self):
+
+        # TODO
+
+        pass
 
     def preproc_multiple(self):
         result_filename = 'test_proc_multiple.hdf'

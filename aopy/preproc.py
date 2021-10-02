@@ -1,9 +1,11 @@
 # preproc.py
 # code for preprocessing neural data
-from aopy import analysis
 import numpy as np
 import numpy.lib.recfunctions as rfn
 from .data import *
+
+from . import analysis
+from . import postproc
 
 '''
 Digital calc
@@ -737,6 +739,45 @@ def max_repeated_nans(a):
         idx = np.nonzero(mask[1:] != mask[:-1])[0]
         return (idx[1::2] - idx[::2]).max()
 
+def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_cycles, event_times, event_codes,
+    align_events=range(81,89), trial_end_events=[239], offset=0., debug=True):
+    """
+    Extracts cursor data and eyedata and calibrates, aligning them and calculating the least square fitting coefficients
+    
+    Args:
+        
+        align_events (list, optional): list of event codes to use for alignment. By default, align to
+            when the cursor enters 8 peripheral targets
+        trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
+        offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
+        debug (bool, optional): prints additional debug information
+
+    Returns:
+        tuple: tuple containing:
+            | **coefficients (neyech, 2):** coefficients [slope, intercept] for each eye channel
+            | **correlation_coeff (neyech):** correlation coefficients for each eye channel
+    """
+
+    # Get cursor kinematics
+    _, trial_cycles = get_trial_segments(event_codes, event_cycles, align_events, trial_end_events)
+    align_cycles = trial_cycles[:,0] + int(offset * cursor_samplerate)
+    cursor_trajectories_aligned = cursor_data[align_cycles, :]
+    if debug: print(f'Using {len(cursor_trajectories_aligned)} cursor x,y positions')
+
+    # Get the corresponding eye data
+    _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    align_times = trial_times[:,0] + offset
+    sample_eye_enter_target  = (align_times * eye_samplerate).astype(int)
+    eye_data_aligned = eye_data[sample_eye_enter_target,:]
+    
+    # Calibrate the eye data
+    if eye_data_aligned.shape[1] == 4:
+        cursor_trajectories_aligned = np.tile(cursor_trajectories_aligned, (1, 2)) # for two eyes
+    slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, cursor_trajectories_aligned)
+    coeff = np.hstack((slopes, intercepts))
+    return coeff, correlation_coeff
+
+
 '''
 Prepare experiment files
 '''
@@ -1264,6 +1305,50 @@ def parse_optitrack(data_dir, files):
     # TODO: add metadata about where the timestamps came from
     return data_dict, optitrack_metadata
 
+def parse_eye_data(data_dir, files, debug=True):
+    """
+    Loads eye data from ecube and hdf data
+
+    Args:
+        data_dir (str): folder containing the data you want to load
+        files (dict): a dictionary that has 'ecube' as the key
+        debug (bool, optional): prints debug information
+
+    Returns:
+        tuple: tuple contatining:
+            | **eye_data (nt, neyech):** voltage per eye channel (normally [left eye x, left eye y, right eye x, right eye y])
+            | **eye_metadata (dict):** metadata associated with the eye data, including the above labels
+    """
+    
+    eye_metadata = dict()
+    
+    bmi3d_events, bmi3d_event_metadata = load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
+
+    # get eye channels 
+    if 'left_eye_ach' in bmi3d_event_metadata and 'right_eye_ach' in bmi3d_event_metadata:
+        eye_channels = bmi3d_event_metadata['left_eye_ach'] + bmi3d_event_metadata['right_eye_ach']
+        if debug: print(f'use bmi3d supplied eye channel definition {eye_channels}')
+    else:
+        eye_channels = [8, 9, 10, 11]
+        if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
+        
+    eye_metadata['eye_channels'] = eye_channels
+    eye_metadata['eye_labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
+    
+    # get eye data
+    analog_data, analog_metadata = load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
+    eye_metadata['eye_samplerate'] = analog_metadata['samplerate']
+    
+    #scale eye data from bits to volts
+    if 'voltsperbit' in analog_metadata:
+        analog_voltsperbit = analog_metadata['voltsperbit']
+    else:
+        analog_voltsperbit = 3.0517578125e-4
+        eye_metadata['voltsperbit'] = analog_voltsperbit
+        
+    eye_data = analog_data * analog_voltsperbit
+    return eye_data, eye_metadata
+
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
     Process experiment data files: 
@@ -1397,172 +1482,39 @@ def proc_eye_data(data_dir, files, result_dir, result_filename, **kwargs):
     
     #check if it exists in the preproc data
     if ('eye_data' not in exp_data):
-        print(f'eye data has not been processed, now processing...')
+        print(f'eye data has not yet been parsed, now parsing...')
 
         eye_data, eye_metadata = parse_eye_data(data_dir, files, debug=True)
 
         exp_data['eye_data'] = eye_data
         exp_metadata['eye_metadata'] = eye_metadata
 
-        # save to to the processed data
-        save_hdf(result_dir, result_filename, exp_data, "/exp_data", append = True)
-        save_hdf(result_dir, result_filename, exp_metadata, "/exp_metadata", append= True)
-
+        # Save to to the processed data
+        save_hdf(result_dir, result_filename, exp_data, "/exp_data", append=True)
+        save_hdf(result_dir, result_filename, exp_metadata, "/exp_metadata", append=True)
     
     # Calibrate the eye data
-    calibration = calc_eye_calibration(exp_data, exp_metadata)
-    
-    # Save the calibration into HDF
-    save_hdf(result_dir, result_filename, calibration, "/eye_calibration", append=True)
-    
-
-def parse_eye_data(data_dir, files, debug=True):
-    """
-    this function loads eye data from ecube data
-    Args:
-         data_dir (str): folder containing the data you want to load
-         files (dict): a dictionary that has 'ecube' as the key
-    
-    Returns:
-        eye_data(np.ndarray): number of time points by number of number of channels
-        eye_metadata(dict): metadata when accessing eye data
-    """
-    
-    eye_metadata = dict()
-    
-    bmi3d_events, bmi3d_event_metadata = load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
-
-    # get eye channels 
-    if 'left_eye_ach' in bmi3d_event_metadata and 'right_eye_ach' in bmi3d_event_metadata:
-        eye_channels = bmi3d_event_metadata['left_eye_ach'] + bmi3d_event_metadata['right_eye_ach']
-        if debug: print(f'use bmi3d supplied eye channel definition {eye_channels}')
-    else:
-        eye_channels = [8, 9, 10, 11]
-        if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
-        
-    eye_metadata['eye_channels'] = eye_channels
-    eye_metadata['left_eye_ach_proc']  = [0,1]
-    eye_metadata['right_eye_ach_proc']  = [2,3]
-    
-    # get eye data
-    analog_data, analog_metadata = load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
-    eye_metadata.update(analog_metadata)
-    
-    #scale eye data from bits to volts
-    if 'voltsperbit' in analog_metadata:
-        analog_voltsperbit = analog_metadata['voltsperbit']
-    else:
-        analog_voltsperbit = 3.0517578125e-4
-        eye_metadata['voltsperbit'] = analog_voltsperbit
-        
-    eye_data = analog_data * analog_voltsperbit
-    
-    
-    return eye_data, eye_metadata
-
-
-def calc_eye_calibration(exp_data, exp_metadata, debug=True):
-    """
-    extracts cursor data and eyedata and caliberate, align them and calculate the least square fitting coefficients
-    
-    Args:
-        exp_data(np.ndarray): parsed bmi3d data with 'eye_data' as an variable
-        exp_metadata(dict): parsed  bmi3d metadata
-
-    Returns:
-        caliberation_profile(dict): with keys of  'left_coefficients', 'left_correlation_coeff', 'right_correlation_coeff'
-                                    the 
-    """
-    #get cursor kinematics
-    cursor_kinematics = exp_data['task']['cursor'][:,[0,2,1]] # cursor (x, z, y) position on each bmi3d cycle
+    cursor_data = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
     events = exp_data['events']
     eye_data = exp_data['eye_data']
-    eye_metadata = exp_metadata['eye_metadata']
-    
-    aligned_cursor, eye_data_aligned = align_eye_data(events, cursor_kinematics, eye_data, debug = debug)
-    
-    # caliberate each eye respectively
-    le_aligned = eye_data_aligned[:, exp_metadata['eye_metadata']['left_eye_ach_proc']]
-    re_aligned = eye_data_aligned[:, exp_metadata['eye_metadata']['right_eye_ach_proc']]
-    
-    (left_coefficients, left_correlation_coeff) = calc_single_eye_caliberation(aligned_cursor, le_aligned)
-    (right_coefficients, right_correlation_coeff) = calc_single_eye_caliberation(aligned_cursor, re_aligned)
+    event_cycles = events['time'] # time points in bmi3d cycles
+    event_codes = events['code']
+    event_times = events['timestamp_sync'] # time points in the ecube time frame
+    coeff, correlation_coeff = calc_eye_calibration(cursor_data, exp_metadata['fps'], eye_data, exp_metadata['eye_samplerate'], 
+        event_cycles, event_times, event_codes)
+    calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
 
-    caliberation_profile = {
-        'left_coefficients': left_coefficients,
-        'left_correlation_coeff': left_correlation_coeff,
-        'right_coefficients': right_coefficients,
-        'right_correlation_coeff': right_correlation_coeff,
+    eye_dict = {
+        'calibrated_data': calibrated_eye_data,
+        'coefficients': coeff,
+        'correlation_coeff': correlation_coeff,
+    }
+    eye_metadata_dict = {
+        'samplerate': exp_metadata['eye_samplerate'],
+        'channels': exp_metadata['eye_channels'],
+        'channel_labels': exp_metadata['eye_labels'],
     }
 
-    
-    return caliberation_profile
-    
-    
-
-    
-def calc_single_eye_caliberation(cursor_trajectories_aligned, eye_aligned):
-    """
-    use aligned cursor and eye data to calculate least square fitting coefficients
-    wraps around analysis.fit_regression
-    
-    Args:
-        aligned_cursor(np.ndarray): number of time points by 2 directions (i.e. x,y).
-        eye_aligned(np.ndarray): number of time points by 2 directions (i.e. x,y)
-    Returns:
-        cali_file(dict): least sq fitting coefficients
-    """
-    
-    #TODO check if cursor_trjectories have eye_aligned have the same number of time points.
-    
-
-    #do square fitting for each eye
-    import scipy
-
-
-    results = analysis.fit_linear_regression(eye_aligned, cursor_trajectories_aligned)
-
-    coefficients = np.array([[results[0]['slope'], results[0]['intercept']],  #left eye
-                             [results[1]['slope'], results[1]['intercept']]])#right eye
-    
-    correlation_coeff = np.array([results[0]['corr_coefficient'], 
-                                  results[1]['corr_coefficient']])
-
-        
-    return (coefficients, correlation_coeff)
-
-def align_eye_data(events, cursor_pos, eye_data, analog_FS = 25000, debug=True):
-    """
-    this function finds the time points when the cursor enters the peripheral target.
-    and extracts the eye position and cursor position at those time points.
-    
-    args:
-        events[dict]: parsed events dictionary that has entries of 'time' in BMI3D cycle counts and 'timestamp_sync'  in ecube time
-        cursor_pos[np.ndarray]: cursor position in number of time points by dimensions in (x,y,z)
-        eye_data[np.ndarray]: parsed eye_data in number of time points by 4; the four columns are [left_eye_x, left_eye_y, right_eye_x, right_eye_y]
-    
-    returns:
-        tuple( cursor_trajectories_aligned[np.ndarray], eye_data_aligned[np.ndarray])
-    
-    """
-    # define the task codes when the cursor enters 8 peripheral targets
-    target_codes = range(81,89)
-    TRIAL_END = [239]
-    if debug: print(f'Use cursor enter target{target_codes[0]} and trial end {TRIAL_END} to align the eye data')
-
-    #get the cursor positions
-    event_times = events['time'] # time points in bmi3d
-    trial_segments, trial_times = get_trial_segments(events['code'], event_times, target_codes, TRIAL_END)
-    trial_times_before  = trial_times[:,0]
-    cursor_trajectories_aligned = cursor_pos[trial_times_before, :2]
-
-
-    #get the corresponding time points
-    time_stamp_bmi3d = events['timestamp_sync'] #time points in the ecube time frame
-    trial_segments, trial_times_bmi3d = get_trial_segments(events['code'], time_stamp_bmi3d, target_codes, TRIAL_END)
-    time_eye_enter_target = trial_times_bmi3d[:,0]
-    sample_eye_enter_target  = (time_eye_enter_target * analog_FS).astype(int)
-    eye_data_aligned = eye_data[sample_eye_enter_target,:]
-
-        
-    return (cursor_trajectories_aligned, eye_data_aligned)
+    # Save the calibration into HDF
+    save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
+    save_hdf(result_dir, result_filename, eye_metadata_dict, "/eye_metadata", append=True)

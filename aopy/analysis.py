@@ -568,49 +568,41 @@ def find_outliers(data, std_threshold):
 
 
 def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_level:float = 0.5) -> np.ndarray:
-
     """
-    function that fits a linear regression to each matching column of X and Y arrays. 
+    Function that fits a linear regression to each matching column of X and Y arrays. 
     
     Args:
-        X[np.ndarray]: number of data points by number of columns. columns of independant vars. 
-        Y[np.ndarray]: number of data points by number of columns. columns of dependant vars
-        coeffcient_coeff_warning_level: if any column returns a corr coeff less than this level 
+        X [np.ndarray]: number of data points by number of columns. columns of independant vars. 
+        Y [np.ndarray]: number of data points by number of columns. columns of dependant vars
+        coeffcient_coeff_warning_level (float): if any column returns a corr coeff less than this level 
 
-    returns
-        results[np.ndarray]: number of columns by  1 with the  dtype 'slope', 'intercept',  and 'corr_coefficient'
+    Returns:
+        tuple: tuple containing:
+            | **slope (n_columns):** slope of each fit
+            | **intercept (n_columns):** intercept of each fit
+            | **corr_coefficient (n_columns):** corr_coefficient of each fit
     """
     
-    #make sure the same shape
+    # Make sure the same shape
     assert X.shape == Y.shape
     
+    n_columns = X.shape[1]
+
+    slope = np.empty((n_columns,))
+    intercept = np.zeros((n_columns,))
+    corr_coeff = np.zeros((n_columns,))
     
-    #create results array
-    NUM_DATA_POINTS, NUM_VARS = X.shape
-    
-    dtype = np.dtype([
-        ('slope', float),
-        ('intercept', float),
-        ('corr_coefficient', float)
-    ])
-    
-    results = np.empty(NUM_VARS, dtype=dtype)
-    
-    #iterate through the columns
-    for i in range(NUM_VARS):
+    # Iterate through the columns
+    for i in range(n_columns):
         
         x = X[:,i]
         y = Y[:,i]
         
-        slope, intercept, r_value,  *_ = scipy.stats.linregress(x, y)
+        slope[i], intercept[i], corr_coeff[i],  *_ = scipy.stats.linregress(x, y)
+
+        if corr_coeff[i] <= coefficient_coeff_warning_level: 
+            warnings.warn(f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
         
-        results[i]['slope'] = slope
-        results[i]['intercept'] = intercept
-        results[i]['corr_coefficient'] = r_value
-        
-        if r_value <= coefficient_coeff_warning_level: 
-            warnings.warn(f'when fitting column number {i}, the correlation coefficient is {r_value}, less than {coefficient_coeff_warning_level} ')
-        
-    return results
+    return slope, intercept, corr_coeff
 
 
