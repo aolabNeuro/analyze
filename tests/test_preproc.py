@@ -549,7 +549,7 @@ class EventFilterTests(unittest.TestCase):
         coeff, corr_coeff = calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, 
             event_cycles, event_times, event_codes, align_events=[0], trial_end_events=[1])
         
-        expected_coeff = [1., 1., 1., -1.]
+        expected_coeff = [[1., 1.], [1., -1.]]
         expected_corr_coeff = [1., 1.]
 
         np.testing.assert_allclose(expected_coeff, coeff)
@@ -629,11 +629,16 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(trial_states), 6)
         self.assertEqual(len(np.unique(data['trials']['trial'])), 7) # TODO maybe should fix this so trials is also len(trial_states)??
 
-    def test_parse_eyedata(self):
+    def test_parse_oculomatic(self):
+        files = {}
+        files['ecube'] = '2021-09-30_BMI3D_te2952'
+        files['hdf'] = 'beig20210930_02_te2952.hdf'
+        data, metadata = parse_oculomatic(data_dir, files)
 
-        # TODO
-
-        pass
+        self.assertIn('data', data)
+        self.assertIn('samplerate', metadata)
+        self.assertIn('channels', metadata)
+        self.assertIn('labels', metadata)
 
     def test_parse_optitrack(self):
         files = {}
@@ -665,11 +670,34 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIsNotNone(mocap)
         self.assertIsNotNone(mocap_meta)
 
-    def test_proc_eyedata(self):
+    def test_proc_eyetracking(self):
+        result_filename = 'test_proc_eyetracking_short.hdf'
+        files = {}
+        files['ecube'] = '2021-09-30_BMI3D_te2952'
+        files['hdf'] = 'beig20210930_02_te2952.hdf'
 
-        # TODO
+        # Should fail because no preprocessed experimental data
+        if os.path.exists(os.path.join(write_dir, result_filename)):
+            os.remove(os.path.join(write_dir, result_filename))
+        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename))
 
-        pass
+        proc_exp(data_dir, files, write_dir, result_filename)
+
+        # Should fail because not enough trials in this session
+        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename))
+
+        result_filename = 'test_proc_eyetracking.hdf'
+        files['ecube'] = '2021-09-29_BMI3D_te2949'
+        files['hdf'] = 'beig20210929_02_te2949.hdf'
+        if os.path.exists(os.path.join(write_dir, result_filename)):
+            os.remove(os.path.join(write_dir, result_filename))
+        proc_exp(data_dir, files, write_dir, result_filename)
+        proc_eyetracking(data_dir, files, write_dir, result_filename)
+        eye = load_hdf_group(write_dir, result_filename, 'eye_data')
+        meta = load_hdf_group(write_dir, result_filename, 'eye_metadata')
+        self.assertIsNotNone(eye)
+        self.assertIsNotNone(meta)
+
 
     def preproc_multiple(self):
         result_filename = 'test_proc_multiple.hdf'

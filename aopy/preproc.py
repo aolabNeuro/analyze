@@ -760,9 +760,11 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
 
     # Get cursor kinematics
     _, trial_cycles = get_trial_segments(event_codes, event_cycles, align_events, trial_end_events)
+    if trial_cycles.size == 0:
+        raise ValueError("Not enough trials to calculate eye calibration")
     align_cycles = trial_cycles[:,0] + int(offset * cursor_samplerate)
     cursor_trajectories_aligned = cursor_data[align_cycles, :]
-    if debug: print(f'Using {len(cursor_trajectories_aligned)} cursor x,y positions')
+    if debug: print(f'Using {len(cursor_trajectories_aligned)} cursor x,y positions to calibrate eye tracking data')
 
     # Get the corresponding eye data
     _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
@@ -774,7 +776,7 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
     if eye_data_aligned.shape[1] == 4:
         cursor_trajectories_aligned = np.tile(cursor_trajectories_aligned, (1, 2)) # for two eyes
     slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, cursor_trajectories_aligned)
-    coeff = np.hstack((slopes, intercepts))
+    coeff = np.vstack((slopes, intercepts)).T
     return coeff, correlation_coeff
 
 
@@ -1305,7 +1307,7 @@ def parse_optitrack(data_dir, files):
     # TODO: add metadata about where the timestamps came from
     return data_dict, optitrack_metadata
 
-def parse_eye_data(data_dir, files, debug=True):
+def parse_oculomatic(data_dir, files, debug=True):
     """
     Loads eye data from ecube and hdf data
 
@@ -1332,12 +1334,12 @@ def parse_eye_data(data_dir, files, debug=True):
         eye_channels = [8, 9, 10, 11]
         if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
         
-    eye_metadata['eye_channels'] = eye_channels
-    eye_metadata['eye_labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
+    eye_metadata['channels'] = eye_channels
+    eye_metadata['labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
     
     # get eye data
     analog_data, analog_metadata = load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
-    eye_metadata['eye_samplerate'] = analog_metadata['samplerate']
+    eye_metadata['samplerate'] = analog_metadata['samplerate']
     
     #scale eye data from bits to volts
     if 'voltsperbit' in analog_metadata:
@@ -1346,9 +1348,14 @@ def parse_eye_data(data_dir, files, debug=True):
         analog_voltsperbit = 3.0517578125e-4
         eye_metadata['voltsperbit'] = analog_voltsperbit
         
-    eye_data = analog_data * analog_voltsperbit
+    eye_data = {
+        'data': analog_data * analog_voltsperbit
+    }
     return eye_data, eye_metadata
 
+'''
+proc_* wrappers
+'''
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
     Process experiment data files: 
@@ -1461,60 +1468,48 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         broadband = proc_ecube_data(data_path, 'Headstages', result_path)
         # TODO filter broadband data into LFP
 
-def proc_eye_data(data_dir, files, result_dir, result_filename, **kwargs):
+def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, **kwargs):
     '''
-    this function checks if eye data already exists in the processed file. 
-    if not, it pulls eyedata from ecube analog signal and calculates caliberation profile using least square fitting.
+    Loads eyedata from ecube analog signal and calculates calibration profile using least square fitting.
+    Requires that experimental data has already been preprocessed in the same result hdf file.
     
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
         result_dir (str): where to store the processed result 
         result_filename (str): what to call the preprocessed filename
-        rewrite_flag (bool): a flag whether to reprocess the eyedata
+        **kwargs (dict): keyword arguments to pass to :func:`aopy.preproccalc_eye_calibration()`
 
     Returns:
         None
     '''
-    # Find the experimental data
-    exp_data = load_hdf_group(result_dir, result_filename, 'exp_data')
-    exp_metadata = load_hdf_group(result_dir, result_filename, 'exp_metadata')
+    # Load the preprocessed experimental data
+    try:
+        exp_data = load_hdf_group(result_dir, result_filename, 'exp_data')
+        exp_metadata = load_hdf_group(result_dir, result_filename, 'exp_metadata')
+    except (FileNotFoundError, ValueError):
+        raise ValueError(f"File {result_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
     
-    #check if it exists in the preproc data
-    if ('eye_data' not in exp_data):
-        print(f'eye data has not yet been parsed, now parsing...')
-
-        eye_data, eye_metadata = parse_eye_data(data_dir, files, debug=True)
-
-        exp_data['eye_data'] = eye_data
-        exp_metadata['eye_metadata'] = eye_metadata
-
-        # Save to to the processed data
-        save_hdf(result_dir, result_filename, exp_data, "/exp_data", append=True)
-        save_hdf(result_dir, result_filename, exp_metadata, "/exp_metadata", append=True)
+    # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
+    eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
     
     # Calibrate the eye data
     cursor_data = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
     events = exp_data['events']
-    eye_data = exp_data['eye_data']
+    eye_data = eye_data['data']
     event_cycles = events['time'] # time points in bmi3d cycles
     event_codes = events['code']
     event_times = events['timestamp_sync'] # time points in the ecube time frame
-    coeff, correlation_coeff = calc_eye_calibration(cursor_data, exp_metadata['fps'], eye_data, exp_metadata['eye_samplerate'], 
-        event_cycles, event_times, event_codes)
+    coeff, correlation_coeff = calc_eye_calibration(cursor_data, exp_metadata['fps'], eye_data, eye_metadata['samplerate'], 
+        event_cycles, event_times, event_codes, debug=debug, **kwargs)
     calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
 
+    # Save everything into the HDF file
     eye_dict = {
+        'raw_data': eye_data,
         'calibrated_data': calibrated_eye_data,
         'coefficients': coeff,
         'correlation_coeff': correlation_coeff,
     }
-    eye_metadata_dict = {
-        'samplerate': exp_metadata['eye_samplerate'],
-        'channels': exp_metadata['eye_channels'],
-        'channel_labels': exp_metadata['eye_labels'],
-    }
-
-    # Save the calibration into HDF
     save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
-    save_hdf(result_dir, result_filename, eye_metadata_dict, "/eye_metadata", append=True)
+    save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
