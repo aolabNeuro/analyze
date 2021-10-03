@@ -1,5 +1,7 @@
 # preproc.py
-# code for preprocessing neural data
+# Code for preprocessing neural data (reorganize data into the needed form) including parsing
+# experimental files, trial sorting, and subsampling
+
 import numpy as np
 import numpy.lib.recfunctions as rfn
 from . import data as aodata

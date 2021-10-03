@@ -1,5 +1,5 @@
 # precondition.py
-# code for cleaning and preparing neural data for users to interact with,
+# Code for cleaning and preparing neural data for users to interact with,
 # for example: down-sampling, outlier detection, and initial filtering
 
 from scipy import signal

@@ -1,5 +1,6 @@
 # data.py
-# code for accessing neural data collected by the aoLab
+# Code for directly loading and saving data (and results)
+
 import numpy as np
 from .whitematter import ChunkedStream, Dataset
 import h5py

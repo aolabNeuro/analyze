@@ -1,5 +1,7 @@
 # postproc.py
-# code for post-processing neural data
+# Code for post-processing neural data, including separating neural features such as 
+# LFP bands or spikes detection / binning
+
 import numpy as np
 import warnings
 

@@ -1,5 +1,5 @@
 # visualization.py
-# code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
+# Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 
 import seaborn as sns
 import matplotlib
