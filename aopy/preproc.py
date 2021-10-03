@@ -509,7 +509,8 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
 
 def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
-    Transform data into chunks of data triggered by trial start times
+    Transform data into chunks of data triggered by trial start times. If trigger_times is too long
+    relative to 'data/samplerate', only the triggers that correspond to data will be returned.
 
     Args:
         data (nt, nch): arbitrary data, can be multidimensional
