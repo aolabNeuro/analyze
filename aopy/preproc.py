@@ -1336,7 +1336,7 @@ def parse_oculomatic(data_dir, files, debug=True):
         eye_channels = bmi3d_event_metadata['left_eye_ach'] + bmi3d_event_metadata['right_eye_ach']
         if debug: print(f'use bmi3d supplied eye channel definition {eye_channels}')
     else:
-        eye_channels = [8, 9, 10, 11]
+        eye_channels = [9, 8, 10, 11]
         if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
         
     eye_metadata['channels'] = eye_channels
