@@ -740,7 +740,7 @@ def max_repeated_nans(a):
         return (idx[1::2] - idx[::2]).max()
 
 def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_cycles, event_times, event_codes,
-    align_events=range(81,89), trial_end_events=[239], offset=0., debug=True):
+    align_events=range(81,89), trial_end_events=[239], offset=0., return_datapoints=False, debug=True):
     """
     Extracts cursor data and eyedata and calibrates, aligning them and calculating the least square fitting coefficients
     
@@ -750,6 +750,7 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
             when the cursor enters 8 peripheral targets
         trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
         offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
+        return_datapoints (bool, optional): if true, also returns eye_data_aligned, cusor_data_aligned
         debug (bool, optional): prints additional debug information
 
     Returns:
@@ -763,8 +764,8 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
     if trial_cycles.size == 0:
         raise ValueError("Not enough trials to calculate eye calibration")
     align_cycles = trial_cycles[:,0] + int(offset * cursor_samplerate)
-    cursor_trajectories_aligned = cursor_data[align_cycles, :]
-    if debug: print(f'Using {len(cursor_trajectories_aligned)} cursor x,y positions to calibrate eye tracking data')
+    cursor_data_aligned = cursor_data[align_cycles, :]
+    if debug: print(f'Using {len(cursor_data_aligned)} cursor x,y positions to calibrate eye tracking data')
 
     # Get the corresponding eye data
     _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
@@ -774,10 +775,14 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
     
     # Calibrate the eye data
     if eye_data_aligned.shape[1] == 4:
-        cursor_trajectories_aligned = np.tile(cursor_trajectories_aligned, (1, 2)) # for two eyes
-    slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, cursor_trajectories_aligned)
+        cursor_data_aligned = np.tile(cursor_data_aligned, (1, 2)) # for two eyes
+    slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, cursor_data_aligned)
     coeff = np.vstack((slopes, intercepts)).T
-    return coeff, correlation_coeff
+
+    if return_datapoints:
+        return coeff, correlation_coeff, eye_data_aligned, cursor_data_aligned
+    else:
+        return coeff, correlation_coeff
 
 
 '''
