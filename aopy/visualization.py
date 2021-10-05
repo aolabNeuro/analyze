@@ -483,62 +483,167 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     ax.set_xlabel('x')
     ax.set_ylabel('y')
 
-def plot_columns_by_date(df, *columns, method='sum', ax=None):
+def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     '''
-    Plot columns in a dataframe organized by date and aggregated such that if there are multiple
-    rows on a given date they are combined into a single value using the given method. If the method
-    is 'mean' then the values will be averaged for each day, for example for size of cursor. If the 
-    method is 'sum' then the values will be added together on each day, for example for number of trials.
+    Draws the given trajectories but with the color of each trajectory corresponding to its given label.
+    Works for 2D and 3D axes
+
+    Example:
+
+        ::
+
+            >>> trajectories =[
+                    np.array([
+                        [0, 0, 0],
+                        [1, 1, 0],
+                        [2, 2, 0],
+                        [3, 3, 0],
+                        [4, 2, 0]
+                    ]),
+                    np.array([
+                        [-1, 1, 0],
+                        [-2, 2, 0],
+                        [-3, 3, 0],
+                        [-3, 4, 0]
+                    ])
+                ]
+            >>> labels = [0, 0, 1, 0]
+            >>> colors = ['r', 'b']
+            >>> color_trajectories(trajectories, labels, colors)
+
+        .. image:: _images/colored_trajectories.png
+
+    Args:
+        trajectories (ntrials): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
+        labels (ntrials): integer array of labels for each trajectory. Basically an index for each trajectory
+        colors (ncolors): list of colors. The number of colors should be the same as the number of unique labels.
+        ax (plt.Axis, optional): axis to plot the targets on
+        **kwargs (dict): other arguments for plot_trajectories(), e.g. bounds
+    '''
+
+    # Initialize a cycler with the appropriate colors
+    style = plt.cycler(color=[colors[i] for i in labels])
+    if ax is None:
+        ax = plt.gca()
+    ax.set_prop_cycle(style)
+
+    # Use the regular trajectory plotting function
+    plot_trajectories(trajectories, **kwargs)
+
+def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax=None):
+    '''
+    Plot session data organized by date and aggregated such that if there are multiple rows on 
+    a given date they are combined into a single value using the given method. If the method
+    is 'mean' then the values will be averaged for each day, for example for size of cursor. The 
+    average is weighted by the number of trials in that session. If the  method is 'sum' then the 
+    values will be added together on each day, for example for number of trials.
     
     Example:
-        Plotting my weight data averaged across days.
+        Plotting success rate averaged across days.
         ::
 
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
-            weight = [65.5, 66.0, 65.0]
+            success = [70, 65, 65]
+            trials = [10, 20, 10]
 
-            df = pd.DataFrame({'date':date, 'weight':weight})
             fig, ax = plt.subplots(1,1)
-            plot_columns_by_date(df, 'weight', method='mean', ax=ax)
-            ax.set_ylabel('weight (kg)')
+            plot_sessions_by_date(trials, dates, success, method='mean', labels=['success rate'], ax=ax)
+            ax.set_ylabel('success (%)')
 
-        .. image:: _images/columns_by_date.png
-
+        .. image:: _images/sessions_by_date.png
+        
     Args:
-        df (pd.DataFrame): dataframe with 'date' column
-        *columns (str): dataframe column names to plot
+        trials (nsessions):
+        dates (nsessions): 
+        *columns (nsessions): dataframe columns or numpy arrays to plot
         method (str, optional): how to combine data within a single date. Can be 'sum' or 'mean'.
+        labels (list, optional): string label for each column to go into the legend
         ax (pyplot.Axes, optional): axis on which to plot
     '''
-    first_day = np.min(df['date'])
-    last_day = np.max(df['date'])
-    days = pd.date_range(start=first_day, end=last_day).to_list()
+    dates = np.array(dates)
+    first_day = np.min(dates)
+    last_day = np.max(dates)
+    plot_days = pd.date_range(start=first_day, end=last_day).to_list()
     n_columns = len(columns)
-    n_days = len(days)
+    n_days = len(plot_days)
     aggregate = np.zeros((n_columns, n_days))
 
     for idx_day in range(n_days):
-        day = days[idx_day]
+        day = plot_days[idx_day]
         for idx_column in range(n_columns):
-            values = df[columns[idx_column]][df['date'] == day]
-            if len(values) == 0:
+            values = np.array(columns[idx_column])[dates == day]
+            
+            try:
+                if method == 'sum':
+                    aggregate[idx_column, idx_day] = np.sum(values)
+                elif method == 'mean':
+                    day_trials = np.array(trials)[dates == day]
+                    aggregate[idx_column, idx_day] = np.average(values, weights=day_trials)
+                else:
+                    raise ValueError("Unknown method for combining data")
+            except:
                 aggregate[idx_column, idx_day] = np.nan
-            elif method == 'sum':
-                aggregate[idx_column, idx_day] = values.sum()
-            elif method == 'mean':
-                aggregate[idx_column, idx_day] = values.mean()
-            else:
-                raise ValueError("Unknown method for combining data")
 
     if ax == None:
         ax = plt.gca()
     for idx_column in range(n_columns):
-        ax.plot(days, aggregate[idx_column,:], '.-', label=columns[idx_column])
+        if hasattr(columns[idx_column], 'name'):
+            ax.plot(plot_days, aggregate[idx_column,:], '.-', label=columns[idx_column].name)
+        else:
+            ax.plot(plot_days, aggregate[idx_column,:], '.-')
     ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
-    ax.legend()
+    
+    if labels:
+        ax.legend(labels)
+    else:
+        ax.legend()
+
+def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
+    '''
+    Plot session data by absolute number of trials completed
+    
+    Example:
+        Plotting success rate over three sessions.
+        ::
+
+            success = [70, 65, 60]
+            trials = [10, 20, 10]
+
+            fig, ax = plt.subplots(1,1)
+            plot_sessions_by_trial(trials, success, labels=['success rate'], ax=ax)
+            ax.set_ylabel('success (%)')
+
+        .. image:: _images/sessions_by_trial.png
+        
+    Args:
+        trials (nsessions): number of trials in each session
+        *columns (nsessions): dataframe columns or numpy arrays to plot
+        labels (list, optional): string label for each column to go into the legend
+        ax (pyplot.Axes, optional): axis on which to plot
+    '''
+    if ax == None:
+        ax = plt.gca()
+    for idx_column in range(len(columns)):
+        values = columns[idx_column]
+        trial_values = []
+        
+        # Accumulate individual trials with the values given for each session
+        for v, t in zip(values, trials):
+            trial_values = np.concatenate((trial_values, np.tile(v, t)))
+        
+        if hasattr(columns[idx_column], 'name'):
+            ax.plot(trial_values,  '.-', label=values.name)
+        else:
+            ax.plot(trial_values,  '.-')
+
+    ax.set_xlabel('trials')
+    if labels:
+        ax.legend(labels)
+    else:
+        ax.legend()
 
 def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blue','tab:orange','tab:green']):
     '''
