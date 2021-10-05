@@ -136,6 +136,17 @@ class DigitalCalcTests(unittest.TestCase):
         expected_array = np.array([0.1, 0.75, 1.2, np.nan])
         np.testing.assert_allclose(parsed_times, expected_array)
 
+        # Check idx
+        approx_times = [0.1, 0.5, 1.0, 1.2]
+        measured_times = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 1.0, 1.3]
+        radius = 0.1
+        parsed_times, parsed_idx = find_measured_event_times(approx_times, measured_times, radius, return_idx=True)
+
+        expected_array = np.array([0.1, 0.5, 1.0, np.nan])
+        expected_idx = np.array([0, 4, 7, np.nan])
+        np.testing.assert_allclose(parsed_times, expected_array)
+        np.testing.assert_allclose(parsed_idx, expected_idx)
+
     def test_get_measured_clock_timestamps(self):
         latency_estimate = 0.1
         search_radius = 0.001

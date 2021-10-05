@@ -207,7 +207,7 @@ def get_closest_value(timestamp, sequence, radius):
 
     return closest_value, minimum
 
-def find_measured_event_times(approx_times, measured_times, search_radius):
+def find_measured_event_times(approx_times, measured_times, search_radius, return_idx=False):
     '''
     Uses closest_value() to repeatedly find a measured time for each approximate time.		
 
@@ -215,15 +215,19 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
         approx_times (nt): array of approximate event timestamps
         measured_times (nt'): array of measured timestamps that might correspond to the approximate timestamps
         search_radius (float): distance before and after each approximate time to search for a measured time 
+        return_idx (bool, optional): if true, also return the index into measured time for each measured time
         
     Returns:
         tuple: tuple containing:
-
-            parsed_ts (nt): array of the same length as approximate timestamps, 
-            but containing matching timestamps or np.nan
+            | **parsed_ts (nt):** array of the same length as approximate timestamps, 
+                but containing matching timestamps or np.nan
+            | **prased_idx (nt):** array of indices into measured_times corresponding
+                to the parsed timestamps
     '''
 
+    parsed_idx = np.empty((len(approx_times),))
     parsed_ts = np.empty((len(approx_times),))
+    parsed_idx[:] = np.nan
     parsed_ts[:] = np.nan
 
     # Find the closest neighbor for each approximate timestamp
@@ -236,6 +240,7 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
         closest, idx_closest = get_closest_value(ts, measured_times[idx_prev_closest:idx_next_closest], search_radius)
         if closest:
             parsed_ts[idx_ts] = closest
+            parsed_idx[idx_ts] = idx_prev_closest + idx_closest
             idx_prev_closest += idx_closest
             idx_next_closest = min(idx_next_closest + 1, len(measured_times))
             continue
@@ -245,10 +250,14 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
         closest, idx_closest = get_closest_value(ts, measured_times[idx_next_closest:], search_radius)
         if closest:
             parsed_ts[idx_ts] = closest
+            parsed_idx[idx_ts] = idx_next_closest + idx_closest
             idx_prev_closest = idx_next_closest + idx_closest
             idx_next_closest = min(idx_prev_closest + search_size, len(measured_times))
 
-    return parsed_ts
+    if return_idx:
+        return parsed_ts, parsed_idx
+    else:
+        return parsed_ts
 
 def get_measured_clock_timestamps(estimated_timestamps, measured_timestamps, latency_estimate=0.01, search_radius=1./100):
     '''
