@@ -750,7 +750,7 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
             when the cursor enters 8 peripheral targets
         trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
         offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
-        return_datapoints (bool, optional): if true, also returns eye_data_aligned, cusor_data_aligned
+        return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
         debug (bool, optional): prints additional debug information
 
     Returns:
@@ -780,7 +780,7 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
     coeff = np.vstack((slopes, intercepts)).T
 
     if return_datapoints:
-        return coeff, correlation_coeff, eye_data_aligned, cursor_data_aligned
+        return coeff, correlation_coeff, cursor_data_aligned, eye_data_aligned
     else:
         return coeff, correlation_coeff
 
