@@ -436,12 +436,18 @@ class EventFilterTests(unittest.TestCase):
         time_after = 10
         trigger_times = np.array([5, 55])
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        print(trial_aligned)
         self.assertEqual(len(trial_aligned), len(trigger_times))
         self.assertTrue(np.allclose(trial_aligned[0], np.arange(5, 15)))
         self.assertTrue(np.allclose(trial_aligned[1], np.arange(55, 65)))
         data = np.ones((100,2))
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
+
+        # Test if trigger_times is after the length of data
+        data = np.arange(50)
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        np.allclose(trial_aligned, np.arange(5,15))
 
     def test_trial_align_times(self):
         timestamps = np.array([2, 6, 7, 10, 25, 27])
