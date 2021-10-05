@@ -983,6 +983,11 @@ def _parse_bmi3d_v1(data_dir, files):
             'measure_clock_offline': measure_clock_offline,
             'reward_system': reward_system,
         })    
+
+        metadata_dict.update({
+            'digital_samplerate': digital_samplerate,
+            'analog_samplerate': analog_samplerate,
+        })
     return data_dict, metadata_dict
 
 def _prepare_bmi3d_v0(data, metadata):
@@ -1184,9 +1189,6 @@ def _prepare_bmi3d_v0(data, metadata):
         corrected_trials = data['bmi3d_trials']
         n_trials = len(np.unique(corrected_trials['trial']))
 
-    # Adjust for bmi3d time
-    corrected_clock['timestamp'] -= bmi3d_start_time
-
     # Trim / pad everything to the same length
     n_cycles = corrected_clock['time'][-1]
     if metadata['sync_protocol_version'] >= 3 and metadata['sync_protocol_version'] < 6:
@@ -1206,8 +1208,8 @@ def _prepare_bmi3d_v0(data, metadata):
     # Update the event timestamps according to the corrected clock    
     if not metadata['has_measured_timestamps']:
         corrected_clock = corrected_clock[ [ name for name in corrected_clock.dtype.names if name not in 'timestamp' ] ] # remove 'timestamp'
-    if 'timestamp_measure_offline' in corrected_clock.dtype.names:
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp_measure', corrected_clock['timestamp_measure_offline'][corrected_events['time']], dtypes='f8')
+    if 'timestamp_measure_offline' in corrected_clock.dtype.names and 'timestamp' in corrected_clock.dtype.names:
+        corrected_events = rfn.append_fields(corrected_events, 'timestamp_measure', corrected_clock['timestamp'][corrected_events['time']], dtypes='f8')
         corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_measure'], dtypes='f8')
     elif 'timestamp_sync' in corrected_events.dtype.names:
         corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_sync'], dtypes='f8')
