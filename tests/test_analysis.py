@@ -98,13 +98,20 @@ class PCATests(unittest.TestCase):
     # test variance accounted for
     def test_get_pca_dimensions(self):
         # test single dimension returns correctly
-        single_dim_data = [[2, 2, 2], [1, 1, 1], [1, 1, 1]]
+        single_dim_data = np.array([[2, 2, 2], [1, 1, 1], [1, 1, 1]])
         single_dim_VAF = [1.,0.,0.]
         single_num_dims = 1
 
-        VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
+        VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data)
         np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
+        self.assertEqual(proj_data, None)
+
+        # Test projection
+        single_dim_data = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]])
+        expected_single_dim_data = np.array([[0.75], [-0.25], [-0.25], [-0.25]])
+        VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data, project_data=True)
+        np.testing.assert_allclose(expected_single_dim_data, proj_data)
 
 class misc_tests(unittest.TestCase):
     def test_find_outliers(self):
