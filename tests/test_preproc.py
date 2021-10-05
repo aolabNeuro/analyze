@@ -592,6 +592,8 @@ class TestPrepareExperiment(unittest.TestCase):
         check_required_fields(data, metadata)
         self.assertIn('fps', metadata)
         self.assertAlmostEqual(metadata['fps'], 120.)
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
 
         # Test sync version 1
         # TODO
@@ -613,6 +615,8 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
         self.assertTrue(metadata['has_measured_timestamps'])
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
         
         # Test sync version 4
         files = {}
@@ -629,6 +633,8 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
         self.assertEqual(len(data['measure_clock_online']), 1682)
         self.assertTrue(metadata['has_measured_timestamps'])
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
         self.assertEqual(len(data['clock']['timestamp']), 1830)
         self.assertEqual(len(data['task']), 1830)
 

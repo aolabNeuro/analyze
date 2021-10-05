@@ -1211,13 +1211,16 @@ def _prepare_bmi3d_v0(data, metadata):
         padded_clock = np.zeros((n_cycles,), dtype=corrected_clock.dtype)
         padded_clock[n_sync_cycles:] = corrected_clock[n_sync_clocks:]
         padded_clock['time'][:n_sync_cycles] = range(n_sync_cycles)
-        # padded_clock['timestamp'][:n_sync_cycles] = np.arange(n_sync_cycles)/metadata['fps']
         corrected_clock = padded_clock
-        
+
+    # Update the clock to have a default 'timestamps' field
+    if not metadata['has_measured_timestamps'] and 'timestamp_sync' in corrected_clock.dtype.names:
+        corrected_clock['timestamp'] = corrected_clock['timestamp_sync']
+    elif not metadata['has_measured_timestamps']:
+        corrected_clock['timestamp'] = corrected_clock['timestamp_bmi3d']
+
     # Update the event timestamps according to the corrected clock    
-    if not metadata['has_measured_timestamps']:
-        corrected_clock = corrected_clock[ [ name for name in corrected_clock.dtype.names if name not in 'timestamp' ] ] # remove 'timestamp'
-    if 'timestamp_measure_offline' in corrected_clock.dtype.names and 'timestamp' in corrected_clock.dtype.names:
+    if metadata['has_measured_timestamps']:
         corrected_events = rfn.append_fields(corrected_events, 'timestamp_measure', corrected_clock['timestamp'][corrected_events['time']], dtypes='f8')
         corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_measure'], dtypes='f8')
     elif 'timestamp_sync' in corrected_events.dtype.names:
@@ -1225,7 +1228,7 @@ def _prepare_bmi3d_v0(data, metadata):
     else:
         corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_bmi3d'], dtypes='f8')
 
-    # Also put the reward system data into bmi3d time?
+    # Also put some information about the reward system
     if 'reward_system' in data and 'reward_system' in metadata['features']:
         metadata['has_reward_system'] = True
     else:
