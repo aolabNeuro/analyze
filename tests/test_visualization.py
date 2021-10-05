@@ -24,7 +24,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
         samplerate = 1000
         plt.figure()
-        plot_freq_domain_amplitude(data, samplerate)
+        plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
         savefig(write_dir, filename)
 
     def test_spatial_map(self):
@@ -221,6 +221,19 @@ class OtherPlottingTests(unittest.TestCase):
         df = pd.DataFrame({'trials': trials, 'success': success})
         fig, ax = plt.subplots(1,1)
         plot_sessions_by_trial(df['trials'], df['success'], ax=ax)
+
+    def test_plot_events_time(self):
+        events = np.zeros(10)
+        events[1::2] = 1
+        event_list = [events, events[1:]]
+        timestamps = np.arange(10)
+        timestamps_list = [timestamps, 0.25+timestamps[1:]]
+        labels_list = ['Event 1', 'Event 2']
+
+        fig, ax = plt.subplots(1,1)
+        plot_events_time(event_list, timestamps_list, labels_list, ax=ax)
+        filename = 'events_time'
+        savefig(write_dir,filename)
 
 if __name__ == "__main__":
     unittest.main()

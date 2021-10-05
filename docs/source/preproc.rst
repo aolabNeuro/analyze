@@ -1,6 +1,8 @@
 Preproc:
 ===============
 
+.. contents:: :local:
+
 Preprocessed data format
 ------------------------
 
@@ -155,6 +157,24 @@ State machine log
      - Usually the name of a state transition, but also includes annotations
    * - ``time`` (unsigned int)
      - Cycle number on which this message occured
+
+**reward_system**
+
+[shape: (6,), type: [('timestamp', '<f8'), ('state', '?')]]
+     
+State of the reward system, measured at the solenoid so it includes manual rewards.
+          
+.. list-table::
+
+    :widths: 25 75
+    :header-rows: 1
+
+    * - Field
+      - Contents
+    * - ``timestamp`` (float)
+      - Time the reward state changed
+    * - ``state`` (bool)
+      - State (on or off) of the reward system
 
 **raw bmi3d data**
 

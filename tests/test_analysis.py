@@ -3,7 +3,7 @@ import numpy as np
 import warnings
 import unittest
 
-class factor_analysis_tests(unittest.TestCase):
+class FactorAnalysisTests(unittest.TestCase):
 
     def test_kfold_factor_analysis(self):
         n = 100
@@ -41,7 +41,7 @@ class factor_analysis_tests(unittest.TestCase):
         data_dimensionality = np.argmax(np.mean(log_likelihood_score, 1))
         self.assertEqual(data_dimensionality, 2)
 
-class find_extrema_tests(unittest.TestCase):
+class FindExtremaTests(unittest.TestCase):
     def test_find_trough_peak_idx(self):
         #Test single waveform
         deg_step = np.pi/8
@@ -86,29 +86,82 @@ class find_extrema_tests(unittest.TestCase):
         self.assertGreater(extremum_time_edge2, len(theta_edge)-1) 
         self.assertLess(extremum_value_edge2, 0)
 
-class fano_factor_tests(unittest.TestCase):
-    def test_get_fano_factor_values_per_condition(self): 
+class FanoFactorTests(unittest.TestCase):
+    def test_get_unit_spiking_mean_variance(self): 
         spiking_data = np.zeros((2,2,2)) #(ntime, nunits, ntr)
         spiking_data[0,:,:] = 1
-        unit_mean, unit_var = aopy.analysis.get_fano_factor_values_per_condition(spiking_data)
+        unit_mean, unit_var = aopy.analysis.get_unit_spiking_mean_variance(spiking_data)
         np.testing.assert_allclose(unit_mean, np.array([2, 0]))
         np.testing.assert_allclose(unit_var, np.array([0, 0]))
 
-class pca_tests(unittest.TestCase):
+class PCATests(unittest.TestCase):
     # test variance accounted for
-    def test_VAF(self):
+    def test_get_pca_dimensions(self):
         # test single dimension returns correctly
-        single_dim_data = [[1, 1, 1], [1, 1, 1], [1, 1, 1]]
-        single_dim = 1
-        single_dim_VAF = 100
+        single_dim_data = [[2, 2, 2], [1, 1, 1], [1, 1, 1]]
+        single_dim_VAF = [1.,0.,0.]
         single_num_dims = 1
 
-        dimensions, VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
-        self.assertAlmostEqual(dimensions, single_dim)
-        self.assertAlmostEqual(VAF, single_dim_VAF)
+        VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
+        np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
 
+class misc_tests(unittest.TestCase):
+    def test_find_outliers(self):
+        # Test correct identification of outliers
+        data = np.array([[0.5,0.5], [0.75,0.75], [1,1], [10,10]])
+        outliers_labels, _ = aopy.analysis.find_outliers(data, 2)
+        expected_outliers_labels = np.array([True, True, True, False])
+        np.testing.assert_allclose(outliers_labels, expected_outliers_labels)
+
+        # Test correct distance calculation
+        data = np.array([[1,0], [0,0], [0,0], [-1,0]])
+        _, outliers_dist = aopy.analysis.find_outliers(data, 2)
+        expected_outliers_dist = np.array([1, 0, 0, 1])
+        np.testing.assert_allclose(outliers_dist, expected_outliers_dist)
         
+class CalcTests(unittest.TestCase):
+
+    def test_calc_rms(self):
+        # sanity check
+        signal = np.array([1])
+        rms = aopy.analysis.calc_rms(signal)
+        self.assertEqual(rms, 0)
+
+        # check dimensions are preserved
+        signal = np.array([[0.5, -0.5], [1., -1.]]).T
+        rms = aopy.analysis.calc_rms(signal)
+        np.testing.assert_allclose(rms, np.array([0.5, 1.]))
+
+        # check without remove offset
+        signal = np.array([1])
+        rms = aopy.analysis.calc_rms(signal, remove_offset=False)
+        self.assertAlmostEqual(rms, 1.)
+
+    def test_calc_freq_domain_amplitude(self):
+        data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
+        samplerate = 1000
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate)
+        self.assertEqual(freqs.size, 500)
+        self.assertEqual(ampls.size, 500)
+
+        # Expect 100 and 50 Hz peaks at 1 V each
+        self.assertAlmostEqual(ampls[freqs==100., 0][0], 1)
+        self.assertAlmostEqual(ampls[freqs==50., 0][0], 1)
+        self.assertAlmostEqual(ampls[freqs==25., 0][0], 0)
+
+        # Expect 1/sqrt(2) V RMS
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate, rms=True)
+        self.assertAlmostEqual(ampls[freqs==100., 0][0], 1/np.sqrt(2))
+
+        # Expect 2 channels with different signals
+        data = np.vstack((np.sin(np.pi*np.arange(1000)/10), np.sin(2*np.pi*np.arange(1000)/10))).T
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate)
+        self.assertEqual(freqs.size, 500)
+        self.assertEqual(ampls.shape[0], 500)
+        self.assertEqual(ampls.shape[1], 2)
+        self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
+        self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
 if __name__ == "__main__":
     unittest.main()

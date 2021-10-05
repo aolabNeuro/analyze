@@ -304,10 +304,30 @@ def fill_missing_timestamps(uncorrected_timestamps):
 
     return corrected_timestamps
 
+def get_edges_from_onsets(onsets, pulse_width):
+    '''
+    This function calculates the values and timepoints corresponding to a given time series 
+    of pulse onsets (timestamp corresponding to the rising edge of a pulse). 
+    Args:
+        onsets (nonsets): Time point corresponding to a pulse onset. 
+        pulse_width (float): Pulse duration 
+    Returns:
+        tuple: tuple containing:
+        timestampes (2*nonsets + 1): Timestamps of the rising and falling edges. Always starts at 0.
+        values (2*nonsets + 1): Values corresponding to the output timestamps.
+    '''
+    timestamps = np.zeros((1+len(onsets)*2,))
+    values = np.zeros((1+len(onsets)*2,))
+    for t in range(len(onsets)):
+        timestamps[1+2*t] = onsets[t]
+        values[1+2*t] = 1
+        timestamps[2+2*t] = onsets[t]+pulse_width
+        values[2+2*t] = 0
+    return timestamps, values
 
-'''
+''' =========================================================================================================
 Event filtering
-'''
+''' 
 def get_matching_events(event_log, event_to_match):
     '''
     Given a list of tuple of (events, timestamps), find the matched event and the timestamps
@@ -489,14 +509,15 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
 
 def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
-    Transform data into chunks of data triggered by trial start times
+    Transform data into chunks of data triggered by trial start times. If trigger_times is too long
+    relative to 'data/samplerate', only the triggers that correspond to data will be returned.
 
     Args:
         data (nt, nch): arbitrary data, can be multidimensional
-        trigger_times (ntrial): start time of each trial
-        time_before (float): amount of time to include before the start of each trial
-        time_after (float): time to include after the start of each trial
-        samplerate (int): sampling rate of data
+        trigger_times (ntrial): start time of each trial [s]
+        time_before (float): amount of time [s] to include before the start of each trial
+        time_after (float): time [s] to include after the start of each trial
+        samplerate (int): sampling rate of data [samples/s]
     
     Returns:
         (ntrial, nt, nch): trial aligned data
@@ -507,7 +528,11 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     if data.ndim == 1:
         data.shape = (data.shape[0], 1)
     trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
-    for t in range(len(trigger_times)):
+
+    # Don't look at trigger times that are after the end of the data
+    max_trigger_time = (data.shape[0]/samplerate) - time_after
+    last_trigger_idx = np.where(trigger_times < max_trigger_time)[0][-1]
+    for t in range(last_trigger_idx+1):
         t0 = trigger_times[t] - time_before
         if np.isnan(t0):
             continue
@@ -977,11 +1002,14 @@ def _prepare_bmi3d_v0(data, metadata):
     # By default use the internal clock and events. Just need to make sure not to include
     # any clock cycles from the sync period at the beginning of the experiment
     event_cycles = internal_events['time']
-    valid_cycles = np.in1d(event_cycles, internal_clock['time'])
-    event_idx = np.in1d(internal_clock['time'], event_cycles[valid_cycles])
-    event_timestamps = np.empty((len(event_cycles),), dtype='f')
-    event_timestamps[:] = np.nan
-    event_timestamps[valid_cycles] = internal_clock['timestamp'][event_idx]
+    if metadata['sync_protocol_version'] < 6:
+        valid_cycles = np.in1d(event_cycles, internal_clock['time'])
+        event_idx = np.in1d(internal_clock['time'], event_cycles[valid_cycles])
+        event_timestamps = np.empty((len(event_cycles),), dtype='f')
+        event_timestamps[:] = np.nan
+        event_timestamps[valid_cycles] = internal_clock['timestamp'][event_idx]
+    else:
+        event_timestamps = internal_clock['timestamp'][event_cycles]
     corrected_events = rfn.append_fields(internal_events, 'timestamp_bmi3d', event_timestamps, dtypes='f8')
 
     # Correct the events based on sync if present
@@ -1117,7 +1145,7 @@ def _prepare_bmi3d_v0(data, metadata):
 
     # Trim / pad everything to the same length
     n_cycles = corrected_clock['time'][-1]
-    if metadata['sync_protocol_version'] >= 3:
+    if metadata['sync_protocol_version'] >= 3 and metadata['sync_protocol_version'] < 6:
 
         # Due to the "sync" state at the beginning of the experiment, we need 
         # to add some (meaningless) cycles to the beginning of the clock
@@ -1272,11 +1300,11 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False):
     '''   
     # Check if a processed file already exists
     filepath = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(filepath):
-        os.remove(filepath)
-    elif os.path.exists(filepath):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "exp_data" in contents or "exp_metadata" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
     
     # Prepare the BMI3D data
     if 'hdf' in files:
@@ -1310,11 +1338,11 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
     '''  
     # Check if a processed file already exists
     filepath = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(filepath):
-        os.remove(filepath)
-    elif os.path.exists(filepath):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "mocap_data" in contents or "mocap_metadata" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
 
     # Parse Optitrack data
     if 'optitrack' in files:
@@ -1339,12 +1367,12 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         None
     '''  
     # Check if a processed file already exists
-    result_path = os.path.join(result_dir, result_filename)
-    if overwrite and os.path.exists(result_path):
-        os.remove(result_path)
-    elif os.path.exists(result_path):
-        print("File {} already exists, doing nothing.".format(result_filename))
-        return
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "Headstages" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
 
     # Preprocess neural data into lfp
     if 'ecube' in files:
