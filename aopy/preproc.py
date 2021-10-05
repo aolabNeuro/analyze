@@ -1473,7 +1473,7 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
         broadband = proc_ecube_data(data_path, 'Headstages', result_path)
         # TODO filter broadband data into LFP
 
-def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, **kwargs):
+def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, overwrite=False, **kwargs):
     '''
     Loads eyedata from ecube analog signal and calculates calibration profile using least square fitting.
     Requires that experimental data has already been preprocessed in the same result hdf file.
@@ -1483,11 +1483,21 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, *
         files (dict): dictionary of filenames indexed by system
         result_dir (str): where to store the processed result 
         result_filename (str): what to call the preprocessed filename
-        **kwargs (dict): keyword arguments to pass to :func:`aopy.preproccalc_eye_calibration()`
+        debug (bool, optional): if true, prints additional debug messages
+        overwrite (bool, optional): whether to overwrite existing preprocessed eyetracking data
+        **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproccalc_eye_calibration()`
 
     Returns:
         None
     '''
+    # Check if data already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "eye_data" in contents and "eye_metadata" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    
     # Load the preprocessed experimental data
     try:
         exp_data = load_hdf_group(result_dir, result_filename, 'exp_data')
