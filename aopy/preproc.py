@@ -1505,8 +1505,9 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, *
     event_cycles = events['time'] # time points in bmi3d cycles
     event_codes = events['code']
     event_times = events['timestamp_sync'] # time points in the ecube time frame
-    coeff, correlation_coeff = calc_eye_calibration(cursor_data, exp_metadata['fps'], eye_data, eye_metadata['samplerate'], 
-        event_cycles, event_times, event_codes, debug=debug, **kwargs)
+    coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
+        cursor_data, exp_metadata['fps'], eye_data, eye_metadata['samplerate'], 
+        event_cycles, event_times, event_codes, debug=debug, return_datapoints=True, **kwargs)
     calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
 
     # Save everything into the HDF file
@@ -1515,6 +1516,8 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, *
         'calibrated_data': calibrated_eye_data,
         'coefficients': coeff,
         'correlation_coeff': correlation_coeff,
+        'cursor_calibration_data': cursor_calibration_data,
+        'eye_calibration_data': eye_calibration_data
     }
     save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
     save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
