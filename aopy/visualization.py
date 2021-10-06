@@ -371,7 +371,7 @@ def set_bounds(bounds, ax=None):
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
 
-def plot_targets(target_positions, target_radius, bounds=None, alpha:float=0.5, origin=(0, 0, 0), ax=None):
+def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None):
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
@@ -398,6 +398,10 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha:float=0.5, 
         origin (tuple, optional): (x, y, z) position of the origin
         ax (plt.Axis, optional): axis to plot the targets on
     '''
+    if isinstance(alpha,float):
+        alpha = alpha * np.ones(target_positions.shape[0])
+    else:
+        assert len(alpha) == target_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
 
     if ax is None:
         ax = plt.gca()
@@ -424,11 +428,11 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha:float=0.5, 
             x = pos[0] + target_radius * np.outer(np.cos(u), np.sin(v))
             y = pos[1] + target_radius * np.outer(np.sin(u), np.sin(v))
             z = pos[2] + target_radius * np.outer(np.ones(np.size(u)), np.cos(v))
-            ax.plot_surface(x, y, z, alpha=alpha, color=target_color)
+            ax.plot_surface(x, y, z, alpha=alpha[i], color=target_color)
             ax.set_box_aspect((1, 1, 1))
         except:
             target = plt.Circle((pos[0], pos[1]),
-                                radius=target_radius, alpha=0.5, color=target_color)
+                                radius=target_radius, alpha=alpha[i], color=target_color)
             ax.add_artist(target)
             ax.set_aspect('equal', adjustable='box')
     if bounds is not None: set_bounds(bounds, ax)
