@@ -65,7 +65,9 @@ class LoadDataTests(unittest.TestCase):
 
     def test_process_channels(self):
         metadata = load_ecube_metadata(test_filepath, 'Headstages')
-        data = _process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16')
+        data = np.zeros((0,1))
+        for chunk in  _process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16'):
+            data = np.concatenate((data, chunk), axis=0)
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
 
@@ -113,6 +115,35 @@ class LoadDataTests(unittest.TestCase):
         data = load_ecube_data(test_filepath, 'Headstages', channels=[4])
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
+
+    def test_load_ecube_data_chunked(self):
+        # Load 738 samples at once
+        gen = load_ecube_data_chunked(test_filepath, 'Headstages')
+        data = next(gen)
+        assert data.shape[1] == 64
+        assert data.shape[0] == 728
+
+        # Load the rest
+        for chunk in gen:
+            data = np.concatenate((data, chunk), axis=0)
+
+        assert data.shape[1] == 64
+        assert data.shape[0] == 214032
+
+        # Test that channels work
+        gen = load_ecube_data_chunked(test_filepath, 'Headstages', channels=[4])
+        data = next(gen)
+        assert data.shape[1] == 1
+        assert data.shape[0] == 728
+
+        # Make a figure to test that the data is intact
+        data = np.zeros((0,8))
+        for chunk in load_ecube_data_chunked(sim_filepath, 'Headstages'):
+            data = np.concatenate((data, chunk), axis=0)
+        self.assertEqual(data.shape[0], 25000)
+        plt.figure()
+        plot_timeseries(data, 25000)
+        savefig(write_dir, 'load_ecube_data_chunked.png') # should be the same as 'load_ecube_data.png'
 
     def test_proc_ecube_data(self):
         import os

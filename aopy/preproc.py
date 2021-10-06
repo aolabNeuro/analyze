@@ -509,14 +509,15 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
 
 def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
-    Transform data into chunks of data triggered by trial start times
+    Transform data into chunks of data triggered by trial start times. If trigger_times is too long
+    relative to 'data/samplerate', only the triggers that correspond to data will be returned.
 
     Args:
         data (nt, nch): arbitrary data, can be multidimensional
-        trigger_times (ntrial): start time of each trial
-        time_before (float): amount of time to include before the start of each trial
-        time_after (float): time to include after the start of each trial
-        samplerate (int): sampling rate of data
+        trigger_times (ntrial): start time of each trial [s]
+        time_before (float): amount of time [s] to include before the start of each trial
+        time_after (float): time [s] to include after the start of each trial
+        samplerate (int): sampling rate of data [samples/s]
     
     Returns:
         (ntrial, nt, nch): trial aligned data
@@ -527,7 +528,11 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     if data.ndim == 1:
         data.shape = (data.shape[0], 1)
     trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
-    for t in range(len(trigger_times)):
+
+    # Don't look at trigger times that are after the end of the data
+    max_trigger_time = (data.shape[0]/samplerate) - time_after
+    last_trigger_idx = np.where(trigger_times < max_trigger_time)[0][-1]
+    for t in range(last_trigger_idx+1):
         t0 = trigger_times[t] - time_before
         if np.isnan(t0):
             continue
