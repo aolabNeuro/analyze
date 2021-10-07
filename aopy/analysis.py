@@ -14,6 +14,8 @@ from scipy import interpolate
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
+from . import preproc
+
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
     Estimate the latent dimensionality of an input dataset by appling cross validated 
@@ -179,6 +181,26 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
             plt.xticks(np.arange(1, 8, 2))
     return np.array(params_day), np.array(mod_depth), np.array(pd)
 
+def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD"):
+    '''
+    A wrapper around get_trial_segments which counts the number of trials with a reward event 
+    and divides by the total number of trials to calculate success rate
+
+    Args:
+        events (nt): events vector, can be codes, event names, anything to match
+        start_events (list, optional): set of start events to match
+        end_events (list, optional): set of end events to match
+        success_events (list, optional): which events make a trial a successful trial
+
+    Returns:
+        float: success rate = number of successful trials out of all trials
+    '''
+    segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
+    n_trials = len(segments)
+    success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
+    n_success = np.count_nonzero(success_trials)
+    success_rate = n_success / n_trials
+    return success_rate
 
 def find_trough_peak_idx(unit_data):
     '''

@@ -1,3 +1,4 @@
+from aopy.analysis import calc_success_rate
 import aopy
 import numpy as np
 import warnings
@@ -144,6 +145,22 @@ class CalcTests(unittest.TestCase):
         signal = np.array([1])
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
+
+    def test_calc_success_rate(self):
+        
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        success_rate = calc_success_rate(events, start_evt, end_events, reward_evt)
+        self.assertEqual(success_rate, 0.5)
+
+        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
+        start_events = [b"TARGET_ON"]
+        end_events = [b"REWARD", b"TRIAL_END"]
+        success_events = [b"REWARD"]
+        success_rate = calc_success_rate(events, start_events, end_events, success_events)
+        self.assertEqual(success_rate, 0.5)
 
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
