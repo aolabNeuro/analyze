@@ -371,7 +371,7 @@ def set_bounds(bounds, ax=None):
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
 
-def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None):
+def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
@@ -397,7 +397,12 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
         origin (tuple, optional): (x, y, z) position of the origin
         ax (plt.Axis, optional): axis to plot the targets on
+        unique_only (bool, optional): If True, function will only plot targets with unique positions (default: True)
     '''
+
+    if unique_only:
+        target_positions = np.unique(target_positions,axis=0)
+
     if isinstance(alpha,float):
         alpha = alpha * np.ones(target_positions.shape[0])
     else:
