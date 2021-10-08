@@ -1,4 +1,5 @@
 from aopy.analysis import calc_success_rate
+from aopy.analysis import *
 import aopy
 import numpy as np
 import warnings
@@ -161,6 +162,54 @@ class CalcTests(unittest.TestCase):
         success_events = [b"REWARD"]
         success_rate = calc_success_rate(events, start_events, end_events, success_events)
         self.assertEqual(success_rate, 0.5)
+
+    def test_calc_running_event():
+        event_record = np.array([b'CURSOR_ENTER_TARGET', # happens at 1.1s
+                                b'REWARD',              # 31s
+                                b'TARGET_ON',           # 32s
+                                b'TIMEOUT_PENALTY',     # 33
+                                b'TARGET_ON',           # 34
+                                b'TIMEOUT_PENALTY',     # 35
+                                b'TARGET_ON',           # 36
+                                b'CURSOR_ENTER_TARGET', # 61
+                                b'REWARD',              # 90
+                                b'TARGET_ON',           # 92
+                                b'CURSOR_ENTER_TARGET'])# 130
+        
+        timestamps = np.array([1.1, 31, 32, 33, 34, 35, 36, 61, 90, 92, 130])
+        
+        # for the 130s, there are two 60s windows, 
+        # each window has 1 reward event
+        expected_reward_rate = np.array([1,1])
+        
+        # the windows are centered around
+        expected_window_stamps = np.array([31.1, 91.1])
+        
+        (calculated_reward_rate, window_timestamps) = calc_running_event_rate(b'REWARD', event_record, timestamps, window_size = 60)
+        
+        np.testing.assert_array_equal(expected_reward_rate, calculated_reward_rate)
+        np.testing.assert_array_equal(expected_window_stamps, window_timestamps)
+        
+        event_record = np.array([0, # happens at 1.1s
+                                1,              # 31s
+                                0,              # 32s
+                                0,              # 33
+                                0,              # 34
+                                0,              # 35
+                                0,              # 36
+                                0,              # 61
+                                1,              # 90
+                                0,              # 92
+                                0])             # 130
+        
+        timestamps = np.array([1.1, 31, 32, 33, 34, 35, 36, 61, 90, 92, 130])
+        
+        (calculated_reward_rate, window_timestamps) = calc_running_event_rate(1, event_record, timestamps, window_size = 60)
+        
+        np.testing.assert_array_equal(expected_reward_rate, calculated_reward_rate)
+        np.testing.assert_array_equal(expected_window_stamps, window_timestamps)
+        
+    
 
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
