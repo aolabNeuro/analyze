@@ -659,6 +659,22 @@ def load_bmi3d_root_metadata(data_dir, filename):
 # dataframe every time someone calls the lookup functions
 _cached_dataframes = {}
 
+
+def is_table_in_hdf(table_name:str, hdf_filename:str):
+    """
+    Checks if a table exists in an hdf file' first level directory(i.e. non-recursively)
+
+    Args:
+        table_name(str): table name to be checked
+        hdf_filename(str): full path to the hdf file
+    
+    Returns: 
+        Boolean
+    """
+    with tables.open_file(hdf_filename, mode = 'r') as f:
+        return table_name in f.root
+
+
 def lookup_excel_value(data_dir, excel_file, from_column, to_column, lookup_value):
     '''
     Finds a matching value for the given key in an excel file. Used for looking up
