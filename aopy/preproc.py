@@ -707,6 +707,7 @@ def _parse_bmi3d_v0(data_dir, files):
             metadata (dict): bmi3d metadata
     '''
     bmi3d_hdf_filename = files['hdf']
+    bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
     metadata = {}
 
     # Load bmi3d data
@@ -714,7 +715,10 @@ def _parse_bmi3d_v0(data_dir, files):
     bmi3d_state, _ = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
     bmi3d_events, bmi3d_event_metadata = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
     bmi3d_root_metadata = load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
-    
+    if is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
+        bmi3d_clda, bmi3d_clda_meta = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
+        metadata.update(bmi3d_clda_meta)
+
     # Copy metadata
     metadata.update(bmi3d_task_metadata)
     metadata.update(bmi3d_event_metadata)
@@ -738,6 +742,8 @@ def _parse_bmi3d_v0(data_dir, files):
         bmi3d_state=bmi3d_state,
         bmi3d_events=bmi3d_events,
     )
+
+    if is_table_in_hdf('clda', bmi3d_hdf_full_filename): bmi3d_data.update(bmi3d_clda)
     return bmi3d_data, metadata
 
 def _parse_bmi3d_v1(data_dir, files):
@@ -760,6 +766,8 @@ def _parse_bmi3d_v1(data_dir, files):
 
     # Load bmi3d data
     bmi3d_hdf_filename = files['hdf']
+    bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
+
     bmi3d_task, bmi3d_task_metadata = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
     bmi3d_state, _ = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
     bmi3d_events, bmi3d_event_metadata = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
@@ -768,6 +776,14 @@ def _parse_bmi3d_v1(data_dir, files):
     bmi3d_trials, _ = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials') # there isn't any trial metadata
     bmi3d_root_metadata = load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
 
+    if is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
+        bmi3d_clda, bmi3d_clda_meta = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
+        metadata_dict.update(bmi3d_clda_meta)
+        data_dict.update(
+            {'bmi3d_clda': bmi3d_clda}
+        )
+
+    
     # Copy metadata
     metadata_dict.update(bmi3d_task_metadata)
     metadata_dict.update(bmi3d_event_metadata)
