@@ -202,6 +202,74 @@ def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD"
     success_rate = n_success / n_trials
     return success_rate
 
+def calc_running_event_rate(event_name, event_record, event_timestamps, 
+                       window_size:float = 60., window_step = None):
+    
+    """
+    this function calculates running averages of event rates for each window with window_size stepped over window_step.
+    
+    Args:
+        event_name(string or int): event name e.g. b'REWARD' or 48
+        event_record(list, tuple, np.ndarray): event record with length of number of events
+        event_timstampts((list, tuple, np.ndarray)): timestamps in seconds with length of number of events
+        window_size(float): the running window size, defaults to 60 s or 1 minute
+        window_step(float): the step between betweens, if none, calculate the event rate with NON-OVERLAPPING windows
+        
+    Returns
+        a tuple of: 
+        runnning_event_rate(np.ndarray): an array with running event rates
+        window_timestamps(np.ndarray): timestamps at the middle of windows
+        
+    
+    
+    """
+    
+    #convert event_record and event_timestamps if not already are
+    
+    if event_record is not np.ndarray: event_record = np.array(event_record)
+    if event_timestamps is not np.ndarray: event_timestamps = np.array(event_timestamps)
+    
+    
+    # check if event_record and event_timestamps have the same length
+    assert event_record.ndim == event_timestamps.ndim == 1
+    assert event_record.size == event_timestamps.size
+    
+    if window_step is None: window_step = window_size
+        
+    event_record_index = np.argwhere(event_record == event_name)
+    filtered_event_timestamps = event_timestamps[event_record_index]
+    
+    # get ready for the search
+    start_timestamp = event_timestamps[0]
+    last_timestamp = event_timestamps[-1]
+    stop_timestamp = start_timestamp + window_size
+    
+    event_rate = list()
+    start_timestamp_list = list()
+    while stop_timestamp < last_timestamp:
+        
+        event_per_window = np.count_nonzero(np.logical_and(filtered_event_timestamps >= start_timestamp,
+                                                          filtered_event_timestamps < stop_timestamp)  )
+        
+        event_rate.append(event_per_window)
+        start_timestamp_list.append(start_timestamp)
+        
+        #shift the window
+        start_timestamp = start_timestamp + window_step
+        stop_timestamp = stop_timestamp + window_step
+        
+    
+    
+    #normalize to the window size
+    event_rate = np.array(event_rate)
+    event_rate = event_rate / window_size * 60
+    
+    #calculate the window timstamps
+    window_time_stamps = np.array(start_timestamp_list) + 0.5 * window_size
+    
+    
+    return (event_rate, window_time_stamps)
+
 def find_trough_peak_idx(unit_data):
     '''
     This function calculates the trough-to-peak time at the index level (0th order) by finding the minimum value of
