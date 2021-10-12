@@ -227,35 +227,26 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
-
-def plot_raster(data, plot_cue, cue_bin, ax):
+def plot_raster(data, cue_bin=None, ax=None):
     '''
-       Create a raster plot of neural data
+       Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
+
+        .. image:: _images/raster_plot_example.png
 
        Args:
-            data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
-            plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-            cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
-            ax: axis to plot rastor plot
-        
+            data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
+            cue_bin (float): time bin at which an event occurs. Leave as 'None' to only plot data. For example: Use this to indicate 'Go Cue' or 'Leave center' timing.
+            ax (plt.Axis): axis to plot raster plot
        Returns:
            raster plot in appropriate axis
     '''
-    n_trial = np.shape(data)[0]
-    n_neurons = np.shape(data)[1]
-    n_bins = np.shape(data)[2]
+    if ax is None:
+        ax = plt.gca()
 
-    color_palette = sns.set_palette("Accent", n_neurons)  # TODO: make this into a separate function
-    for n in range(n_neurons):  # set this to 1 if we need rastor plot for only one neuron
-        for tr in range(n_trial):
-            for t in range(n_bins):
-                if data[n, tr, t] == 1:
-                    x1 = [tr, tr + 1]
-                    x2 = [t, t]
-                    ax.plot(x2, x1, color=color_palette(n))
-    if plot_cue:
+    ax.eventplot(data.T, color='black')
+    
+    if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
-
 
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
     '''
