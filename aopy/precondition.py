@@ -188,6 +188,7 @@ def bin_spikes(data, fs, bin_width):
     '''
 
     dT = 1/fs
+    bin_width = round(bin_width*fs) # from [s] to index
     nbins = math.ceil(data.shape[0]/bin_width) # the number of bins
     nch = data.shape[1]
     binned_spikes = np.zeros((nbins,nch))
