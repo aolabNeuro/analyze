@@ -5,6 +5,7 @@ import unittest
 import os
 import pandas as pd
 
+
 class FactorAnalysisTests(unittest.TestCase):
 
     def test_kfold_factor_analysis(self):
@@ -145,38 +146,56 @@ class KalmanFilterTests(unittest.TestCase):
     # TODO: format this for pavi's kalman
 
     # call aopy.analysis.KFDecoder
-    def test_kf_prediction(self):
+    def test_kf_initialization(self):
         """Single iteration of KF prediction shall match hand-verifable reference output."""
+
+        # set test data directory
+        test_dir = os.getcwd()
+        print(test_dir)
+        test_data_dir = test_dir + '\\tests\\data\\decoder_tests\\'
+        print(test_data_dir)
+        os.chdir(test_data_dir)
+
+        # load test data & parameters:
+        test_data_kalman_states_filepath = 'kalman_test_calib.csv' # states
+        test_data_kalman_observations_filepath = 'kalman_test_calib_sensor_list.csv' # sensor observations
+        test_validated_kalman_filepath = 'kalman_test_decoder.h5' # known good kalman decoder - used for validation
+
+        # extract data & parameters
+        states = np.array(test_data_kalman_states_filepath)
+        observations = np.array(test_data_kalman_observations_filepath)
+        # load known good kalman
+        # load HDF dictionary
+        aopy.data.get_hdf_dictionary(test_data_dir, test_validated_kalman_filepath)
+
+        # # unpack fixed decoder parameters
+        C_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'C')
+        Q_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'Q')
+        W_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'W')
+
+
+
         tol = 1e-10
 
-        a = 0.9
-        q = 2
-        A = np.diag([a, a])
-        W = np.diag([1.0, 1.0])
-        C = np.array([[0.0, 1.0], [1.0, 0.0]])
-        Q = np.diag([q, q])
+        # initialize test parameters
+        C = []       
+        Q = []
+        W = []
+
+        # initialize test kalman filter
         kf = aopy.analysis.KFDecoder()
-
-        # set kalman object parameters for test A, W, C, Q
+        # set kalman object parameters for test W, C, Q
         # note C=H in analysis.py (conventions)
-        kf.model = [A, W, C, Q]
-
-        x = 0.2
-        x_t = np.array(([0.2, -0.2], [0.2, -0.2]))
-        #x_t = np.mat(np.mat([x,-x]).reshape(-1,1))
+        kf.fit(states, observations)
+        W, C, Q = kf.model
 
 
-        y = 0.1
-        y_t = np.array(([0.1, -0.1], [0.1, -0.1]))
-        #y_t = np.mat([y, -y]).reshape(-1,1)
-        x_t_est = kf.predict(x_t, y_t)
-
-        K_expected = 0.5
-        
-        # TODO: check prediction accuracy
         # current error 'builtin_function_or_method' object is not subscriptable
-        self.assertTrue(np.abs(x_t_est.mean[0,0] - y*K_expected*(-1)) < tol)
-        self.assertTrue(np.abs(x_t_est.mean[1,0] - y*K_expected*(1)) < tol)
+        self.assertTrue(np.linalg.norm(C - C_validated) < tol)
+        self.assertTrue(np.linalg.norm(Q - Q_validated) < tol)
+        self.assertTrue(np.linalg.norm(W - W_validated) < tol)
+
+        # TODO: check prediction accuracy
 
 
 if __name__ == "__main__":
