@@ -200,9 +200,13 @@ def detect_spikes(spike_filt_data, samplerate, wf_length=1000, threshold=None):
     Returns: 
         tuple: Tuple containing:
             | **spike_times (list of spike times):**  List of nspike length arrays with each list element corresponding to a channel.
-            | **spike_waveforms (list of waveforms):** List of (nspike, nwf_pts) arrays with each list element corresponding to a channel.
+            | **spike_waveforms (list of waveforms):** List of (nspike, nwf_pts) arrays with each list element corresponding to a channel. Returns NaN if there aren't enough data points to retreive a full waveform.
     '''
     nch = spike_filt_data.shape[1]
+
+    # Get thresholds if not requested
+    if threshold is None:
+        threshold = calc_spike_threshold(spike_filt_data)
 
     # Calculate an array of spike times for each channel organized into a list
     data_above_thresh_mask = spike_filt_data > threshold

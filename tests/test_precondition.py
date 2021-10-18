@@ -173,6 +173,21 @@ class SpikeDetectionTests(unittest.TestCase):
         np.testing.assert_allclose(wfs[2], np.array((13,14,15)).reshape(1,-1))
         np.testing.assert_allclose(wfs[3], np.array((np.nan,np.nan,np.nan)).reshape(1,-1))
 
+        # Test automatic thresholding
+        spike_times, wfs = precondition.detect_spikes(large_data, 100, wf_length=10000, threshold=None)
+        np.testing.assert_allclose(spike_times[0], np.array((0.09, 0.19)))
+        np.testing.assert_allclose(spike_times[1], np.array((0.18)))
+        np.testing.assert_allclose(wfs[0], np.array(((9),(np.nan))).reshape(-1,1))
+        np.testing.assert_allclose(wfs[1], np.array((18)))
+
+        # Test speed
+        test_speed_data = np.random.normal(size=(250000, 256))
+        start = time.time()
+        _, _ = spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, wf_length=1000, threshold=None)
+        stop = time.time()
+
+        print('Spike detection on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
+
 if __name__ == "__main__":
     unittest.main()
 
