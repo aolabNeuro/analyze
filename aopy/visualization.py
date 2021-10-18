@@ -210,7 +210,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         cmap (str, optional): matplotlib colormap to use in image
     '''
     # Calculate the proper extents
-    if data_map.shape != (1,1):
+    if data_map.size > 1:
         extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
         x_spacing = (extent[1] - extent[0]) / (data_map.shape[0] - 1)
         y_spacing = (extent[3] - extent[2]) / (data_map.shape[1] - 1)
