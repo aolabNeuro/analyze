@@ -696,14 +696,14 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
     if ax is None:
         ax = plt.gca()
     
-    time_axis = (10e6)*waveforms.shape[0]/samplerate
+    time_axis = (1e6)*np.arange(waveforms.shape[0])/samplerate
 
     if plot_mean:
-        ax.plot(waveforms, color='black', alpha=0.5)
+        ax.plot(time_axis, waveforms, color='black', alpha=0.5)
         mean_waveform = np.nanmean(waveforms, axis=1)
-        ax.plot(mean_waveform, color='red')
+        ax.plot(time_axis, mean_waveform, color='red')
     else:
-        ax.plot(waveforms)
+        ax.plot(time_axis, waveforms)
 
     ax.set_xlabel(r'Time ($\mu$s)')
 
