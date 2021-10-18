@@ -193,9 +193,16 @@ class KalmanFilterTests(unittest.TestCase):
 
 
         # current error 'builtin_function_or_method' object is not subscriptable
-        self.assertTrue(np.linalg.norm(C.T - C_validated) < tol)
-        self.assertTrue(np.linalg.norm(Q.T - Q_validated) < tol)
-        self.assertTrue(np.linalg.norm(W.T - W_validated) < tol)
+        print('Norm Diff of C')
+        print(np.linalg.norm(C - C_validated))
+        print('Norm Diff of Q')
+        print(np.linalg.norm(Q - Q_validated))
+        print('Norm Diff of W')
+        print(np.linalg.norm(W - W_validated))      
+        
+        self.assertTrue(np.linalg.norm(C - C_validated) < tol)
+        self.assertTrue(np.linalg.norm(Q - Q_validated) < tol)
+        self.assertTrue(np.linalg.norm(W - W_validated) < tol)
 
         # TODO: check prediction accuracy
 

@@ -365,8 +365,8 @@ class KFDecoder(object):
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
         # xs are the state (here, the variable we're predicting, i.e. y_train)
         # zs are the observed variable (neural data here, i.e. X_kf_train)
-        X = np.matrix(y_train.T)
-        Z = np.matrix(X_kf_train.T)
+        X = np.matrix(X_kf_train.T)
+        Z = np.matrix(y_train.T)
 
         # number of time bins
         nt = X.shape[1]
@@ -376,7 +376,9 @@ class KFDecoder(object):
         X2 = X[:, 1:]
         X1 = X[:, 0:nt - 1]
 
-        A = X2 @ X1.T @ inv(X1 @ X1.T)  # Transition matrix
+        # hard code A for validation
+        A = np.asarray([[0.95,0],[0,1]])
+        #A = X2 @ X1.T @ inv(X1 @ X1.T)  # Transition matrix
         W = (X2 - A @ X1) @ (X2 - A @ X1).T / (
                     nt - 1) / self.C  # Covariance of transition matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1 and X2). We also introduce the extra parameter C here.
 
