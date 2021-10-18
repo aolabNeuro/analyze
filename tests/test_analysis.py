@@ -162,18 +162,18 @@ class KalmanFilterTests(unittest.TestCase):
         test_validated_kalman_filepath = 'kalman_test_decoder.h5' # known good kalman decoder - used for validation
 
         # extract data & parameters
-        test_trial_data = pd.read_csv(test_data_kalman_states_filepath)
-        states = test_trial_data[:,5]
-        test_trial_observations = np.array(test_data_kalman_observations_filepath)
-        observations = test_trial_observations[:, 1:23]
+        test_trial_data = pd.read_csv(test_data_kalman_states_filepath) # read in pandas to deal with header
+        states = np.array(test_trial_data) # np array for selecting
+        test_trial_observations = pd.read_csv(test_data_kalman_observations_filepath)
+        observations = np.array(test_trial_observations)
         # load known good kalman
         # load HDF dictionary
         aopy.data.get_hdf_dictionary(test_data_dir, test_validated_kalman_filepath)
 
         # # unpack fixed decoder parameters
-        C_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'C')
-        Q_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'Q')
-        W_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'W')
+        C_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'C_matrix')
+        Q_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'Q_matrix')
+        W_validated = aopy.data.load_hdf_data(test_data_dir, test_validated_kalman_filepath, 'W_matrix')
 
 
 
@@ -189,7 +189,7 @@ class KalmanFilterTests(unittest.TestCase):
         # set kalman object parameters for test W, C, Q
         # note C=H in analysis.py (conventions)
         kf.fit(states, observations)
-        W, C, Q = kf.model
+        A, W, C, Q = kf.model
 
 
         # current error 'builtin_function_or_method' object is not subscriptable
