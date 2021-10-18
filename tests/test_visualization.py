@@ -51,6 +51,20 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
+    def test_single_spatial_map(self):
+        data = 2.0
+        x_pos, y_pos = np.meshgrid(1,1)
+        missing = []
+        data_missing = np.delete(data, missing)
+        x_missing = np.reshape(np.delete(x_pos, missing),-1)
+        y_missing = np.reshape(np.delete(y_pos, missing),-1)
+
+        data_map = get_data_map(data_missing, x_missing, y_missing)
+        self.assertEqual(data_map[0], 2.0)
+        plt.figure()
+        plot_spatial_map(data_map, x_missing, y_missing)
+        plt.show()
+
     def test_plot_raster(self):
         filename = 'raster_plot_example.png'
         np.random.seed(0)
