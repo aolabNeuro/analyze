@@ -679,3 +679,36 @@ def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blu
     ax.set_yticklabels(labels)
 
     ax.set_xlabel('Time (s)') 
+
+def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
+    '''
+    This function plots the input waveforms on the same figure and can overlay the mean if requested
+
+    .. image:: _images/waveform_plot_example.png
+
+    Args:
+        waveforms (nt, nwfs): Array of waveforms to plot
+        samplerate (float): Sampling rate of waveforms to calculate time axis. [Hz]
+        plot_mean (bool): Indicate if the mean waveform should be plotted. Defaults to plot mean.
+        ax (axes handle): Axes to plot
+    '''
+
+    if ax is None:
+        ax = plt.gca()
+    
+    time_axis = (10e6)*waveforms.shape[0]/samplerate
+
+    if plot_mean:
+        ax.plot(waveforms, color='black', alpha=0.5)
+        mean_waveform = np.nanmean(waveforms, axis=1)
+        ax.plot(mean_waveform, color='red')
+    else:
+        ax.plot(waveforms)
+
+    ax.set_xlabel(r'Time ($\mu$s)')
+
+
+
+
+
+
