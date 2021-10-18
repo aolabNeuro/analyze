@@ -238,3 +238,42 @@ def detect_spikes(spike_filt_data, samplerate, wf_length=1000, threshold=None):
 
     return spike_times, spike_waveforms
 
+def bin_spikes(data, fs, bin_width):
+    '''
+    Computes binned spikes [spikes/s]. The input data is the sampled thresholded data (0 or 1 data).
+    Binned spikes are calculated at each bin whose width is determined by bin_width. 
+
+    Example:
+        >>> data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        >>> data_T = data.T
+        >>> fs = 100
+        >>> binned_spikes = precondition.bin_spikes(data_T, fs, 5)
+        >>> print(binned_spikes)
+        [[40.         60.        ]
+        [40.         40.        ]
+        [60.         40.        ]
+        [33.33333333 33.33333333]]
+
+    Args:
+        data (nt, nch): time series spike data with multiple channels.
+        fs (float): sampling rate of data
+        bin_width (int): Spikes are averaged within 'bin_width' then devided by 'fs'
+
+    Returns:
+        binned_spikes (nbin, nch): binned spikes [spikes/s].
+    '''
+
+    dT = 1/fs
+    bin_width = round(bin_width*fs) # from [s] to index
+    nbins = math.ceil(data.shape[0]/bin_width) # the number of bins
+    nch = data.shape[1]
+    binned_spikes = np.zeros((nbins,nch))
+
+    for idx in range(nbins):
+            if idx == nbins - 1:
+                binned_spikes[idx,:] = np.mean(data[idx * bin_width :, :], axis = 0)
+            else:
+                binned_spikes[idx,:] = np.mean(data[idx * bin_width : (idx + 1) * bin_width, :], axis = 0)
+
+    binned_spikes = binned_spikes/dT # convert from [spikes/bin] to [spikes/s]    
+    return binned_spikes
