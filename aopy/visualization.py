@@ -210,11 +210,13 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         cmap (str, optional): matplotlib colormap to use in image
     '''
     # Calculate the proper extents
-    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
-
-    x_spacing = (extent[1] - extent[0]) / (data_map.shape[0] - 1)
-    y_spacing = (extent[3] - extent[2]) / (data_map.shape[1] - 1)
-    extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+    if data_map.size > 1:
+        extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+        x_spacing = (extent[1] - extent[0]) / (data_map.shape[0] - 1)
+        y_spacing = (extent[3] - extent[2]) / (data_map.shape[1] - 1)
+        extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+    else:
+        extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
 
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
