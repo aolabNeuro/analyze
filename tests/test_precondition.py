@@ -141,6 +141,38 @@ class FilterTests(unittest.TestCase):
         fname = 'lfp_bandpower.png'
         savefig(write_dir, fname)
 
+class SpikeDetectionTests(unittest.TestCase):
+        
+    def test_calc_spike_threshold(self):
+        data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
+        threshold_values = precondition.calc_spike_threshold(data)
+        expected_thresh_values = np.array((6,13.5,3))
+        np.testing.assert_allclose(threshold_values, expected_thresh_values)
+
+    def test_detect_spikes(self):
+        # Test spike time detection
+        data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
+        threshold_values = np.array((0.5, 0.5, 0.5))
+        spike_times, wfs = precondition.detect_spikes(data, 10, wf_length=None, threshold=threshold_values)
+        np.testing.assert_allclose(spike_times[0], np.array((0.1, 0.3)))
+        np.testing.assert_allclose(spike_times[1], np.array((0.2)))
+        np.testing.assert_allclose(spike_times[2], np.array((0.3)))
+        self.assertEqual(len(wfs), 0)
+
+        # Test waveforms
+        large_data = np.zeros((20,4))
+        threshold = np.array([2.5,7.5,12.5,17.5])
+        for ii in range(large_data.shape[1]):
+            large_data[:,ii] = np.arange(large_data.shape[0])
+            
+        large_data[10:,0] = np.arange(0,large_data.shape[0]-10) 
+
+        _, wfs = precondition.detect_spikes(large_data, 300, wf_length=10000, threshold=threshold)
+        np.testing.assert_allclose(wfs[0], np.array(((3,4,5),(3,4,5))))
+        np.testing.assert_allclose(wfs[1], np.array((8,9,10)).reshape(1,-1))
+        np.testing.assert_allclose(wfs[2], np.array((13,14,15)).reshape(1,-1))
+        np.testing.assert_allclose(wfs[3], np.array((np.nan,np.nan,np.nan)).reshape(1,-1))
 
 if __name__ == "__main__":
     unittest.main()
+
