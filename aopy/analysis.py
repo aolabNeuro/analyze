@@ -363,6 +363,7 @@ class KFDecoder(object):
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
+        # TODO: refactor variables so x:state & y:observations (check this agrees with BMI3D nomenclature)
         # xs are the state (here, the variable we're predicting, i.e. y_train)
         # zs are the observed variable (neural data here, i.e. X_kf_train)
         X = np.matrix(X_kf_train.T)
