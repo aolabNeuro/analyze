@@ -157,14 +157,14 @@ class KalmanFilterTests(unittest.TestCase):
         os.chdir(test_data_dir)
 
         # load test data & parameters:
-        test_data_kalman_states_filepath = 'kalman_test_calib.csv' # states
-        test_data_kalman_observations_filepath = 'kalman_test_calib_sensor_list.csv' # sensor observations
+        test_kalman_states_filepath = 'test_kalman_states.csv' # states
+        test_kalman_observations_filepath = 'test_kalman_observations.csv' # sensor observations
         test_validated_kalman_filepath = 'kalman_test_decoder.h5' # known good kalman decoder - used for validation
 
         # extract data & parameters
-        test_trial_data = pd.read_csv(test_data_kalman_states_filepath) # read in pandas to deal with header
+        test_trial_data = pd.read_csv(test_kalman_states_filepath) # read in pandas to deal with header
         states = np.array(test_trial_data) # np array for selecting
-        test_trial_observations = pd.read_csv(test_data_kalman_observations_filepath)
+        test_trial_observations = pd.read_csv(test_kalman_observations_filepath)
         observations = np.array(test_trial_observations)
         # load known good kalman
         # load HDF dictionary
@@ -193,9 +193,9 @@ class KalmanFilterTests(unittest.TestCase):
 
 
         # current error 'builtin_function_or_method' object is not subscriptable
-        self.assertTrue(np.linalg.norm(C - C_validated) < tol)
-        self.assertTrue(np.linalg.norm(Q - Q_validated) < tol)
-        self.assertTrue(np.linalg.norm(W - W_validated) < tol)
+        self.assertTrue(np.linalg.norm(C.T - C_validated) < tol)
+        self.assertTrue(np.linalg.norm(Q.T - Q_validated) < tol)
+        self.assertTrue(np.linalg.norm(W.T - W_validated) < tol)
 
         # TODO: check prediction accuracy
 
