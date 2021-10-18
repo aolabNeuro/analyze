@@ -170,7 +170,7 @@ Spike detection functions
 
 def calc_spike_threshold(spike_filt_data, rms_multiplier=3):
     '''
-    Sadtler et al. 2014 set threshold to 3.0x RMS value for each channel.
+    Use the RMS of each channel to set a different threshold for each channel. Sadtler et al. 2014 set threshold to 3.0x RMS value for each channel, which is the default for this function.
     
     Args:
         spike_filt_data (nt, ...): Filtered time series data.
