@@ -152,7 +152,7 @@ class KalmanFilterTests(unittest.TestCase):
         # set test data directory
         test_dir = os.getcwd()
         print(test_dir)
-        test_data_dir = test_dir + '\\tests\\data\\decoder_tests\\'
+        test_data_dir = test_dir + '\\tests\\data\\decoder_tests'
         print(test_data_dir)
         os.chdir(test_data_dir)
 
@@ -162,8 +162,10 @@ class KalmanFilterTests(unittest.TestCase):
         test_validated_kalman_filepath = 'kalman_test_decoder.h5' # known good kalman decoder - used for validation
 
         # extract data & parameters
-        states = np.array(test_data_kalman_states_filepath)
-        observations = np.array(test_data_kalman_observations_filepath)
+        test_trial_data = pd.read_csv(test_data_kalman_states_filepath)
+        states = test_trial_data[:,5]
+        test_trial_observations = np.array(test_data_kalman_observations_filepath)
+        observations = test_trial_observations[:, 1:23]
         # load known good kalman
         # load HDF dictionary
         aopy.data.get_hdf_dictionary(test_data_dir, test_validated_kalman_filepath)
