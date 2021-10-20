@@ -171,6 +171,7 @@ Spike detection functions
 def calc_spike_threshold(spike_filt_data, rms_multiplier=3):
     '''
     Use the RMS of each channel to set a different threshold for each channel. Sadtler et al. 2014 set threshold to 3.0x RMS value for each channel, which is the default for this function.
+    The threshold value will be calculated with the mean subtracted, then the mean for each signal will be added back to the threshold value.
     
     Args:
         spike_filt_data (nt, ...): Filtered time series data.
@@ -180,25 +181,26 @@ def calc_spike_threshold(spike_filt_data, rms_multiplier=3):
         threshold_values: Threshold values along the first axis. Output dimensions will be the same non-time dimensions as the input signal.
     
     '''
-
+    mean_input_data = np.mean(spike_filt_data, axis=0)
     rms_values = analysis.calc_rms(spike_filt_data, remove_offset=True)
 
-    return rms_multiplier*rms_values
+    return (rms_multiplier*rms_values)+mean_input_data
 
 
 def detect_spikes(spike_filt_data, samplerate, above_thresh=True, wf_length=1000, threshold=None):
     '''
     This function calculates spike times based on threshold crossing of the input data and returns the waveforms if 'wf_length' is not None. 
-    If the threshold desired is a negative value (i.e. extracellular recordings) set 'above_thresh' to False.
+    If the threshold desired is a negative value (i.e. extracellular recordings) set 'above_thresh' to False. 
+    If no threshold values are input and above_thresh=False, a negative threshold will be calculated.
     Data must exceed the threshold instead of equaling it.
 
     Args:
         spike_filt_data (nt, nch): Time series neural data to detect spikes and extract waveforms from.
         samplerate (float): Sampling rate [Hz]
-        above_thresh (bool): Indicate if spikes should be detected based on going over a threshold or below a threshold.
-        threshold (nch): Threshold input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. If set to 'None', this function will call aopy.precondition.calc_spike_threshold to determine adaquate thresholds. 
+        above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. If None, spikes above and below threshold will be detected. 
         wf_length (fload): Length of waveforms to output [us]. Actual length will be rounded up. If set to 'None', waveforms will not be returned.
-
+        threshold (nch): Threshold input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. If set to 'None', this function will call aopy.precondition.calc_spike_threshold to determine adaquate thresholds. To detect spikes above and below different threshold input a tuple, (threshold_low, threshold_high) with each element nch long.
+        
     Returns: 
         tuple: Tuple containing:
             | **spike_times (list of spike times):**  List of nspike length arrays with each list element corresponding to a channel.
@@ -206,15 +208,20 @@ def detect_spikes(spike_filt_data, samplerate, above_thresh=True, wf_length=1000
     '''
     nch = spike_filt_data.shape[1]
 
-    # Get thresholds if not requested
-    if threshold is None:
-        threshold = calc_spike_threshold(spike_filt_data)
-
     # Calculate an array of spike times for each channel organized into a list
     if above_thresh:
+        # Get thresholds if not requested
+        if threshold is None:
+            threshold = calc_spike_threshold(spike_filt_data)
+        
         data_above_thresh_mask = spike_filt_data > threshold
-    else:
-        data_above_thresh_mask = spike_filt_data < -threshold
+        
+    elif above_thresh == False:
+        # Get thresholds if not requested
+        if threshold is None:
+            threshold = -calc_spike_threshold(spike_filt_data)
+        
+        data_above_thresh_mask = spike_filt_data < threshold
 
     spike_times = []
     spike_waveforms =[]
