@@ -187,19 +187,19 @@ def calc_spike_threshold(spike_filt_data, rms_multiplier=3):
     return (rms_multiplier*rms_values)+mean_input_data
 
 
-def detect_spikes(spike_filt_data, samplerate, above_thresh=True, wf_length=1000, threshold=None):
+def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True, wf_length=1000):
     '''
     This function calculates spike times based on threshold crossing of the input data and returns the waveforms if 'wf_length' is not None. 
     If the threshold desired is a negative value (i.e. extracellular recordings) set 'above_thresh' to False. 
-    If no threshold values are input and 'above_thresh=False', a negative threshold will be calculated.
     Data must exceed the threshold instead of equaling it.
 
     Args:
         spike_filt_data (nt, nch): Time series neural data to detect spikes and extract waveforms from.
         samplerate (float): Sampling rate [Hz]
+        threshold (nch): Threshold input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. 
         above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
         wf_length (fload): Length of waveforms to output [us]. Actual length will be rounded up. If set to 'None', waveforms will not be returned.
-        threshold (nch): Threshold input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. If set to 'None', this function will call aopy.precondition.calc_spike_threshold to determine adaquate thresholds. To detect spikes above and below different threshold input a tuple, (threshold_low, threshold_high) with each element nch long.
+        
         
     Returns: 
         tuple: Tuple containing:
@@ -209,18 +209,10 @@ def detect_spikes(spike_filt_data, samplerate, above_thresh=True, wf_length=1000
     nch = spike_filt_data.shape[1]
 
     # Calculate an array of spike times for each channel organized into a list
-    if above_thresh:
-        # Get thresholds if not requested
-        if threshold is None:
-            threshold = calc_spike_threshold(spike_filt_data)
-        
+    if above_thresh:        
         data_above_thresh_mask = spike_filt_data > threshold
         
-    elif above_thresh == False:
-        # Get thresholds if not requested
-        if threshold is None:
-            threshold = -calc_spike_threshold(spike_filt_data)
-        
+    elif above_thresh == False:        
         data_above_thresh_mask = spike_filt_data < threshold
 
     spike_times = []

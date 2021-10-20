@@ -155,7 +155,7 @@ class SpikeDetectionTests(unittest.TestCase):
         # Test spike time detection
         data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
         threshold_values = np.array((0.5, 0.5, 0.5))
-        spike_times, wfs = precondition.detect_spikes(data, 10, above_thresh=True, wf_length=None, threshold=threshold_values)
+        spike_times, wfs = precondition.detect_spikes(data, 10, threshold=threshold_values, above_thresh=True, wf_length=None)
         np.testing.assert_allclose(spike_times[0], np.array((0.1, 0.3)))
         np.testing.assert_allclose(spike_times[1], np.array((0.2)))
         np.testing.assert_allclose(spike_times[2], np.array((0.3)))
@@ -164,7 +164,7 @@ class SpikeDetectionTests(unittest.TestCase):
         # Test negative threshold detection
         data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
         threshold_values = np.array((0.5, 0.5, 0.5))
-        spike_times, wfs = precondition.detect_spikes(-data, 10, above_thresh=False, wf_length=None, threshold=-threshold_values)
+        spike_times, wfs = precondition.detect_spikes(-data, 10, threshold=-threshold_values, above_thresh=False, wf_length=None)
         np.testing.assert_allclose(spike_times[0], np.array((0.1, 0.3)))
         np.testing.assert_allclose(spike_times[1], np.array((0.2)))
         np.testing.assert_allclose(spike_times[2], np.array((0.3)))
@@ -178,33 +178,17 @@ class SpikeDetectionTests(unittest.TestCase):
             
         large_data[10:,0] = np.arange(0,large_data.shape[0]-10) 
 
-        _, wfs = precondition.detect_spikes(large_data, 300, wf_length=10000, threshold=threshold)
+        _, wfs = precondition.detect_spikes(large_data, 300, threshold=threshold, wf_length=10000)
         np.testing.assert_allclose(wfs[0], np.array(((3,4,5),(3,4,5))))
         np.testing.assert_allclose(wfs[1], np.array((8,9,10)).reshape(1,-1))
         np.testing.assert_allclose(wfs[2], np.array((13,14,15)).reshape(1,-1))
         np.testing.assert_allclose(wfs[3], np.array((np.nan,np.nan,np.nan)).reshape(1,-1))
 
-        # Test automatic thresholding
-        large_data = np.zeros((60,2))
-        for ii in range(large_data.shape[1]):
-            large_data[:,ii] = np.arange(large_data.shape[0])
-
-        large_data[30:,0] = np.arange(0,large_data.shape[0]-30) 
-        large_data[30:,1] = np.arange(0,large_data.shape[0]-30) 
-        large_data[10:12,0] = 100
-        large_data[5,1] = 100
-        large_data[15,1] =100
-        
-        spike_times, wfs = precondition.detect_spikes(large_data, 100, wf_length=10000, threshold=None)
-        np.testing.assert_allclose(spike_times[0], np.array((0.1)))
-        np.testing.assert_allclose(spike_times[1], np.array((0.05, 0.15)))
-        np.testing.assert_allclose(wfs[0], np.array((100)))
-        np.testing.assert_allclose(wfs[1], np.array(((100),(100))).reshape(-1,1))
-
         # Test speed
         test_speed_data = np.random.normal(size=(250000, 256))
         start = time.time()
-        _, _ = spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, wf_length=1000, threshold=None)
+        threshold = precondition.calc_spike_threshold(test_speed_data)
+        _, _ = spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, threshold=threshold, wf_length=10000)
         stop = time.time()
 
         print('Spike detection on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
