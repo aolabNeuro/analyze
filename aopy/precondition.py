@@ -168,13 +168,14 @@ def get_psd_welch(data, fs,n_freq = None):
 Spike detection functions
 '''
 
-def calc_spike_threshold(spike_filt_data, rms_multiplier=3):
+def calc_spike_threshold(spike_filt_data, high_threshold=True, rms_multiplier=3):
     '''
     Use the RMS of each channel to set a different threshold for each channel. Sadtler et al. 2014 set threshold to 3.0x RMS value for each channel, which is the default for this function.
     The threshold value will be calculated with the mean subtracted, then the mean for each signal will be added back to the threshold value.
     
     Args:
         spike_filt_data (nt, ...): Filtered time series data.
+        high_threshold (bool): If the threshold should allow spikes to be detected above the threshold (True) or below the threshold (False). Defaults to true.
         rms_multiplier (float): Value to multiply the rms value of each time series by.
 
     Returns:
@@ -184,26 +185,30 @@ def calc_spike_threshold(spike_filt_data, rms_multiplier=3):
     mean_input_data = np.mean(spike_filt_data, axis=0)
     rms_values = analysis.calc_rms(spike_filt_data, remove_offset=True)
 
-    return (rms_multiplier*rms_values)+mean_input_data
+    if high_threshold:
+        return (rms_multiplier*rms_values)+mean_input_data
+    else:
+        return mean_input_data-(rms_multiplier*rms_values)
 
 
-def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True, wf_length=1000):
+def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True, tbefore_wf=200, wf_length=1000, refractory_period=200):
     '''
     This function calculates spike times based on threshold crossing of the input data and returns the waveforms if 'wf_length' is not None. 
     If the threshold desired is a negative value (i.e. extracellular recordings) set 'above_thresh' to False. 
-    Data must exceed the threshold instead of equaling it.
+    Data must exceed the threshold instead of equaling it. This function always assumes the first threshold crossing is a good spike.
 
     Args:
         spike_filt_data (nt, nch): Time series neural data to detect spikes and extract waveforms from.
         samplerate (float): Sampling rate [Hz]
         threshold (nch): Threshold input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. 
         above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
-        wf_length (fload): Length of waveforms to output [us]. Actual length will be rounded up. If set to 'None', waveforms will not be returned.
-        
+        tbefore_wf (float): Length of waveform to include before spike detection time [us]. Defaults to 200us
+        wf_length (float): Length of waveforms to output [us]. Actual length will be rounded up. If set to 'None', waveforms will not be returned.
+        refractory_period (float): Length of time after a spike is detected before another spike can be detected [us]. Defaults to 200us.
         
     Returns: 
         tuple: Tuple containing:
-            | **spike_times (list of spike times):**  List of nspike length arrays with each list element corresponding to a channel.
+            | **spike_times (list of spike times):**  List of nspike length arrays with each list element corresponding to a channel. Spike times are in seconds.
             | **spike_waveforms (list of waveforms):** List of (nspike, nwf_pts) arrays with each list element corresponding to a channel. Returns NaN if there aren't enough data points to retreive a full waveform.
     '''
     nch = spike_filt_data.shape[1]
@@ -220,23 +225,32 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True, wf_
     
     for ich in range(nch):
         # Spike times
-        temp_spike_times, _ = preproc.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
+        all_spike_times, _ = preproc.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
+        non_refrac_spike_times_idx = np.where(np.diff(all_spike_times, prepend=0) > refractory_period*(1e-6))[0]
+        
+        # Assume first spike is always good. If it isn't included, add it back in
+        if len(np.where(non_refrac_spike_times_idx==0)[0])==0:
+            non_refrac_spike_times_idx = np.insert(non_refrac_spike_times_idx,0,0)
+        
+        temp_spike_times = all_spike_times[non_refrac_spike_times_idx]
         spike_times.append(temp_spike_times)
+
 
         # Spike waveforms
         if wf_length is not None:
-            wf_idx_length = math.ceil(samplerate*(wf_length*(10**-6)))
+            wf_idx_length = math.ceil(samplerate*(wf_length*(1e-6)))
             nspikes = len(temp_spike_times)
 
             temp_spike_waveforms = np.zeros((nspikes, wf_idx_length))
             temp_spike_waveforms[:] = np.nan
 
             for ispike in range(nspikes):
-                startidx = int(np.round(temp_spike_times[ispike]*samplerate, decimals=0))
-                stopidx = int(np.round(temp_spike_times[ispike]*samplerate,decimals=0) + wf_idx_length)
+                starttime = temp_spike_times[ispike]-(tbefore_wf*(1e-6))
+                startidx = int(np.round(starttime*samplerate, decimals=0))
+                stopidx = startidx + wf_idx_length
 
-                if stopidx < spike_filt_data.shape[0]: # Ensure there are enough data points to grab the waveform
-                  temp_spike_waveforms[ispike, :] = spike_filt_data[startidx:stopidx,ich]
+                if np.logical_and(stopidx < spike_filt_data.shape[0], startidx>=0): # Ensure there are enough data points to grab the waveform
+                    temp_spike_waveforms[ispike, :] = spike_filt_data[startidx:stopidx,ich]
         
             spike_waveforms.append(temp_spike_waveforms)
 
