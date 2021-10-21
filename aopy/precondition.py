@@ -53,8 +53,9 @@ def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= Non
         filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
 
     Returns:
-        filtered_data (list): output bandpass filtered data in the form of a list. Each list item is filtered data in corresponding frequency band
-        Wn (list) : frequency bands
+        tuple: Tuple containing:
+            | **filtered_data (list):** output bandpass filtered data in the form of a list. Each list item is filtered data in corresponding frequency band
+            | **Wn (list):** frequency bands
     '''
 
     if filter_type == 'lowpass' or 'highpass':
@@ -96,9 +97,10 @@ def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknif
         sides (str): This determines which sides of the spectrum to return.
 
     Returns:
-        f (ndarray) : Frequency points vector
-        psd_est (ndarray): estimated power spectral density (PSD)
-        nu (ndarray): if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
+        tuple: Tuple containing:
+            | **f (ndarray):** Frequency points vector
+            | **psd_est (ndarray):** estimated power spectral density (PSD)
+            | **nu (ndarray):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
     '''
     f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides )
     return f, psd_mt, nu
@@ -149,8 +151,9 @@ def get_psd_welch(data, fs,n_freq = None):
         n_freq (int): no. of frequency points expected
 
     Returns:
-        f (ndarray) : frequency points vector
-        psd_est (ndarray): estimated power spectral density (PSD)
+        tuple: Tuple containing:
+            | **f (ndarray):** frequency points vector
+            | **psd_est (ndarray):** estimated power spectral density (PSD)
     '''
     if n_freq:
         f, psd = signal.welch(data, fs, average = 'median',nperseg=2*n_freq)

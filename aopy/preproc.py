@@ -24,9 +24,8 @@ def get_closest_value(timestamp, sequence, radius):
 
     Returns:
         tuple: tuple containing:
-
-            closest_value (float): value within sequence that is closest to timestamp
-            closest_idx (int): index of the closest_value in the sequence
+            | **closest_value (float):** value within sequence that is closest to timestamp
+            | **closest_idx (int):** index of the closest_value in the sequence
     '''
 
     # initialize returned value
@@ -55,10 +54,7 @@ def find_measured_event_times(approx_times, measured_times, search_radius):
         search_radius (float): distance before and after each approximate time to search for a measured time 
         
     Returns:
-        tuple: tuple containing:
-
-            parsed_ts (nt): array of the same length as approximate timestamps, 
-            but containing matching timestamps or np.nan
+        parsed_ts (nt): array of the same length as approximate timestamps, but containing matching timestamps or np.nan
     '''
 
     parsed_ts = np.empty((len(approx_times),))
@@ -100,7 +96,7 @@ def get_measured_clock_timestamps(estimated_timestamps, measured_timestamps, lat
         search_radius (float, optional): how far away to look for a measurement before giving up
 
     Returns:
-            nframes array: measured timestamps, some of which will be np.nan if they were not displayed
+        nframes array: measured timestamps, some of which will be np.nan if they were not displayed
     '''
 
     approx_timestamps = estimated_timestamps + latency_estimate
@@ -258,10 +254,8 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
 
     Returns:
         tuple: tuple containing:
-
-            trial_events (n_trial, n_events): events per trial
-
-            trial_times (n_trial, n_events): timestamps per trial
+            | **trial_events (n_trial, n_events):** events per trial
+            | **trial_times (n_trial, n_events):** timestamps per trial
     '''
 
     # Pad the arrays a bit in case there is an evt_start at the beginning or end
@@ -373,9 +367,8 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
     
     Returns:
         tuple: tuple containing:
-
-            trial_aligned (ntrial, nt): trial aligned timestamps
-            trial_indices (ntrial, nt): indices into timestamps in the same shape as trial_aligned
+            | **trial_aligned (ntrial, nt):** trial aligned timestamps
+            | **trial_indices (ntrial, nt):** indices into timestamps in the same shape as trial_aligned
     '''
     trial_aligned = []
     trial_indices = []
@@ -402,9 +395,8 @@ def get_trial_segments(events, times, start_events, end_events):
         end_events (list): set of end events to match
     Returns:
         tuple: tuple containing:
-
-            segments (list of list of events): a segment of each trial
-            times (ntrials, 2): list of 2 timestamps for each trial corresponding to the start and end events
+            | **segments (list of list of events):** a segment of each trial
+            | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
 
     Note:
         - if there are multiple matching start or end events in a trial, only consider the first one
@@ -508,9 +500,9 @@ def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
         event_column (int): Column index to look for events in. Indexing starts at 0. Keep as 'None' if all columns should be analyzed.
         
     Returns:
-        (tuple):
-            (list of arrays): List where each index includes an array of trials containing the event_code corresponding to that index. 
-            (1D Array): Concatenated indices for which trials correspond to which event code.
+        tuple: Tuple containing:
+            | **split_events (list of arrays):** List where each index includes an array of trials containing the event_code corresponding to that index. 
+            | **split_events_combined (1D Array):** Concatenated indices for which trials correspond to which event code.
                         Can be used as indices to order 'trial_events' by the 'event_codes' input.
 
     Example::
@@ -553,9 +545,8 @@ def parse_bmi3d(data_dir, files):
     
     Returns:
         tuple: tuple containing:
-
-            data (dict): bmi3d data
-            metadata (dict): bmi3d metadata
+            | **data (dict):** bmi3d data
+            | **metadata (dict):** bmi3d metadata
     '''
     # Check that there is hdf data in files
     if not 'hdf' in files:
@@ -596,9 +587,8 @@ def _parse_bmi3d_v0(data_dir, files):
     
     Returns:
         tuple: tuple containing:
-
-            data (dict): bmi3d data
-            metadata (dict): bmi3d metadata
+            | **data (dict):** bmi3d data
+            | **metadata (dict):** bmi3d metadata
     '''
     bmi3d_hdf_filename = files['hdf']
     metadata = {}
@@ -644,9 +634,8 @@ def _parse_bmi3d_v1(data_dir, files):
     
     Returns:
         tuple: tuple containing:
-
-            data_dict (dict): bmi3d data
-            metadata_dict (dict): bmi3d metadata
+            | **data_dict (dict):** bmi3d data
+            | **metadata_dict (dict):** bmi3d metadata
     '''
 
     data_dict = {}
@@ -750,9 +739,8 @@ def _prepare_bmi3d_v0(data, metadata):
 
     Returns:
         tuple: tuple containing:
-
-            data (dict): prepared bmi3d data
-            metadata (dict): prepared bmi3d metadata
+            | **data (dict):** prepared bmi3d data
+            | **metadata (dict):** prepared bmi3d metadata
     '''
     parser_version = metadata['bmi3d_parser']
     internal_clock = data['bmi3d_clock']
@@ -1001,9 +989,8 @@ def parse_optitrack(data_dir, files):
     
     Returns:
         tuple: tuple containing:
-
-            data (dict): optitrack data
-            metadata (dict): optitrack metadata
+            | **data (dict):** optitrack data
+            | **metadata (dict):** optitrack metadata
     '''
     # Check that there is optitrack data in files
     if not 'optitrack' in files:

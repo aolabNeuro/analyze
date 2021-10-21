@@ -27,11 +27,9 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
         verbose (bool): Display % of dimensions completed. Defaults to False
 
     Returns:
-        tuple: tuple containing:
-
-        (ndim, nfold): Array of MLE FA score for each dimension for each fold
-        
-        (ndim, nfold): How many iterations of FA were required to converge for each fold
+        tuple: Tuple containing:
+            | **log_likelihood_score (ndim, nfold):** Array of MLE FA score for each dimension for each fold
+            | **iterations_required (ndim, nfold):** How many iterations of FA were required to converge for each fold
     '''
 
     # Initialize arrays
@@ -124,8 +122,9 @@ def get_mean_fr_per_direction(data, target_dir):
         target_dir (1D array): target direction
 
     Returns:
-        means_d = mean firing rate per neuron per target direction
-        stds_d = standard deviation from mean firing rate per neuron
+        tuple: Tuple containing:
+            | **means_d:** = mean firing rate per neuron per target direction
+            | **stds_d:** standard deviation from mean firing rate per neuron
     '''
     means_d = []
     stds_d = []
@@ -161,9 +160,10 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
         n_cols (int) : No. of cols in subplot
 
     Returns:
-        params_day (Numpy array) : Curve fitting parameters
-        modulation depth (Numpy array) : Modulation depth of neuron
-        preferred direction (Numpy array) : preferred direction of neurons
+        tuple: Tuple containing:
+            | **params_day (Numpy array):** Curve fitting parameters
+            | **modulation depth (Numpy array):** Modulation depth of neuron
+            | **preferred direction (Numpy array):** preferred direction of neurons
     '''
     params_day = []
     mod_depth = []
@@ -207,9 +207,8 @@ def find_trough_peak_idx(unit_data):
 
     Returns:
         tuple: A tuple containing
-        troughidx (nch): Array of indices corresponding to the trough time for each channel
-
-        peakidx (nch): Array of indices corresponding ot the peak time for each channel. 
+            | **troughidx (nch):** Array of indices corresponding to the trough time for each channel
+            | **peakidx (nch):** Array of indices corresponding ot the peak time for each channel. 
     '''
     # Handle condition where the input data is a 1D array
     if len(unit_data.shape) == 1:
@@ -255,13 +254,10 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
                                 should be used to extrapolate a peak index.
         
     Returns:
-        tuple: A tuple containing 
-        
-        extremum_time (float): Interpolated (or extrapolated) peak time
-        
-        extremum_value (float): Approximated peak value.
-        
-        f (np.poly): Polynomial used to calculate peak time
+        tuple: A tuple containing         
+            | **extremum_time (float):** Interpolated (or extrapolated) peak time        
+            | **extremum_value (float):** Approximated peak value.        
+            | **f (np.poly):** Polynomial used to calculate peak time
     '''
 
     # Handle condition where the peak is at the beginning of a dataset
@@ -303,8 +299,8 @@ def get_unit_spiking_mean_variance(spiking_data):
 
     Returns:
         Tuple:  A tuple containing
-            unit_mean: The mean spike counts for each unit across the input time
-            unit_variance: The spike count variance for each unit across the input time
+            | **unit_mean:** The mean spike counts for each unit across the input time
+            | **unit_variance:** The spike count variance for each unit across the input time
     '''
 
     counts = np.sum(spiking_data, axis=1) # Counts has the shape (nunits, ntr)
@@ -494,9 +490,10 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9):
                         if left unset, will equal the dimensions (number of columns) in the dataset
         VAF (float): (default 0.9) variance accounted for (VAF)
 
-    Returns: 
-        explained_variance (list): variance accounted for by each principal component
-        num_dims (int): number of principal components required to account for variance
+    Returns:
+        tuple: Tuple containing: 
+            | **explained_variance (list):** variance accounted for by each principal component
+            | **num_dims (int):** number of principal components required to account for variance
     """
     if max_dims is None:
         max_dims = np.shape(data)[1]
@@ -548,9 +545,10 @@ def find_outliers(data, std_threshold):
         data [n, nfeatures]: Input data to plot in an nfeature dimensional space and compute outliers
         std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
         
-    Returns: 
-        good_data_idx [n]: Labels each data point if it is an outlier (True = good, False = outlier)
-        distances [n]: Distance of each data point from center
+    Returns:
+        tuple: Tuple containing: 
+            | **good_data_idx [n]:** Labels each data point if it is an outlier (True = good, False = outlier)
+            | **distances [n]:** Distance of each data point from center
     '''
     
     # Check ncluster input

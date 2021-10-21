@@ -22,8 +22,9 @@ def generate_test_signal(duration, samplerate, frequencies, amplitudes, noise_am
         noise_amplitude (float, optional): amplitude of noise added on top of test signal
 
     Returns:
-        x (1D array): cosine wave with multiple frequencies (and noise)
-        t (1D array): time vector for x
+        tuple: Tuple containing:
+            | **x (1D array):** cosine wave with multiple frequencies (and noise)
+            | **t (1D array):** time vector for x
     '''
     n_samples = int(duration * samplerate)
     t = np.linspace(0, duration, n_samples, endpoint=False)
@@ -100,9 +101,8 @@ def count_unique_symbols(files):
 
     Returns:
         tuple: tuple containing:
-
-            unique_symbols (list): list of unique symbols
-            counts (list): list of counts for each unique symbol
+            | **unique_symbols (list):** list of unique symbols
+            | **counts (list):** list of counts for each unique symbol
     '''
     symbols = []
     for filename in files:
@@ -172,9 +172,8 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alte
 
     Returns:
         tuple: tuple containing:
-
-            timestamps (nbitflips): when the bits flipped
-            values (nbitflips): corresponding values for each change
+            | **timestamps (nbitflips):** when the bits flipped
+            | **values (nbitflips):** corresponding values for each change
     '''
 
     digital_data = np.squeeze(np.uint64(digital_data)) # important conversion for binary math
@@ -289,8 +288,8 @@ def get_edges_from_onsets(onsets, pulse_width):
         pulse_width (float): Pulse duration 
     Returns:
         tuple: tuple containing:
-        timestampes (2*nonsets + 1): Timestamps of the rising and falling edges. Always starts at 0.
-        values (2*nonsets + 1): Values corresponding to the output timestamps.
+            | **timestampes (2*nonsets + 1):** Timestamps of the rising and falling edges. Always starts at 0.
+            | **values (2*nonsets + 1):** Values corresponding to the output timestamps.
     '''
     timestamps = np.zeros((1+len(onsets)*2,))
     values = np.zeros((1+len(onsets)*2,))
