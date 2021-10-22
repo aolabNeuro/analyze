@@ -196,7 +196,7 @@ class SpikeDetectionTests(unittest.TestCase):
         # print(binned_spikes)
         self.assertEqual(binned_spikes.shape[0], 4)
         self.assertEqual(binned_spikes.shape[1], 2)
-        self.assertEqual(binned_spikes[0,0], 2/0.5) # 2 spikes in window size 0.5s
+        self.assertEqual(binned_spikes[0,0], 2*fs) # [spikes/s] 2 spikes/bin * fs
 
 if __name__ == "__main__":
     unittest.main()

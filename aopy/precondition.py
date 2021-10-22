@@ -247,17 +247,17 @@ def bin_spikes(data, fs, bin_width):
         >>> data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
         >>> data_T = data.T
         >>> fs = 100
-        >>> binned_spikes = precondition.bin_spikes(data_T, fs, 5)
+        >>> binned_spikes = precondition.bin_spikes(data_T, fs, .05)
         >>> print(binned_spikes)
-        [[40.         60.        ]
-        [40.         40.        ]
-        [60.         40.        ]
-        [33.33333333 33.33333333]]
+            [[200. 300.]
+            [200. 200.]
+            [300. 200.]
+            [100. 100.]]
 
     Args:
         data (nt, nch): time series spike data with multiple channels.
-        fs (float): sampling rate of data
-        bin_width (int): Spikes are averaged within 'bin_width' then devided by 'fs'
+        fs (float): sampling rate of data [Hz]
+        bin_width (float): [s] Spikes are summed within 'bin_width' then devided by 'fs'
 
     Returns:
         binned_spikes (nbin, nch): binned spikes [spikes/s].
@@ -270,10 +270,10 @@ def bin_spikes(data, fs, bin_width):
     binned_spikes = np.zeros((nbins,nch))
 
     for idx in range(nbins):
-            if idx == nbins - 1:
-                binned_spikes[idx,:] = np.mean(data[idx * bin_width :, :], axis = 0)
-            else:
-                binned_spikes[idx,:] = np.mean(data[idx * bin_width : (idx + 1) * bin_width, :], axis = 0)
+        if idx == nbins - 1:
+            binned_spikes[idx,:] = np.sum(data[idx * bin_width :, :], axis = 0)
+        else:
+            binned_spikes[idx,:] = np.sum(data[idx * bin_width : (idx + 1) * bin_width, :], axis = 0)
 
     binned_spikes = binned_spikes/dT # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes
