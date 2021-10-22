@@ -14,6 +14,8 @@ from scipy import interpolate
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
+from . import preproc
+
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
     Estimate the latent dimensionality of an input dataset by appling cross validated 
@@ -135,21 +137,6 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-
-def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
-    '''
-    generate a plot of mean firing rate per target direction
-
-    '''
-    sns.set_context('talk')
-    ax.plot(np.array(means_d)[:, neuron_id], c=color, alpha=this_alpha, label=this_label)
-
-    ax.legend()
-    ax.set_xlabel("Target", fontsize=16)
-    ax.set_ylabel("Spike Rate (Hz)", fontsize=16)
-    plt.tight_layout()
-
-
 def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_rows=None, n_subplot_cols= None):
     '''
     Args:
@@ -194,6 +181,26 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
             plt.xticks(np.arange(1, 8, 2))
     return np.array(params_day), np.array(mod_depth), np.array(pd)
 
+def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD"):
+    '''
+    A wrapper around get_trial_segments which counts the number of trials with a reward event 
+    and divides by the total number of trials to calculate success rate
+
+    Args:
+        events (nt): events vector, can be codes, event names, anything to match
+        start_events (list, optional): set of start events to match
+        end_events (list, optional): set of end events to match
+        success_events (list, optional): which events make a trial a successful trial
+
+    Returns:
+        float: success rate = number of successful trials out of all trials
+    '''
+    segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
+    n_trials = len(segments)
+    success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
+    n_success = np.count_nonzero(success_trials)
+    success_rate = n_success / n_trials
+    return success_rate
 
 def find_trough_peak_idx(unit_data):
     '''
@@ -308,6 +315,7 @@ def get_unit_spiking_mean_variance(spiking_data):
     unit_variance = np.var(counts, axis=1) # Calculate the count variance for each unit across all trials
 
     return unit_mean, unit_variance
+
   
 '''
 KALMAN FILTER 
@@ -342,15 +350,10 @@ class KFDecoder(object):
             This is the outputs that are being predicted
 
         Calculations for A,W,H,Q are as follows:
-
-        .. math:: A = X2@X1' (X1@X1')^{-1}
-
-        .. math:: W = \frac{(X_2 - A@X_1)(X_2 - A@X_1)'}{(timepoints - 1)}
-
-        .. math:: H = Y@X'(X@X')^{-1}
-
+        .. math:: A = X2*X1' (X1*X1')^{-1}
+        .. math:: W = \frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
+        .. math:: H = Y*X'(X*X')^{-1}
         .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
-
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -367,14 +370,14 @@ class KFDecoder(object):
         X2 = X[:, 1:]
         X1 = X[:, 0:nt - 1]
 
-        A = X2 @ X1.T @ inv(X1 @ X1.T)  # Transition matrix
-        W = (X2 - A @ X1) @ (X2 - A @ X1).T / (
+        A = X2 * X1.T * inv(X1 * X1.T)  # Transition matrix
+        W = (X2 - A * X1) * (X2 - A * X1).T / (
                     nt - 1) / self.C  # Covariance of transition matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1 and X2). We also introduce the extra parameter C here.
 
         # Calculate the measurement matrix (from x_t to z_t) using least-squares, and compute its covariance
         # In our case, this is the transformation from kinematics to spikes
-        H = Z @ X.T @ (inv(X @ X.T))  # Measurement matrix
-        Q = ((Z - H @ X) @ ((Z - H @ X).T)) / nt  # Covariance of measurement matrix
+        H = Z * X.T * (inv(X * X.T))  # Measurement matrix
+        Q = ((Z - H * X) * ((Z - H * X).T)) / nt  # Covariance of measurement matrix
 
         params = [A, W, H, Q]
         print('Shape of State Transition model (A) :' + str(A.shape))
@@ -396,7 +399,7 @@ class KFDecoder(object):
             This is the outputs that are being predicted
 
         Calculations as follows:
-        .. math:: H = Y@X'(X@X')^{-1}
+        .. math:: H = Y*X'(X*X')^{-1}
         .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
         """
 
@@ -414,14 +417,13 @@ class KFDecoder(object):
         X2 = X[:, 1:]
         X1 = X[:, 0:nt - 1]
 
-        # A=X2@X1.T@inv(X1@X1.T) #Transition matrix W=(X2-A@X1)@(X2-A@X1).T/(nt-1)/self.C #Covariance of transition
-        # matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1
-        # and X2). We also introduce the extra parameter C here.
+        # A=X2*X1.T*inv(X1*X1.T) #Transition matrix
+        # W=(X2-A*X1)*(X2-A*X1).T/(nt-1)/self.C #Covariance of transition matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1 and X2). We also introduce the extra parameter C here.
 
         # Calculate the measurement matrix (from x_t to z_t) using least-squares, and compute its covariance
         # In our case, this is the transformation from kinematics to spikes
-        H = Z @ X.T @ (inv(X @ X.T))  # Measurement matrix
-        Q = ((Z - H @ X) @ ((Z - H @ X).T)) / nt  # Covariance of measurement matrix
+        H = Z * X.T * (inv(X * X.T))  # Measurement matrix
+        Q = ((Z - H * X) * ((Z - H * X).T)) / nt  # Covariance of measurement matrix
 
         print('Shape of State Transition model (A) :' + str(A.shape))
         print('Shape of Covariance of State Transition model :' + str(W.shape))
@@ -450,8 +452,7 @@ class KFDecoder(object):
         # Extract parameters
         A, W, H, Q = self.model
 
-        # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (I am
-        # following Wu et al):
+        # First we'll rename and reformat the variables to be in a more standard kalman filter nomenclature (I am following Wu et al):
         # xs are the state (here, the variable we're predicting, i.e. y_train)
         # zs are the observed variable (neural data here, i.e. X_kf_train)
         X = np.matrix(y_test.T)
@@ -469,32 +470,35 @@ class KFDecoder(object):
         # Get predicted state for every time bin
         for t in range(X.shape[1] - 1):
             # Do first part of state update - based on transition matrix
-            P_m = A @ P @ A.T + W  # a priori estimate of x covariance ( P(k) = A@P(k-1)@A' + W )
-            state_m = A @ state  # a priori estimate of x ( X(k|k-1) = A@X(k-1) )
+            P_m = A * P * A.T + W  # a priori estimate of x covariance ( P(k) = A*P(k-1)*A' + W )
+            state_m = A * state  # a priori estimate of x ( X(k|k-1) = A*X(k-1) )
 
             # Do second part of state update - based on measurement matrix
-            K = P_m @ H.T @ inv(H @ P_m @ H.T + Q)  # Calculate Kalman gain ( K = P_ap@H'@ inv(H@P_ap@H' + Q) )
-            P = (np.matrix(np.eye(num_states)) - K @ H) @ P_m  # (a posteriori estimate, P (I - K@H)@P_ap )
-            state = state_m + K @ (Z[:,t + 1] - H @ state_m)  # compute a posteriori estimate of x (X(k) = X(k|k-1) + K@(Z - H@X(k|k-1))
+            K = P_m * H.T * inv(H * P_m * H.T + Q)  # Calculate Kalman gain ( K = P_ap*H'* inv(H*P_ap*H' + Q) )
+            P = (np.matrix(np.eye(num_states)) - K * H) * P_m  # (a posteriori estimate, P (I - K*H)*P_ap )
+            state = state_m + K * (Z[:,t + 1] - H * state_m)  # compute a posteriori estimate of x (X(k) = X(k|k-1) + K*(Z - H*X(k|k-1))
             states[:, t + 1] = np.squeeze(state)  # Record state at the timestep
         y_test_predicted = states.T
         return y_test_predicted
 
-def get_pca_dimensions(data, max_dims=None, VAF=0.9):
+def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
     """
-    Use PCA to estimate the dimensionality required to account for the variance in the given data
+    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
     
     Args:
-        data (nt, nch): time series data
+        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
         max_dims (int): (default None) the maximum number of dimensions
                         if left unset, will equal the dimensions (number of columns) in the dataset
         VAF (float): (default 0.9) variance accounted for (VAF)
+        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
 
     Returns:
         tuple: Tuple containing: 
             | **explained_variance (list):** variance accounted for by each principal component
             | **num_dims (int):** number of principal components required to account for variance
+            | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
     """
+
     if max_dims is None:
         max_dims = np.shape(data)[1]
 
@@ -504,7 +508,13 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9):
     total_explained_variance = np.cumsum(explained_variance)
     num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
 
-    return list(explained_variance), num_dims
+    if project_data:
+        all_projected_data = pca.transform(data)
+        projected_data = all_projected_data[:,:num_dims]
+    else:
+        projected_data = None
+
+    return list(explained_variance), num_dims, projected_data
 
 def calc_rms(signal, remove_offset=True):
     '''
@@ -560,3 +570,32 @@ def find_outliers(data, std_threshold):
                   
     return good_data_idx.flatten(), distances.flatten()
 
+def calc_freq_domain_amplitude(data, samplerate, rms=False):
+    '''
+    Use FFT to decompose time series data into frequency domain to calculate the
+    amplitude of the non-negative frequency components
+
+    Args:
+        data (nt, nch): timeseries data, can be a single channel vector
+        samplerate (float): sampling rate of the data
+        rms (bool, optional): compute root-mean square amplitude instead of peak amplitude
+
+    Returns:
+        tuple: Tuple containing:
+        | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
+        | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+    '''
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
+
+    # Compute FFT along time dimension
+    freq_data = np.fft.fft(data, axis=0)
+    length = np.shape(freq_data)[0]
+    freq = np.fft.fftfreq(length, d=1./samplerate)
+    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
+    non_negative_freq = freq[freq>=0]
+
+    # Apply factor of root 2 to turn amplitude into RMS amplitude
+    if rms:
+        data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
+    return non_negative_freq, data_ampl

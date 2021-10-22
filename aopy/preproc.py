@@ -142,100 +142,6 @@ def fill_missing_timestamps(uncorrected_timestamps):
     return corrected_timestamps
 
 '''
-Event filtering
-''' 
-def get_matching_events(event_log, event_to_match):
-    '''
-    Given a list of tuple of (events, timestamps), find the matched event and the timestamps
-    
-    Args:
-        event_log (list of (event, timestamp) tuples): log of events and times
-        event_to_match (int or str): event to be matched to
-    
-    Returns:
-        list: returns a list of matched events and their time stamps
-    '''
-    #use python filter function to speed up the searching
-    return list(filter(lambda k: k[0] == event_to_match, event_log) )
-
-def get_event_occurrences(event_log, event_to_count):
-    '''
-    Given event_log, count the number of occurances of event_to_count
-
-    Args:
-        event_log (list of (event, timestamp) tuples): log of events and times
-        event_to_count (int or str): event to be matched to
-
-    Returns:
-        int: num_occurances
-    '''
-    matched_events_in_list = get_matching_events(event_log, event_to_count)
-    num_occurances = len(matched_events_in_list)
-    return num_occurances
-
-def calc_events_duration(event_log):
-    '''
-    given an event_log and succuss_event,
-    calculate the succuss rate
-
-    Args:
-        event_log (list of (event, timestamp) tuples): log of events and times
-    
-    Returns:
-        float: events_duration
-    '''
-
-    # Unpack the first and last events
-    first_event_name, first_event_timestamp = event_log[0]
-    last_event_name, last_event_timestamp = event_log[-1]
-
-    # Take the difference between the timestamps
-    events_duration = last_event_timestamp - first_event_timestamp
-    return events_duration
-
-def calc_event_rate(trial_events, event_codes, debug = False):
-    '''
-    Given an trial_log and event_name, calculate the fraction of trials with the event
-
-    Args:
-        trial_events (ntr, nevents): Array of trial separated event codes
-        event_codes (int, str, list, or 1D array): event codes to calculate the fractions for. 
-
-    Returns:
-        float or an array: fraction of matching events divided by total events
-    '''
-    
-    if type(event_codes) == int or type(event_codes) == str:
-        event_codes = np.array([event_codes])
-
-    event_occurances = np.zeros(len(event_codes))
-
-    num_trials = len(trial_events)
-
-    split_events, _ = locate_trials_with_event(trial_events, event_codes)
-
-    event_occurances = np.array([len(e) for e in split_events])
-    event_rates = event_occurances / num_trials
-
-    if len(event_rates) == 1: return event_rates[0]
-    
-    return event_rates
-
-def calc_reward_rate(event_log, event_name='REWARD'):
-    '''
-    A wrapper for calc_event_rate
-    event_name defauls to be 'REWARD'
-
-    Args:
-        event_log (list of (event, timestamp) tuples): log of events and times
-        event_name (str or int): event to be matched to
-
-    Returns:
-        float: reward_rate
-    '''
-    return calc_event_rate(event_log, event_name)
-
-'''
 Trial alignment
 '''
 def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
@@ -324,14 +230,15 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
 
 def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
-    Transform data into chunks of data triggered by trial start times
+    Transform data into chunks of data triggered by trial start times. If trigger_times is too long
+    relative to 'data/samplerate', only the triggers that correspond to data will be returned.
 
     Args:
         data (nt, nch): arbitrary data, can be multidimensional
-        trigger_times (ntrial): start time of each trial
-        time_before (float): amount of time to include before the start of each trial
-        time_after (float): time to include after the start of each trial
-        samplerate (int): sampling rate of data
+        trigger_times (ntrial): start time of each trial [s]
+        time_before (float): amount of time [s] to include before the start of each trial
+        time_after (float): time [s] to include after the start of each trial
+        samplerate (int): sampling rate of data [samples/s]
     
     Returns:
         (ntrial, nt, nch): trial aligned data
@@ -342,7 +249,11 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     if data.ndim == 1:
         data.shape = (data.shape[0], 1)
     trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
-    for t in range(len(trigger_times)):
+
+    # Don't look at trigger times that are after the end of the data
+    max_trigger_time = (data.shape[0]/samplerate) - time_after
+    last_trigger_idx = np.where(trigger_times < max_trigger_time)[0][-1]
+    for t in range(last_trigger_idx+1):
         t0 = trigger_times[t] - time_before
         if np.isnan(t0):
             continue
@@ -393,6 +304,7 @@ def get_trial_segments(events, times, start_events, end_events):
         times (nt): times vector
         start_events (list): set of start events to match
         end_events (list): set of end events to match
+
     Returns:
         tuple: tuple containing:
             | **segments (list of list of events):** a segment of each trial
@@ -591,6 +503,7 @@ def _parse_bmi3d_v0(data_dir, files):
             | **metadata (dict):** bmi3d metadata
     '''
     bmi3d_hdf_filename = files['hdf']
+    bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
     metadata = {}
 
     # Load bmi3d data
@@ -598,7 +511,10 @@ def _parse_bmi3d_v0(data_dir, files):
     bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
     bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
     bmi3d_root_metadata = aodata.load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
-    
+    if is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
+        bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
+        metadata.update(bmi3d_clda_meta)
+
     # Copy metadata
     metadata.update(bmi3d_task_metadata)
     metadata.update(bmi3d_event_metadata)
@@ -622,6 +538,8 @@ def _parse_bmi3d_v0(data_dir, files):
         bmi3d_state=bmi3d_state,
         bmi3d_events=bmi3d_events,
     )
+
+    if is_table_in_hdf('clda', bmi3d_hdf_full_filename): bmi3d_data.update(bmi3d_clda)
     return bmi3d_data, metadata
 
 def _parse_bmi3d_v1(data_dir, files):
@@ -643,13 +561,23 @@ def _parse_bmi3d_v1(data_dir, files):
 
     # Load bmi3d data
     bmi3d_hdf_filename = files['hdf']
+    bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
+    
     bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
     bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
     bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
+
     sync_protocol_version = bmi3d_event_metadata['sync_protocol_version']
     bmi3d_sync_clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
     bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials') # there isn't any trial metadata
     bmi3d_root_metadata = aodata.load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
+
+    if is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
+        bmi3d_clda, bmi3d_clda_meta = load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
+        metadata_dict.update(bmi3d_clda_meta)
+        data_dict.update(
+            {'bmi3d_clda': bmi3d_clda}
+        )
 
     # Copy metadata
     metadata_dict.update(bmi3d_task_metadata)
