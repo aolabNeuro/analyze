@@ -61,6 +61,7 @@ def plot_timeseries(data, samplerate, ax=None):
 
     Example:
         Plot 50 and 100 Hz sine wave.
+
         ::
             data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
             samplerate = 1000
@@ -91,6 +92,7 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
 
     Example:
         Plot 50 and 100 Hz sine wave amplitude spectrum. 
+
         ::
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000
@@ -189,6 +191,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
 
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        
         ::
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
@@ -378,6 +381,7 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
     Example:
         Plot four peripheral and one central target.
         ::
+        
             target_position = np.array([
                 [0, 0, 0],
                 [1, 1, 0],
@@ -449,6 +453,7 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     Example:
         Two random trajectories.
         ::
+
             trajectories =[
                 np.array([
                     [0, 0, 0],
@@ -500,7 +505,6 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     Example:
 
         ::
-
             >>> trajectories =[
                     np.array([
                         [0, 0, 0],
@@ -520,7 +524,7 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
             >>> colors = ['r', 'b']
             >>> color_trajectories(trajectories, labels, colors)
 
-        .. image:: _images/colored_trajectories.png
+        .. image:: _images/color_trajectories.png
 
     Args:
         trajectories (ntrials): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
@@ -549,8 +553,8 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     
     Example:
         Plotting success rate averaged across days.
-        ::
 
+        ::
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
             success = [70, 65, 65]
@@ -616,8 +620,8 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     
     Example:
         Plotting success rate over three sessions.
-        ::
 
+        ::
             success = [70, 65, 60]
             trials = [10, 20, 10]
 
