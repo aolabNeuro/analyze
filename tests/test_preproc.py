@@ -161,101 +161,8 @@ class DigitalCalcTests(unittest.TestCase):
         timestamps, values = get_edges_from_onsets(onsets, 0.1)
         np.testing.assert_allclose(timestamps, expected_timestamps)
         np.testing.assert_allclose(values, expected_values)
-
-event_log_events_in_str = [
-            ('wait', 0.),
-            ('target',1.),
-            ('reward',4.),
-            ('wait',5.),
-            ('target',6.),
-            ('reward',10.),
-            ('wait',10.),
-            ('target',11.),
-            ('wait',18.),
-
-]
-expected_wait_events = [
-                        ('wait', 0.),
-                        ('wait',5.),
-                        ('wait',10.),
-                        ('wait',18.),
-]
-
-NUM_WAIT =  0
-NUM_TARGET = 1
-NUM_REWARD = 2
-event_log_with_events_in_number = [
-            (NUM_WAIT, 4),
-            (NUM_TARGET,4.1),
-            (NUM_REWARD,4.2),
-            (NUM_WAIT,5),
-            (NUM_TARGET,6),
-            (NUM_REWARD,10),
-            (NUM_WAIT,14)
 ]
 class EventFilterTests(unittest.TestCase):
-
-    def test_get_matching_events(self):
-        wait_events_in_list = get_matching_events(event_log_events_in_str, 'wait')
-        assert wait_events_in_list == expected_wait_events
-
-    def test_get_event_occurrences(self):
-        # Events as strings
-        NUM_REWARD_OCCURANCES = 2
-        reward_counts = get_event_occurrences(event_log_events_in_str,'reward')
-        assert reward_counts == NUM_REWARD_OCCURANCES
-
-        # Events as numbers
-        reward_counts = get_event_occurrences(event_log_with_events_in_number, NUM_REWARD)
-        assert reward_counts == NUM_REWARD_OCCURANCES
-
-        # A missing event
-        reward_counts = get_event_occurrences(event_log_events_in_str, 'banana')
-        assert reward_counts == 0
-
-    def test_calc_event_rate(self):
-
-        # Test with ints
-        aligned_events = np.array([[2, 7],
-            [2, 5],
-            [2, 3],
-            [2, 3],
-            [2, 4],
-            [2, 6]])
-        calculated_event_rate = calc_event_rate(aligned_events, 7)
-        expected_rate = 1/6.
-        np.testing.assert_equal(calculated_event_rate, expected_rate)
-
-        # Test with ints
-        aligned_events = np.array([[2, 7],
-            [2, 5],
-            [2, 3],
-            [2, 3],
-            [2, 4],
-            [2, 6]])
-        calculated_event_rate = calc_event_rate(aligned_events, [2,7])
-        expected_rate = np.array([1,1/6.])
-        np.testing.assert_equal(calculated_event_rate, expected_rate)
-
-
-        #set up test
-        aligned_events_str = np.array([['Go', 'Target 1', 'Target 1'],
-                ['Go', 'Target 2', 'Target 2'],
-                ['Go', 'Target 4', 'Target 1'],
-                ['Go', 'Target 1', 'Target 2'],
-                ['Go', 'Target 2', 'Reward'],
-                ['Go', 'Target 3', 'Target 1']])
-        
-        expected_reward_rate = 1.0/6.0
-
-        calculated_reward_rate = calc_event_rate(aligned_events_str, ['Reward'])
-        np.testing.assert_equal(expected_reward_rate, calculated_reward_rate)
-
-        calculated_event_rates = calc_event_rate(aligned_events_str, ['Go','Reward'])
-        expected_event_rates = np.array([1.0, 1.0/6.0])
-
-        np.testing.assert_equal(calculated_event_rates, expected_event_rates)
-        
 
     def test_trial_align_events(self):
         # test trial_separate
@@ -436,12 +343,18 @@ class EventFilterTests(unittest.TestCase):
         time_after = 10
         trigger_times = np.array([5, 55])
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        print(trial_aligned)
         self.assertEqual(len(trial_aligned), len(trigger_times))
         self.assertTrue(np.allclose(trial_aligned[0], np.arange(5, 15)))
         self.assertTrue(np.allclose(trial_aligned[1], np.arange(55, 65)))
         data = np.ones((100,2))
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
+
+        # Test if trigger_times is after the length of data
+        data = np.arange(50)
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        np.allclose(trial_aligned, np.arange(5,15))
 
     def test_trial_align_times(self):
         timestamps = np.array([2, 6, 7, 10, 25, 27])
