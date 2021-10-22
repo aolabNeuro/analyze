@@ -208,6 +208,9 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         y (list): list of y positions
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
+
+    Returns:
+        mappable: image object which you can use to add colorbar, etc.
     '''
     # Calculate the proper extents
     if data_map.size > 1:
@@ -225,22 +228,25 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Plot
     if ax is None:
         ax = plt.gca()
-    ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
+    return image
+
 def plot_raster(data, cue_bin=None, ax=None):
     '''
-       Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
+    Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
 
-        .. image:: _images/raster_plot_example.png
+    .. image:: _images/raster_plot_example.png
 
-       Args:
-            data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
-            cue_bin (float): time bin at which an event occurs. Leave as 'None' to only plot data. For example: Use this to indicate 'Go Cue' or 'Leave center' timing.
-            ax (plt.Axis): axis to plot raster plot
-       Returns:
-           raster plot in appropriate axis
+    Args:
+        data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
+        cue_bin (float): time bin at which an event occurs. Leave as 'None' to only plot data. For example: Use this to indicate 'Go Cue' or 'Leave center' timing.
+        ax (plt.Axis): axis to plot raster plot
+        
+    Returns:
+        None: raster plot plotted in appropriate axis
     '''
     if ax is None:
         ax = plt.gca()
