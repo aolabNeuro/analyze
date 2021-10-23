@@ -133,7 +133,18 @@ To add math to an .rst file of your choice:
 
 ::
 
+    Math equation on its own line:
     .. math:: 
 
         \frac{ \sum_{t=0}^{N}f(t,k) }{N}
 
+Math equation on its own line:
+    .. math:: 
+
+        \frac{ \sum_{t=0}^{N}f(t,k) }{N}
+
+::
+
+    Inline math: :math:`\theta`
+
+Inline math: :math:`\theta`

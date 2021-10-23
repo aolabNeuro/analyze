@@ -24,7 +24,7 @@ Some commonly used variables:
 +---------------+-------------+---------------------------------------+-------+
 | variable name | type        | description                           | count |
 +===============+=============+=======================================+=======+
-| data\_dir     | str         | directory where data is located       | 28    |
+| data_dir      | str         | directory where data is located       | 28    |
 +---------------+-------------+---------------------------------------+-------+
 | exp_data      | dict        | dictionary containing experiment data | 24    |
 +---------------+-------------+---------------------------------------+-------+
