@@ -191,20 +191,19 @@ def calc_spike_threshold(spike_filt_data, high_threshold=True, rms_multiplier=3)
         return mean_input_data-(rms_multiplier*rms_values)
 
 
-def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True, tbefore_wf=200, wf_length=1000, refractory_period=200):
+def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf_length=1000, tbefore_wf=200):
     '''
     This function calculates spike times based on threshold crossing of the input data and returns the waveforms if 'wf_length' is not None. 
     If the threshold desired is a negative value (i.e. extracellular recordings) set 'above_thresh' to False. 
-    Data must exceed the threshold instead of equaling it. This function always assumes the first threshold crossing is a good spike.
+    Data must exceed the threshold instead of equaling it. 
 
     Args:
         spike_filt_data (nt, nch): Time series neural data to detect spikes and extract waveforms from.
         samplerate (float): Sampling rate [Hz]
-        threshold (nch): Threshold input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. 
+        threshold (nch): Threshold that input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. 
         above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
-        tbefore_wf (float): Length of waveform to include before spike detection time [us]. Defaults to 200us
-        wf_length (float): Length of waveforms to output [us]. Actual length will be rounded up. If set to 'None', waveforms will not be returned.
-        refractory_period (float): Length of time after a spike is detected before another spike can be detected [us]. Defaults to 200us.
+        wf_length (float): Length of waveforms to output :math:`[\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\mu s`
+        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\mu s]`. Defaults to 200 :math:`\mu s`  
         
     Returns: 
         tuple: Tuple containing:
@@ -226,26 +225,18 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True, tbe
     for ich in range(nch):
         # Spike times
         all_spike_times, _ = preproc.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
-        non_refrac_spike_times_idx = np.where(np.diff(all_spike_times, prepend=0) > refractory_period*(1e-6))[0]
-        
-        # Assume first spike is always good. If it isn't included, add it back in
-        if len(np.where(non_refrac_spike_times_idx==0)[0])==0:
-            non_refrac_spike_times_idx = np.insert(non_refrac_spike_times_idx,0,0)
-        
-        temp_spike_times = all_spike_times[non_refrac_spike_times_idx]
-        spike_times.append(temp_spike_times)
-
+        spike_times.append(all_spike_times)
 
         # Spike waveforms
         if wf_length is not None:
             wf_idx_length = math.ceil(samplerate*(wf_length*(1e-6)))
-            nspikes = len(temp_spike_times)
+            nspikes = len(all_spike_times)
 
             temp_spike_waveforms = np.zeros((nspikes, wf_idx_length))
             temp_spike_waveforms[:] = np.nan
 
             for ispike in range(nspikes):
-                starttime = temp_spike_times[ispike]-(tbefore_wf*(1e-6))
+                starttime = all_spike_times[ispike]-(tbefore_wf*(1e-6))
                 startidx = int(np.round(starttime*samplerate, decimals=0))
                 stopidx = startidx + wf_idx_length
 
@@ -255,6 +246,80 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True, tbe
             spike_waveforms.append(temp_spike_waveforms)
 
     return spike_times, spike_waveforms
+
+def filter_spike_times_fast(spike_times, refractory_period=100):
+    '''
+    This function takes spike times and filters them to remove spikes within the refractory period of the preceding spike. This function always assumes the first threshold crossing is a good spike.
+    Note: This function will remove spikes that are in the refractory period of the preceding spike even if the the preceding spike is in the refractory period of its preceding spike even though that spike shouldn't be removed.
+    For example if the refractory period is set to 100 :math:`\mu s` and there are spikes at 50 :math:`\mu s`, 125 :math:`\mu s`, and 200 :math:`\mu s`, the spikes at 125 :math:`\mu s` and 200 :math:`\mu s` will be removed even though only the 125 :math:`\mu s` spike should be removed.
+    If the refractory period is small enough this shouldn't be a problem. For more thorough spike time filter use aopy.precondition.filter_spike_times although it takes ~50x longer.
+
+    Args:
+        spike_times (nspikes): 1D array of spike times.
+        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\mu s]`. Defaults to 100 :math:`\mu s`.
+
+    Returns: 
+        tuple: A tuple containing:
+            | **filtered_spike_times (ngoodspikes):** Spikes times after preliminary filtering to remove spikes within the refractory period of the preceding spike.
+            | **filtered_spike_idx (ngoodspikes):** Indices corresponding to accepted spike times
+    '''
+    filtered_spike_idx = np.where(np.diff(spike_times, prepend=0) > refractory_period*(1e-6))[0]
+
+    # Assume first spike is always good. If it isn't included, add it back in
+    if len(np.where(filtered_spike_idx==0)[0])==0:
+        filtered_spike_idx = np.insert(filtered_spike_idx,0,0)
+
+    filtered_spike_times = spike_times[filtered_spike_idx]
+
+    return filtered_spike_times, filtered_spike_idx
+
+def filter_spike_times(spike_times, refractory_period=100):
+    '''
+    This function takes spike times and filters them to remove spikes within the refractory period of the preceding spike. This function always assumes the first threshold crossing is a good spike.
+    This function works by jumping to and recording the next spike time after the refractory period ends from the current spike.
+
+    Args:
+        spike_times (nspikes): 1D array of spike times.
+        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\mu s]`. Defaults to 100 :math:`\mu s` .
+
+    Returns: 
+        tuple: A tuple containing:
+            | **filtered_spike_times (ngoodspikes):** Spikes times after preliminary filtering to remove spikes within the refractory period of the preceding spike.
+            | **filtered_spike_idx (ngoodspikes):** Indices corresponding to accepted spike times
+    '''
+
+    nspikes = len(spike_times)
+    filtered_spike_idx = np.zeros(nspikes, dtype=int)
+    filtered_spike_idx[0] = spike_times[0] # Store first spike time
+    
+    ispike = 0
+    counter = 0
+  
+    while ispike <= nspikes:
+        
+        # Store current spike time
+        current_spike_time = spike_times[ispike]
+        filtered_spike_idx[counter] = ispike
+
+        # Get next acceptable spike time and idx
+        remaining_spikes = np.where(spike_times > current_spike_time+(refractory_period*(1e-6)))[0]
+        
+        # If there is no next spike, exit loop, else store it.
+        if len(remaining_spikes) == 0:
+          break
+        else:
+          ispike = remaining_spikes[0]
+
+        counter += 1
+
+    # Remove trailing zeros
+    filtered_spike_idx = np.trim_zeros(filtered_spike_idx, 'b')
+    
+    # Get filtered spike times
+    filtered_spike_times = spike_times[filtered_spike_idx]
+
+    return filtered_spike_times, filtered_spike_idx
+
 
 def bin_spikes(data, fs, bin_width):
     '''

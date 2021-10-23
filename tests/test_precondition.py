@@ -173,6 +173,16 @@ class SpikeDetectionTests(unittest.TestCase):
         np.testing.assert_allclose(spike_times[2], np.array((0.3)))
         self.assertEqual(len(wfs), 0)
 
+        # Test uneven threshold detection.
+        data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
+        threshold_values = np.array((2, 5, 0.5))
+        spike_times, wfs = precondition.detect_spikes(-data, 10, threshold=-threshold_values, above_thresh=False, wf_length=None)
+        np.testing.assert_allclose(spike_times[0], np.array((0.1, 0.3)))
+        np.testing.assert_allclose(spike_times[1], np.array((0.2)))
+        np.testing.assert_allclose(spike_times[2], np.array((0.3)))
+        self.assertEqual(len(wfs), 0)
+
+
         # Test waveforms
         large_data = np.zeros((20,4))
         threshold = np.array([2.5,7.5,12.5,17.5])
@@ -187,21 +197,49 @@ class SpikeDetectionTests(unittest.TestCase):
         np.testing.assert_allclose(wfs[2], np.array((12,13,14)).reshape(1,-1))
         np.testing.assert_allclose(wfs[3], np.array((np.nan,np.nan,np.nan)).reshape(1,-1))
 
-        # Test refractory period
-        data = np.array(((0,0),(1,1),(0,0),(1,0),(0,0),(0,0),(1,1)))
-        threshold = np.array((0.5,0.5))
-        spike_times, _ = precondition.detect_spikes(data,1,threshold=threshold,tbefore_wf=1e6,wf_length=2e6,refractory_period=2e6)
-        np.testing.assert_allclose(spike_times[0], np.array((1,6)))
-        np.testing.assert_allclose(spike_times[1], np.array((1,6)))
-
         # Test speed
         test_speed_data = np.random.normal(size=(250000, 256))
         start = time.time()
         threshold = precondition.calc_spike_threshold(test_speed_data)
-        _, _ = spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, threshold=threshold, wf_length=10000)
+        spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, threshold=threshold, wf_length=10000)
         stop = time.time()
 
         print('Spike detection on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
+
+    def test_filter_spike_times_fast(self):
+        data = np.array(((0,0),(1,1),(0,0),(1,0),(0,0),(1,1)))
+        threshold = np.array((0.5,0.5))
+        spike_times, _ = precondition.detect_spikes(data,1,threshold=threshold,tbefore_wf=1e6,wf_length=2e6)
+        filtered_spike_times1, _ = precondition.filter_spike_times_fast(spike_times[0], refractory_period=2.5e6)
+        filtered_spike_times2, _ = precondition.filter_spike_times_fast(spike_times[1], refractory_period=2.5e6)
+        np.testing.assert_allclose(filtered_spike_times1, np.array((1)))
+        np.testing.assert_allclose(filtered_spike_times2, np.array((1,5)))
+
+    def test_filter_spike_times(self):
+        data = np.array(((0,0),(1,1),(0,0),(1,0),(0,0),(1,1)))
+        threshold = np.array((0.5,0.5))
+        spike_times, _ = precondition.detect_spikes(data,1,threshold=threshold,tbefore_wf=1e6,wf_length=2e6)
+        filtered_spike_times1, _ = precondition.filter_spike_times(spike_times[0], refractory_period=2.5e6)
+        filtered_spike_times2, _ = precondition.filter_spike_times(spike_times[1], refractory_period=2.5e6)
+        np.testing.assert_allclose(filtered_spike_times1, np.array((1,5)))
+        np.testing.assert_allclose(filtered_spike_times2, np.array((1,5)))
+
+    def test_filter_spike_times_speed(self):
+        test_speed_data = np.random.normal(size=(250000, 256))
+        threshold = precondition.calc_spike_threshold(test_speed_data)
+        spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, threshold=threshold, wf_length=10000)
+        
+        start = time.time()
+        for ich in range(len(spike_times)):
+            filtered_spike_times1, _ = precondition.filter_spike_times_fast(spike_times[ich], refractory_period=100)
+        stop = time.time()
+        print('Fast spike filtering on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
+
+        start = time.time()
+        for ich in range(len(spike_times)):
+            filtered_spike_times1, _ = precondition.filter_spike_times(spike_times[ich], refractory_period=100)
+        stop = time.time()
+        print('Regular spike filtering on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
 
     def test_binspikes(self):
         data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
