@@ -5,9 +5,9 @@
 from scipy import signal
 from scipy.signal import butter, lfilter, filtfilt
 import numpy as np
-
+import math
 import nitime.algorithms as tsa
-from . import analysis, preproc
+from . import analysis, preproc, utils
 '''
 Filter functions
 '''
@@ -213,7 +213,7 @@ def detect_spikes(spike_filt_data, samplerate, wf_length=1000, threshold=None):
     
     for ich in range(nch):
         # Spike times
-        temp_spike_times, _ = preproc.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
+        temp_spike_times, _ = utils.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
         spike_times.append(temp_spike_times)
 
         # Spike waveforms
