@@ -177,6 +177,19 @@ class EventFilterTests(unittest.TestCase):
         trial_aligned_times = trial_align_events(aligned_events, aligned_times, event_to_align)
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
 
+        event_log_events_in_str = [
+                    ('wait', 0.),
+                    ('target',1.),
+                    ('reward',4.),
+                    ('wait',5.),
+                    ('target',6.),
+                    ('reward',10.),
+                    ('wait',10.),
+                    ('target',11.),
+                    ('wait',18.),
+
+        ]
+
         events, times = zip(*event_log_events_in_str)
         event_to_align = 'wait'
 
