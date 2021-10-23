@@ -1,17 +1,13 @@
 # precondition.py
-# code for preconditioning neural data
+# Code for cleaning and preparing neural data for users to interact with,
+# for example: down-sampling, outlier detection, and initial filtering
+
 from scipy import signal
 from scipy.signal import butter, lfilter, filtfilt
-import math
 import numpy as np
-import os
-import matplotlib.pyplot as plt
-#
+import math
 import nitime.algorithms as tsa
-import nitime.utils as utils
-from nitime.viz import winspect
-from nitime.viz import plot_spectral_estimate
-from . import utils, analysis, preproc
+from . import analysis, utils
 '''
 Filter functions
 '''
@@ -155,8 +151,9 @@ def get_psd_welch(data, fs,n_freq = None):
         n_freq (int): no. of frequency points expected
 
     Returns:
-        f (ndarray) : frequency points vector
-        psd_est (ndarray): estimated power spectral density (PSD)
+        tuple: Tuple containing:
+            | **f (ndarray):** frequency points vector
+            | **psd_est (ndarray):** estimated power spectral density (PSD)
     '''
     if n_freq:
         f, psd = signal.welch(data, fs, average = 'median',nperseg=2*n_freq)
@@ -216,7 +213,7 @@ def detect_spikes(spike_filt_data, samplerate, wf_length=1000, threshold=None):
     
     for ich in range(nch):
         # Spike times
-        temp_spike_times, _ = preproc.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
+        temp_spike_times, _ = utils.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
         spike_times.append(temp_spike_times)
 
         # Spike waveforms

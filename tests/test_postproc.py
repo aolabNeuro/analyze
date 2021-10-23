@@ -147,7 +147,6 @@ class TestCalcFuncs(unittest.TestCase):
             [False, False],
             [False, True ]
         ]
-        print(frame_events)
         
         np.testing.assert_array_equal(expected_result, frame_events)
         np.testing.assert_array_equal(["penalty", "reward"], event_names)
