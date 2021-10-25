@@ -1,5 +1,7 @@
 # postproc.py
-# code for post-processing neural data
+# Code for post-processing neural data, including separating neural features such as 
+# LFP bands or spikes detection / binning
+
 import numpy as np
 import warnings
 
@@ -167,10 +169,8 @@ def sample_events(events, times, samplerate):
 
     Returns:
         tuple: tuple containing:
-            frame_events (nt, n_events): logical index of 'events' at the 
-                given sampling rate
-            event_names (n_events): list of event column names (sorted 
-                alphabetically)
+            | **frame_events (nt, n_events):** logical index of 'events' at the given sampling rate
+            | **event_names (n_events):** list of event column names (sorted alphabetically)
 
     '''
     n_samples = round(times[-1]*samplerate) + 1

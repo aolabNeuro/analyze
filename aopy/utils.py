@@ -1,11 +1,15 @@
 # utils.py
-# all extra utility functions belong here
+# Any extra utility functions belong here
+# Helper functions, math, other things that don't really pertain to neural data analysis
+
 import numpy as np
 import re
 from datetime import datetime
 import os
-import pickle
 
+'''
+Test signals
+'''
 def generate_test_signal(duration, samplerate, frequencies, amplitudes, noise_amplitude=0.):
     '''
     Generates a test time series signal with multiple frequencies, specified in freq, for T timelength at a sampling rate of fs
@@ -18,8 +22,9 @@ def generate_test_signal(duration, samplerate, frequencies, amplitudes, noise_am
         noise_amplitude (float, optional): amplitude of noise added on top of test signal
 
     Returns:
-        x (1D array): cosine wave with multiple frequencies (and noise)
-        t (1D array): time vector for x
+        tuple: Tuple containing:
+            | **x (1D array):** cosine wave with multiple frequencies (and noise)
+            | **t (1D array):** time vector for x
     '''
     n_samples = int(duration * samplerate)
     t = np.linspace(0, duration, n_samples, endpoint=False)
@@ -96,9 +101,8 @@ def count_unique_symbols(files):
 
     Returns:
         tuple: tuple containing:
-
-            unique_symbols (list): list of unique symbols
-            counts (list): list of counts for each unique symbol
+            | **unique_symbols (list):** list of unique symbols
+            | **counts (list):** list of counts for each unique symbol
     '''
     symbols = []
     for filename in files:
@@ -110,37 +114,205 @@ def count_unique_symbols(files):
 
     return unique_symbols[order], counts[order]
 
-def pkl_write(file_to_write, values_to_dump, write_dir):
+'''
+Digital calc
+'''
+def convert_analog_to_digital(analog_data, thresh=.3):
     '''
-    This functions write data into a pickle file.
-    
-    Args:
-        file_to_write (str): filename with '.pkl' extension
-        values_to_dump (any): values to write in a pickle file
-        write_dir (str): Path - where do you want to write this file
+    This function takes analog data and converts it to digital data given a 
+    threshold. It scales the analog to between 0 and 1 and uses thres as a 
+
+    Args: 
+        analog_data (nt, nch): Time series array of analog data
+        thresh (float, optional): Minimum threshold value to use in conversion
 
     Returns:
-        None
-
-    examples: pkl_write(meta.pkl, data, '/data_dir')
+        (nt, nch): Array of 1's or 0's indicating if the analog input was above threshold  
     '''
-    file = os.path.join(write_dir, file_to_write)
-    with open(file, 'wb') as pickle_file:
-        pickle.dump(values_to_dump, pickle_file)
+    # Scale data between 0 and 1 so that threshold is a percentange
+    minval = np.min(analog_data)
+    maxval = np.max(analog_data)
 
+    analog_data_scaled = (analog_data - minval)/maxval
 
-def pkl_read(file_to_read, read_dir):
+    # Initialize digital_data
+    digital_data = np.empty(analog_data_scaled.shape) # Default to empty 
+    digital_data[:] = np.nan
+
+    # Set any value less than the threshold to be 0
+    digital_data[analog_data_scaled < thresh] = 0
+
+    # Set any value greater than threshold to be 0
+    digital_data[analog_data_scaled >= thresh] = 1
+
+    # Check that there are no nan values in output data
+
+    return digital_data
+
+def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True):
     '''
-    This function takes in path to a pickle file and returns data as it is stored
-    
+    Finds the timestamp and corresponding value of all the bit flips in data. Assumes 
+    the first element in data isn't a transition
+
+    By default, also enforces that rising and falling edges must alternate, always taking the
+    last edge as the most valid one. For example::
+
+        >>> data = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
+        >>> ts, values = detect_edges(data, fs)
+        >>> print(values)
+        [3, 0, 3, 0, 7, 0]
+
     Args:
-        file_to_read (str): filename with '.pkl' extension
-        read_dir (str): Path to folder where the file is stored
+        digital_data (ntime x 1): masked binary data array
+        samplerate (int): sampling rate of the data used to calculate timestamps
+        rising (bool, optional): include low to high transitions
+        falling (bool, optional): include high to low transitions
+        check_alternating (bool, optional): if True, enforces that rising and falling
+            edges must be alternating
 
     Returns:
-        data in a format as it is stored
-
+        tuple: tuple containing:
+            | **timestamps (nbitflips):** when the bits flipped
+            | **values (nbitflips):** corresponding values for each change
     '''
-    file = os.path.join(read_dir, file_to_read)
-    this_dat = pickle.load(open(file, "rb"))
-    return this_dat
+
+    digital_data = np.squeeze(np.uint64(digital_data)) # important conversion for binary math
+    rising_idx = (~digital_data[:-1] & digital_data[1:]) > 0 # find low->high transitions
+    falling_idx = (~digital_data[1:] & digital_data[:-1]) > 0
+
+    # Find any non-alternating edges
+    invalid = np.zeros((len(digital_data)-1,), dtype='?')
+    if check_alternating:
+        all_edges = np.where(rising_idx | falling_idx)[0]
+        next_edge_rising = True
+        for idx in range(len(all_edges)):
+            this_idx = all_edges[idx]
+            if next_edge_rising and rising_idx[this_idx]:
+                # Expected rising and found rising
+                next_edge_rising = False 
+            elif not next_edge_rising and falling_idx[this_idx]:
+                # Expected falling and found falling
+                next_edge_rising = True 
+            elif idx > 0: # skip the first edge since there is no previous edge
+                # Unexpected; there must be an extra edge somewhere.
+                # We will count this one as valid and the previous one as invalid
+                prev_idx = all_edges[idx-1]
+                invalid[prev_idx] = True
+    
+    # Assemble final index    
+    logical_idx = np.zeros((len(digital_data)-1,), dtype='?')
+    if rising:
+        logical_idx |= rising_idx
+    if falling:
+        logical_idx |= falling_idx
+    logical_idx &= np.logical_not(invalid)
+    logical_idx = np.insert(logical_idx, 0, False) # first element never a transition
+
+    time = np.arange(np.size(digital_data))/samplerate
+    return time[logical_idx], digital_data[logical_idx]
+
+def mask_and_shift(data, bit_mask):
+    '''
+    Apply bit mask and shift data to the least significant set bit in the mask. 
+    For example,
+    mask_and_shift(0001000011110000, 1111111100000000) => 00010000
+    mask_and_shift(0001000011110000, 0000000011111111) => 11110000
+
+    Args:
+        data (ntime): digital data
+        bit_mask (int): which bits to filter
+
+    Returns:
+        (nt): masked and shifted data
+    '''
+
+    return np.bitwise_and(data, bit_mask) >> find_first_significant_bit(bit_mask)
+
+def find_first_significant_bit(x):
+    '''
+    Find first significant big. Returns the index, counting from 0, of the
+    least significant set bit in x. Helper function for mask_and_shift
+
+    Args:
+        x (int): a number
+
+    Returns:
+        int: index of first significant nonzero bit
+    '''
+    return (x & -x).bit_length() - 1 # no idea how it works! thanks stack overflow --LRS
+
+def convert_channels_to_mask(channels):
+    '''
+    Helper function to take a range of channels into a bitmask
+
+    Args:
+        channels (int array): 0-indexed channels to be masked
+    
+    Returns:
+        int: binary mask of the given channels
+    '''
+    try:
+        # Range of channels
+        _ = iter(channels)
+        channels = np.array(channels)
+        flags = np.zeros(64, dtype=int)
+        flags[channels] = 1
+        return int(np.dot(np.array([2**i for i in range(64)]), flags))
+    except:
+        
+        # Single channel
+        return int(1 << channels)
+
+def convert_digital_to_channels(data_64_bit):
+    '''
+    Converts 64-bit digital data from eCube into channels.
+
+    Args:
+        data_64_bit (n): masked 64-bit data, little-endian
+
+    Returns:
+        (n, 64): where channel 0 is least significant bit
+    '''
+
+    # Take the input, split into bytes, then unpack each byte, all little endian
+    packed = np.squeeze(np.uint64(data_64_bit)) # required conversion to unsigned int
+    unpacked = np.unpackbits(packed.view(np.dtype('<u1')), bitorder='little')
+    return unpacked.reshape((packed.size, 64))
+    
+def get_edges_from_onsets(onsets, pulse_width):
+    '''
+    This function calculates the values and timepoints corresponding to a given time series 
+    of pulse onsets (timestamp corresponding to the rising edge of a pulse). 
+    Args:
+        onsets (nonsets): Time point corresponding to a pulse onset. 
+        pulse_width (float): Pulse duration 
+    Returns:
+        tuple: tuple containing:
+            | **timestampes (2*nonsets + 1):** Timestamps of the rising and falling edges. Always starts at 0.
+            | **values (2*nonsets + 1):** Values corresponding to the output timestamps.
+    '''
+    timestamps = np.zeros((1+len(onsets)*2,))
+    values = np.zeros((1+len(onsets)*2,))
+    for t in range(len(onsets)):
+        timestamps[1+2*t] = onsets[t]
+        values[1+2*t] = 1
+        timestamps[2+2*t] = onsets[t]+pulse_width
+        values[2+2*t] = 0
+    return timestamps, values
+
+def max_repeated_nans(a):
+    '''
+    Utility to calculate the maximum number of consecutive nans
+
+    Args:
+        a (ndarray): input sequence
+
+    Returns:
+        int: max consecutive nans
+    '''
+    mask = np.concatenate(([False],np.isnan(a),[False]))
+    if ~mask.any():
+        return 0
+    else:
+        idx = np.nonzero(mask[1:] != mask[:-1])[0]
+        return (idx[1::2] - idx[::2]).max()

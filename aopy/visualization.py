@@ -1,5 +1,5 @@
 # visualization.py
-# code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
+# Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 
 import seaborn as sns
 import matplotlib
@@ -61,6 +61,7 @@ def plot_timeseries(data, samplerate, ax=None):
 
     Example:
         Plot 50 and 100 Hz sine wave.
+
         ::
             data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
             samplerate = 1000
@@ -91,6 +92,7 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
 
     Example:
         Plot 50 and 100 Hz sine wave amplitude spectrum. 
+
         ::
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000
@@ -189,6 +191,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
 
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        
         ::
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
@@ -208,13 +211,18 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         y (list): list of y positions
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
+
+    Returns:
+        mappable: image object which you can use to add colorbar, etc.
     '''
     # Calculate the proper extents
-    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
-
-    x_spacing = (extent[1] - extent[0]) / (data_map.shape[0] - 1)
-    y_spacing = (extent[3] - extent[2]) / (data_map.shape[1] - 1)
-    extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+    if data_map.size > 1:
+        extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+        x_spacing = (extent[1] - extent[0]) / (data_map.shape[0] - 1)
+        y_spacing = (extent[3] - extent[2]) / (data_map.shape[1] - 1)
+        extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+    else:
+        extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
 
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
@@ -223,39 +231,33 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Plot
     if ax is None:
         ax = plt.gca()
-    ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
+    return image
 
-def plot_raster(data, plot_cue, cue_bin, ax):
+def plot_raster(data, cue_bin=None, ax=None):
     '''
-       Create a raster plot of neural data
+    Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
 
-       Args:
-            data (n_trials, n_neurons, n_timebins): neural spiking data (not spike count- must contain only 0 or 1) in the form of a three dimensional matrix
-            plot_cue : If plot_cue is true, a vertical line showing when this event happens is plotted in the rastor plot
-            cue_bin : time bin at which an event occurs. For example: Go Cue or Leave center
-            ax: axis to plot rastor plot
+    .. image:: _images/raster_plot_example.png
+
+    Args:
+        data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
+        cue_bin (float): time bin at which an event occurs. Leave as 'None' to only plot data. For example: Use this to indicate 'Go Cue' or 'Leave center' timing.
+        ax (plt.Axis): axis to plot raster plot
         
-       Returns:
-           raster plot in appropriate axis
+    Returns:
+        None: raster plot plotted in appropriate axis
     '''
-    n_trial = np.shape(data)[0]
-    n_neurons = np.shape(data)[1]
-    n_bins = np.shape(data)[2]
+    if ax is None:
+        ax = plt.gca()
 
-    color_palette = sns.set_palette("Accent", n_neurons)  # TODO: make this into a separate function
-    for n in range(n_neurons):  # set this to 1 if we need rastor plot for only one neuron
-        for tr in range(n_trial):
-            for t in range(n_bins):
-                if data[n, tr, t] == 1:
-                    x1 = [tr, tr + 1]
-                    x2 = [t, t]
-                    ax.plot(x2, x1, color=color_palette(n))
-    if plot_cue:
+    ax.eventplot(data.T, color='black')
+    
+    if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
-
 
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
     '''
@@ -379,6 +381,7 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
     Example:
         Plot four peripheral and one central target.
         ::
+        
             target_position = np.array([
                 [0, 0, 0],
                 [1, 1, 0],
@@ -453,6 +456,7 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     Example:
         Two random trajectories.
         ::
+
             trajectories =[
                 np.array([
                     [0, 0, 0],
@@ -504,7 +508,6 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     Example:
 
         ::
-
             >>> trajectories =[
                     np.array([
                         [0, 0, 0],
@@ -524,7 +527,7 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
             >>> colors = ['r', 'b']
             >>> color_trajectories(trajectories, labels, colors)
 
-        .. image:: _images/colored_trajectories.png
+        .. image:: _images/color_trajectories.png
 
     Args:
         trajectories (ntrials): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
@@ -553,8 +556,8 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     
     Example:
         Plotting success rate averaged across days.
-        ::
 
+        ::
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
             success = [70, 65, 65]
@@ -620,8 +623,8 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     
     Example:
         Plotting success rate over three sessions.
-        ::
 
+        ::
             success = [70, 65, 60]
             trials = [10, 20, 10]
 
@@ -691,3 +694,36 @@ def plot_events_time(events, event_timestamps, labels, ax=None, colors=['tab:blu
     ax.set_yticklabels(labels)
 
     ax.set_xlabel('Time (s)') 
+
+def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
+    '''
+    This function plots the input waveforms on the same figure and can overlay the mean if requested
+
+    .. image:: _images/waveform_plot_example.png
+
+    Args:
+        waveforms (nt, nwfs): Array of waveforms to plot
+        samplerate (float): Sampling rate of waveforms to calculate time axis. [Hz]
+        plot_mean (bool): Indicate if the mean waveform should be plotted. Defaults to plot mean.
+        ax (axes handle): Axes to plot
+    '''
+
+    if ax is None:
+        ax = plt.gca()
+    
+    time_axis = (1e6)*np.arange(waveforms.shape[0])/samplerate
+
+    if plot_mean:
+        ax.plot(time_axis, waveforms, color='black', alpha=0.5)
+        mean_waveform = np.nanmean(waveforms, axis=1)
+        ax.plot(time_axis, mean_waveform, color='red')
+    else:
+        ax.plot(time_axis, waveforms)
+
+    ax.set_xlabel(r'Time ($\mu$s)')
+
+
+
+
+
+

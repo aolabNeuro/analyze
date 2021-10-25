@@ -6,6 +6,7 @@ Welcome to aopy's documentation!
    :caption: Contents:
 
    quickstart
+   contributing
    analysis
    data
    postproc

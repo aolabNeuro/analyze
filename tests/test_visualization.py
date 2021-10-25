@@ -5,6 +5,7 @@ import numpy as np
 import os
 
 test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
@@ -50,6 +51,45 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plt.figure()
         plot_spatial_map(interp_map, x_missing, y_missing)
         savefig(write_dir, filename)
+
+    def test_single_spatial_map(self):
+        data = 2.0
+        x_pos, y_pos = np.meshgrid(1,1)
+
+        data_map = get_data_map(data, x_pos, y_pos)
+        self.assertEqual(data_map[0], 2.0)
+        plt.figure()
+        plot_spatial_map(data_map, x_pos, y_pos)
+        plt.show()
+
+    def test_plot_raster(self):
+        filename = 'raster_plot_example.png'
+        np.random.seed(0)
+        data = np.random.random([50, 6])
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        plot_raster(data, cue_bin=0.2, ax=ax)
+        savefig(write_dir, filename)
+
+    def test_plot_waveforms(self):
+        # load example waveform data
+        data_filename = 'example_wfs.npy'
+        filepath = os.path.join(data_dir, data_filename)
+        with open(filepath, 'rb') as f:
+            wfs = np.load(f)
+        
+        filename = 'waveform_plot_example.png'
+        fig = plt.figure()
+        ax = fig.add_subplot(121)
+        ax.set_title('Mean on')
+        plot_waveforms(wfs, 40000)
+
+        ax = fig.add_subplot(122)
+        plot_waveforms(wfs, 40000, plot_mean=False)
+        ax.set_title('Mean off')
+        fig.tight_layout()
+        savefig(write_dir, filename)
+    
 
 class AnimationTests(unittest.TestCase):
 
