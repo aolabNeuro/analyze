@@ -76,7 +76,7 @@ Curve fitting
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
 def tuning_fit_func(target, b1, b2, b3):
     '''
-
+    Tuning function to be used in :func:`aopy.analysis.run_curvefitting`
     Args:
         target (int) center out task target index ( takes values from 0 to 7)
         b1, b2, b3 : parameters used for curve fitting
@@ -86,6 +86,8 @@ def tuning_fit_func(target, b1, b2, b3):
         b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
     Returns: result from above equation
+
+    See Also: :func:`aopy.analysis.run_curvefitting` , :func:`aopy.analysis.get_preferred_direction`, :func:`aopy.analysis.get_modulation_depth`
 
     '''
     theta = 45 * (target - 1)
@@ -99,7 +101,7 @@ def get_modulation_depth(b1, b2):
         b1, b2 (float) : values from curve fitting
     returns:
         modulation direction from curve fitting parameters
-    See Also: :ref: 'get_preferred_direction()'
+    See Also: :func:`aopy.analysis.get_preferred_direction`, :func:`aopy.analysis.run_curvefitting`, :func:`aopy.analyze.tuning_fit_func`
     
     .. math::
     
@@ -116,7 +118,7 @@ def get_preferred_direction(b1, b2):
         b1, b2 (float) : values from curve fitting
     returns:
         preferred direction from curve fitting parameters
-    See Also: :ref: 'get_modulation_depth()'
+    See Also: See Also: :func:`aopy.analysis.run_curvefitting` , :func:`aopy.analysis.tuning_fit_func`, :func:`aopy.analysis.get_modulation_depth`
 
     .. math:: 
         
@@ -175,7 +177,7 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
         modulation depth (Numpy array) : Modulation depth of neuron
         preferred direction (Numpy array) : preferred direction of neurons
 
-    See Also: :ref: `tuning_fit_func` :ref: `get_preferred_direction` :ref:`get_modulation_depth`
+    See Also: :func:`aopy.analysis.tuning_fit_func` , :func:`aopy.analysis.get_preferred_direction`, :func:`aopy.analysis.get_modulation_depth`
     '''
     params_day = []
     mod_depth = []
