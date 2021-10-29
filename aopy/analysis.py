@@ -74,7 +74,7 @@ Curve fitting
 
 
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
-def func(target, b1, b2, b3):
+def tuning_fit_func(target, b1, b2, b3):
     '''
 
     Args:
@@ -95,6 +95,11 @@ def func(target, b1, b2, b3):
 def get_modulation_depth(b1, b2):
     '''
     Calculates modulation depth from curve fitting parameters as follows:
+    Args:
+        b1, b2 (float) : values from curve fitting
+    returns:
+        modulation direction from curve fitting parameters
+    See Also: :ref: 'get_preferred_direction()'
     
     .. math::
     
@@ -107,7 +112,12 @@ def get_modulation_depth(b1, b2):
 def get_preferred_direction(b1, b2):
     '''
     Calculates preferred direction from curve fitting parameters as follows:
-    
+    Args:
+        b1, b2 (float) : values from curve fitting
+    returns:
+        preferred direction from curve fitting parameters
+    See Also: :ref: 'get_modulation_depth()'
+
     .. math:: 
         
         arctan(\\frac{b_1^2}{b_2^2})
@@ -164,6 +174,8 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
         params_day (Numpy array) : Curve fitting parameters
         modulation depth (Numpy array) : Modulation depth of neuron
         preferred direction (Numpy array) : preferred direction of neurons
+
+    See Also: :ref: `tuning_fit_func` :ref: `get_preferred_direction` :ref:`get_modulation_depth`
     '''
     params_day = []
     mod_depth = []
@@ -178,7 +190,7 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
         ydata = np.array(means)[:, this_neuron]
     # print(ydata)
 
-        params, params_cov = curve_fit(func, xdata, ydata)
+        params, params_cov = curve_fit(tuning_fit_func, xdata, ydata)
         # print(params)
         params_day.append(params)
 
@@ -188,7 +200,7 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
         if make_plot:
             plt.subplot(n_subplot_rows, n_subplot_cols, this_neuron + 1)
             plt.plot(xdata, ydata, 'b-', label='data')
-            plt.plot(xdata, func(xdata, params[0], params[1], params[2]), 'b--', label='fit')
+            plt.plot(xdata, tuning_fit_func(xdata, params[0], params[1], params[2]), 'b--', label='fit')
             plt.suptitle(fig_title, y=1.01)
             plt.ylim(0, 600)
             plt.xticks(np.arange(1, 8, 2))
