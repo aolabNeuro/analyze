@@ -74,18 +74,20 @@ Curve fitting
 
 
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
-def func(target, b1, b2, b3):
+def tuning_fit_func(target, b1, b2, b3):
     '''
-
+    Tuning function to be used in :func:`aopy.analysis.run_curvefitting`
     Args:
         target (int) center out task target index ( takes values from 0 to 7)
         b1, b2, b3 : parameters used for curve fitting
 
     .. math::
-    
+
         b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
     Returns: result from above equation
+
+    See Also: :func:`aopy.analysis.run_curvefitting` , :func:`aopy.analysis.get_preferred_direction`, :func:`aopy.analysis.get_modulation_depth`
 
     '''
     theta = 45 * (target - 1)
@@ -95,9 +97,14 @@ def func(target, b1, b2, b3):
 def get_modulation_depth(b1, b2):
     '''
     Calculates modulation depth from curve fitting parameters as follows:
-    
+    Args:
+        b1, b2 (float) : values from curve fitting
+    returns:
+        modulation direction from curve fitting parameters
+    See Also: :func:`aopy.analysis.get_preferred_direction`, :func:`aopy.analysis.run_curvefitting`, :func:`aopy.analyze.tuning_fit_func`
+
     .. math::
-    
+
         \\sqrt{b_1^2+b_2^2}
 
     '''
@@ -107,11 +114,16 @@ def get_modulation_depth(b1, b2):
 def get_preferred_direction(b1, b2):
     '''
     Calculates preferred direction from curve fitting parameters as follows:
-    
-    .. math:: 
-        
+    Args:
+        b1, b2 (float) : values from curve fitting
+    returns:
+        preferred direction from curve fitting parameters
+    See Also: See Also: :func:`aopy.analysis.run_curvefitting` , :func:`aopy.analysis.tuning_fit_func`, :func:`aopy.analysis.get_modulation_depth`
+
+    .. math::
+
         arctan(\\frac{b_1^2}{b_2^2})
-        
+
     '''
     return np.arctan2(b2 ** 2, b1 ** 2)
 
@@ -147,10 +159,11 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
         n_cols (int) : No. of cols in subplot
 
     Returns:
-        tuple: Tuple containing:
-            | **params_day (Numpy array):** Curve fitting parameters
-            | **modulation depth (Numpy array):** Modulation depth of neuron
-            | **preferred direction (Numpy array):** preferred direction of neurons
+        params_day (Numpy array) : Curve fitting parameters
+        modulation depth (Numpy array) : Modulation depth of neuron
+        preferred direction (Numpy array) : preferred direction of neurons
+
+    See Also: :func:`aopy.analysis.tuning_fit_func` , :func:`aopy.analysis.get_preferred_direction`, :func:`aopy.analysis.get_modulation_depth`
     '''
     params_day = []
     mod_depth = []
@@ -183,7 +196,7 @@ def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_
 
 def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD"):
     '''
-    A wrapper around get_trial_segments which counts the number of trials with a reward event 
+    A wrapper around get_trial_segments which counts the number of trials with a reward event
     and divides by the total number of trials to calculate success rate
 
     Args:
@@ -215,7 +228,7 @@ def find_trough_peak_idx(unit_data):
     Returns:
         tuple: A tuple containing
             | **troughidx (nch):** Array of indices corresponding to the trough time for each channel
-            | **peakidx (nch):** Array of indices corresponding ot the peak time for each channel. 
+            | **peakidx (nch):** Array of indices corresponding ot the peak time for each channel.
     '''
     # Handle condition where the input data is a 1D array
     if len(unit_data.shape) == 1:
@@ -261,9 +274,9 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
                                 should be used to extrapolate a peak index.
         
     Returns:
-        tuple: A tuple containing         
-            | **extremum_time (float):** Interpolated (or extrapolated) peak time        
-            | **extremum_value (float):** Approximated peak value.        
+        tuple: A tuple containing
+            | **extremum_time (float):** Interpolated (or extrapolated) peak time
+            | **extremum_value (float):** Approximated peak value.
             | **f (np.poly):** Polynomial used to calculate peak time
     '''
 
@@ -316,7 +329,7 @@ def get_unit_spiking_mean_variance(spiking_data):
 
     return unit_mean, unit_variance
 
-  
+
 '''
 KALMAN FILTER 
 '''
@@ -336,6 +349,11 @@ class KFDecoder(object):
     """
 
     def __init__(self, C=1):
+        '''
+        Args:
+        C (float): kalman gain, optional, scales the noise matrix associated with the transition in kinematic states
+        '''
+
         self.C = C
 
     def fit(self, X_kf_train, y_train):
@@ -350,10 +368,15 @@ class KFDecoder(object):
             This is the outputs that are being predicted
 
         Calculations for A,W,H,Q are as follows:
-        .. math:: A = X2*X1' (X1*X1')^{-1}
-        .. math:: W = \frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
-        .. math:: H = Y*X'(X*X')^{-1}
-        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
+
+        .. math:: A = X2@X1' (X1@X1')^{-1}
+
+        .. math:: W = \frac{(X_2 - A@X_1)(X_2 - A@X_1)'}{(T - 1)}
+
+        .. math:: H = Y@X'(X@X')^{-1}
+
+        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{T}
+
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -493,7 +516,7 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
         project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
 
     Returns:
-        tuple: Tuple containing: 
+        tuple: Tuple containing:
             | **explained_variance (list):** variance accounted for by each principal component
             | **num_dims (int):** number of principal components required to account for variance
             | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
@@ -556,7 +579,7 @@ def find_outliers(data, std_threshold):
         std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
         
     Returns:
-        tuple: Tuple containing: 
+        tuple: Tuple containing:
             | **good_data_idx [n]:** Labels each data point if it is an outlier (True = good, False = outlier)
             | **distances [n]:** Distance of each data point from center
     '''
@@ -582,7 +605,7 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-        | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
+        | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram)
         | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
     if np.ndim(data) < 2:
