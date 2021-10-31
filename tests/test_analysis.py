@@ -1,3 +1,4 @@
+from aopy.analysis import calc_success_rate
 import aopy
 import numpy as np
 import warnings
@@ -98,13 +99,20 @@ class PCATests(unittest.TestCase):
     # test variance accounted for
     def test_get_pca_dimensions(self):
         # test single dimension returns correctly
-        single_dim_data = [[2, 2, 2], [1, 1, 1], [1, 1, 1]]
+        single_dim_data = np.array([[2, 2, 2], [1, 1, 1], [1, 1, 1]])
         single_dim_VAF = [1.,0.,0.]
         single_num_dims = 1
 
-        VAF, num_dims = aopy.analysis.get_pca_dimensions(single_dim_data)
+        VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data)
         np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
+        self.assertEqual(proj_data, None)
+
+        # Test projection
+        single_dim_data = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]])
+        expected_single_dim_data = np.array([[0.75], [-0.25], [-0.25], [-0.25]])
+        VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data, project_data=True)
+        np.testing.assert_allclose(expected_single_dim_data, proj_data)
 
 class misc_tests(unittest.TestCase):
     def test_find_outliers(self):
@@ -138,6 +146,46 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
+    def test_calc_success_rate(self):
+        
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        success_rate = calc_success_rate(events, start_evt, end_events, reward_evt)
+        self.assertEqual(success_rate, 0.5)
+
+        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
+        start_events = [b"TARGET_ON"]
+        end_events = [b"REWARD", b"TRIAL_END"]
+        success_events = [b"REWARD"]
+        success_rate = calc_success_rate(events, start_events, end_events, success_events)
+        self.assertEqual(success_rate, 0.5)
+
+    def test_calc_freq_domain_amplitude(self):
+        data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
+        samplerate = 1000
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate)
+        self.assertEqual(freqs.size, 500)
+        self.assertEqual(ampls.size, 500)
+
+        # Expect 100 and 50 Hz peaks at 1 V each
+        self.assertAlmostEqual(ampls[freqs==100., 0][0], 1)
+        self.assertAlmostEqual(ampls[freqs==50., 0][0], 1)
+        self.assertAlmostEqual(ampls[freqs==25., 0][0], 0)
+
+        # Expect 1/sqrt(2) V RMS
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate, rms=True)
+        self.assertAlmostEqual(ampls[freqs==100., 0][0], 1/np.sqrt(2))
+
+        # Expect 2 channels with different signals
+        data = np.vstack((np.sin(np.pi*np.arange(1000)/10), np.sin(2*np.pi*np.arange(1000)/10))).T
+        freqs, ampls = aopy.analysis.calc_freq_domain_amplitude(data, samplerate)
+        self.assertEqual(freqs.size, 500)
+        self.assertEqual(ampls.shape[0], 500)
+        self.assertEqual(ampls.shape[1], 2)
+        self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
+        self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
 class CurveFittingTests(unittest.TestCase):
 

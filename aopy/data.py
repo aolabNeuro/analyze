@@ -1,5 +1,6 @@
 # data.py
-# code for accessing neural data collected by the aoLab
+# Code for directly loading and saving data (and results)
+
 import numpy as np
 from .whitematter import ChunkedStream, Dataset
 import h5py
@@ -9,6 +10,7 @@ import pandas as pd
 import os
 import glob
 import warnings
+import pickle
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -174,6 +176,20 @@ def load_optitrack_time(data_dir, filename):
     timestamps = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
     return timestamps
 
+
+def get_ecube_data_sources(data_dir):
+    '''
+    Lists the available data sources in a given data directory
+
+    Args: 
+        data_dir (str): eCube data directory
+
+    Returns:
+        str array: available sources (AnalogPanel, Headstages, etc.)
+    '''
+    dat = Dataset(data_dir)
+    return dat.listsources()
+    
 def load_ecube_metadata(data_dir, data_source):
     '''
     Sums the number of channels and samples across all files in the data_dir
@@ -238,8 +254,46 @@ def load_ecube_data(data_dir, data_source, channels=None):
         dtype = np.int16
 
     # Fetch all the data for all the channels
-    timeseries_data = _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype)
+    n_samples = metadata['n_samples']
+    timeseries_data = np.zeros((n_samples, len(channels)), dtype=dtype)
+    n_read = 0
+    for chunk in _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype):
+        chunk_len = chunk.shape[0]
+        timeseries_data[n_read:n_read+chunk_len,:] = chunk
+        n_read += chunk_len
     return timeseries_data
+
+def load_ecube_data_chunked(data_dir, data_source, channels=None, chunksize=728):
+    '''
+    Loads a data file one "chunk" at a time. Useful for replaying files as if they were online data.
+
+    Args:
+        data_dir (str): folder containing the data you want to load
+        data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
+        channels (int array or None): list of channel numbers (0-indexed) to load. If None, will load all channels by default
+        chunksize (int): how many samples to include in each chunk
+
+    Yields:
+        (chunksize, nch): one chunk of data for the given source
+    '''
+    # Read metadata, check inputs
+    metadata = load_ecube_metadata(data_dir, data_source)
+    if channels is None:
+        channels = range(metadata['n_channels'])
+    elif len(channels) > metadata['n_channels']:
+        raise ValueError("Supplied channel numbers are invalid")
+
+    # Datatype is currently fixed for each data_source
+    if data_source == 'DigitalPanel':
+        dtype = np.uint64
+    else:
+        dtype = np.int16
+    
+    # Fetch all the channels but just return the generator
+    n_samples = metadata['n_samples']
+    n_channels = metadata['n_channels']
+    kwargs = dict(maxchunksize=chunksize*n_channels*np.dtype(dtype).itemsize)
+    return _process_channels(data_dir, data_source, channels, n_samples, **kwargs)
 
 def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     '''
@@ -270,7 +324,12 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
     dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
 
     # Open and read the eCube data into the new hdf dataset
-    _process_channels(data_dir, data_source, range(n_channels), n_samples, data_out=dset, **dataset_kwargs)
+    n_read = 0
+    for chunk in _process_channels(data_dir, data_source, range(n_channels), n_samples, **dataset_kwargs):
+        chunk_len = chunk.shape[0]
+        dset[n_read:n_read+chunk_len,:] = chunk
+        n_read += chunk_len
+
     dat = Dataset(data_dir)
     dset.attrs['samplerate'] = dat.samplerate
     dset.attrs['data_source'] = data_source
@@ -278,20 +337,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
 
     return dset
 
-def get_ecube_data_sources(data_dir):
-    '''
-    Lists the available data sources in a given data directory
-
-    Args: 
-        data_dir (str): eCube data directory
-
-    Returns:
-        str array: available sources (AnalogPanel, Headstages, etc.)
-    '''
-    dat = Dataset(data_dir)
-    return dat.listsources()
-
-def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, data_out=None, debug=False, **dataset_kwargs):
+def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
     Reads data from an ecube data source by channel until the number of samples requested 
     has been loaded. If a processing function is supplied, it will be applied to 
@@ -307,11 +353,9 @@ def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, da
         debug (bool): whether the data is read in debug mode
         dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
         
-    Returns:
-        (nt, nch): Requested samples for requested channels
+    Yields:
+        (nt, nch): Chunks of the requested samples for requested channels
     '''
-    if data_out == None:
-        data_out = np.zeros((n_samples, len(channels)), dtype=dtype)
 
     dat = Dataset(data_dir, **dataset_kwargs)
     dat.selectsource(data_source)
@@ -324,13 +368,12 @@ def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, da
             data_chunk = next(datastream)
             data_len = np.shape(data_chunk)[1]
             if len(channels) == 1:
-                data_out[idx_samples:idx_samples+data_len,:] = data_chunk[channels,:].T 
+                yield data_chunk[channels,:].T 
             else:
-                data_out[idx_samples:idx_samples+data_len,:] = np.squeeze(data_chunk[channels,:]).T # this might be where you filter data
+                yield np.squeeze(data_chunk[channels,:]).T # this might be where you filter data
             idx_samples += data_len
         except StopIteration:
             break
-    return data_out
 
 def load_ecube_digital(path, data_dir):
     '''
@@ -618,6 +661,22 @@ def load_bmi3d_root_metadata(data_dir, filename):
 # dataframe every time someone calls the lookup functions
 _cached_dataframes = {}
 
+
+def is_table_in_hdf(table_name:str, hdf_filename:str):
+    """
+    Checks if a table exists in an hdf file' first level directory(i.e. non-recursively)
+
+    Args:
+        table_name(str): table name to be checked
+        hdf_filename(str): full path to the hdf file
+    
+    Returns: 
+        Boolean
+    """
+    with tables.open_file(hdf_filename, mode = 'r') as f:
+        return table_name in f.root
+
+
 def lookup_excel_value(data_dir, excel_file, from_column, to_column, lookup_value):
     '''
     Finds a matching value for the given key in an excel file. Used for looking up
@@ -828,7 +887,7 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
         str_include (list of strings): List of substrings that must be included in a string to keep it
         str_avoid (list of strings): List of substrings that can not be included in a string to keep it
         
-    Retruns:
+    Returns:
         (list of strings): List of strings fitting the input conditions
 
     Example::
@@ -838,6 +897,7 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
         >>> print(parsed_strings)
         ['sig002a_wf', 'sig002a_wf_ts']
     '''
+
     parsed_str = []
     
     for str_idx, str_val in enumerate(strings):
@@ -897,3 +957,40 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
                 strings.append(temp_string)
     
     return strings
+
+
+def pkl_write(file_to_write, values_to_dump, write_dir):
+    '''
+    Write data into a pickle file.
+    
+    Args:
+        file_to_write (str): filename with '.pkl' extension
+        values_to_dump (any): values to write in a pickle file
+        write_dir (str): Path - where do you want to write this file
+
+    Returns:
+        None
+
+    examples: pkl_write(meta.pkl, data, '/data_dir')
+    '''
+    file = os.path.join(write_dir, file_to_write)
+    with open(file, 'wb') as pickle_file:
+        pickle.dump(values_to_dump, pickle_file)
+
+
+def pkl_read(file_to_read, read_dir):
+    '''
+    Reads data stored in a pickle file.
+    
+    Args:
+        file_to_read (str): filename with '.pkl' extension
+        read_dir (str): Path to folder where the file is stored
+
+    Returns:
+        data in a format as it is stored
+
+    '''
+    file = os.path.join(read_dir, file_to_read)
+    with open(file, "rb") as f:
+        this_dat = pickle.load(f)
+    return this_dat
