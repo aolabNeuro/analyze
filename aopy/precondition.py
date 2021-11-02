@@ -308,7 +308,8 @@ def downsample(data, old_samplerate, new_samplerate):
 
 def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_cut=500., buttord=4):
     '''
-    Low-pass filter and return downsampled version of broadband data at default 1000 Hz.
+    Low-pass filter and return downsampled version of broadband data at default 1000 Hz. Default
+    filter parameters taken from Stavisky, Kao, et al., 2015
 
     Args:
         broadband_data (nt, ...): raw headstage data, e.g.
@@ -326,7 +327,8 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
 
 def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
     '''
-    Band-pass filter broadband data at default 500-7500 Hz.
+    Band-pass filter broadband data at default 500-7500 Hz. Default filtering parameters taken
+    from Stavisky, Kao, et al., 2015
 
     Args:
         broadband_data (nt, ...): raw headstage data, e.g.
