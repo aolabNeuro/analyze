@@ -25,6 +25,8 @@ class FakeDataTests(unittest.TestCase):
 
         # Remove any old data from the base_dir
         base_dir = os.path.join(write_dir, 'test_ecube_data')
+        if not os.path.exists(base_dir):
+            os.mkdir(base_dir)
         for filename in os.listdir(base_dir):
             file_path = os.path.join(base_dir, filename)
             os.remove(file_path)
