@@ -1,5 +1,8 @@
 from aopy.utils import *
 from aopy.visualization import plot_timeseries, savefig
+from aopy import data as aodata
+import matplotlib.pyplot as plt
+from matplotlib.testing.compare import compare_images
 import os
 import numpy as np
 import unittest
@@ -20,9 +23,14 @@ class FakeDataTests(unittest.TestCase):
 
         self.assertEqual(data.shape, (25000, 8))
 
-        # Pack it into bits
-        voltsperbit = 1e-4
+        # Remove any old data from the base_dir
         base_dir = os.path.join(write_dir, 'test_ecube_data')
+        for filename in os.listdir(base_dir):
+            file_path = os.path.join(base_dir, filename)
+            os.remove(file_path)
+
+        # Pack data into bits
+        voltsperbit = 1e-4
         if not os.path.exists(base_dir):
             os.mkdir(base_dir)
         filename = save_test_signal_ecube(data, base_dir, voltsperbit)
@@ -32,6 +40,20 @@ class FakeDataTests(unittest.TestCase):
         plot_timeseries(data, samplerate)
         figname = 'gen_test_signal.png'
         savefig(write_dir, figname)
+        expected = os.path.join(write_dir, figname)
+
+        del data
+        data, metadata = aodata.load_ecube_headstages(write_dir, 'test_ecube_data')
+        self.assertEqual(metadata['samplerate'], 25000)
+        self.assertEqual(data.shape, (25000, 8))
+
+        plt.figure()
+        plot_timeseries(data, metadata['samplerate'])
+        figname = 'load_test_signal.png'
+        savefig(write_dir, figname)
+        actual = os.path.join(write_dir, figname)
+
+        compare_images(expected, actual, 0.1)
 
     def test_generate_test_signal(self):
 
