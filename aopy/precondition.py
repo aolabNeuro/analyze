@@ -3,7 +3,7 @@
 # for example: down-sampling, outlier detection, and initial filtering
 
 from scipy import signal
-from scipy.signal import butter, lfilter, filtfilt
+from scipy.signal import butter, lfilter, filtfilt, decimate
 import numpy as np
 import math
 import nitime.algorithms as tsa
@@ -274,3 +274,70 @@ def bin_spikes(data, fs, bin_width):
 
     binned_spikes = binned_spikes/dT # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes
+
+def downsample(data, old_samplerate, new_samplerate):
+    '''
+    [summary]
+
+    Args:
+        data (nt, ...): [description]
+        old_samplerate ([type]): [description]
+        new_samplerate ([type]): [description]
+    '''
+    assert new_samplerate < old_samplerate
+    assert data.ndim < 3 # doesn't work for more than 2 dimensions
+
+    old_samples = data.shape[0]
+    downsample_factor = int(old_samplerate/new_samplerate)
+
+    # Pad the data to a multiple of the downsample factor
+    pad_size = math.ceil(float(old_samples)/downsample_factor)*downsample_factor - old_samples
+    pad_shape = (pad_size,)
+    if data.ndim > 1:
+        pad_shape = np.concatenate(([pad_size], data.shape[1:]))
+    data_padded = np.append(data, np.zeros(pad_shape)*np.NaN, axis=0)
+
+    # Downsample using average
+    if data.ndim > 1:
+        downsampled = np.zeros((int(data_padded.shape[0]/downsample_factor), data.shape[1]), dtype=data.dtype)
+        for idx in range(data.shape[1]):
+            downsampled[:,idx] = np.nanmean(data_padded[:,idx].reshape(-1, downsample_factor), axis=1)
+        return downsampled
+    else:
+        return np.nanmean(data_padded.reshape(-1, downsample_factor), axis=1)
+
+def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_cut=500., buttord=4):
+    '''
+    Low-pass filter and return downsampled version of broadband data at default 1000 Hz.
+
+    Args:
+        broadband_data (nt, ...): raw headstage data, e.g.
+        broadband_samplerate (float): sampling rate of the raw data
+        lfp_samplerate (float, optional): sampling rate of the LFP data. Defaults to 1000.
+        low_cut (float, optional): cutoff frequency for low-pass filter. Defaults to 500 Hz
+        buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
+
+    Returns:
+        (nt', ...): lfp data
+    '''
+    b, a = butter(buttord, low_cut, btype='lowpass', fs=broadband_samplerate)
+    filtered_data = filtfilt(b, a, broadband_data, axis=0)
+    return downsample(filtered_data, broadband_samplerate, lfp_samplerate)
+
+def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
+    '''
+    Band-pass filter broadband data at default 500-7500 Hz.
+
+    Args:
+        broadband_data (nt, ...): raw headstage data, e.g.
+        samplerate (float): sampling rate of the raw data
+        low_pass (float, optional): low-cut frequency, default 500 Hz
+        high_pass (float, optional): high-cut frequency, default 7500 Hz
+        buttord (int, optional): order for butterworth band-pass filter. Default 3
+
+    Returns:
+        (nt, ...): spike filtered data
+    '''
+    window = [low_pass, high_pass]
+    b, a = butter(buttord, window, btype='bandpass', fs=samplerate)
+    return filtfilt(b, a, broadband_data, axis=0)

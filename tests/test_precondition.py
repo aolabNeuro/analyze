@@ -142,6 +142,32 @@ class FilterTests(unittest.TestCase):
         fname = 'lfp_bandpower.png'
         savefig(write_dir, fname)
 
+    def test_downsample(self):
+        data = np.arange(100)
+        data_ds = precondition.downsample(data, 100, 10)
+        self.assertEqual(data_ds.shape, (10,))
+        self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
+
+        data = np.vstack((data, np.arange(100))).T
+        data_ds = precondition.downsample(data, 100, 10)
+        self.assertEqual(data_ds.shape, (10, 2))
+        self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
+
+    def test_filter_lfp(self):
+        
+        test_data = np.random.uniform(size=(100000,2))
+        filt = precondition.filter_lfp(test_data, 25000)
+        self.assertEqual(filt.shape, (100000/25, 2))
+        self.assertAlmostEqual(np.mean(test_data), np.mean(filt), places=3)
+
+    def test_filter_spikes(self):
+
+        test_data = np.random.uniform(size=(100000,2))
+        filt = precondition.filter_spikes(test_data, 25000)
+        self.assertEqual(filt.shape, test_data.shape)
+        self.assertNotAlmostEqual(np.mean(test_data), np.mean(filt), places=3) # After filtering these should be different
+
+
 class SpikeDetectionTests(unittest.TestCase):
         
     def test_calc_spike_threshold(self):
