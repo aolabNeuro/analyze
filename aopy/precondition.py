@@ -45,7 +45,7 @@ def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= Non
     Apply a digital butterworth filter forward and backward to a timeseries signal.
 
     Args:
-        data (array): neural data (n_channels x n_samples)
+        data (array): neural data (n_samples x n_channels)
         fs (int): sampling rate (in Hz)
         cutoff_freq(float): cut-off frequency (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
         bands (list): frequency bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
@@ -57,6 +57,8 @@ def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= Non
             | **filtered_data (list):** output bandpass filtered data in the form of a list. Each list item is filtered data in corresponding frequency band
             | **Wn (list):** frequency bands
     '''
+
+    data = data.T
 
     if filter_type == 'lowpass' or 'highpass':
         Wn = cutoff_freq
@@ -88,7 +90,7 @@ def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknif
      Computes power spectral density using Multitaper functions
 
     Args:
-        data (ndarray):  time series data where time axis is assumed to be on the last axis (n_channels , n_samples)
+        data (ndarray):  time series data where time axis is assumed to be on the last axis (n_samples, n_channels)
         fs (float): sampling rate of the signal
         NW (float): Normalized half bandwidth of the data tapers in Hz
         BW (float): sampling bandwidth of the data tapers in Hz
@@ -102,6 +104,8 @@ def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknif
             | **psd_est (ndarray):** estimated power spectral density (PSD)
             | **nu (ndarray):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
     '''
+    data = data.T
+    
     f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides )
     return f, psd_mt, nu
 
