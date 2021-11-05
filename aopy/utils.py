@@ -64,6 +64,12 @@ def save_test_signal_ecube(data, save_dir, voltsperbit):
     '''
     Create a binary file with eCube formatting using the given data
 
+    Note:
+        Importantly, the data and the voltsperbit must have reasonable values, otherwise
+        you will get clipping in the saved data. For instance, if the data ranges from 0-1000,
+        then the voltsperbit should be near to 1. Or if the data ranges from 0-0.001, then the
+        voltsperbit can be lower, around 1e-6. 
+
     Args:
         data (nt, nch): test_signal to save
         save_dir (str): where to save the file
@@ -73,21 +79,16 @@ def save_test_signal_ecube(data, save_dir, voltsperbit):
         str: filename of the new data
     '''
     intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
-    flatdata = data.reshape(-1)
-    timestamp = [1, 2, 3, 4]
-    flatdata = np.insert(flatdata, timestamp, 0)
+    flatdata = intdata.reshape(-1)
+    timestamp = np.array([1, 2, 3, 4], dtype='<i2')
 
     # Save it to the test file
     datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
     filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
     filepath = os.path.join(save_dir, filename)
     with open(filepath, 'wb') as f:
-        for _ in range(8):
-            f.write(np.byte(1)) # 8 byte timestamp
-        for t in range(intdata.shape[0]):
-            for ch in range(intdata.shape[1]):
-                f.write(np.byte(intdata[t,ch]))
-                f.write(np.byte(intdata[t,ch] >> 8))
+        f.write(timestamp)
+        f.write(flatdata.tobytes())
 
     return filename
 

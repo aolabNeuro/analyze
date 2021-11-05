@@ -19,9 +19,11 @@ class FakeDataTests(unittest.TestCase):
 
         # Generate a signal
         samplerate = 25000
-        data = generate_multichannel_test_signal(1, samplerate, 8, 6, 1)
+        duration = 2
+        channels = 8
+        data = generate_multichannel_test_signal(duration, samplerate, channels, 3, 1e-4)
 
-        self.assertEqual(data.shape, (25000, 8))
+        self.assertEqual(data.shape, (samplerate*duration, channels))
 
         # Remove any old data from the base_dir
         base_dir = os.path.join(write_dir, 'test_ecube_data')
@@ -32,7 +34,7 @@ class FakeDataTests(unittest.TestCase):
             os.remove(file_path)
 
         # Pack data into bits
-        voltsperbit = 1e-4
+        voltsperbit = 1.907348633e-7
         if not os.path.exists(base_dir):
             os.mkdir(base_dir)
         filename = save_test_signal_ecube(data, base_dir, voltsperbit)
@@ -47,15 +49,17 @@ class FakeDataTests(unittest.TestCase):
         del data
         data, metadata = aodata.load_ecube_headstages(write_dir, 'test_ecube_data')
         self.assertEqual(metadata['samplerate'], 25000)
-        self.assertEqual(data.shape, (25000, 8))
+        # self.assertEqual(metadata['voltsperbit'], voltsperbit) # TODO
+        self.assertEqual(data.shape, (samplerate*duration, channels))
 
         plt.figure()
-        plot_timeseries(data, metadata['samplerate'])
+        plot_timeseries(data*voltsperbit, metadata['samplerate'])
         figname = 'load_test_signal.png'
         savefig(write_dir, figname)
         actual = os.path.join(write_dir, figname)
 
-        compare_images(expected, actual, 0.1)
+        str = compare_images(expected, actual, 10) # TODO: They aren't perfectly the same
+        self.assertIsNone(str)
 
     def test_generate_test_signal(self):
 
