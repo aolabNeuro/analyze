@@ -128,7 +128,11 @@ class FilterTests(unittest.TestCase):
         psd = precondition.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
 
         fname = 'multitaper_powerspectrum.png'
-        plot_db_spectral_estimate(f, psd, psd_filter, 'multitaper')
+        plt.plot(f, psd, label='Welch')
+        plt.plot(f, psd_filter, label='Multitaper')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('PSD')
+        plt.legend()
         plt.show()
         savefig(write_dir, fname)
 
