@@ -402,7 +402,21 @@ class SignalPathTests(unittest.TestCase):
         dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, zero_indexing=True)
         np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
 
+    def test_map_acq2elec(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        elecs = np.array((1,100,150,200))
+        expected_acq_chs = np.array((58, 87, 158, 244))
 
+        acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
+        np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
+
+        # Test if electrodes requested are unconnected
+        elecs = np.array((1,100,33,155))
+        expected_acq_chs = np.array((58, 87, np.nan, np.nan))
+
+        acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
+        np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
 
 if __name__ == "__main__":
     unittest.main()
