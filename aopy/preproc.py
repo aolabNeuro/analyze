@@ -141,6 +141,42 @@ def fill_missing_timestamps(uncorrected_timestamps):
 
     return corrected_timestamps
 
+def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None):
+    '''
+    This function uses linear interpolation (np.interp) to convert timestamped data to timeseries data given new sampling points.
+    Timestamps must be monotonic. If the timestamps or timestamp_values include a nan, this function ignores the corresponding timestamp value and performs interpolation between the neighboring values.
+    If the input timestamps are not monotonic, the function will display a warning and return nothing.
+
+    Args:
+        timestamps (nstamps): Timestamps of original data to be interpolated between.
+        timestamp_values (nstamps): Values corresponding to the timestamps.
+        samplerate (float): Optional arguement if new sampling points should be calculated based on the timstamps. Sampling rate of newly sampled output array. 
+        output_array (nt): Optional arguement to pass predefined sampling points. 
+    Returns:
+
+    '''
+    # Check for nans and remove them
+    if not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values))):
+        nanmask_stamps = np.logical_not(np.isnan(timestamps))
+        nanmask_values = np.logical_not(np.isnan(timestamp_values))
+        nanmask = np.logical_and(nanmask_stamps, nanmask_values)
+        timestamps = timestamps[nanmask]
+        timestamp_values = timestamp_values[nanmask]
+
+    # Check that timestamps are monotonic
+    if not np.all(np.diff(timestamps) > 0):
+        print("Warning: Input timemeseries is not monotonic")
+        return
+
+    # Calculate output sampling points if none are input
+    if sampling_points is None:
+        sampling_points = np.arange(timestamps[0], timestamps[-1]+(1/samplerate), 1/samplerate)
+
+    # Interpolate
+    timeseries = np.interp(sampling_points, timestamps, timestamp_values)
+
+    return timeseries, sampling_points
+
 '''
 Trial alignment
 '''
