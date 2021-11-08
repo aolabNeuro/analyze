@@ -84,7 +84,7 @@ class DigitalCalcTests(unittest.TestCase):
         np.testing.assert_allclose(timeseries, expected_timeseries)
         np.testing.assert_allclose(new_samplepts, expected_new_samplepts)
 
-        # Test is sample point array is inpu
+        # Test is sample point array is input
         timestamps = np.array([1,2,3,4])+4
         timestamp_values = np.array([100,200,100,300])
         expected_timeseries = np.array([100,150,200,150,100,200,300])
@@ -93,6 +93,23 @@ class DigitalCalcTests(unittest.TestCase):
         np.testing.assert_allclose(timeseries, expected_timeseries)
         np.testing.assert_allclose(new_samplepts, input_samplepts)
 
+        # Test warning messages:
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        out = interp_timestamps2timeseries(timestamps, timestamp_values)
+        self.assertEqual(out, None)
+        timestamps = np.array([1,2,1,4])
+        out = interp_timestamps2timeseries(timestamps, timestamp_values)
+        self.assertEqual(out, None)
+
+        # Test extrapolate
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        expected_timeseries = np.array([100,150,200,150,100,200,300, 400, 500])
+        input_samplepts = np.array([1,1.5,2,2.5,3,3.5,4,4.5,5])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, input_samplepts)
 
 class EventFilterTests(unittest.TestCase):
 

@@ -151,6 +151,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
     If the input timestamps are not monotonic, the function will display a warning and return nothing.
     The optional argument 'interp_kind' corresponds to 'kind' and 'extrap_values' corresponds to 'fill_values' in scipy.interpolate.interp1d.
+    More information about 'extrap_values' can be found on the scipy.interpolate.interp1d documentation page. 
 
     Example::
     >>> timestamps = np.array([1,2,3,4])
@@ -199,7 +200,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
 
     # Interpolate
     f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values)
-    timeseries = f(sampling_points)
+    timeseries = f_interp(sampling_points)
 
     return timeseries, sampling_points
 
