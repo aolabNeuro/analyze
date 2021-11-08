@@ -6,12 +6,10 @@ from .whitematter import ChunkedStream, Dataset
 import h5py
 import tables
 import csv
-import pandas as pd
 import os
 import glob
 import warnings
 import pickle
-
 import torch
 from torch.utils.data import Dataset, SubsetRandomSampler, RandomSampler, DataLoader
 import os.path as path # may need to build a switch here for PC/POSIX
@@ -20,6 +18,10 @@ import json
 import pickle as pkl
 from torch.utils.data import dataset, IterableDataset
 import bisect
+import numpy as np
+from pandas import read_csv, read_excel, DataFrame
+import xarray as xr
+import warnings
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -158,8 +160,8 @@ def load_optitrack_data(data_dir, filename):
     filepath = os.path.join(data_dir, filename)
     # Load .csv file as a pandas data frame, convert to a numpy array, and remove
     # the 'Frame' and 'Time (Seconds)' columns.
-    mocap_data_rot = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_rot_column_idx]
-    mocap_data_pos = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_pos_column_idx]
+    mocap_data_rot = read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_rot_column_idx]
+    mocap_data_pos = read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_pos_column_idx]
 
     return mocap_data_pos, mocap_data_rot
 
@@ -182,7 +184,7 @@ def load_optitrack_time(data_dir, filename):
     filepath = os.path.join(data_dir, filename)
     # Load .csv file as a pandas data frame, convert to a numpy array, and only
     # return the 'Time (Seconds)' column
-    timestamps = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
+    timestamps = read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
     return timestamps
 
 
@@ -706,7 +708,7 @@ def lookup_excel_value(data_dir, excel_file, from_column, to_column, lookup_valu
     if fullfile in _cached_dataframes:
         dataframe = _cached_dataframes[fullfile]
     else:
-        dataframe = pd.read_excel(fullfile)
+        dataframe = read_excel(fullfile)
         _cached_dataframes[fullfile] = dataframe
     
     row = dataframe.loc[dataframe[from_column] == lookup_value]
@@ -762,7 +764,7 @@ def load_electrode_pos(data_dir, pos_file):
             | **y_pos (nch):** y position of each electrode
     '''
     fullfile = os.path.join(data_dir, pos_file)
-    electrode_pos = pd.read_excel(fullfile)
+    electrode_pos = read_excel(fullfile)
     x_pos = electrode_pos['topdown_x'].to_numpy()
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos
