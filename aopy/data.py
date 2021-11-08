@@ -1162,7 +1162,7 @@ class DataFile():
             if rec_type == 'clfp':
                 ecog_mask_file = path.join(data_path,data_file_kern + ".mask.pkl")
             else:
-                clfp_ds_pattern = 'clfp_ds(\d+)'
+                clfp_ds_pattern = r'clfp_ds(\d+)'
                 ds_match = re.search(clfp_ds_pattern,rec_type)
                 clfp_ds_file_kern = ".".join(data_file_kern.split(".")[:-1] + [ds_match.group()])
                 ecog_mask_file = path.join(data_path,clfp_ds_file_kern+".mask.pkl")
@@ -1462,7 +1462,7 @@ def read_lfp(file_path,t_range=(0,-1)):
     mask = load_mask_data(mask_file_name)
 
     # get parameters: srate
-    dsmatch = re.search('clfp_ds(\d+)',rec_type)
+    dsmatch = re.search(r'clfp_ds(\d+)',rec_type)
     if rec_type == 'raw':
         srate = experiment['hardware']['acquisition']['samplingrate']
         data_type = np.ushort
@@ -1536,7 +1536,7 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
         raise NameError(f'Experiment file {exp_file_name} either invalid or not found. Aborting Process.')
 
     # get srate
-    dsmatch = re.search('clfp_ds(\d+)',rec_type)
+    dsmatch = re.search(r'clfp_ds(\d+)',rec_type)
     if rec_type == 'raw':
         srate = experiment['hardware']['acquisition']['samplingrate']
         data_type = np.ushort
