@@ -435,7 +435,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", compression=0, a
     Args: 
         data_dir (str): destination file directory
         hdf_filename (str): name of the hdf file to be saved
-        data_dict (dict, optional): the data to be saved as a hdf file
+        data_dict (dict): the data to be saved as a hdf file
         data_group (str, optional): where to store the data in the hdf
         compression(int, optional): gzip compression level. 0 indicate no compression. Compression not added to existing datasets. (default: 0)
         append (bool, optional): append an existing hdf file or create a new hdf file
@@ -999,7 +999,7 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
 
 def pkl_write(file_to_write, values_to_dump, write_dir):
     '''
-    Write data into a pickle file.
+    Write data into a pickle file. Note: H5D5 (HDF) files can not be pickled.  Refer :func:`aopy.data.save_hdf` for saving HDF data
     
     Args:
         file_to_write (str): filename with '.pkl' extension
@@ -1009,7 +1009,7 @@ def pkl_write(file_to_write, values_to_dump, write_dir):
     Returns:
         None
 
-    examples: pkl_write(meta.pkl, data, '/data_dir')
+    examples: pkl_write('meta.pkl', data, '/data_dir')
     '''
     file = os.path.join(write_dir, file_to_write)
     with open(file, 'wb') as pickle_file:
