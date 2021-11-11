@@ -301,6 +301,33 @@ class TestPickle(unittest.TestCase):
 
         self.assertEqual(np.shape(val), np.shape(dat_1))
 
+class TestYaml(unittest.TestCase):
+
+    def test_yaml_fn(self):
+        test_dir = os.path.dirname(__file__)
+        tmp_dir = os.path.join(test_dir, 'tmp')
+        params_file = os.path.join(tmp_dir, 'task_codes.yaml')
+
+         # Testing yaml_write
+        params = [{'CENTER_TARGET_ON': 16,
+                   'CURSOR_ENTER_CENTER_TARGET': 80,
+                   'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
+                   'PERIPHERAL_TARGET_ON': list(range(17, 25)),
+                   'CENTER_TARGET_OFF': 32,
+                   'REWARD': 48,
+                   'DELAY_PENALTY': 66,
+                   'TIMEOUT_PENALTY': 65,
+                   'HOLD_PENALTY': 64,
+                   'PAUSE': 254,
+                   'TIME_ZERO': 238,
+                   'TRIAL_END': 239}]
+        yaml_write(params_file, params)
+
+        # Testing pkl_read
+        task_codes = yaml_read(params_file)
+
+        self.assertEqual(params,task_codes)
+
 class SignalPathTests(unittest.TestCase):
 
     def test_lookup_excel_value(self):
