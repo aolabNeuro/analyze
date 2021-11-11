@@ -42,7 +42,7 @@ class FactorAnalysisTests(unittest.TestCase):
         data_dimensionality = np.argmax(np.mean(log_likelihood_score, 1))
         self.assertEqual(data_dimensionality, 2)
 
-class FindExtremaTests(unittest.TestCase):
+class classify_cells_tests(unittest.TestCase):
     def test_find_trough_peak_idx(self):
         #Test single waveform
         deg_step = np.pi/8
@@ -86,6 +86,10 @@ class FindExtremaTests(unittest.TestCase):
         extremum_time_edge2, extremum_value_edge2, f = aopy.analysis.interpolate_extremum_poly2(len(theta_edge)-1, y_edge, extrap_peaks=True)
         self.assertGreater(extremum_time_edge2, len(theta_edge)-1) 
         self.assertLess(extremum_value_edge2, 0)
+
+    def test_classify_cells_spike_width(self):
+        waveform_data = [np.random.rand(32, 50), np.random.rand(32, 50), np.random.rand(32, 50)]
+        out = aopy.analysis.classify_cells_spike_width(waveform_data, 100)
 
 class FanoFactorTests(unittest.TestCase):
     def test_get_unit_spiking_mean_variance(self): 

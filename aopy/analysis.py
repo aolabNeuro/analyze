@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 from scipy.optimize import curve_fit
 from sklearn import model_selection
@@ -16,6 +17,9 @@ from numpy.linalg import inv as inv # used in Kalman Filter
 
 from . import preproc
 
+'''
+Correlation / dimensionality analysis
+'''
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
     Estimate the latent dimensionality of an input dataset by appling cross validated 
@@ -67,6 +71,40 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
 
     return log_likelihood_score, iterations_required
 
+def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
+    """
+    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
+    
+    Args:
+        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
+        max_dims (int): (default None) the maximum number of dimensions
+                        if left unset, will equal the dimensions (number of columns) in the dataset
+        VAF (float): (default 0.9) variance accounted for (VAF)
+        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
+
+    Returns:
+        tuple: Tuple containing: 
+            | **explained_variance (list):** variance accounted for by each principal component
+            | **num_dims (int):** number of principal components required to account for variance
+            | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
+    """
+
+    if max_dims is None:
+        max_dims = np.shape(data)[1]
+
+    pca = PCA()
+    pca.fit(data)
+    explained_variance = pca.explained_variance_ratio_
+    total_explained_variance = np.cumsum(explained_variance)
+    num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+
+    if project_data:
+        all_projected_data = pca.transform(data)
+        projected_data = all_projected_data[:,:num_dims]
+    else:
+        projected_data = None
+
+    return list(explained_variance), num_dims, projected_data
 
 '''
 Curve fitting
@@ -201,6 +239,92 @@ def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD"
     n_success = np.count_nonzero(success_trials)
     success_rate = n_success / n_trials
     return success_rate
+
+'''
+Cell type classification analysis
+'''
+def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_varthresh=0.75, min_wfs=10, nspikesamples=None, verbose=False):
+    '''
+    Calculates waveform width and classifies units into putative exciatory and inhibitory cell types based on pulse width.
+    Units with lower spike width are considered inhibitory cells (label: 0) and higher spike width are considered excitatory cells (label: 1)
+    The pulse width is defined as the time between the waveform trough to the waveform peak. (trough-to-peak time)
+    Assumes all waveforms are recorded for the same number of time points. 
+    The function follows the following 
+
+    Args:
+        waveform_data (list of (nt x nspike) arrays): Waveforms of each neuron 
+        samplerate (float): sampling rate
+        std_threshold (): 
+        pca_varthresh (): 
+        min_wf_samples (): Minimum number of waveform samples required to perform outlier detection.
+        nspikesamples (None or int): Optional, defaults to None. Specificy how many spikes to use in classification. Randomly selects the set amount of spikes for each unit. If there are more spikes asked for than recorded spikes all of the recorded spikes will be used. 
+        verbose (bool): 
+
+    Returns:
+        tuple: A tuple containing
+            | **TTP_good_time :** 
+            | **gmm_labels_proc:** 
+            | **avg_good_wf_all:**
+            | **sss_unitid:***
+    '''
+    TTP_good_time = [] 
+    sss_unitid = []
+
+    # Get how many point are recorded in each wf sample.
+    nt, _ = waveform_data[0].shape
+    nunits = len(waveform_data)
+
+    avg_good_wf_all = np.zeros((nt, nunits)) # average waveform from all recorded spikes for each unit
+
+    # Iterate through all units
+    for iunit in range(nunits): 
+        if nspikesamples is None:
+            iwfdata = waveform_data[iunit] # shape (nt, nunit)
+        else:
+            nspikestemp = waveform_data[iunit].shape[0]
+            sampleids = np.random.randint(0,nspikestemp, nspikesamples)
+            # Select a unit to look at
+            iwfdata = waveform_data[iunit][:,sampleids] # shape (nt, nunit)
+        
+        # Use PCA and kmeans to remove outliers if there are enough data points
+        if iwfdata.shape[1] >= min_wfs:
+            # Use each time point as a feature and each spike as a sample.
+            _, _, iwfdata_proj = get_pca_dimensions(iwfdata.T, max_dims=None, VAF=pca_varthresh, project_data=True)
+            good_wf_idx, _ = find_outliers(iwfdata_proj, std_threshold)
+        else:
+            good_wf_idx = np.arange(iwfdata.shape[1])
+            sss_unitid.append(iunit)
+            
+        iwfdata_good = iwfdata[:,good_wf_idx]
+
+        # Average good waveforms
+        iwfdata_good_avg = np.mean(iwfdata_good, axis = 1)    
+        avg_good_wf_all[:,iunit] = iwfdata_good_avg
+
+        # Calculate 1st order TTP approximation
+        troughidx_1st, peakidx_1st = find_trough_peak_idx(iwfdata_good_avg)
+
+        # Interpolate peaks with a parabolic fit
+        troughidx_2nd, _, _  = interpolate_extremum_poly2(troughidx_1st, iwfdata_good_avg, extrap_peaks=False)
+        peakidx_2nd, _, _ = interpolate_extremum_poly2(peakidx_1st, iwfdata_good_avg, extrap_peaks=False)
+
+        # Calculate 2nd order TTP approximation
+        TTP_good_time.append(1e6*(peakidx_2nd - troughidx_2nd)/samplerate)    
+
+        # Print progress
+        if verbose:
+            if iunit % 15 == 0:
+                print(100*iunit/nunits)
+    
+    gmm_proc = GaussianMixture(n_components = 2, random_state = 0).fit(np.array(TTP_good_time).reshape(-1, 1))
+    gmm_labels_proc = gmm_proc.predict(np.array(TTP_good_time).reshape(-1, 1))
+    
+    # Ensure lowest TTP unit is inhibitory (0)
+    minttpidx = np.argmin(TTP_good_time)
+    if gmm_labels_proc[minttpidx] == 1:
+        gmm_labels_proc = 1 - gmm_labels_proc
+    
+    return TTP_good_time, gmm_labels_proc, avg_good_wf_all, sss_unitid
 
 def find_trough_peak_idx(unit_data):
     '''
@@ -481,40 +605,7 @@ class KFDecoder(object):
         y_test_predicted = states.T
         return y_test_predicted
 
-def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
-    """
-    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
-    
-    Args:
-        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
-        max_dims (int): (default None) the maximum number of dimensions
-                        if left unset, will equal the dimensions (number of columns) in the dataset
-        VAF (float): (default 0.9) variance accounted for (VAF)
-        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
 
-    Returns:
-        tuple: Tuple containing: 
-            | **explained_variance (list):** variance accounted for by each principal component
-            | **num_dims (int):** number of principal components required to account for variance
-            | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
-    """
-
-    if max_dims is None:
-        max_dims = np.shape(data)[1]
-
-    pca = PCA()
-    pca.fit(data)
-    explained_variance = pca.explained_variance_ratio_
-    total_explained_variance = np.cumsum(explained_variance)
-    num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
-
-    if project_data:
-        all_projected_data = pca.transform(data)
-        projected_data = all_projected_data[:,:num_dims]
-    else:
-        projected_data = None
-
-    return list(explained_variance), num_dims, projected_data
 
 def calc_rms(signal, remove_offset=True):
     '''
@@ -552,13 +643,13 @@ def find_outliers(data, std_threshold):
         [True, True, True, False] [3.6239, 3.2703, 2.9168, 9.8111]
 
     Args:
-        data [n, nfeatures]: Input data to plot in an nfeature dimensional space and compute outliers
-        std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
+        data (n, nfeatures): Input data to plot in an nfeature dimensional space and compute outliers
+        std_threshold (float): Number of standard deviations away a data point is required to be to be classified as an outlier
         
     Returns:
         tuple: Tuple containing: 
-            | **good_data_idx [n]:** Labels each data point if it is an outlier (True = good, False = outlier)
-            | **distances [n]:** Distance of each data point from center
+            | **good_data_idx (n):** Labels each data point if it is an outlier (True = good, False = outlier)
+            | **distances (n):** Distance of each data point from center
     '''
     
     # Check ncluster input
