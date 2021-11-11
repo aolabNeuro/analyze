@@ -88,10 +88,12 @@ class FilterTests(unittest.TestCase):
         self.a = 0.02
         # testing generate test_signal
         self.f0 = self.freq[0]
-        _x, _t = utils.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
+        self.x, self.t = utils.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
 
-        self.x = _x
-        self.t = _t
+        self.n_ch = 8
+        self.x2 = utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[0], self.a*0.5) + \
+            utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[1], self.a*1.5)
+        self.t2 = np.arange(self.T*self.fs)/self.fs
 
     def test_butterworth(self):
         # Sample rate and desired cutoff frequencies (in Hz).
@@ -99,52 +101,77 @@ class FilterTests(unittest.TestCase):
         lowcut = 500.0
         highcut = 1200.0
         tic = time.perf_counter()
-        x_filter, f_band = precondition.butterworth_filter_data(self.x, fs = self.fs, bands= [(lowcut, highcut)])
+        x_filter, f_band = precondition.butterworth_filter_data(self.x, fs=self.fs, bands=[(lowcut, highcut)])
         toc = time.perf_counter()
-        print(f" Butterworth filter executed in {toc - tic:0.4f} seconds")
+        print(f"Butterworth filter executed in {toc - tic:0.4f} seconds")
 
         fname = 'test_signal_filtered_Signal.png'
         plot_filtered_signal(self.t, self.x, x_filter[0], lowcut, highcut)
         plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # Should eliminate low and high frequency noise, only 600 Hz
 
         fname = 'test_phase_locking.png'
+        plt.figure()
         plot_phase_locking(self.t, self.a, self.f0, x_filter[0])
         plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # Green and red should overlap
 
         fname = 'freq_response_vs_filter_order.png'
+        plt.figure()
         plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
         plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # freq response should improve with higher order
 
         fname = 'plot_psd.png'
+        plt.figure()
         plot_psd(self.x, x_filter[0], self.fs)
         plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # 312Hz and 2000Hz power should be much reduced after filtering
+
+        tic = time.perf_counter()
+        x_filter, f_band = precondition.butterworth_filter_data(self.x2, fs=self.fs, bands=[(lowcut, highcut)])
+        toc = time.perf_counter()
+        print(f"Butterworth filter executed in {toc - tic:0.4f} seconds for 8 channels")
+
+        self.assertEqual(x_filter[0].shape, (self.t2.size, self.n_ch))
+
+        fname = 'test_signal_filtered_multichannel.png'
+        plt.figure()
+        plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
+        savefig(write_dir, fname) # Should only have 600 Hz
 
     def test_multitaper(self):
         f, psd_filter, mu = precondition.get_psd_multitaper(self.x, self.fs)
         psd = precondition.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
 
         fname = 'multitaper_powerspectrum.png'
+        plt.figure()
         plt.plot(f, psd, label='Welch')
         plt.plot(f, psd_filter, label='Multitaper')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('PSD')
         plt.legend()
         plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
 
-        bands = [(0, 10), (100, 200), (560, 660), (2000, 2010)]
-        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, 1, False)
+        bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
+        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        plt.figure()
         plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
         plt.xticks(np.arange(len(bands)), bands)
         plt.xlabel('Frequency band (Hz)')
         plt.ylabel('Band Power')
         plt.show()
         fname = 'lfp_bandpower.png'
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+
+        f, psd_filter, mu = precondition.get_psd_multitaper(self.x2, self.fs)
+        self.assertEqual(psd_filter.shape[1], self.n_ch)
+        print(mu.shape)
+        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        self.assertEqual(lfp.shape[1], self.x2.shape[1])
+        self.assertEqual(lfp.shape[0], len(bands))
+
 
 class SpikeDetectionTests(unittest.TestCase):
         
