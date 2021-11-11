@@ -1,5 +1,6 @@
 # data.py
-# code for accessing neural data collected by the aoLab
+# Code for directly loading and saving data (and results)
+
 import numpy as np
 from .whitematter import ChunkedStream, Dataset
 import h5py
@@ -9,6 +10,7 @@ import pandas as pd
 import os
 import glob
 import warnings
+import pickle
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -659,6 +661,22 @@ def load_bmi3d_root_metadata(data_dir, filename):
 # dataframe every time someone calls the lookup functions
 _cached_dataframes = {}
 
+
+def is_table_in_hdf(table_name:str, hdf_filename:str):
+    """
+    Checks if a table exists in an hdf file' first level directory(i.e. non-recursively)
+
+    Args:
+        table_name(str): table name to be checked
+        hdf_filename(str): full path to the hdf file
+    
+    Returns: 
+        Boolean
+    """
+    with tables.open_file(hdf_filename, mode = 'r') as f:
+        return table_name in f.root
+
+
 def lookup_excel_value(data_dir, excel_file, from_column, to_column, lookup_value):
     '''
     Finds a matching value for the given key in an excel file. Used for looking up
@@ -770,6 +788,44 @@ def map_acq2elec(signalpath_table, acq_ch_subset=None):
 
     return acq_chs, connected_elecs
 
+def map_elec2acq(signalpath_table, elecs):
+    '''
+    This function finds the acquisition channels that correspond to the input electrode numbers given the signal path table input. 
+    This function works by calling aopy.data.map_acq2elec and subsampling the output.
+    If a requested electrode isn't connected to an acquisition channel a warning will be displayed alerting the user
+    and the corresponding index in the output array will be a np.nan value.
+
+    Args:
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        elecs (nelec): Electrodes to find the acquisition channels for
+
+    Returns:
+        acq_chs: Acquisition channels that map to electrodes (e.g. nelec/256 for viventi ECoG array)
+    '''
+    acq_chs, connected_elecs = map_acq2elec(signalpath_table)
+    elec_idx = np.in1d(connected_elecs, elecs) # Find elements in 'connected_elecs' that are also in 'elecs'
+
+    # If the output acq_chs are not the same length as the input electodes, 1+ electrodes weren't connected
+    if np.sum(elec_idx) < len(elecs):
+        output_acq_chs = np.zeros(len(elecs))
+        output_acq_chs[:] = np.nan
+        missing_elecs = []
+
+        for ielec, elecid in enumerate(elecs):
+            matched_idx = np.where(connected_elecs == elecid)[0]
+            if len(matched_idx) == 0:
+                missing_elecs.append(elecid)
+            else:
+                output_acq_chs[ielec] = acq_chs[matched_idx]
+        warning_str = 'Electrodes ' + str(missing_elecs) + ' are not connected.'
+        print(warning_str)
+
+        return output_acq_chs
+
+    else:
+        return acq_chs[elec_idx]
+
+
 def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
@@ -869,7 +925,7 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
         str_include (list of strings): List of substrings that must be included in a string to keep it
         str_avoid (list of strings): List of substrings that can not be included in a string to keep it
         
-    Retruns:
+    Returns:
         (list of strings): List of strings fitting the input conditions
 
     Example::
@@ -879,6 +935,7 @@ def parse_str_list(strings, str_include=None, str_avoid=None):
         >>> print(parsed_strings)
         ['sig002a_wf', 'sig002a_wf_ts']
     '''
+
     parsed_str = []
     
     for str_idx, str_val in enumerate(strings):
@@ -938,3 +995,40 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
                 strings.append(temp_string)
     
     return strings
+
+
+def pkl_write(file_to_write, values_to_dump, write_dir):
+    '''
+    Write data into a pickle file.
+    
+    Args:
+        file_to_write (str): filename with '.pkl' extension
+        values_to_dump (any): values to write in a pickle file
+        write_dir (str): Path - where do you want to write this file
+
+    Returns:
+        None
+
+    examples: pkl_write(meta.pkl, data, '/data_dir')
+    '''
+    file = os.path.join(write_dir, file_to_write)
+    with open(file, 'wb') as pickle_file:
+        pickle.dump(values_to_dump, pickle_file)
+
+
+def pkl_read(file_to_read, read_dir):
+    '''
+    Reads data stored in a pickle file.
+    
+    Args:
+        file_to_read (str): filename with '.pkl' extension
+        read_dir (str): Path to folder where the file is stored
+
+    Returns:
+        data in a format as it is stored
+
+    '''
+    file = os.path.join(read_dir, file_to_read)
+    with open(file, "rb") as f:
+        this_dat = pickle.load(f)
+    return this_dat

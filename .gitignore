@@ -6,3 +6,5 @@ bmi3d/.ipynb_checkpoints
 tests/tmp
 docs/source/_build
 docs/_build
+build/
+htmlcov

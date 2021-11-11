@@ -65,7 +65,7 @@ Once preprocessed, you can inspect the hdf file using ``aopy.data.get_hdf_dictio
         ├── bmi3d_start_time
         └── <raw bmi3d metadata>
 
-See :doc:`preproc.rst` for more details on the data format. 
+See :doc:`preproc` for more details on the data format. 
 To add mocap and spiking data you would call:
 
 .. code-block:: python
