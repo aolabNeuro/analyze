@@ -1065,7 +1065,7 @@ def parse_oculomatic(data_dir, files, debug=True):
     
     eye_metadata = dict()
     
-    bmi3d_events, bmi3d_event_metadata = load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
+    bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
 
     # get eye channels 
     if 'left_eye_ach' in bmi3d_event_metadata and 'right_eye_ach' in bmi3d_event_metadata:
@@ -1079,7 +1079,7 @@ def parse_oculomatic(data_dir, files, debug=True):
     eye_metadata['labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
     
     # get eye data
-    analog_data, analog_metadata = load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
+    analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
     eye_metadata['samplerate'] = analog_metadata['samplerate']
     
     #scale eye data from bits to volts
@@ -1229,15 +1229,15 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     # Check if data already exists
     filepath = os.path.join(result_dir, result_filename)
     if not overwrite and os.path.exists(filepath):
-        contents = get_hdf_dictionary(result_dir, result_filename)
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
         if "eye_data" in contents and "eye_metadata" in contents:
             print("File {} already preprocessed, doing nothing.".format(result_filename))
             return
     
     # Load the preprocessed experimental data
     try:
-        exp_data = load_hdf_group(result_dir, result_filename, 'exp_data')
-        exp_metadata = load_hdf_group(result_dir, result_filename, 'exp_metadata')
+        exp_data = aodata.load_hdf_group(result_dir, result_filename, 'exp_data')
+        exp_metadata = aodata.load_hdf_group(result_dir, result_filename, 'exp_metadata')
     except (FileNotFoundError, ValueError):
         raise ValueError(f"File {result_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
     
@@ -1265,5 +1265,5 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
         'cursor_calibration_data': cursor_calibration_data,
         'eye_calibration_data': eye_calibration_data
     }
-    save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
-    save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
+    aodata.save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
+    aodata.save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
