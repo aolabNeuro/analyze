@@ -356,6 +356,26 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
     for each timepoint you want to animate, then put them into a list and feed them to this
     function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
 
+    Example:
+        ::
+        
+            samplerate = 20
+            duration = 5
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            data_map = []
+            for frame in range(duration*samplerate):
+                t = np.linspace(-1, 1, 100) + float(frame)/samplerate
+                c = np.sin(t)
+                data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
+
+            filename = 'spatial_map_animation.mp4'
+            ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
+            saveanim(ani, write_dir, filename)
+
+        .. raw:: html
+
+            <video controls src="_static/spatial_map_animation.mp4"></video>
+
     Args:
         data_map (nt): array of 2d maps
         x (list): list of x positions
