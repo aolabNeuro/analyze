@@ -270,10 +270,8 @@ def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
         dpi (float): resolution of the video file
         savefig_kwargs (kwargs, optional): arguments to pass to savefig
     '''
-    from matplotlib.animation import FFMpegFileWriter  # requires ffmpeg
     filepath = os.path.join(base_dir, filename)
-    writer = FFMpegFileWriter()
-    animation.save(filepath, dpi=dpi, writer=writer, savefig_kwargs=savefig_kwargs)
+    animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
 
 
 def showanim(animation):
@@ -354,14 +352,16 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
 
 def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
     '''
-    [summary]
+    Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
+    for each timepoint you want to animate, then put them into a list and feed them to this
+    function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
 
     Args:
-        data_map ([type]): [description]
-        x ([type]): [description]
-        y ([type]): [description]
-        samplerate (float): [description]
-        cmap (str, optional): [description]. Defaults to 'bwr'.
+        data_map (nt): array of 2d maps
+        x (list): list of x positions
+        y (list): list of y positions
+        samplerate (float): rate of the data_map samples
+        cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
     '''
 
     # Plotting subroutine
@@ -375,7 +375,7 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
         
     # Create animation
     ani = FuncAnimation(fig, plotdata, frames=len(data_map),
-                                interval=1000./samplerate)
+                            interval=1000./samplerate)
 
     return ani
 
