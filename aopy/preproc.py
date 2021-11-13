@@ -1070,7 +1070,8 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batc
     Process lfp data:
         Loads 'ecube' headstage data and metadata
     Saves broadband data into the HDF datasets:
-        Headstages (nt, nch)
+        lfp_data (nt, nch)
+        lfp_metadata (dict)
     
     Args:
         data_dir (str): where the data files are located
