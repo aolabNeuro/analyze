@@ -352,6 +352,32 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
     return FuncAnimation(fig, draw, frames=trajectory.shape[0],
                          init_func=lambda: None, interval=1000. / samplerate)
 
+def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
+    '''
+    [summary]
+
+    Args:
+        data_map ([type]): [description]
+        x ([type]): [description]
+        y ([type]): [description]
+        samplerate (float): [description]
+        cmap (str, optional): [description]. Defaults to 'bwr'.
+    '''
+
+    # Plotting subroutine
+    def plotdata(i):
+        im.set_data(data_map[i])
+        return im
+
+    # Initial plot
+    fig, ax = plt.subplots()
+    im = plot_spatial_map(data_map[0], x, y, ax, cmap)
+        
+    # Create animation
+    ani = FuncAnimation(fig, plotdata, frames=len(data_map),
+                                interval=1000./samplerate)
+
+    return ani
 
 def set_bounds(bounds, ax=None):
     '''
