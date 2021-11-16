@@ -221,7 +221,7 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf
     
     for ich in range(nch):
         # Spike times
-        all_spike_times, _ = preproc.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
+        all_spike_times, _ = utils.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
         spike_times.append(all_spike_times)
 
 
