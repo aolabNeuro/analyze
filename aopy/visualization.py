@@ -270,10 +270,8 @@ def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
         dpi (float): resolution of the video file
         savefig_kwargs (kwargs, optional): arguments to pass to savefig
     '''
-    from matplotlib.animation import FFMpegFileWriter  # requires ffmpeg
     filepath = os.path.join(base_dir, filename)
-    writer = FFMpegFileWriter()
-    animation.save(filepath, dpi=dpi, writer=writer, savefig_kwargs=savefig_kwargs)
+    animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
 
 
 def showanim(animation):
@@ -352,6 +350,59 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
     return FuncAnimation(fig, draw, frames=trajectory.shape[0],
                          init_func=lambda: None, interval=1000. / samplerate)
 
+def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
+    '''
+    Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
+    for each timepoint you want to animate, then put them into a list and feed them to this
+    function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
+
+    Example:
+        ::
+        
+            samplerate = 20
+            duration = 5
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            data_map = []
+            for frame in range(duration*samplerate):
+                t = np.linspace(-1, 1, 100) + float(frame)/samplerate
+                c = np.sin(t)
+                data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
+
+            filename = 'spatial_map_animation.mp4'
+            ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
+            saveanim(ani, write_dir, filename)
+
+        .. raw:: html
+
+            <video controls src="_static/spatial_map_animation.mp4"></video>
+
+    Args:
+        data_map (nt): array of 2d maps
+        x (list): list of x positions
+        y (list): list of y positions
+        samplerate (float): rate of the data_map samples
+        cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
+    '''
+
+    # Plotting subroutine
+    def plotdata(i):
+        im.set_data(data_map[i])
+        return im
+
+    # Initial plot
+    fig, ax = plt.subplots()
+    im = plot_spatial_map(data_map[0], x, y, ax, cmap)
+
+    # Change the color limits
+    min_c = np.min(np.array(data_map))
+    max_c = np.max(np.array(data_map))
+    im.set_clim(min_c, max_c)
+        
+    # Create animation
+    ani = FuncAnimation(fig, plotdata, frames=len(data_map),
+                            interval=1000./samplerate)
+
+    return ani
 
 def set_bounds(bounds, ax=None):
     '''
