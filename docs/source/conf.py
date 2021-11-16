@@ -14,7 +14,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('../..'))
 
-autodoc_mock_imports = ['numpy', 'pandas', 'psutil', 'h5py', 'tables', 'sklearn', 'scipy', 'matplotlib', 'seaborn', 'nitime', 'torch']
+autodoc_mock_imports = ['numpy', 'pandas', 'psutil', 'h5py', 'tables', 'sklearn', 'scipy', 'matplotlib', 'seaborn', 'nitime', 'torch', 'yaml']
 
 # -- Project information -----------------------------------------------------
 
@@ -23,7 +23,7 @@ copyright = '2021, aolab'
 author = 'aolab'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1'
+release = '0.2'
 
 
 # -- General configuration ---------------------------------------------------

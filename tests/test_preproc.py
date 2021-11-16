@@ -1,4 +1,5 @@
 from aopy.preproc import *
+from aopy.data import *
 import numpy as np
 import unittest
 
@@ -9,94 +10,6 @@ if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
 class DigitalCalcTests(unittest.TestCase):
-
-    def test_convert_analog_to_digital(self):
-
-        #data_length = 3
-        #nchan = 2
-        analog_data = [[2.9, 0.23], 
-                        [1.9, 2.9], 
-                        [1.74, 4.76]]
-        thresh = 0.5
-        expected_digital_array = [[1.0, 0.0], 
-                                    [0.0, 1.0], 
-                                    [0.0, 1.0]]
-        digital_data = convert_analog_to_digital(analog_data, thresh)
-        np.testing.assert_almost_equal(expected_digital_array, digital_data)
-
-    def test_detect_edges(self):
-        test_bool = [True, False, False, True, True, False, True, True, False, False, False, True]
-        test_01 = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
-        test_02 = [0b11, 0, 0, 0, 0, 0, 0, 0b01, 0b10, 0b01, 0b11, 0b01, 0b00, 0b10, 0b00, 0b01, 0, 0b01, 0, 0b01, 0, 0b01, 0]
-        test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
-
-        ts, values = detect_edges(test_bool, 1)
-        self.assertEqual(len(ts), 6)
-        self.assertTrue(np.array_equal(ts, [1, 3, 5, 6, 8, 11]))
-        self.assertTrue(np.array_equal(values, [0, 1, 0, 1, 0, 1]))
-
-        # check rising edges only
-        ts, values = detect_edges(test_bool, 1, falling=False)
-        self.assertEqual(len(ts), 3)
-        self.assertTrue(np.array_equal(ts, [3, 6, 11]))
-        self.assertTrue(np.array_equal(values, [1, 1, 1]))
-        
-        # check falling edges only
-        ts, values = detect_edges(test_bool, 1, rising=False)
-        self.assertEqual(len(ts), 3)
-        self.assertTrue(np.array_equal(ts, [1, 5, 8]))
-        self.assertTrue(np.array_equal(values, [0, 0, 0]))
-
-        # check numeric boolean data
-        ts, values = detect_edges(test_01, 1, falling=False)
-        self.assertEqual(len(ts), 6)
-        self.assertTrue(np.array_equal(ts, [7, 13, 15, 17, 19, 21]))
-        self.assertTrue(np.array_equal(values, [1, 1, 1, 1, 1, 1]))
-
-        # check data values instead of a single bit
-        ts, values = detect_edges(test_02, 1, falling=False, check_alternating=False)
-        self.assertEqual(len(ts), 9)
-        self.assertTrue(np.array_equal(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21]))
-        self.assertTrue(np.array_equal(values, [1, 2, 1, 3, 2, 1, 1, 1, 1]))
-
-        # test that if there are multiple of the same edge only the last one counts
-        ts, values = detect_edges(test_valid, 1)
-        self.assertTrue(np.array_equal(ts, [2, 3, 4, 7, 9, 13]))
-        self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
-
-    def test_find_first_significant_bit(self):
-        data = 0b0100
-        ffs = find_first_significant_bit(data)
-        self.assertEqual(ffs, 2)
-        data = 0
-        ffs = find_first_significant_bit(data)
-        self.assertEqual(ffs, -1)
-
-    def test_mask_and_shift(self):
-        mask = 0x0000000000ff0000 # bits 17-24
-        digital_data = [2, 4, 12*0x10000, 140*0x10000, 0xff0000, 0xff0000]
-        masked = mask_and_shift(digital_data, mask)
-        assert np.array_equal(masked, [0, 0, 12, 140, 255, 255])
-
-    def test_convert_channels_to_mask(self):
-        self.assertEqual(convert_channels_to_mask(0), 1)
-        self.assertEqual(convert_channels_to_mask(5), 1 << 5)
-        channels = [0,1]
-        mask = convert_channels_to_mask(channels)
-        self.assertEqual(mask, 0b11)
-        channels = range(16,24)
-        mask = convert_channels_to_mask(channels)
-        self.assertEqual(mask, 0xff0000)
-
-    def test_digital_to_channels(self):
-        testdata = [0b0110100001011100101100000100011001010001101110101001000100111000, 0xff0ff00fffffff0f]
-        unpacked = convert_digital_to_channels(testdata)
-        packed = np.packbits(unpacked, bitorder='little').view(np.uint64)
-        assert packed[0] == testdata[0]
-        assert packed[1] == testdata[1]
-        assert unpacked[0,0] == 0
-        assert unpacked[1,0] == 1
-        assert unpacked[0,1] == 0
 
     def test_closest_value(self):
         test_sequence = np.arange(100)
@@ -153,15 +66,51 @@ class DigitalCalcTests(unittest.TestCase):
         filled = fill_missing_timestamps(uncorrected_timestamps)
         self.assertCountEqual(expected, filled)
 
-    def test_get_edges_from_onsets(self):
-        onsets = np.array([1, 1.5, 2])
-        expected_timestamps = np.array([0, 1, 1.1, 1.5, 1.6, 2, 2.1])
-        expected_values = np.array([0,1,0,1,0,1,0])
+    def test_interp_timestamps2timeseries(self):
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        expected_timeseries = np.array([100,150,200,150,100,200,300])
+        expected_new_samplepts = np.array([1,1.5,2,2.5,3,3.5,4])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, expected_new_samplepts)
 
-        timestamps, values = get_edges_from_onsets(onsets, 0.1)
-        np.testing.assert_allclose(timestamps, expected_timestamps)
-        np.testing.assert_allclose(values, expected_values)
-]
+        # Test if nans are included
+        timestamps = np.array([1,2,np.nan,4])
+        timestamp_values = np.array([100,np.nan,100,400])
+        expected_timeseries = np.array([100,150,200,250,300,350,400])
+        expected_new_samplepts = np.array([1,1.5,2,2.5,3,3.5,4])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, expected_new_samplepts)
+
+        # Test is sample point array is input
+        timestamps = np.array([1,2,3,4])+4
+        timestamp_values = np.array([100,200,100,300])
+        expected_timeseries = np.array([100,150,200,150,100,200,300])
+        input_samplepts = np.array([1,1.5,2,2.5,3,3.5,4])+4
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, input_samplepts)
+
+        # Test warning messages:
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        out = interp_timestamps2timeseries(timestamps, timestamp_values)
+        self.assertEqual(out, None)
+        timestamps = np.array([1,2,1,4])
+        out = interp_timestamps2timeseries(timestamps, timestamp_values)
+        self.assertEqual(out, None)
+
+        # Test extrapolate
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        expected_timeseries = np.array([100,150,200,150,100,200,300, 400, 500])
+        input_samplepts = np.array([1,1.5,2,2.5,3,3.5,4,4.5,5])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, input_samplepts)
+
 class EventFilterTests(unittest.TestCase):
 
     def test_trial_align_events(self):
@@ -272,6 +221,19 @@ class EventFilterTests(unittest.TestCase):
 
         trial_aligned_times = trial_align_events(aligned_events, aligned_times, event_to_align)
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
+
+        event_log_events_in_str = [
+                    ('wait', 0.),
+                    ('target',1.),
+                    ('reward',4.),
+                    ('wait',5.),
+                    ('target',6.),
+                    ('reward',10.),
+                    ('wait',10.),
+                    ('target',11.),
+                    ('wait',18.),
+
+        ]
 
         events, times = zip(*event_log_events_in_str)
         event_to_align = 'wait'

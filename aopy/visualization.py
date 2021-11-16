@@ -1,5 +1,5 @@
 # visualization.py
-# code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
+# Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 
 import seaborn as sns
 import matplotlib
@@ -61,6 +61,7 @@ def plot_timeseries(data, samplerate, ax=None):
 
     Example:
         Plot 50 and 100 Hz sine wave.
+
         ::
             data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
             samplerate = 1000
@@ -91,6 +92,7 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
 
     Example:
         Plot 50 and 100 Hz sine wave amplitude spectrum. 
+
         ::
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000
@@ -189,6 +191,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
 
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        
         ::
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
@@ -208,6 +211,9 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         y (list): list of y positions
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
+
+    Returns:
+        mappable: image object which you can use to add colorbar, etc.
     '''
     # Calculate the proper extents
     if data_map.size > 1:
@@ -225,22 +231,25 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Plot
     if ax is None:
         ax = plt.gca()
-    ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
+    return image
+
 def plot_raster(data, cue_bin=None, ax=None):
     '''
-       Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
+    Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
 
-        .. image:: _images/raster_plot_example.png
+    .. image:: _images/raster_plot_example.png
 
-       Args:
-            data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
-            cue_bin (float): time bin at which an event occurs. Leave as 'None' to only plot data. For example: Use this to indicate 'Go Cue' or 'Leave center' timing.
-            ax (plt.Axis): axis to plot raster plot
-       Returns:
-           raster plot in appropriate axis
+    Args:
+        data (ntime, ncolumns): 2D array of data. Typically a time series of spiking events across channels or trials (not spike count- must contain only 0 or 1).
+        cue_bin (float): time bin at which an event occurs. Leave as 'None' to only plot data. For example: Use this to indicate 'Go Cue' or 'Leave center' timing.
+        ax (plt.Axis): axis to plot raster plot
+        
+    Returns:
+        None: raster plot plotted in appropriate axis
     '''
     if ax is None:
         ax = plt.gca()
@@ -261,10 +270,8 @@ def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
         dpi (float): resolution of the video file
         savefig_kwargs (kwargs, optional): arguments to pass to savefig
     '''
-    from matplotlib.animation import FFMpegFileWriter  # requires ffmpeg
     filepath = os.path.join(base_dir, filename)
-    writer = FFMpegFileWriter()
-    animation.save(filepath, dpi=dpi, writer=writer, savefig_kwargs=savefig_kwargs)
+    animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
 
 
 def showanim(animation):
@@ -343,6 +350,59 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
     return FuncAnimation(fig, draw, frames=trajectory.shape[0],
                          init_func=lambda: None, interval=1000. / samplerate)
 
+def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
+    '''
+    Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
+    for each timepoint you want to animate, then put them into a list and feed them to this
+    function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
+
+    Example:
+        ::
+        
+            samplerate = 20
+            duration = 5
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            data_map = []
+            for frame in range(duration*samplerate):
+                t = np.linspace(-1, 1, 100) + float(frame)/samplerate
+                c = np.sin(t)
+                data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
+
+            filename = 'spatial_map_animation.mp4'
+            ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
+            saveanim(ani, write_dir, filename)
+
+        .. raw:: html
+
+            <video controls src="_static/spatial_map_animation.mp4"></video>
+
+    Args:
+        data_map (nt): array of 2d maps
+        x (list): list of x positions
+        y (list): list of y positions
+        samplerate (float): rate of the data_map samples
+        cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
+    '''
+
+    # Plotting subroutine
+    def plotdata(i):
+        im.set_data(data_map[i])
+        return im
+
+    # Initial plot
+    fig, ax = plt.subplots()
+    im = plot_spatial_map(data_map[0], x, y, ax, cmap)
+
+    # Change the color limits
+    min_c = np.min(np.array(data_map))
+    max_c = np.max(np.array(data_map))
+    im.set_clim(min_c, max_c)
+        
+    # Create animation
+    ani = FuncAnimation(fig, plotdata, frames=len(data_map),
+                            interval=1000./samplerate)
+
+    return ani
 
 def set_bounds(bounds, ax=None):
     '''
@@ -372,6 +432,7 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
     Example:
         Plot four peripheral and one central target.
         ::
+        
             target_position = np.array([
                 [0, 0, 0],
                 [1, 1, 0],
@@ -443,6 +504,7 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     Example:
         Two random trajectories.
         ::
+
             trajectories =[
                 np.array([
                     [0, 0, 0],
@@ -494,7 +556,6 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     Example:
 
         ::
-
             >>> trajectories =[
                     np.array([
                         [0, 0, 0],
@@ -514,7 +575,7 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
             >>> colors = ['r', 'b']
             >>> color_trajectories(trajectories, labels, colors)
 
-        .. image:: _images/colored_trajectories.png
+        .. image:: _images/color_trajectories.png
 
     Args:
         trajectories (ntrials): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
@@ -543,8 +604,8 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     
     Example:
         Plotting success rate averaged across days.
-        ::
 
+        ::
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
             success = [70, 65, 65]
@@ -610,8 +671,8 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     
     Example:
         Plotting success rate over three sessions.
-        ::
 
+        ::
             success = [70, 65, 60]
             trials = [10, 20, 10]
 

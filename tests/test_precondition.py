@@ -74,7 +74,8 @@ def plot_db_spectral_estimate(freq, psd, psd_filter, labels):
     psd = 10 * np.log10(psd)
     psd_filter = 10 * np.log10(psd_filter)
     plt.figure()
-    precondition.plot_spectral_estimate(freq, psd, (psd_filter,), elabels=(labels,))
+    from nitime.viz import plot_spectral_estimate
+    plot_spectral_estimate(freq, psd, (psd_filter,), elabels=(labels,))
     plt.show()
 
 class FilterTests(unittest.TestCase):
@@ -249,7 +250,7 @@ class SpikeDetectionTests(unittest.TestCase):
         # print(binned_spikes)
         self.assertEqual(binned_spikes.shape[0], 4)
         self.assertEqual(binned_spikes.shape[1], 2)
-        self.assertEqual(binned_spikes[0,0], 2/0.5) # 2 spikes in window size 0.5s
+        self.assertEqual(binned_spikes[0,0], 2*fs) # [spikes/s] 2 spikes/bin * fs
 
 if __name__ == "__main__":
     unittest.main()

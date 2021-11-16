@@ -356,7 +356,7 @@ The `exp_metadata` dataset contains
      - width and height of the window (in cm)
 
 Motion capture data
------------------
+-------------------
 
 **optitrack**
 

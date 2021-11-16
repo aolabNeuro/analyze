@@ -1,0 +1,28 @@
+name: Python package
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Set up FFmpeg
+        uses: FedericoCarboni/setup-ffmpeg@v1
+      - name: Install python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov torch
+          pip install -e .
+      - name: Test with pytest
+        run: |
+          pytest --junitxml=junit/test-results.xml --cov=aopy --cov-report=xml --cov-report=html
