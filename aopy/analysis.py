@@ -74,22 +74,22 @@ Curve fitting
 
 
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
-def func(target, b1, b2, b3):
+def curve_fitting_func(target_theta, b1, b2, b3):
     '''
 
     Args:
-        target (int) center out task target index ( takes values from 0 to 7)
-        b1, b2, b3 : parameters used for curve fitting
+        target_theta (float): center out task target direction index [degrees]
+        b1, b2, b3 (float): parameters used for curve fitting
 
     .. math::
     
         b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
-    Returns: result from above equation
+    Returns:
+        float: Evaluation of the fitting function for a given target.
 
     '''
-    theta = 45 * (target - 1)
-    return b1 * np.cos(np.deg2rad(theta)) + b2 * np.sin(np.deg2rad(theta)) + b3
+    return b1 * np.cos(np.deg2rad(target_theta)) + b2 * np.sin(np.deg2rad(target_theta)) + b3
 
 
 def get_modulation_depth(b1, b2):
@@ -100,6 +100,8 @@ def get_modulation_depth(b1, b2):
     
         \\sqrt{b_1^2+b_2^2}
 
+    Returns:
+        float: Modulation depth (amplitude) of the curve fit
     '''
     return np.sqrt((b1 ** 2) + (b2 ** 2))
 
@@ -111,9 +113,18 @@ def get_preferred_direction(b1, b2):
     .. math:: 
         
         arctan(\\frac{b_1^2}{b_2^2})
-        
+    
+    Returns:
+        float: Preferred direction of the curve fit in radians
     '''
-    return np.arctan2(b2 ** 2, b1 ** 2)
+    b1sign = np.sign(b1)
+    b2sign = np.sign(b2)
+    temp_pd = np.rad2deg(np.arctan2(b2sign*b2**2, b1sign*b1**2))
+    if temp_pd < 0:
+      pd = 360+temp_pd
+    else:
+      pd = temp_pd
+    return pd
 
 
 def get_mean_fr_per_direction(data, target_dir):
@@ -137,49 +148,39 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_rows=None, n_subplot_cols= None):
+def run_tuningcurve_fit(mean_fr, targets):
     '''
+    This function calculates the tuning parameters from center out task neural data.
+    It fits a sinusoidal tuning curve to the mean firing rates for each unit.
+    Uses approach outlined in Orsborn 2014/Georgopolous 1986.
+    Note: To orient PDs with the quadrant of best fit, this function samples the target location
+    with high resolution between 0-360 degrees.
+
     Args:
-        means (2D array) : Mean firing rate [n_targets x n_neurons]
-        make_plot (bool) : Generates plot with curve fitting and mean firing rate for n_neuons
-        Fig title (str) : Figure title
-        n_rows (int) : No of rows in subplot
-        n_cols (int) : No. of cols in subplot
+        mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
+        targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
 
     Returns:
         tuple: Tuple containing:
-            | **params_day (Numpy array):** Curve fitting parameters
-            | **modulation depth (Numpy array):** Modulation depth of neuron
-            | **preferred direction (Numpy array):** preferred direction of neurons
+            | **fit_params (3, nunits):** Curve fitting parameters for each unit
+            | **modulation depth (ntargets, nunits):** Modulation depth of each unit
+            | **preferred direction (ntargets, nunits):** preferred direction of each unit
     '''
-    params_day = []
-    mod_depth = []
-    pd = []
+    nunits = np.shape(mean_fr)[0]
+    ntargets = len(targets)
 
-    if make_plot:
-        # sns.set_context('paper')
-        plt.figure(figsize=(20, 10))
+    fit_params = np.empty((nunits,3))*np.nan
+    md = np.empty((nunits))*np.nan
+    pd = np.empty((nunits))*np.nan
 
-    for this_neuron in range(np.shape(means)[1]):
-        xdata = np.arange(1, 9)
-        ydata = np.array(means)[:, this_neuron]
-    # print(ydata)
+    for iunit in range(nunits):
+        params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:])
+        fit_params[iunit,:] = params
 
-        params, params_cov = curve_fit(func, xdata, ydata)
-        # print(params)
-        params_day.append(params)
+        md[iunit] = get_modulation_depth(params[0], params[1])
+        pd[iunit] = get_preferred_direction(params[0], params[1])
 
-        mod_depth.append(get_modulation_depth(params[0], params[1]))
-        pd.append(get_preferred_direction(params[0], params[1]))
-
-        if make_plot:
-            plt.subplot(n_subplot_rows, n_subplot_cols, this_neuron + 1)
-            plt.plot(xdata, ydata, 'b-', label='data')
-            plt.plot(xdata, func(xdata, params[0], params[1], params[2]), 'b--', label='fit')
-            plt.suptitle(fig_title, y=1.01)
-            plt.ylim(0, 600)
-            plt.xticks(np.arange(1, 8, 2))
-    return np.array(params_day), np.array(mod_depth), np.array(pd)
+    return fit_params, md, pd
 
 def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD"):
     '''

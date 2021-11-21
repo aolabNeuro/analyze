@@ -127,7 +127,24 @@ class misc_tests(unittest.TestCase):
         _, outliers_dist = aopy.analysis.find_outliers(data, 2)
         expected_outliers_dist = np.array([1, 0, 0, 1])
         np.testing.assert_allclose(outliers_dist, expected_outliers_dist)
-        
+
+class tuningcurve_fitting_tests(unittest.TestCase):
+    def test_run_tuningcurve_fit(self):
+        nunits = 7
+        targets = np.arange(0, 360, 45)
+        mds_true = np.linspace(1, 3, nunits)/2
+        pds_offset = np.arange(-45,270,45)
+        data = np.zeros((nunits,8))*np.nan
+        for ii in range(nunits):
+            data[ii,:] = mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
+
+        # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_offset, pd-90)
+
+
+
 class CalcTests(unittest.TestCase):
 
     def test_calc_rms(self):
