@@ -164,7 +164,7 @@ class OtherPlottingTests(unittest.TestCase):
             target_radius = 0.1
             target_color = 'b'
             plt.figure()
-            plot_circles(target_position, target_radius, (-2, 2, -2, 2))
+            plot_circles(target_position, target_radius, target_color)
             savefig(write_dir, filename)
 
             filename = 'circles_3d.png'

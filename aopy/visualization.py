@@ -445,26 +445,10 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
             ax.set_aspect('equal', adjustable='box')
     if bounds is not None: set_bounds(bounds, ax)
 
-def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):    
+def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
-
-    Example:
-        Plot four peripheral and one central target.
-        ::
-        
-            target_position = np.array([
-                [0, 0, 0],
-                [1, 1, 0],
-                [-1, 1, 0],
-                [1, -1, 0],
-                [-1, -1, 0]
-            ])
-            circle_radius = 0.1
-            plot_targets(target_position, circle_radius, (-2, 2, -2, 2))
-
-        .. image:: _images/targets.png
 
     Args:
         circle_positions (ntarg, 3): array of target (x, y, z) locations
