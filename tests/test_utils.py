@@ -148,5 +148,16 @@ class TestDigitalCalc(unittest.TestCase):
         assert unpacked[1,0] == 1
         assert unpacked[0,1] == 0
 
+
+class TestMatrixManipulation(unittest.TestCase):
+    def test_reorder_dataidx(self):
+        data_metric = np.array([12,10,19,15,9])
+        expected_ordered_dataidx = [4, 1, 0, 3, 2]
+        expected_ordered_data_metric = [9, 10, 12, 15, 19]
+        ordered_dataidx, ordered_data_metric = reorder_dataidx(data_metric)
+        np.testing.assert_allclose(ordered_dataidx, expected_ordered_dataidx)
+        np.testing.assert_allclose(ordered_data_metric, expected_ordered_data_metric)
+
+
 if __name__ == "__main__":
     unittest.main()
