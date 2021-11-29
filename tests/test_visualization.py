@@ -164,6 +164,29 @@ class OtherPlottingTests(unittest.TestCase):
         plot_targets(target_position, target_radius, (-2, 2, -2, 2, -2, 2), ax=ax)
         savefig(write_dir, filename)
 
+    def test_plot_circles(self):
+
+            # Draw four outer targets and one center target
+            filename = 'circles.png'
+            target_position = np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [-1, 1, 0],
+                [1, -1, 0],
+                [-1, -1, 0]
+            ])
+            target_radius = 0.1
+            target_color = 'b'
+            plt.figure()
+            plot_circles(target_position, target_radius, target_color)
+            savefig(write_dir, filename)
+
+            filename = 'circles_3d.png'
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
+            savefig(write_dir, filename)
+
     def test_plot_trajectories(self):
 
         # Test with two known trajectories

@@ -424,7 +424,7 @@ def set_bounds(bounds, ax=None):
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
 
-def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):
+def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
@@ -492,6 +492,56 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         except:
             target = plt.Circle((pos[0], pos[1]),
                                 radius=target_radius, alpha=alpha[i], color=target_color)
+            ax.add_artist(target)
+            ax.set_aspect('equal', adjustable='box')
+    if bounds is not None: set_bounds(bounds, ax)
+
+def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
+    '''
+    Add circles to an axis. Works for 2D and 3D axes
+
+    Args:
+        circle_positions (ntarg, 3): array of target (x, y, z) locations
+        circle_radius (float): radius of each target
+        circle_color (str): color to draw circle - default is blue
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        origin (tuple, optional): (x, y, z) position of the origin
+        ax (plt.Axis, optional): axis to plot the targets on
+        unique_only (bool, optional): If True, function will only plot targets with unique positions (default: True)
+    '''
+
+    if unique_only:
+        circle_positions = np.unique(circle_positions,axis=0)
+
+    if isinstance(alpha,float):
+        alpha = alpha * np.ones(circle_positions.shape[0])
+    else:
+        assert len(alpha) == circle_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
+
+    if ax is None:
+        ax = plt.gca()
+
+    for i in range(0, circle_positions.shape[0]):
+
+        # Pad the vector to make sure it is length 3
+        pos = np.zeros((3,))
+        pos[:len(circle_positions[i])] = circle_positions[i]
+
+        # Plot in 3D or 2D
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        try:
+            ax.set_zlabel('z')
+            u = np.linspace(0, 2 * np.pi, 100)
+            v = np.linspace(0, np.pi, 100)
+            x = pos[0] + circle_radius * np.outer(np.cos(u), np.sin(v))
+            y = pos[1] + circle_radius * np.outer(np.sin(u), np.sin(v))
+            z = pos[2] + circle_radius * np.outer(np.ones(np.size(u)), np.cos(v))
+            ax.plot_surface(x, y, z, alpha=alpha[i], color=circle_color)
+            ax.set_box_aspect((1, 1, 1))
+        except:
+            target = plt.Circle((pos[0], pos[1]),
+                                radius=circle_radius, alpha=alpha[i], color=circle_color)
             ax.add_artist(target)
             ax.set_aspect('equal', adjustable='box')
     if bounds is not None: set_bounds(bounds, ax)
