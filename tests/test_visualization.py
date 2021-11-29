@@ -90,6 +90,13 @@ class NeuralDataPlottingTests(unittest.TestCase):
         fig.tight_layout()
         savefig(write_dir, filename)
     
+    def test_plot_boxplots(self):
+        data = np.random.normal(0, 2, size=(20, 5))
+        xaxis_pts = np.array([2,3,4,4.75,5.5])
+        fig, ax = plt.subplots(1,1)
+        plot_boxplots(data, xaxis_pts, ax=ax)
+        filename = 'boxplot_example.png'
+        savefig(write_dir, filename)
 
 class AnimationTests(unittest.TestCase):
 
