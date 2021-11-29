@@ -777,10 +777,11 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
     .. image:: _images/boxplot_example.png
 
     Args:
-        data ():
-        plt_xaxis ():
-        color (list or word):
+        data (n1, n2): Data to plot. A different boxplot is created for each column of this variable.
+        plt_xaxis (n2): X-axis locations to plot the boxplot of each column
         trendline (bool): If a line should be used to connect boxplots
+        facecolor (list or word):
+        linecolor (list or word):
         ax (axes handle): Axes to plot
     '''
     if ax is None:
