@@ -17,6 +17,7 @@ import numpy as np
 from pandas import read_csv, read_excel, DataFrame
 import xarray as xr
 import warnings
+import yaml
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -441,7 +442,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", compression=0, a
     Args: 
         data_dir (str): destination file directory
         hdf_filename (str): name of the hdf file to be saved
-        data_dict (dict, optional): the data to be saved as a hdf file
+        data_dict (dict): the data to be saved as a hdf file
         data_group (str, optional): where to store the data in the hdf
         compression(int, optional): gzip compression level. 0 indicate no compression. Compression not added to existing datasets. (default: 0)
         append (bool, optional): append an existing hdf file or create a new hdf file
@@ -1005,7 +1006,7 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
 
 def pkl_write(file_to_write, values_to_dump, write_dir):
     '''
-    Write data into a pickle file.
+    Write data into a pickle file. Note: H5D5 (HDF) files can not be pickled.  Refer :func:`aopy.data.save_hdf` for saving HDF data
     
     Args:
         file_to_write (str): filename with '.pkl' extension
@@ -1015,7 +1016,7 @@ def pkl_write(file_to_write, values_to_dump, write_dir):
     Returns:
         None
 
-    examples: pkl_write(meta.pkl, data, '/data_dir')
+    examples: pkl_write('meta.pkl', data, '/data_dir')
     '''
     file = os.path.join(write_dir, file_to_write)
     with open(file, 'wb') as pickle_file:
@@ -1370,3 +1371,38 @@ def get_exp_var(exp_data,*args):
             out = out[var_name]
 
     return out
+
+def yaml_write(filename, data):
+    '''
+    YAML stands for Yet Another Markup Language. It can be used to save Params or configuration files.
+    Args:
+        filename(str): Filename including the full path
+        data (dict) : Params data to be dumped into a yaml file
+    Returns: None
+
+    Example:
+        >>>params = [{ 'CENTER_TARGET_ON': 16 , 'CURSOR_ENTER_CENTER_TARGET' : 80 , 'REWARD' : 48 , 'DELAY_PENALTY' : 66 }]
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>yaml_write(params_file, params)
+    '''
+    with open(filename, 'w') as file:
+        documents = yaml.dump(data, file)
+
+
+def yaml_read(filename):
+    '''
+    The FullLoader parameter handles the conversion from YAML scalar values to Python the dictionary format
+    Args:
+        filename(str): Filename including the full path
+
+    Returns:
+        data (dict) : Params data dumped into a yaml file
+
+    Example:
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>task_codes = yaml_read(params_file, params)
+    '''
+    with open(filename) as file:
+        task_codes = yaml.load(file, Loader=yaml.FullLoader)
+
+    return task_codes

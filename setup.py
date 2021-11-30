@@ -19,7 +19,8 @@ install_requires = [
     'openpyxl',
     'matplotlib',
     'scipy',
-    'seaborn'
+    'seaborn',
+    'pyyaml'
 ]
 
 setuptools.setup(
