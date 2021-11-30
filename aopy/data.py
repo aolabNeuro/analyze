@@ -1044,6 +1044,20 @@ def pkl_read(file_to_read, read_dir):
 
 
 def parse_file_info(file_path):
+    """parse_file_info
+
+    Parses file strings for goose_wireless ECoG and LFP signal data into data parameters.
+
+    Args:
+        file_path (str): path to the file's location
+
+    Returns:
+        exp_file_name (str): JSON experiment data file path
+        mask_file_name (str): binary data mask file path
+        microdrive_name (str): string name of the microdrive type used to collect data in file_path
+        rec_type (str): recording modality reflected in this file ('ECOG', 'LFP', etc.)
+    """
+
     file_name = os.path.basename(file_path)
     data_file_noext = os.path.splitext(file_name)[0]
     data_file_parts = data_file_noext.split('.')
@@ -1057,6 +1071,18 @@ def parse_file_info(file_path):
     return exp_file_name, mask_file_name, microdrive_name, rec_type
 
 def load_experiment_data(exp_file_name):
+    """load_experiment_data
+
+    Reads experiment metadata from an experiment JSON file. Returns the complete data structure as a dictionary and returns electrode data as a pandas DataFrame.
+
+    Args:
+        exp_file_name (str): JSON experiment data file path
+
+    Returns:
+        experiment (dict): dict data object containing experiment metadata. See lab documentation for more information.
+        electrode_df (DataFrame): pandas DataFrame containing microdrive electrode information. Individual channels are indexed along columns, column names are electrode IDs.
+    """
+
     assert os.path.exists(exp_file_name), f'inferred experiment file not found at {exp_file_name}'
     with open(exp_file_name,'r') as f:
         experiment = json.load(f)
@@ -1066,11 +1092,34 @@ def load_experiment_data(exp_file_name):
     return experiment, electrode_df
 
 def load_mask_data(mask_file_name):
+    """load_mask_data
+
+    Loads binary mask data from recording mask files. Binary True values indicate "bad" or noisy data not used in analyses.
+
+    Args:
+        mask_file_name (str): file path to binary mask file
+
+    Returns:
+        mask (numpy.array): numpy array of binary values. Length is equal to the number of time points in the respective data array.
+    """
+
     assert os.path.exists(mask_file_name), f'inferred mask file not found at {mask_file_name}'
     with open(mask_file_name,'r') as f:
-        mask = pkl.load(f)
+        return pkl.load(f)
 
 def read_lfp(file_path,t_range=(0,-1)):
+    """read_lfp
+
+    reads data from a structured binary *lfp file in the goose wireless dataset.
+
+    Args:
+        file_path (str): file path to data file
+        t_range (listlike, optional): Start and stop times to read data. (0, -1) reads the entire file. Defaults to (0,-1).
+
+    Returns:
+        da (numpy.array): numpy array of multichannel recorded neural activity saved in file_path
+        mask (numpy.array): numpy array of binary mask values
+    """
 
     # get local experiment, mask files
     exp_file_name, mask_file_name, microdrive_name, rec_type = parse_file_info(file_path)
@@ -1144,6 +1193,26 @@ def read_lfp(file_path,t_range=(0,-1)):
 
 # wrapper to read and handle clfp ECOG data
 def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_file_name=None,compute_mask=True):
+    """load_ecog_clfp_data
+
+    Load ECoG data file from a goose wireless dataset file.
+
+    Args:
+        data_file_name (str): file path to data file
+        t_range (listlike, optional): Start and stop times to read data. (0, -1) reads the entire file. Defaults to (0,-1).
+        exp_file_name (str, optional): File path to experiment data JSON file.
+        mask_file_name (str, optional): File path to data quality mask file. Defaults to None.
+        compute_mask (bool, optional): Compute a data quality mask array if no mask file is given or found. Defaults to True.
+
+    Raises:
+        NameError: If experiment file cannot be found, NameError is raised.
+        NameError: If mask file cannot be found, NameError is raised.
+
+    Returns:
+        data (numpy.array): numpy array of multichannel ECoG data
+        mask (numpy.array): binary mask indicating bad data samples
+        exp (dict): dictionary of experiment data
+    """
 
     # get file path, set ancillary data file names
     exp_file_name, mask_file_name, microdrive_name, rec_type = parse_file_info(data_file_name)
@@ -1231,6 +1300,19 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
 
 # read T seconds of data from the start of the recording:
 def read_from_start(data_file_path,data_type,n_ch,n_read):
+    """read_from_start
+
+    Read data from goose wireless data file. Reads a fixed number of samples from the start of the recording.
+
+    Args:
+        data_file_path (str): file path to data file
+        data_type (numeric type): numpy numeric type reflecting the variable encoding in data_file_path
+        n_ch (int): number of channels saved in data_file_path
+        n_read (int): number of time points to read from data_file_path
+
+    Returns:
+        data (np.array): numpy array of neural recording data saved in data_file_path
+    """
     data_file = open(data_file_path,"rb")
     data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch)
     data = np.reshape(data,(n_ch,n_read),order='F')
@@ -1240,6 +1322,21 @@ def read_from_start(data_file_path,data_type,n_ch,n_read):
 
 # read some time from a given offset
 def read_from_file(data_file_path,data_type,n_ch,n_read,n_offset,reshape_order='F'):
+    """read_from_file
+
+    Reads recorded neural activity from a goose_wireless file.
+
+    Args:
+        data_file_path (str): file path to data file
+        data_type (numeric type): numpy numeric type reflecting the variable encoding in data_file_path
+        n_ch (int): Number of channels in data_file_path
+        n_read (int): Number of data samples read from data_file_path
+        n_offset (int): Offset point defining where data reading starts
+        reshape_order (str, optional): Data reshaping order. Defaults to 'F'
+
+    Returns:
+        data (np.array): numpy array of neural activity stored in data_file_path
+    """
     data_file = open(data_file_path,"rb")
     if np.version.version >= "1.17": # "offset" field not added until later installations
         data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch,
@@ -1254,6 +1351,16 @@ def read_from_file(data_file_path,data_type,n_ch,n_read,n_offset,reshape_order='
 
 # read variables from the "experiment.mat" files
 def get_exp_var(exp_data,*args):
+    """get_exp_var
+
+    Generate a list of variable names from a .MAT formatted experiment data
+
+    Args:
+        exp_data (dict): MAT file data dict
+
+    Returns:
+        var_names (list): list of variable names in exp_data
+    """
     out = exp_data.copy()
     for k, var_name in enumerate(args):
         if k > 1:
