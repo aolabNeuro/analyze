@@ -119,9 +119,9 @@ def get_preferred_direction(b1, b2):
     '''
     b1sign = np.sign(b1)
     b2sign = np.sign(b2)
-    temp_pd = np.rad2deg(np.arctan2(b2sign*b2**2, b1sign*b1**2))
+    temp_pd = np.arctan2(b2sign*b2**2, b1sign*b1**2)
     if temp_pd < 0:
-      pd = 360+temp_pd
+      pd = (2*np.pi)+temp_pd
     else:
       pd = temp_pd
     return pd
@@ -164,7 +164,7 @@ def run_tuningcurve_fit(mean_fr, targets):
         tuple: Tuple containing:
             | **fit_params (3, nunits):** Curve fitting parameters for each unit
             | **modulation depth (ntargets, nunits):** Modulation depth of each unit
-            | **preferred direction (ntargets, nunits):** preferred direction of each unit
+            | **preferred direction (ntargets, nunits):** preferred direction of each unit [rad]
     '''
     nunits = np.shape(mean_fr)[0]
     ntargets = len(targets)

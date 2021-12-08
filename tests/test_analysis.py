@@ -141,7 +141,7 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
         _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets)
         np.testing.assert_allclose(mds_true, md)
-        np.testing.assert_allclose(pds_offset, pd-90)
+        np.testing.assert_allclose(pds_offset, np.rad2deg(pd)-90)
 
 
 
