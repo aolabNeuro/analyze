@@ -317,32 +317,3 @@ def max_repeated_nans(a):
         idx = np.nonzero(mask[1:] != mask[:-1])[0]
         return (idx[1::2] - idx[::2]).max()
 
-'''
-Matrix/array manipulation
-'''
-
-def reorder_dataidx(data_metric):
-    '''
-    This function determines the index order that reorganizes the input data metric from lowest to highest.
-
-    Example::
-
-        >>> data_metric = [12,10,19,15,9]
-        >>> ordered_dataidx, ordered_data_metric = reorder_dataidx(data_metric)
-        >>> print(ordered_dataidx, ordered_data_metric)
-        ([4, 1, 0, 3, 2], [9, 10, 12, 15, 19])
-
-    Args:
-        data_metric (npts):
-
-    Returns: 
-        tuple: Tuple containing:
-            | **ordered_dataidx (npts):**
-            | **ordered_data_metric (npts):**
-    '''
-
-    npts = len(data_metric)
-    dataidx = np.arange(npts)
-    ordered_dataidx = [x for _,x in sorted(zip(data_metric, dataidx))]
-
-    return ordered_dataidx, data_metric[ordered_dataidx]
