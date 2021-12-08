@@ -923,6 +923,9 @@ def _prepare_bmi3d_v0(data, metadata):
             approx_clock['timestamp'], data['sync_clock']['timestamp'], 
                 sync_latency_estimate, sync_search_radius)
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', timestamp_sync, dtypes='f8')
+        approx_clock['timestamp'] = corrected_clock['timestamp_sync'] # update the estimate using the sync clock
+    else:
+        print("Warning: no sync clock connected! This will usually result in problems.")
 
     # 2. Screen photodiode measurements, digitized online by NXP microcontroller
     measure_search_radius = 0.01
