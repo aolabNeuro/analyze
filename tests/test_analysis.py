@@ -187,5 +187,43 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
         self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
+    def test_calc_sem(self):
+        data = np.arange(10, dtype=float)
+        SEM = aopy.analysis.calc_sem(data)
+        self.assertAlmostEqual(np.std(data)/np.sqrt(10), SEM)
+
+        # test with NaN
+        data[5] = np.nan
+        SEM = aopy.analysis.calc_sem(data)
+        self.assertAlmostEqual(np.nanstd(data)/np.sqrt(9), SEM)
+
+        # Test with multiple dimensions
+        data = np.tile(data, (2,2, 1))
+        SEM = aopy.analysis.calc_sem(data, axis=(0,2))
+        np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
+
+class ModelFitTests(unittest.TestCase):
+
+    def test_linear_fit_analysis(self):
+        test_slope = 2
+        test_intercept = 1
+        xdata = np.arange(5)
+        ydata = test_slope*xdata + test_intercept
+        linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata)
+        np.testing.assert_allclose(linear_fit, ydata)
+        self.assertAlmostEqual(pcc, 1.)
+
+        # Test fit intercept
+        _, _, _, _, fit = aopy.analysis.linear_fit_analysis2D(xdata, ydata, fit_intercept=False)
+        self.assertAlmostEqual(fit.intercept_, 0)
+
+        # Test Weights
+        ydata[0] = 3
+        weights = np.array([0, 1, 1, 1, 1])
+        linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
+        np.testing.assert_allclose(linear_fit[1:], ydata[1:])
+
+        
+
 if __name__ == "__main__":
     unittest.main()
