@@ -116,7 +116,6 @@ def calc_reward_intervals(timestamps, values):
     else:
         raise ValueError("Invalid reward timestamps or values")
 
-
 def get_trial_targets(trials, targets):
     '''
     Organizes targets from each trial into a trial array of targets. Essentially reshapes the array,
@@ -135,6 +134,56 @@ def get_trial_targets(trials, targets):
         trial = trials[idx]
         trial_targets[trial].append(targets[idx])
     return trial_targets
+
+def get_inst_target_dir(cursor_pos, target_pos):
+    '''
+    This function calculates the instantaneous target direction from the current cursor position. Assumes angle 0 starts from a vector [1, 0]
+    This function is specific to the 2D case at the moment.
+
+    Args:
+        cursor_pos (x, y): Current cursor position in spatial coordinates
+        target_pos (x, y): Current target position in spatial coordinates
+
+    Returns:
+        A tuple containing:
+            | **relative_target_angle (float):** Absolute angle between cursor and target position
+            | **relative_target_pos (float):** Absolute position of the target relative to the cursor
+
+    '''
+    relative_target_pos = target_pos - cursor_pos
+    relative_target_angle = np.arctan2(relative_target_pos[1], relative_target_pos[0])
+    if relative_target_angle < 0:
+        relative_target_angle = 2*np.pi + relative_target_angle
+
+    return relative_target_angle, relative_target_pos
+
+
+def get_inst_target_dir(trialaligned_xpos, trialaligned_ypos, targetpospertrial):
+    '''
+    This function calculates the instantaneous target direction from the cursor across each trial. 
+
+    Args:
+         trialaligned_xpos (ntime, ntrials):
+         trialaligned_ypos (ntime, ntrials):
+         targetpospertrial (ntrials, 2): X and Y pos of target
+
+    Returns:
+        inst_target_dir
+
+    '''
+    ntime = trialaligned_xpos.shape[0]
+    ntrials = trialaligned_xpos.shape[1]
+    inst_target_dir = np.zeros((ntime, ntrials))*np.nan
+
+    for itrial in range(ntrials):
+        for itime in range(ntime):
+            cursor_location = [trialaligned_xpos[itime, itrial], trialaligned_ypos[itime, itrial]]
+            target_location = targetpospertrial[itrial, :]
+            rel_target_angle, _ = get_inst_target_dir(cursor_location, target_location)
+            inst_target_dir[itime, itrial] = rel_target_angle
+
+    return inst_target_dir
+            
 
 def sample_events(events, times, samplerate):
     '''
