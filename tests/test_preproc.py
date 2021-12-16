@@ -62,7 +62,13 @@ class DigitalCalcTests(unittest.TestCase):
 
     def test_get_measured_clock_timestamps(self):
         latency_estimate = 0.1
-        search_radius = 0.001
+        search_radius = 1
+        estimated_timestamps = np.array([0.5, 2., 3.8, 5.0])
+        measured_timestamps = np.array([0.64, 2.1, 3.8, 4.9])
+        uncorrected = get_measured_clock_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        self.assertCountEqual(measured_timestamps, uncorrected)
+
+        search_radius = 0.005
         estimated_timestamps = np.arange(10000)/100
         measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
         measured_timestamps = np.delete(measured_timestamps, [500])
@@ -460,22 +466,22 @@ class TestPrepareExperiment(unittest.TestCase):
             self.assertIn('trials', data)
 
 
-        # Test sync version 0
+        # Test sync version 0 (and -1)
         files = {}
         files['hdf'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
         check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], -1)
         self.assertIn('fps', metadata)
         self.assertAlmostEqual(metadata['fps'], 120.)
         self.assertIn('timestamp', data['clock'].dtype.names)
         self.assertIn('timestamp', data['events'].dtype.names)
+        n_cycles = data['clock']['time'][-1] + 1
+        self.assertEqual(len(data['clock']), n_cycles)
 
         # Test sync version 1
-        # TODO
 
-        # Test sync version 2
-
-        # Test sync version 3 
+        # Test sync version 2 
         files = {}
         files['hdf'] = 'beig20210407_01_te1315.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
@@ -485,6 +491,7 @@ class TestPrepareExperiment(unittest.TestCase):
         files['ecube'] = '2021-04-07_BMI3D_te1315'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
         check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 2)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
@@ -492,6 +499,10 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertTrue(metadata['has_measured_timestamps'])
         self.assertIn('timestamp', data['clock'].dtype.names)
         self.assertIn('timestamp', data['events'].dtype.names)
+        n_cycles = data['clock']['time'][-1] + 1
+        # self.assertEqual(len(data['clock']), n_cycles)
+
+        # Test sync version 3
         
         # Test sync version 4
         files = {}
@@ -503,6 +514,7 @@ class TestPrepareExperiment(unittest.TestCase):
         files['ecube'] = '2021-06-14_BMI3D_te1825'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
         check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 4)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
@@ -510,16 +522,36 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertTrue(metadata['has_measured_timestamps'])
         self.assertIn('timestamp', data['clock'].dtype.names)
         self.assertIn('timestamp', data['events'].dtype.names)
-        self.assertEqual(len(data['clock']['timestamp']), 1830)
-        self.assertEqual(len(data['task']), 1830)
+        n_cycles = data['clock']['time'][-1] + 1
+        self.assertEqual(len(data['clock']), n_cycles)
+
+        # Test sync version 5
+
+        # Test sync version 6
+
+        # Test sync version 7
+        files = {}
+        files['hdf'] = 'test20211213_01_te3498.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        check_required_fields(data, metadata)
+        files['ecube'] = '2021-12-13_BMI3D_te3498'
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        self.assertEqual(metadata['sync_protocol_version'], 7)
+        self.assertEqual(len(data['clock']), 4848)
+        # self.assertEqual(len(data['events']), 66) # seems to be 67
+        print(metadata['n_missing_markers'])
+        self.assertTrue(metadata['has_measured_timestamps'])
+        evt = data['events'][27]
+        self.assertEqual(evt['event'], b'CURSOR_ENTER_TARGET')
+        self.assertEqual(evt['time'], 1742)
 
         # Run some trial alignment to make sure the number of trials makes sense
         events = data['events']
         start_states = [b'TARGET_ON']
         end_states = [b'TRIAL_END'] 
         trial_states, trial_idx = get_trial_segments(events['event'], events['time'], start_states, end_states)
-        self.assertEqual(len(trial_states), 6)
-        self.assertEqual(len(np.unique(data['trials']['trial'])), 7) # TODO maybe should fix this so trials is also len(trial_states)??
+        self.assertEqual(len(trial_states), 10)
+        self.assertEqual(len(np.unique(data['trials']['trial'])), 11) # TODO maybe should fix this so trials is also len(trial_states)??
 
     def test_parse_oculomatic(self):
         files = {}
