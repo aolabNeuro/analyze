@@ -277,12 +277,14 @@ def bin_spikes(data, fs, bin_width):
 
 def downsample(data, old_samplerate, new_samplerate):
     '''
-    [summary]
+    Downsample by averaging. Computes a downsample factor based on old_samplerate/new_samplerate.
+    Pads data to be a multiple of the downsample factor, then averages blocks into the new
+    samples. 
 
     Args:
-        data (nt, ...): [description]
-        old_samplerate ([type]): [description]
-        new_samplerate ([type]): [description]
+        data (nt, ...): timeseries data to be downsampled. Can be 1D or 2D.
+        old_samplerate (float): the current sampling rate of the data
+        new_samplerate (float): the desired sampling rate of the downsampled data
     '''
     assert new_samplerate < old_samplerate
     assert data.ndim < 3 # doesn't work for more than 2 dimensions
