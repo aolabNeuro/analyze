@@ -148,5 +148,6 @@ class TestDigitalCalc(unittest.TestCase):
         assert unpacked[1,0] == 1
         assert unpacked[0,1] == 0
 
+
 if __name__ == "__main__":
     unittest.main()

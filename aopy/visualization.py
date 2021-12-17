@@ -270,10 +270,8 @@ def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
         dpi (float): resolution of the video file
         savefig_kwargs (kwargs, optional): arguments to pass to savefig
     '''
-    from matplotlib.animation import FFMpegFileWriter  # requires ffmpeg
     filepath = os.path.join(base_dir, filename)
-    writer = FFMpegFileWriter()
-    animation.save(filepath, dpi=dpi, writer=writer, savefig_kwargs=savefig_kwargs)
+    animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
 
 
 def showanim(animation):
@@ -352,6 +350,59 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
     return FuncAnimation(fig, draw, frames=trajectory.shape[0],
                          init_func=lambda: None, interval=1000. / samplerate)
 
+def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
+    '''
+    Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
+    for each timepoint you want to animate, then put them into a list and feed them to this
+    function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
+
+    Example:
+        ::
+        
+            samplerate = 20
+            duration = 5
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            data_map = []
+            for frame in range(duration*samplerate):
+                t = np.linspace(-1, 1, 100) + float(frame)/samplerate
+                c = np.sin(t)
+                data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
+
+            filename = 'spatial_map_animation.mp4'
+            ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
+            saveanim(ani, write_dir, filename)
+
+        .. raw:: html
+
+            <video controls src="_static/spatial_map_animation.mp4"></video>
+
+    Args:
+        data_map (nt): array of 2d maps
+        x (list): list of x positions
+        y (list): list of y positions
+        samplerate (float): rate of the data_map samples
+        cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
+    '''
+
+    # Plotting subroutine
+    def plotdata(i):
+        im.set_data(data_map[i])
+        return im
+
+    # Initial plot
+    fig, ax = plt.subplots()
+    im = plot_spatial_map(data_map[0], x, y, ax, cmap)
+
+    # Change the color limits
+    min_c = np.min(np.array(data_map))
+    max_c = np.max(np.array(data_map))
+    im.set_clim(min_c, max_c)
+        
+    # Create animation
+    ani = FuncAnimation(fig, plotdata, frames=len(data_map),
+                            interval=1000./samplerate)
+
+    return ani
 
 def set_bounds(bounds, ax=None):
     '''
@@ -373,7 +424,7 @@ def set_bounds(bounds, ax=None):
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
 
-def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):
+def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
@@ -441,6 +492,56 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         except:
             target = plt.Circle((pos[0], pos[1]),
                                 radius=target_radius, alpha=alpha[i], color=target_color)
+            ax.add_artist(target)
+            ax.set_aspect('equal', adjustable='box')
+    if bounds is not None: set_bounds(bounds, ax)
+
+def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
+    '''
+    Add circles to an axis. Works for 2D and 3D axes
+
+    Args:
+        circle_positions (ntarg, 3): array of target (x, y, z) locations
+        circle_radius (float): radius of each target
+        circle_color (str): color to draw circle - default is blue
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        origin (tuple, optional): (x, y, z) position of the origin
+        ax (plt.Axis, optional): axis to plot the targets on
+        unique_only (bool, optional): If True, function will only plot targets with unique positions (default: True)
+    '''
+
+    if unique_only:
+        circle_positions = np.unique(circle_positions,axis=0)
+
+    if isinstance(alpha,float):
+        alpha = alpha * np.ones(circle_positions.shape[0])
+    else:
+        assert len(alpha) == circle_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
+
+    if ax is None:
+        ax = plt.gca()
+
+    for i in range(0, circle_positions.shape[0]):
+
+        # Pad the vector to make sure it is length 3
+        pos = np.zeros((3,))
+        pos[:len(circle_positions[i])] = circle_positions[i]
+
+        # Plot in 3D or 2D
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        try:
+            ax.set_zlabel('z')
+            u = np.linspace(0, 2 * np.pi, 100)
+            v = np.linspace(0, np.pi, 100)
+            x = pos[0] + circle_radius * np.outer(np.cos(u), np.sin(v))
+            y = pos[1] + circle_radius * np.outer(np.sin(u), np.sin(v))
+            z = pos[2] + circle_radius * np.outer(np.ones(np.size(u)), np.cos(v))
+            ax.plot_surface(x, y, z, alpha=alpha[i], color=circle_color)
+            ax.set_box_aspect((1, 1, 1))
+        except:
+            target = plt.Circle((pos[0], pos[1]),
+                                radius=circle_radius, alpha=alpha[i], color=circle_color)
             ax.add_artist(target)
             ax.set_aspect('equal', adjustable='box')
     if bounds is not None: set_bounds(bounds, ax)
@@ -719,8 +820,30 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
 
     ax.set_xlabel(r'Time ($\mu$s)')
 
+def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], linecolor=[0,0,0], box_width = 0.5, ax=None):
+    '''
+    This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
 
+    .. image:: _images/boxplot_example.png
 
+    Args:
+        data (n1, n2): Data to plot. A different boxplot is created for each column of this variable.
+        plt_xaxis (n2): X-axis locations to plot the boxplot of each column
+        trendline (bool): If a line should be used to connect boxplots
+        facecolor (list or word):
+        linecolor (list or word):
+        ax (axes handle): Axes to plot
+    '''
+    if ax is None:
+        ax = plt.gca()
 
-
-
+    if trendline:
+        ax.plot(plt_xaxis, np.nanmedian(data, axis=0), color=facecolor)
+    
+    for featidx, ifeat in enumerate(plt_xaxis):
+        temp_data = data[:,featidx]
+        ax.boxplot(temp_data[~np.isnan(temp_data)], 
+            positions=np.array([ifeat]), patch_artist=True, widths=box_width, 
+            boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
+            whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
+            medianprops=dict(color=linecolor))

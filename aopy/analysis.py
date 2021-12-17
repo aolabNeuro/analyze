@@ -8,65 +8,15 @@ import seaborn as sns
 
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
+from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
 from sklearn import model_selection
 from scipy import interpolate
+from scipy import stats
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
 from . import preproc
-
-def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
-    '''
-    Estimate the latent dimensionality of an input dataset by appling cross validated 
-    factor analysis (FA) to input data and returning the maximum likelihood values. 
-    
-    Args:
-        data_in (nt, nch): Time series data in
-        dimensions (ndim): 1D Array of dimensions to compute FA for 
-        nfold (int): Number of cross validation folds to compute. Must be >= 1
-        maxiter (int): Maximum number of FA iterations to compute if there is no convergence. Defaults to 1000.
-        verbose (bool): Display % of dimensions completed. Defaults to False
-
-    Returns:
-        tuple: Tuple containing:
-            | **log_likelihood_score (ndim, nfold):** Array of MLE FA score for each dimension for each fold
-            | **iterations_required (ndim, nfold):** How many iterations of FA were required to converge for each fold
-    '''
-
-    # Initialize arrays
-    log_likelihood_score = np.zeros((np.max(np.shape(dimensions)), nfold))
-    iterations_required = np.zeros((np.max(np.shape(dimensions)), nfold))
-
-    if verbose == True:
-        print('Cross validating and fitting ...')
-
-    # Compute the maximum likelihood score for each dimension using factor analysis    
-    for dim_idx in range(len(dimensions)):
-        fold_idx = 0
-
-        # Handle the case without cross validation.
-        if nfold == 1:
-            fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
-            fafit = fa.fit(data_in.T)
-            log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in.T)
-            iterations_required[dim_idx, fold_idx] = fafit.n_iter_
-            warnings.warn("Without cross validation the highest dimensional model will always fit best.")
-
-        # Every other case with cross validation
-        else:
-            for trainidx, testidx in model_selection.KFold(n_splits=nfold).split(data_in.T):
-                fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
-                fafit = fa.fit(data_in[:, trainidx].T)
-                log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in[:, testidx].T)
-                iterations_required[dim_idx, fold_idx] = fafit.n_iter_
-                fold_idx += 1
-
-        if verbose == True:
-            print(str((100 * (dim_idx + 1)) // len(dimensions)) + "% Complete")
-
-    return log_likelihood_score, iterations_required
-
 
 '''
 Curve fitting
@@ -321,7 +271,6 @@ def get_unit_spiking_mean_variance(spiking_data):
 KALMAN FILTER 
 '''
 
-
 class KFDecoder(object):
     """
     Class for the Kalman Filter Decoder
@@ -481,6 +430,11 @@ class KFDecoder(object):
         y_test_predicted = states.T
         return y_test_predicted
 
+
+'''
+DIMENSIONALITY REDUCTION
+'''
+
 def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
     """
     Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
@@ -516,6 +470,61 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
 
     return list(explained_variance), num_dims, projected_data
 
+def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
+    '''
+    Estimate the latent dimensionality of an input dataset by appling cross validated 
+    factor analysis (FA) to input data and returning the maximum likelihood values. 
+    
+    Args:
+        data_in (nt, nch): Time series data in
+        dimensions (ndim): 1D Array of dimensions to compute FA for 
+        nfold (int): Number of cross validation folds to compute. Must be >= 1
+        maxiter (int): Maximum number of FA iterations to compute if there is no convergence. Defaults to 1000.
+        verbose (bool): Display % of dimensions completed. Defaults to False
+
+    Returns:
+        tuple: Tuple containing:
+            | **log_likelihood_score (ndim, nfold):** Array of MLE FA score for each dimension for each fold
+            | **iterations_required (ndim, nfold):** How many iterations of FA were required to converge for each fold
+    '''
+
+    # Initialize arrays
+    log_likelihood_score = np.zeros((np.max(np.shape(dimensions)), nfold))
+    iterations_required = np.zeros((np.max(np.shape(dimensions)), nfold))
+
+    if verbose == True:
+        print('Cross validating and fitting ...')
+
+    # Compute the maximum likelihood score for each dimension using factor analysis    
+    for dim_idx in range(len(dimensions)):
+        fold_idx = 0
+
+        # Handle the case without cross validation.
+        if nfold == 1:
+            fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
+            fafit = fa.fit(data_in.T)
+            log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in.T)
+            iterations_required[dim_idx, fold_idx] = fafit.n_iter_
+            warnings.warn("Without cross validation the highest dimensional model will always fit best.")
+
+        # Every other case with cross validation
+        else:
+            for trainidx, testidx in model_selection.KFold(n_splits=nfold).split(data_in.T):
+                fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
+                fafit = fa.fit(data_in[:, trainidx].T)
+                log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in[:, testidx].T)
+                iterations_required[dim_idx, fold_idx] = fafit.n_iter_
+                fold_idx += 1
+
+        if verbose == True:
+            print(str((100 * (dim_idx + 1)) // len(dimensions)) + "% Complete")
+
+    return log_likelihood_score, iterations_required
+
+
+'''
+METRIC CALCULATIONS
+'''
 def calc_rms(signal, remove_offset=True):
     '''
     Root mean square of a signal
@@ -599,3 +608,67 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
     if rms:
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
+
+def calc_sem(data, axis=None):
+    '''
+    This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
+    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
+    calculated across the entire input array.
+
+    .. math::
+    
+        SEM = \\frac{\\sigma}{\\sqrt{n}}
+        
+
+    Args:
+        data (nd array): Input data matrix of any dimension
+        axis (int or tuple): Axis to perform SEM calculation on
+    
+    Returns:
+        nd array: SEM value(s).
+    '''
+    n = np.sum(~np.isnan(data), axis=axis)
+    SEM = np.nanstd(data, axis=axis)/np.sqrt(n)
+
+    return SEM
+
+'''
+MODEL FITTING
+'''
+def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
+    '''
+    This functions fits a line to input data using linear regression, calculates the fitting score
+    (coefficient of determination), and calculates Pearson's correlation coefficient. Optional weights
+    can be input to adjust the linear fit. This function then applies the linear fit to the input xdata.
+
+    Linear regression fit is calculated using:
+    https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LinearRegression.html
+    
+    Pearson correlation coefficient is calculated using:
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html
+
+
+    Args:
+        xdata (npts):
+        ydata (npts):
+        weights (npts):
+
+    Returns:
+        tuple: Tuple containing:
+        | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
+        | **linear_fit_score (float):** Coefficient of determination for linear fit
+        | **pcc (float):** Pearson's correlation coefficient
+        | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
+        | **reg_fit (sklearn.linear_model._base.LinearRegression)
+    '''
+    xdata = xdata.reshape(-1, 1)
+    ydata = ydata.reshape(-1,1)
+
+    reg_fit = LinearRegression(fit_intercept=fit_intercept).fit(xdata,ydata, sample_weight=weights)
+    linear_fit_score = reg_fit.score(xdata, ydata)
+    pcc_all = stats.pearsonr(xdata.flatten(), ydata.flatten())
+
+    linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
+
+    return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
