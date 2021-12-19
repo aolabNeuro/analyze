@@ -105,6 +105,13 @@ class CurveFittingTests(unittest.TestCase):
         # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
         fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+        
+    def test_plot_boxplots(self):
+        data = np.random.normal(0, 2, size=(20, 5))
+        xaxis_pts = np.array([2,3,4,4.75,5.5])
+        fig, ax = plt.subplots(1,1)
+        plot_boxplots(data, xaxis_pts, ax=ax)
+        filename = 'boxplot_example.png'
         savefig(write_dir, filename)
 
 class AnimationTests(unittest.TestCase):
@@ -179,6 +186,29 @@ class OtherPlottingTests(unittest.TestCase):
         ax = fig.add_subplot(111, projection='3d')
         plot_targets(target_position, target_radius, (-2, 2, -2, 2, -2, 2), ax=ax)
         savefig(write_dir, filename)
+
+    def test_plot_circles(self):
+
+            # Draw four outer targets and one center target
+            filename = 'circles.png'
+            target_position = np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [-1, 1, 0],
+                [1, -1, 0],
+                [-1, -1, 0]
+            ])
+            target_radius = 0.1
+            target_color = 'b'
+            plt.figure()
+            plot_circles(target_position, target_radius, target_color)
+            savefig(write_dir, filename)
+
+            filename = 'circles_3d.png'
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
+            savefig(write_dir, filename)
 
     def test_plot_trajectories(self):
 
