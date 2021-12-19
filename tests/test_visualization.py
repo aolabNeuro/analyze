@@ -90,6 +90,22 @@ class NeuralDataPlottingTests(unittest.TestCase):
         fig.tight_layout()
         savefig(write_dir, filename)
     
+class CurveFittingTests(unittest.TestCase):
+    def test_plot_tuning_curves(self):
+        filename = 'tuning_curves_plot.png'
+        nunits = 7
+        targets = np.arange(0, 360, 45)
+        mds_true = np.linspace(1, 3, nunits)/2
+        pds_offset = np.arange(-45,270,45)
+        data = np.zeros((nunits,8))*np.nan
+        for ii in range(nunits):
+            noise = np.random.normal(1, 0.2, size=(1,8))
+            data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
+
+        # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
+        fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
+        plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+        
     def test_plot_boxplots(self):
         data = np.random.normal(0, 2, size=(20, 5))
         xaxis_pts = np.array([2,3,4,4.75,5.5])
