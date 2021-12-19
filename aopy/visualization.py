@@ -892,3 +892,18 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
+
+def get_plotcolors(nitems, colormap="viridis"):
+    '''
+    This function sets the colormap for the following plot. A different color will be applied to each plotted event. 
+    All following plots will use this colormap until otherwise specified.
+    The input colormap defaults to the matplotlib colormap 'viridis' but any seaborn or matplotlib colormap can be used. 
+
+    .. image:: _images/colormap_example.png
+
+    Args:
+        nitems (int): Number of different colors in the cycle
+        colormap (color pallette): List of colors or colormap. Compatible with seaborn paletts or matplotlib colormaps. Defaults to 'viridis'
+
+    '''
+    sns.set_palette(colormap, n_colors=nitems)

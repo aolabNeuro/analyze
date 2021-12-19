@@ -3,6 +3,7 @@ from aopy.visualization import *
 import aopy
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -333,6 +334,18 @@ class OtherPlottingTests(unittest.TestCase):
         fig, ax = plt.subplots(1,1)
         plot_events_time(event_list, timestamps_list, labels_list, ax=ax)
         filename = 'events_time'
+        savefig(write_dir,filename)
+
+
+    def test_get_plotcolors(self):
+        nitems = 5
+        fig, ax = plt.subplots(1,1)
+        data = np.random.normal(loc=0.0, scale=1.0, size=(20,5))
+        get_plotcolors(nitems, "viridis")
+        plt.plot(data, label={'1', '2', '3', '4', '5'})
+        plt.legend(bbox_to_anchor=[1,1])
+        fig.tight_layout()
+        filename = 'colormap_example'
         savefig(write_dir,filename)
 
 if __name__ == "__main__":
