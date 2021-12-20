@@ -40,16 +40,16 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
     b,a = butter( order, Wn, btype=filter_type, fs =fs)
     return b,a
 
-def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= None ,filter_type = 'bandpass' ):
+def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, filter_type='bandpass'):
     '''
     Apply a digital butterworth filter forward and backward to a timeseries signal.
 
     Args:
-        data (array): neural data (n_channels x n_samples)
+        data (nt, ...): neural data
         fs (int): sampling rate (in Hz)
-        cutoff_freq(float): cut-off frequency (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
+        cutoff_freq (float): cut-off frequency (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
         bands (list): frequency bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
-        order: Order of the butterworth filter. If no order is specified, the function will find the minimum order of filter required to maintain +3dB gain in the bandpass range.
+        order (int): Order of the butterworth filter. If no order is specified, the function will find the minimum order of filter required to maintain +3dB gain in the bandpass range.
         filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
 
     Returns:
@@ -71,6 +71,8 @@ def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= Non
 
     filtered_data = []
     for _, w in enumerate(Wn):
+
+        # Automatically select an order if none is specified
         if order is None:
             wp = w/(2 * fs)
             if len(wp) == 2:
@@ -78,17 +80,19 @@ def butterworth_filter_data(data,fs, cutoff_freq= None, bands= None,  order= Non
             else:
                 ws = wp -0.1
             order, _ = signal.buttord(wp, ws, 3, 40, False)
-        b,a = butter(order, w, btype=filter_type, fs= fs)
+
+        # Filter this frequency or band
+        b, a = butter(order, w, btype=filter_type, fs= fs)
         # filtered_data = lfilter(b,a,data)
-        filtered_data.append(filtfilt(b, a, data, axis = -1))
+        filtered_data.append(filtfilt(b, a, data, axis=0))
     return filtered_data, Wn
 
-def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknife = True, sides = 'default'):
+def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
     '''
      Computes power spectral density using Multitaper functions
 
     Args:
-        data (ndarray):  time series data where time axis is assumed to be on the last axis (n_channels , n_samples)
+        data (nt, nch): time series data where time axis is assumed to be on the last axis
         fs (float): sampling rate of the signal
         NW (float): Normalized half bandwidth of the data tapers in Hz
         BW (float): sampling bandwidth of the data tapers in Hz
@@ -98,46 +102,43 @@ def get_psd_multitaper(data, fs, NW = None, BW= None, adaptive = False, jackknif
 
     Returns:
         tuple: Tuple containing:
-            | **f (ndarray):** Frequency points vector
-            | **psd_est (ndarray):** estimated power spectral density (PSD)
-            | **nu (ndarray):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
+            | **f (nfft):** Frequency points vector
+            | **psd_est (nfft, nch):** estimated power spectral density (PSD)
+            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
     '''
-    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides )
-    return f, psd_mt, nu
+    data = data.T # move time to the last axis
+    
+    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides)
+    return f, psd_mt.T, nu.T
 
-def multitaper_lfp_bandpower(f,psd_est, bands, n_channels, no_log):
+def multitaper_lfp_bandpower(f, psd_est, bands, no_log):
     '''
     Estimate band power in specified frequency bands using multitaper power spectral density estimate
 
     Args:
-        f (ndarray) : Frequency points vector
-        psd_est (ndarray): power spectral density - output of bandpass_multitaper_filter_data
+        f (nfft) : Frequency points vector
+        psd_est (nfft, nch): power spectral density - output of bandpass_multitaper_filter_data
         bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
-        n_channels: number of channels
         no_log (bool): boolean to select whether lfp band power should be in log scale or not
 
     Returns:
-        lfp_power (ndarray): lfp band power for each channel for each band specified ( n_channels * n_features, 1)
+        lfp_power (n_features, nch): lfp band power for each channel for each band specified
     '''
+    if psd_est.ndim == 1:
+        psd_est = np.expand_dims(psd_est, 1)
 
-    lfp_power = np.zeros((n_channels * len(bands), 1))
-    small_epsilon = 0
+    lfp_power = np.zeros((len(bands), psd_est.shape[1]))
+    small_epsilon = 0 # TODO: what is this for? It does nothing now, should it be possible to make nonzero? -Leo
     fft_inds = dict()
 
     for band_idx, band in enumerate(bands):
             fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
 
     for idx, band in enumerate(bands):
-        if n_channels == 1:
-            if no_log:
-                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(psd_est[fft_inds[idx]], axis=0)
-            else:
-                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(np.log10(psd_est[fft_inds[idx]] + small_epsilon), axis=0)
+        if no_log:
+            lfp_power[idx, :] = np.mean(psd_est[fft_inds[idx],:], axis=0)
         else:
-            if no_log:
-                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(psd_est[:,fft_inds[idx]], axis=1)
-            else:
-                lfp_power[idx * n_channels: (idx + 1) * n_channels, 0] = np.mean(np.log10(psd_est[:,fft_inds[idx]] + small_epsilon), axis=1)
+            lfp_power[idx, :] = np.mean(np.log10(psd_est[fft_inds[idx],:] + small_epsilon), axis=0)
 
     return lfp_power
 
@@ -146,20 +147,20 @@ def get_psd_welch(data, fs,n_freq = None):
     Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
 
     Args:
-        data (ndarray): time series data.
+        data (nt, ...): time series data.
         fs (float): sampling rate
         n_freq (int): no. of frequency points expected
 
     Returns:
         tuple: Tuple containing:
-            | **f (ndarray):** frequency points vector
-            | **psd_est (ndarray):** estimated power spectral density (PSD)
+            | **f (nfft):** frequency points vector
+            | **psd_est (nfft, ...):** estimated power spectral density (PSD)
     '''
     if n_freq:
-        f, psd = signal.welch(data, fs, average = 'median',nperseg=2*n_freq)
+        f, psd = signal.welch(data, fs, average='median', nperseg=2*n_freq, axis=0)
     else:
-        f, psd = signal.welch(data, fs, average = 'median')
-    return f,psd
+        f, psd = signal.welch(data, fs, average='median', axis=0)
+    return f, psd
 
 '''
 Spike detection functions
