@@ -135,9 +135,9 @@ def get_trial_targets(trials, targets):
         trial_targets[trial].append(targets[idx])
     return trial_targets
 
-def get_inst_target_dir(cursor_pos, target_pos):
+def get_target_dir_from_cursor(cursor_pos, target_pos):
     '''
-    This function calculates the instantaneous target direction from the current cursor position. Assumes angle 0 starts from a vector [1, 0]
+    This function calculates the instantaneous target direction from the current cursor position. Assumes angle 0 starts from the direciton of vector [1, 0]
     This function is specific to the 2D case at the moment.
 
     Args:
@@ -146,7 +146,7 @@ def get_inst_target_dir(cursor_pos, target_pos):
 
     Returns:
         A tuple containing:
-            | **relative_target_angle (float):** Absolute angle between cursor and target position
+            | **relative_target_angle (float):** Absolute angle between cursor and target position [rad]
             | **relative_target_pos (float):** Absolute position of the target relative to the cursor
 
     '''
@@ -160,15 +160,16 @@ def get_inst_target_dir(cursor_pos, target_pos):
 
 def get_inst_target_dir(trialaligned_xpos, trialaligned_ypos, targetpospertrial):
     '''
-    This function calculates the instantaneous target direction from the cursor across each trial. 
+    This function calculates the instantaneous direction from the cursor to the target at each time point across each trial.
+    This function is specific to the 2D case at the moment.
 
     Args:
-         trialaligned_xpos (ntime, ntrials):
-         trialaligned_ypos (ntime, ntrials):
+         trialaligned_xpos (ntime, ntrials): X-position of the cursor
+         trialaligned_ypos (ntime, ntrials): Y-position of the cursor
          targetpospertrial (ntrials, 2): X and Y pos of target
 
     Returns:
-        inst_target_dir
+        (ntime, ntrials): Array including instantaneous direction to the target from the cursor [rad]
 
     '''
     ntime = trialaligned_xpos.shape[0]
@@ -179,7 +180,7 @@ def get_inst_target_dir(trialaligned_xpos, trialaligned_ypos, targetpospertrial)
         for itime in range(ntime):
             cursor_location = [trialaligned_xpos[itime, itrial], trialaligned_ypos[itime, itrial]]
             target_location = targetpospertrial[itrial, :]
-            rel_target_angle, _ = get_inst_target_dir(cursor_location, target_location)
+            rel_target_angle, _ = get_target_dir_from_cursor(cursor_location, target_location)
             inst_target_dir[itime, itrial] = rel_target_angle
 
     return inst_target_dir

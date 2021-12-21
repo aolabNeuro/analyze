@@ -118,6 +118,21 @@ class TestTrajectoryFuncs(unittest.TestCase):
 
         np.testing.assert_almost_equal(rotated_data[1,:], rotated_point[0,:])
 
+    def test_get_target_dir_from_cursor(self):
+        cursorpos = np.array((1,1))
+        targetpos = np.array((-1,-1))
+        relative_target_angle, relative_target_pos = get_target_dir_from_cursor(cursorpos, targetpos)
+        np.testing.assert_almost_equal(relative_target_angle, np.deg2rad(225))
+        np.testing.assert_almost_equal(relative_target_pos, np.array((-2, -2)))
+
+    def test_get_inst_target_dir(self):
+        xpos =  np.array([[1,0,1], [0,-1,1], [-1,0,-1]])
+        ypos =  np.array([[1,0,1], [1,-1,-1], [0,1,0]])
+        targetpos = np.array([[1,0], [1,1], [-1,-1]])
+        insttargetdir = get_inst_target_dir(xpos, ypos, targetpos)
+        expected_insttargetdir = np.array([[270,45,225], [315,45,180], [0,0,270]])
+        np.testing.assert_almost_equal(insttargetdir, np.deg2rad(expected_insttargetdir))
+
 class TestCalcFuncs(unittest.TestCase):
 
     def test_calc_reward_intervals(self):
