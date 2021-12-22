@@ -133,6 +133,12 @@ class TestTrajectoryFuncs(unittest.TestCase):
         expected_insttargetdir = np.array([[270,45,225], [315,45,180], [0,0,270]])
         np.testing.assert_almost_equal(insttargetdir, np.deg2rad(expected_insttargetdir))
 
+    def test_mean_fr_inst_dir(self):
+        data = np.random.randint(0,2,size=(1000,10,3))
+        cursorxpos = np.arange(-1, 1, 0.1)
+        cursorypos = np.arange(-1, 1, 0.1)
+        
+
 class TestCalcFuncs(unittest.TestCase):
 
     def test_calc_reward_intervals(self):

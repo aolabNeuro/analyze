@@ -3,7 +3,9 @@
 # LFP bands or spikes detection / binning
 
 import numpy as np
+import math
 import warnings
+from . import precondition, preproc, data
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
@@ -19,7 +21,6 @@ def translate_spatial_data(spatial_data, new_origin):
     new_spatial_data = np.subtract(spatial_data, new_origin)
 
     return new_spatial_data
-
 
 def rotate_spatial_data(spatial_data, new_axis, current_axis):
     '''
@@ -148,7 +149,6 @@ def get_target_dir_from_cursor(cursor_pos, target_pos):
         A tuple containing:
             | **relative_target_angle (float):** Absolute angle between cursor and target position [rad]
             | **relative_target_pos (float):** Absolute position of the target relative to the cursor
-
     '''
     relative_target_pos = target_pos - cursor_pos
     relative_target_angle = np.arctan2(relative_target_pos[1], relative_target_pos[0])
@@ -156,7 +156,6 @@ def get_target_dir_from_cursor(cursor_pos, target_pos):
         relative_target_angle = 2*np.pi + relative_target_angle
 
     return relative_target_angle, relative_target_pos
-
 
 def get_inst_target_dir(trialaligned_xpos, trialaligned_ypos, targetpospertrial):
     '''
@@ -184,7 +183,60 @@ def get_inst_target_dir(trialaligned_xpos, trialaligned_ypos, targetpospertrial)
             inst_target_dir[itime, itrial] = rel_target_angle
 
     return inst_target_dir
-            
+
+def mean_fr_inst_dir(data, cursorxpos, cursorypos, targetpos,data_binwidth, targetloc_binwidth, data_samplerate, cursor_samplerate):
+    '''
+    This function takes trial aligned neural data, cursor position, and target position and calculates
+    the mean firing rate per target location. 
+
+    Args:
+        data (ntime, nunit, ntrial): Trial aligned data
+        cursorxpos (ntime, ntrial): Trial aligned cursor position
+        cursorypos (ntime, ntrial): Trial aligned cursor position
+        targetpos (ntrial, 2): Target position for each trial. First column is x target position, second column is y target position.
+        data_binwidth (float): Bin size for neural data and cursor position. Can not be smaller than allowed by cursor position sampling rate.
+        targetloc_binwidth (float): Bin size for lumping target positions [deg]
+        data_samplerate (int): Sampling rate for data
+        cursor_samplerate (int): Sampling rate for cursor position
+
+    Returns:
+        (nunit, ndirection): Average firing rate per unit per direction bin.
+        
+    '''
+    # Check that binwidths are not lower than allowed by sampling rate
+    max_cursor_binwidth = 1/cursor_samplerate #[s/sample]
+    if data_binwidth < max_cursor_binwidth:
+        data_binwidth = max_cursor_binwidth
+    
+    ndatatime, nunit, ntrial = data.shape
+    ndirection = 360//targetloc_binwidth
+    nbins = math.ceil(ndatatime/data_binwidth) # the number of bins
+
+    # Check target bin width is evenly spaced around task circle
+    if 360%targetloc_binwidth != 0:
+        warnings.warn("Target location bins are not evenly spaced. Please choose a bin width that evenly divides into 360 degrees")
+
+    # Bin neural data and cursor pos for each trial to make them the same samplingrate
+    binned_data = np.zeros(nbins, nunit, ntrial)*np.nan
+    for itrial in range(ntrial):
+        binned_data[:,:,itrial] = precondition.bin_spikes(data[:,:,itrial], data_samplerate, data_binwidth)
+    
+    binned_cursorxpos = precondition.bin_spikes(cursorxpos, cursor_samplerate, data_binwidth)
+    binned_cursorypos = precondition.bin_spikes(cursorypos, cursor_samplerate, data_binwidth)
+
+    # Get instantaneous target location for each cursor pos (ntime, ntrial)
+    inst_target_dir = get_inst_target_dir(binned_cursorxpos, binned_cursorypos, targetpos)
+    target_binid = 1 + (inst_target_dir-(targetloc_binwidth/2))//targetloc_binwidth
+    target_binid[target_binid==ndirection] = 0
+
+    # Average data and place into correct points in array
+    mean_dir_fr = np.zeros(nunit, ndirection)
+    for iunit in range(nunit):
+        for idir in range(ndirection):
+            temp_data = binned_data[:,iunit,:]
+            mean_dir_fr[:,iunit,:] = np.mean(temp_data[target_binid==idir])
+
+    return mean_dir_fr
 
 def sample_events(events, times, samplerate):
     '''
