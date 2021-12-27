@@ -184,7 +184,7 @@ def get_inst_target_dir(trialaligned_xpos, trialaligned_ypos, targetpospertrial)
 
     return inst_target_dir
 
-def mean_fr_inst_dir(data, cursorxpos, cursorypos, targetpos,data_binwidth, targetloc_binwidth, data_samplerate, cursor_samplerate):
+def mean_fr_inst_dir(data, cursorxpos, cursorypos, targetpos, data_binwidth, targetloc_binwidth, data_samplerate, cursor_samplerate):
     '''
     This function takes trial aligned neural data, cursor position, and target position and calculates
     the mean firing rate per target location. 
@@ -210,31 +210,32 @@ def mean_fr_inst_dir(data, cursorxpos, cursorypos, targetpos,data_binwidth, targ
     
     ndatatime, nunit, ntrial = data.shape
     ndirection = 360//targetloc_binwidth
-    nbins = math.ceil(ndatatime/data_binwidth) # the number of bins
+    nbins = math.ceil(ndatatime/(data_samplerate*data_binwidth)) # the number of bins
 
     # Check target bin width is evenly spaced around task circle
     if 360%targetloc_binwidth != 0:
         warnings.warn("Target location bins are not evenly spaced. Please choose a bin width that evenly divides into 360 degrees")
 
     # Bin neural data and cursor pos for each trial to make them the same samplingrate
-    binned_data = np.zeros(nbins, nunit, ntrial)*np.nan
+    binned_data = np.zeros((nbins, nunit, ntrial))*np.nan
     for itrial in range(ntrial):
         binned_data[:,:,itrial] = precondition.bin_spikes(data[:,:,itrial], data_samplerate, data_binwidth)
-    
+
     binned_cursorxpos = precondition.bin_spikes(cursorxpos, cursor_samplerate, data_binwidth)
     binned_cursorypos = precondition.bin_spikes(cursorypos, cursor_samplerate, data_binwidth)
 
     # Get instantaneous target location for each cursor pos (ntime, ntrial)
+    #print(binned_cursorxpos.shape, binned_cursorypos.shape, targetpos.shape)
     inst_target_dir = get_inst_target_dir(binned_cursorxpos, binned_cursorypos, targetpos)
-    target_binid = 1 + (inst_target_dir-(targetloc_binwidth/2))//targetloc_binwidth
+    target_binid = 1 + (inst_target_dir-(np.deg2rad(targetloc_binwidth)/2))//np.deg2rad(targetloc_binwidth)
     target_binid[target_binid==ndirection] = 0
 
     # Average data and place into correct points in array
-    mean_dir_fr = np.zeros(nunit, ndirection)
+    mean_dir_fr = np.zeros((nunit, ndirection))
     for iunit in range(nunit):
         for idir in range(ndirection):
             temp_data = binned_data[:,iunit,:]
-            mean_dir_fr[:,iunit,:] = np.mean(temp_data[target_binid==idir])
+            mean_dir_fr[iunit, idir] = np.mean(temp_data[target_binid==idir])
 
     return mean_dir_fr
 

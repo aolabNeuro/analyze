@@ -134,10 +134,26 @@ class TestTrajectoryFuncs(unittest.TestCase):
         np.testing.assert_almost_equal(insttargetdir, np.deg2rad(expected_insttargetdir))
 
     def test_mean_fr_inst_dir(self):
-        data = np.random.randint(0,2,size=(1000,10,3))
-        cursorxpos = np.arange(-1, 1, 0.1)
-        cursorypos = np.arange(-1, 1, 0.1)
+        ## Test
+        cursorxpos = np.arange(-1, 1, 0.1) #[ncursor time bin (20pts)]
+        cursorxpos = np.tile(cursorxpos.reshape(-1,1), (1,2))
+        cursorypos = np.arange(-1, 1, 0.1) #[ncursor time bin (20pts)]
+        cursorypos = np.tile(cursorypos.reshape(-1,1), (1,2))
+        data = np.ones((100, 10, 2)) #[ntime, nunit, ntrial]
+        targetpos = np.array([[1,1], [-1,-1]]) #[ntrial x 2]
+        data_binwidth = 1
+        targetloc_binwidth = 45
+        data_samplerate = 10
+        cursor_samplerate = 2
+
+        meanfr = mean_fr_inst_dir(data, cursorxpos, cursorypos, targetpos, data_binwidth, targetloc_binwidth, data_samplerate, cursor_samplerate)
+        exp_meanfr = np.zeros((10, int(360/45)))*np.nan
+        exp_meanfr[:,1] = 100
+        exp_meanfr[:,5] = 100
         
+        self.assertEqual(meanfr.shape[1], 360/45) # Check correct num of direction bins
+        np.testing.assert_almost_equal(meanfr, exp_meanfr)
+    
 
 class TestCalcFuncs(unittest.TestCase):
 
