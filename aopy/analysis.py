@@ -77,14 +77,13 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
     
     Args:
         data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
-        max_dims (int): (default None) the maximum number of dimensions
-                        if left unset, will equal the dimensions (number of columns) in the dataset
+        max_dims (int): (default None) the maximum number of dimensions to reduce data onto.
         VAF (float): (default 0.9) variance accounted for (VAF)
         project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
 
     Returns:
         tuple: Tuple containing: 
-            | **explained_variance (list):** variance accounted for by each principal component
+            | **explained_variance (list ndims long):** variance accounted for by each principal component
             | **num_dims (int):** number of principal components required to account for variance
             | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
     """
@@ -95,7 +94,8 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
     if max_dims is None:
         num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
     else:
-        num_dims = max_dims
+        temp_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+        num_dims = np.min([max_dims, temp_dims])
 
     if project_data:
         all_projected_data = pca.transform(data)
@@ -254,7 +254,7 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
         | **1. ** For each unit, project each waveform into the top PCs. Number of PCs determined by 'pca_varthresh'
         | **2. ** For each unit, remove outlier spikes. Outlier threhsold determined by 'std_threshold'. If the number of waveforms is less than 'min_wf', no waveforms are removed.
         | **3. ** For each unit, average remaining waveforms.
-        | **4. ** For each unit, calculate spike width using a local polynomail interpolation.
+        | **4. ** For each unit, calculate spike width using a local polynomial interpolation.
         | **5. ** Use a gaussian mixture model to classify all units
 
     Args:
@@ -262,8 +262,7 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
         samplerate (float): sampling rate of the points in each waveform. 
         std_threshold (float): For outlier removal. The maximum number of standard deviations (in PC space) away from the mean a given waveform is allowed to be. Defaults to 3
         pca_varthresh (float): Variance threshold for determining the number of dimensions to project spiking data onto. Defaults to 0.75.
-        min_wf_samples (int): Minimum number of waveform samples required to perform outlier detection.
-        nspikesamples (None or int): Optional, defaults to None. Specificy how many waveforms to use in classification. Randomly selects the set amount of waveforms for each unit. If there are more waveforms asked for than recorded spikes all of the recorded spikes will be used. 
+        min_wfs (int): Minimum number of waveform samples required to perform outlier detection.
 
     Returns:
         tuple: A tuple containing

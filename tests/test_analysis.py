@@ -137,7 +137,21 @@ class PCATests(unittest.TestCase):
         self.assertAlmostEqual(num_dims, single_num_dims)
         self.assertEqual(proj_data, None)
 
-        # Test projection
+        # Test max_dims optional parameter
+        np.random.seed(0)
+        data = np.random.randn(3,3)
+        _, num_dims, proj = aopy.analysis.get_pca_dimensions(data, max_dims=1, project_data=True)
+        self.assertEqual(num_dims, 1)
+        self.assertEqual(proj.shape[1], 1)
+
+        # Test VAF parameter
+        np.random.seed(0)
+        data = np.random.randn(3,3)
+        _, num_dims, proj = aopy.analysis.get_pca_dimensions(data, VAF=0.5, project_data=True)
+        self.assertEqual(num_dims, 1)
+        self.assertEqual(proj.shape[1], 1)
+
+        # Test projection optional parameter
         single_dim_data = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]])
         expected_single_dim_data = np.array([[0.75], [-0.25], [-0.25], [-0.25]])
         VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data, project_data=True)
