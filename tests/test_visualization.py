@@ -90,6 +90,29 @@ class NeuralDataPlottingTests(unittest.TestCase):
         fig.tight_layout()
         savefig(write_dir, filename)
     
+class CurveFittingTests(unittest.TestCase):
+    def test_plot_tuning_curves(self):
+        filename = 'tuning_curves_plot.png'
+        nunits = 7
+        targets = np.arange(0, 360, 45)
+        mds_true = np.linspace(1, 3, nunits)/2
+        pds_offset = np.arange(-45,270,45)
+        data = np.zeros((nunits,8))*np.nan
+        for ii in range(nunits):
+            noise = np.random.normal(1, 0.2, size=(1,8))
+            data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
+
+        # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
+        fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
+        plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+        
+    def test_plot_boxplots(self):
+        data = np.random.normal(0, 2, size=(20, 5))
+        xaxis_pts = np.array([2,3,4,4.75,5.5])
+        fig, ax = plt.subplots(1,1)
+        plot_boxplots(data, xaxis_pts, ax=ax)
+        filename = 'boxplot_example.png'
+        savefig(write_dir, filename)
 
 class AnimationTests(unittest.TestCase):
 
@@ -126,6 +149,20 @@ class AnimationTests(unittest.TestCase):
         filename = "animate_trajectory_test.mp4"
         saveanim(ani, write_dir, filename)
 
+    def test_animate_spatial_map(self):
+        samplerate = 20
+        duration = 5
+        x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+        data_map = []
+        for frame in range(duration*samplerate):
+            t = np.linspace(-1, 1, 100) + float(frame)/samplerate
+            c = np.sin(t)
+            data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
+
+        filename = 'spatial_map_animation.mp4'
+        ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
+        saveanim(ani, write_dir, filename)
+
 class OtherPlottingTests(unittest.TestCase):
 
     def test_plot_targets(self):
@@ -149,6 +186,29 @@ class OtherPlottingTests(unittest.TestCase):
         ax = fig.add_subplot(111, projection='3d')
         plot_targets(target_position, target_radius, (-2, 2, -2, 2, -2, 2), ax=ax)
         savefig(write_dir, filename)
+
+    def test_plot_circles(self):
+
+            # Draw four outer targets and one center target
+            filename = 'circles.png'
+            target_position = np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [-1, 1, 0],
+                [1, -1, 0],
+                [-1, -1, 0]
+            ])
+            target_radius = 0.1
+            target_color = 'b'
+            plt.figure()
+            plot_circles(target_position, target_radius, target_color)
+            savefig(write_dir, filename)
+
+            filename = 'circles_3d.png'
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
+            savefig(write_dir, filename)
 
     def test_plot_trajectories(self):
 

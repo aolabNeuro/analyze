@@ -9,9 +9,11 @@ import seaborn as sns
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
+from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
 from sklearn import model_selection
 from scipy import interpolate
+from scipy import stats
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
@@ -105,28 +107,29 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
 
     return list(explained_variance), num_dims, projected_data
 
+
 '''
 Curve fitting
 '''
 
 
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
-def func(target, b1, b2, b3):
+def curve_fitting_func(target_theta, b1, b2, b3):
     '''
 
     Args:
-        target (int) center out task target index ( takes values from 0 to 7)
-        b1, b2, b3 : parameters used for curve fitting
+        target_theta (float): center out task target direction index [degrees]
+        b1, b2, b3 (float): parameters used for curve fitting
 
     .. math::
     
         b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
-    Returns: result from above equation
+    Returns:
+        float: Evaluation of the fitting function for a given target.
 
     '''
-    theta = 45 * (target - 1)
-    return b1 * np.cos(np.deg2rad(theta)) + b2 * np.sin(np.deg2rad(theta)) + b3
+    return b1 * np.cos(np.deg2rad(target_theta)) + b2 * np.sin(np.deg2rad(target_theta)) + b3
 
 
 def get_modulation_depth(b1, b2):
@@ -137,6 +140,8 @@ def get_modulation_depth(b1, b2):
     
         \\sqrt{b_1^2+b_2^2}
 
+    Returns:
+        float: Modulation depth (amplitude) of the curve fit
     '''
     return np.sqrt((b1 ** 2) + (b2 ** 2))
 
@@ -148,9 +153,18 @@ def get_preferred_direction(b1, b2):
     .. math:: 
         
         arctan(\\frac{b_1^2}{b_2^2})
-        
+    
+    Returns:
+        float: Preferred direction of the curve fit in radians
     '''
-    return np.arctan2(b2 ** 2, b1 ** 2)
+    b1sign = np.sign(b1)
+    b2sign = np.sign(b2)
+    temp_pd = np.arctan2(b2sign*b2**2, b1sign*b1**2)
+    if temp_pd < 0:
+      pd = (2*np.pi)+temp_pd
+    else:
+      pd = temp_pd
+    return pd
 
 
 def get_mean_fr_per_direction(data, target_dir):
@@ -174,49 +188,39 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_rows=None, n_subplot_cols= None):
+def run_tuningcurve_fit(mean_fr, targets):
     '''
+    This function calculates the tuning parameters from center out task neural data.
+    It fits a sinusoidal tuning curve to the mean firing rates for each unit.
+    Uses approach outlined in Orsborn 2014/Georgopolous 1986.
+    Note: To orient PDs with the quadrant of best fit, this function samples the target location
+    with high resolution between 0-360 degrees.
+
     Args:
-        means (2D array) : Mean firing rate [n_targets x n_neurons]
-        make_plot (bool) : Generates plot with curve fitting and mean firing rate for n_neuons
-        Fig title (str) : Figure title
-        n_rows (int) : No of rows in subplot
-        n_cols (int) : No. of cols in subplot
+        mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
+        targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
 
     Returns:
         tuple: Tuple containing:
-            | **params_day (Numpy array):** Curve fitting parameters
-            | **modulation depth (Numpy array):** Modulation depth of neuron
-            | **preferred direction (Numpy array):** preferred direction of neurons
+            | **fit_params (3, nunits):** Curve fitting parameters for each unit
+            | **modulation depth (ntargets, nunits):** Modulation depth of each unit
+            | **preferred direction (ntargets, nunits):** preferred direction of each unit [rad]
     '''
-    params_day = []
-    mod_depth = []
-    pd = []
+    nunits = np.shape(mean_fr)[0]
+    ntargets = len(targets)
 
-    if make_plot:
-        # sns.set_context('paper')
-        plt.figure(figsize=(20, 10))
+    fit_params = np.empty((nunits,3))*np.nan
+    md = np.empty((nunits))*np.nan
+    pd = np.empty((nunits))*np.nan
 
-    for this_neuron in range(np.shape(means)[1]):
-        xdata = np.arange(1, 9)
-        ydata = np.array(means)[:, this_neuron]
-    # print(ydata)
+    for iunit in range(nunits):
+        params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:])
+        fit_params[iunit,:] = params
 
-        params, params_cov = curve_fit(func, xdata, ydata)
-        # print(params)
-        params_day.append(params)
+        md[iunit] = get_modulation_depth(params[0], params[1])
+        pd[iunit] = get_preferred_direction(params[0], params[1])
 
-        mod_depth.append(get_modulation_depth(params[0], params[1]))
-        pd.append(get_preferred_direction(params[0], params[1]))
-
-        if make_plot:
-            plt.subplot(n_subplot_rows, n_subplot_cols, this_neuron + 1)
-            plt.plot(xdata, ydata, 'b-', label='data')
-            plt.plot(xdata, func(xdata, params[0], params[1], params[2]), 'b--', label='fit')
-            plt.suptitle(fig_title, y=1.01)
-            plt.ylim(0, 600)
-            plt.xticks(np.arange(1, 8, 2))
-    return np.array(params_day), np.array(mod_depth), np.array(pd)
+    return fit_params, md, pd
 
 def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD"):
     '''
@@ -439,7 +443,6 @@ def get_unit_spiking_mean_variance(spiking_data):
 KALMAN FILTER 
 '''
 
-
 class KFDecoder(object):
     """
     Class for the Kalman Filter Decoder
@@ -599,8 +602,9 @@ class KFDecoder(object):
         y_test_predicted = states.T
         return y_test_predicted
 
-
-
+'''
+METRIC CALCULATIONS
+'''
 def calc_rms(signal, remove_offset=True):
     '''
     Root mean square of a signal
@@ -684,3 +688,67 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
     if rms:
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
+
+def calc_sem(data, axis=None):
+    '''
+    This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
+    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
+    calculated across the entire input array.
+
+    .. math::
+    
+        SEM = \\frac{\\sigma}{\\sqrt{n}}
+        
+
+    Args:
+        data (nd array): Input data matrix of any dimension
+        axis (int or tuple): Axis to perform SEM calculation on
+    
+    Returns:
+        nd array: SEM value(s).
+    '''
+    n = np.sum(~np.isnan(data), axis=axis)
+    SEM = np.nanstd(data, axis=axis)/np.sqrt(n)
+
+    return SEM
+
+'''
+MODEL FITTING
+'''
+def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
+    '''
+    This functions fits a line to input data using linear regression, calculates the fitting score
+    (coefficient of determination), and calculates Pearson's correlation coefficient. Optional weights
+    can be input to adjust the linear fit. This function then applies the linear fit to the input xdata.
+
+    Linear regression fit is calculated using:
+    https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LinearRegression.html
+    
+    Pearson correlation coefficient is calculated using:
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html
+
+
+    Args:
+        xdata (npts):
+        ydata (npts):
+        weights (npts):
+
+    Returns:
+        tuple: Tuple containing:
+        | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
+        | **linear_fit_score (float):** Coefficient of determination for linear fit
+        | **pcc (float):** Pearson's correlation coefficient
+        | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
+        | **reg_fit (sklearn.linear_model._base.LinearRegression)
+    '''
+    xdata = xdata.reshape(-1, 1)
+    ydata = ydata.reshape(-1,1)
+
+    reg_fit = LinearRegression(fit_intercept=fit_intercept).fit(xdata,ydata, sample_weight=weights)
+    linear_fit_score = reg_fit.score(xdata, ydata)
+    pcc_all = stats.pearsonr(xdata.flatten(), ydata.flatten())
+
+    linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
+
+    return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit

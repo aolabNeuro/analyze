@@ -11,6 +11,7 @@ import os
 import glob
 import warnings
 import pickle
+import yaml
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -1032,3 +1033,39 @@ def pkl_read(file_to_read, read_dir):
     with open(file, "rb") as f:
         this_dat = pickle.load(f)
     return this_dat
+
+
+def yaml_write(filename, data):
+    '''
+    YAML stands for Yet Another Markup Language. It can be used to save Params or configuration files.
+    Args:
+        filename(str): Filename including the full path
+        data (dict) : Params data to be dumped into a yaml file
+    Returns: None
+
+    Example:
+        >>>params = [{ 'CENTER_TARGET_ON': 16 , 'CURSOR_ENTER_CENTER_TARGET' : 80 , 'REWARD' : 48 , 'DELAY_PENALTY' : 66 }]
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>yaml_write(params_file, params)
+    '''
+    with open(filename, 'w') as file:
+        documents = yaml.dump(data, file)
+
+
+def yaml_read(filename):
+    '''
+    The FullLoader parameter handles the conversion from YAML scalar values to Python the dictionary format
+    Args:
+        filename(str): Filename including the full path
+
+    Returns:
+        data (dict) : Params data dumped into a yaml file
+
+    Example:
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>task_codes = yaml_read(params_file, params)
+    '''
+    with open(filename) as file:
+        task_codes = yaml.load(file, Loader=yaml.FullLoader)
+
+    return task_codes
