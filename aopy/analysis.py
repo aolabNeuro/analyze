@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 
 from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
@@ -17,6 +18,95 @@ import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
 from . import preproc
+
+'''
+Correlation / dimensionality analysis
+'''
+def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
+    '''
+    Estimate the latent dimensionality of an input dataset by appling cross validated 
+    factor analysis (FA) to input data and returning the maximum likelihood values. 
+    
+    Args:
+        data_in (nt, nch): Time series data in
+        dimensions (ndim): 1D Array of dimensions to compute FA for 
+        nfold (int): Number of cross validation folds to compute. Must be >= 1
+        maxiter (int): Maximum number of FA iterations to compute if there is no convergence. Defaults to 1000.
+        verbose (bool): Display % of dimensions completed. Defaults to False
+
+    Returns:
+        tuple: Tuple containing:
+            | **log_likelihood_score (ndim, nfold):** Array of MLE FA score for each dimension for each fold
+            | **iterations_required (ndim, nfold):** How many iterations of FA were required to converge for each fold
+    '''
+
+    # Initialize arrays
+    log_likelihood_score = np.zeros((np.max(np.shape(dimensions)), nfold))
+    iterations_required = np.zeros((np.max(np.shape(dimensions)), nfold))
+
+    if verbose == True:
+        print('Cross validating and fitting ...')
+
+    # Compute the maximum likelihood score for each dimension using factor analysis    
+    for dim_idx in range(len(dimensions)):
+        fold_idx = 0
+
+        # Handle the case without cross validation.
+        if nfold == 1:
+            fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
+            fafit = fa.fit(data_in.T)
+            log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in.T)
+            iterations_required[dim_idx, fold_idx] = fafit.n_iter_
+            warnings.warn("Without cross validation the highest dimensional model will always fit best.")
+
+        # Every other case with cross validation
+        else:
+            for trainidx, testidx in model_selection.KFold(n_splits=nfold).split(data_in.T):
+                fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
+                fafit = fa.fit(data_in[:, trainidx].T)
+                log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in[:, testidx].T)
+                iterations_required[dim_idx, fold_idx] = fafit.n_iter_
+                fold_idx += 1
+
+        if verbose == True:
+            print(str((100 * (dim_idx + 1)) // len(dimensions)) + "% Complete")
+
+    return log_likelihood_score, iterations_required
+
+def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
+    """
+    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
+    
+    Args:
+        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
+        max_dims (int): (default None) the maximum number of dimensions to reduce data onto.
+        VAF (float): (default 0.9) variance accounted for (VAF)
+        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
+
+    Returns:
+        tuple: Tuple containing: 
+            | **explained_variance (list ndims long):** variance accounted for by each principal component
+            | **num_dims (int):** number of principal components required to account for variance
+            | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
+    """
+    pca = PCA()
+    pca.fit(data)
+    explained_variance = pca.explained_variance_ratio_
+    total_explained_variance = np.cumsum(explained_variance)
+    if max_dims is None:
+        num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+    else:
+        temp_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+        num_dims = np.min([max_dims, temp_dims])
+
+    if project_data:
+        all_projected_data = pca.transform(data)
+        projected_data = all_projected_data[:,:num_dims]
+    else:
+        projected_data = None
+
+    return list(explained_variance), num_dims, projected_data
+
 
 '''
 Curve fitting
@@ -152,6 +242,87 @@ def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD"
     n_success = np.count_nonzero(success_trials)
     success_rate = n_success / n_trials
     return success_rate
+
+'''
+Cell type classification analysis
+'''
+def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_varthresh=0.75, min_wfs=10):
+    '''
+    Calculates waveform width and classifies units into putative exciatory and inhibitory cell types based on pulse width.
+    Units with lower spike width are considered inhibitory cells (label: 0) and higher spike width are considered excitatory cells (label: 1)
+    The pulse width is defined as the time between the waveform trough to the waveform peak. (trough-to-peak time)
+    Assumes all waveforms are recorded for the same number of time points. 
+
+    This function conducts the following processing steps:
+
+        | **1. ** For each unit, project each waveform into the top PCs. Number of PCs determined by 'pca_varthresh'
+        | **2. ** For each unit, remove outlier spikes. Outlier threhsold determined by 'std_threshold'. If the number of waveforms is less than 'min_wf', no waveforms are removed.
+        | **3. ** For each unit, average remaining waveforms.
+        | **4. ** For each unit, calculate spike width using a local polynomial interpolation.
+        | **5. ** Use a gaussian mixture model to classify all units
+
+    Args:
+        waveform_data (nunit long list of (nt x nwaveforms) arrays): Waveforms of each unit. Each element of the list is a 2D array for each unit. Each 2D array contains the timeseries of all recorded waveforms for a given unit.
+        samplerate (float): sampling rate of the points in each waveform. 
+        std_threshold (float): For outlier removal. The maximum number of standard deviations (in PC space) away from the mean a given waveform is allowed to be. Defaults to 3
+        pca_varthresh (float): Variance threshold for determining the number of dimensions to project spiking data onto. Defaults to 0.75.
+        min_wfs (int): Minimum number of waveform samples required to perform outlier detection.
+
+    Returns:
+        tuple: A tuple containing
+            | **TTP (nunit):** Spike width of each unit. [us]
+            | **unit_labels (nunit):** Label of each unit. 0: low spike width (inhibitory), 1: high spike width (excitatory)
+            | **avg_wfs (nunit, nt):** Average waveform of accepted waveforms for each unit
+            | **sss_unitid (1D):*** Unit index of spikes with a lower number of spikes than allowed by 'min_wfs'
+    '''
+    TTP = [] 
+    sss_unitid = []
+
+    # Get data size parameters.
+    nt, _ = waveform_data[0].shape
+    nunits = len(waveform_data)
+
+    # Initialize array for average waveforms
+    avg_wfs = np.zeros((nt, nunits)) 
+
+    # Iterate through all units
+    for iunit in range(nunits): 
+        iwfdata = waveform_data[iunit] # shape (nt, nunit) - waveforms for each unit
+        
+        # Use PCA and kmeans to remove outliers if there are enough data points
+        if iwfdata.shape[1] >= min_wfs:
+            # Use each time point as a feature and each spike as a sample.
+            _, _, iwfdata_proj = get_pca_dimensions(iwfdata.T, max_dims=None, VAF=pca_varthresh, project_data=True)
+            good_wf_idx, _ = find_outliers(iwfdata_proj, std_threshold)
+        else:
+            good_wf_idx = np.arange(iwfdata.shape[1])
+            sss_unitid.append(iunit)
+            
+        iwfdata_good = iwfdata[:,good_wf_idx]
+
+        # Average good waveforms
+        iwfdata_good_avg = np.mean(iwfdata_good, axis = 1)    
+        avg_wfs[:,iunit] = iwfdata_good_avg
+
+        # Calculate 1st order TTP approximation
+        troughidx_1st, peakidx_1st = find_trough_peak_idx(iwfdata_good_avg)
+
+        # Interpolate peaks with a parabolic fit
+        troughidx_2nd, _, _  = interpolate_extremum_poly2(troughidx_1st, iwfdata_good_avg, extrap_peaks=False)
+        peakidx_2nd, _, _ = interpolate_extremum_poly2(peakidx_1st, iwfdata_good_avg, extrap_peaks=False)
+
+        # Calculate 2nd order TTP approximation
+        TTP.append(1e6*(peakidx_2nd - troughidx_2nd)/samplerate)    
+    
+    gmm_proc = GaussianMixture(n_components = 2, random_state = 0).fit(np.array(TTP).reshape(-1, 1))
+    unit_labels = gmm_proc.predict(np.array(TTP).reshape(-1, 1))
+    
+    # Ensure lowest TTP unit is inhibitory (0)
+    minttpidx = np.argmin(TTP)
+    if unit_labels[minttpidx] == 1:
+        gmm_labels_proc = 1 - unit_labels
+    
+    return TTP, unit_labels, avg_wfs, sss_unitid
 
 def find_trough_peak_idx(unit_data):
     '''
@@ -431,98 +602,6 @@ class KFDecoder(object):
         y_test_predicted = states.T
         return y_test_predicted
 
-
-'''
-DIMENSIONALITY REDUCTION
-'''
-
-def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
-    """
-    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
-    
-    Args:
-        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
-        max_dims (int): (default None) the maximum number of dimensions
-                        if left unset, will equal the dimensions (number of columns) in the dataset
-        VAF (float): (default 0.9) variance accounted for (VAF)
-        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
-
-    Returns:
-        tuple: Tuple containing: 
-            | **explained_variance (list):** variance accounted for by each principal component
-            | **num_dims (int):** number of principal components required to account for variance
-            | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
-    """
-
-    if max_dims is None:
-        max_dims = np.shape(data)[1]
-
-    pca = PCA()
-    pca.fit(data)
-    explained_variance = pca.explained_variance_ratio_
-    total_explained_variance = np.cumsum(explained_variance)
-    num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
-
-    if project_data:
-        all_projected_data = pca.transform(data)
-        projected_data = all_projected_data[:,:num_dims]
-    else:
-        projected_data = None
-
-    return list(explained_variance), num_dims, projected_data
-
-def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
-    '''
-    Estimate the latent dimensionality of an input dataset by appling cross validated 
-    factor analysis (FA) to input data and returning the maximum likelihood values. 
-    
-    Args:
-        data_in (nt, nch): Time series data in
-        dimensions (ndim): 1D Array of dimensions to compute FA for 
-        nfold (int): Number of cross validation folds to compute. Must be >= 1
-        maxiter (int): Maximum number of FA iterations to compute if there is no convergence. Defaults to 1000.
-        verbose (bool): Display % of dimensions completed. Defaults to False
-
-    Returns:
-        tuple: Tuple containing:
-            | **log_likelihood_score (ndim, nfold):** Array of MLE FA score for each dimension for each fold
-            | **iterations_required (ndim, nfold):** How many iterations of FA were required to converge for each fold
-    '''
-
-    # Initialize arrays
-    log_likelihood_score = np.zeros((np.max(np.shape(dimensions)), nfold))
-    iterations_required = np.zeros((np.max(np.shape(dimensions)), nfold))
-
-    if verbose == True:
-        print('Cross validating and fitting ...')
-
-    # Compute the maximum likelihood score for each dimension using factor analysis    
-    for dim_idx in range(len(dimensions)):
-        fold_idx = 0
-
-        # Handle the case without cross validation.
-        if nfold == 1:
-            fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
-            fafit = fa.fit(data_in.T)
-            log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in.T)
-            iterations_required[dim_idx, fold_idx] = fafit.n_iter_
-            warnings.warn("Without cross validation the highest dimensional model will always fit best.")
-
-        # Every other case with cross validation
-        else:
-            for trainidx, testidx in model_selection.KFold(n_splits=nfold).split(data_in.T):
-                fa = FactorAnalysis(n_components=dimensions[dim_idx], max_iter=maxiter)
-                fafit = fa.fit(data_in[:, trainidx].T)
-                log_likelihood_score[dim_idx, fold_idx] = fafit.score(data_in[:, testidx].T)
-                iterations_required[dim_idx, fold_idx] = fafit.n_iter_
-                fold_idx += 1
-
-        if verbose == True:
-            print(str((100 * (dim_idx + 1)) // len(dimensions)) + "% Complete")
-
-    return log_likelihood_score, iterations_required
-
-
 '''
 METRIC CALCULATIONS
 '''
@@ -562,20 +641,20 @@ def find_outliers(data, std_threshold):
         [True, True, True, False] [3.6239, 3.2703, 2.9168, 9.8111]
 
     Args:
-        data [n, nfeatures]: Input data to plot in an nfeature dimensional space and compute outliers
-        std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
+        data (n, nfeatures): Input data to plot in an nfeature dimensional space and compute outliers
+        std_threshold (float): Number of standard deviations away a data point is required to be to be classified as an outlier
         
     Returns:
         tuple: Tuple containing: 
-            | **good_data_idx [n]:** Labels each data point if it is an outlier (True = good, False = outlier)
-            | **distances [n]:** Distance of each data point from center
+            | **good_data_idx (n):** Labels each data point if it is an outlier (True = good, False = outlier)
+            | **distances (n):** Distance of each data point from center
     '''
     
     # Check ncluster input
     kmeans_model = KMeans(n_clusters = 1).fit(data)
     distances = kmeans_model.transform(data)
     cluster_labels = kmeans_model.labels_
-    dist_std = np.std(distances)
+    dist_std = np.sqrt(np.sum(distances**2)/len(distances))
     good_data_idx = (distances < (dist_std*std_threshold))
                   
     return good_data_idx.flatten(), distances.flatten()

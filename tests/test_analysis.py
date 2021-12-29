@@ -42,7 +42,7 @@ class FactorAnalysisTests(unittest.TestCase):
         data_dimensionality = np.argmax(np.mean(log_likelihood_score, 1))
         self.assertEqual(data_dimensionality, 2)
 
-class FindExtremaTests(unittest.TestCase):
+class classify_cells_tests(unittest.TestCase):
     def test_find_trough_peak_idx(self):
         #Test single waveform
         deg_step = np.pi/8
@@ -87,6 +87,34 @@ class FindExtremaTests(unittest.TestCase):
         self.assertGreater(extremum_time_edge2, len(theta_edge)-1) 
         self.assertLess(extremum_value_edge2, 0)
 
+    def test_classify_cells_spike_width(self):
+        # make artificial narrow and long spikes
+        npts = 32
+        nspikes = 100
+        narrow_sp_width = 6 #pts
+        long_sp_width = 18 #pts
+        nunits = 10
+        waveform_data=[]
+
+        x = np.arange(npts)
+        long_spikes = np.zeros(npts)
+        narrow_spikes = np.zeros(npts)
+        long_spikes[5:long_sp_width+5] = -np.sin(x[:long_sp_width]/3)
+        narrow_spikes[5:narrow_sp_width+5] = -np.sin(x[:narrow_sp_width])
+
+        for iunit in range(nunits):
+            if iunit%2 == 0:
+                randdata = np.random.rand(npts,nspikes)/10
+                temp_wf_data = np.tile(narrow_spikes, (nspikes,1)).T + randdata
+            else:
+                randdata = np.random.rand(npts,nspikes)/10
+                temp_wf_data = np.tile(long_spikes, (nspikes,1)).T + randdata
+            waveform_data.append(temp_wf_data)
+        
+        TTP, unit_lbls, avg_wfs, _ = aopy.analysis.classify_cells_spike_width(waveform_data, 100)
+        exp_unit_lbls = np.array([1,0,1,0,1,0,1,0,1,0])
+        np.testing.assert_allclose(unit_lbls, exp_unit_lbls)
+
 class FanoFactorTests(unittest.TestCase):
     def test_get_unit_spiking_mean_variance(self): 
         spiking_data = np.zeros((2,2,2)) #(ntime, nunits, ntr)
@@ -104,11 +132,26 @@ class PCATests(unittest.TestCase):
         single_num_dims = 1
 
         VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data)
+
         np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
         self.assertEqual(proj_data, None)
 
-        # Test projection
+        # Test max_dims optional parameter
+        np.random.seed(0)
+        data = np.random.randn(3,3)
+        _, num_dims, proj = aopy.analysis.get_pca_dimensions(data, max_dims=1, project_data=True)
+        self.assertEqual(num_dims, 1)
+        self.assertEqual(proj.shape[1], 1)
+
+        # Test VAF parameter
+        np.random.seed(0)
+        data = np.random.randn(3,3)
+        _, num_dims, proj = aopy.analysis.get_pca_dimensions(data, VAF=0.5, project_data=True)
+        self.assertEqual(num_dims, 1)
+        self.assertEqual(proj.shape[1], 1)
+
+        # Test projection optional parameter
         single_dim_data = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]])
         expected_single_dim_data = np.array([[0.75], [-0.25], [-0.25], [-0.25]])
         VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data, project_data=True)
@@ -117,9 +160,9 @@ class PCATests(unittest.TestCase):
 class misc_tests(unittest.TestCase):
     def test_find_outliers(self):
         # Test correct identification of outliers
-        data = np.array([[0.5,0.5], [0.75,0.75], [1,1], [10,10]])
+        data = np.array([[-0.5,-0.5],[0.01,0.01],[0.1,0.1],[-0.75,-0.75], [1,1], [10,10]])
         outliers_labels, _ = aopy.analysis.find_outliers(data, 2)
-        expected_outliers_labels = np.array([True, True, True, False])
+        expected_outliers_labels = np.array([True, True, True, True, True, False])
         np.testing.assert_allclose(outliers_labels, expected_outliers_labels)
 
         # Test correct distance calculation
