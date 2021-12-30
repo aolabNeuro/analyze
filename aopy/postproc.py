@@ -136,71 +136,81 @@ def get_trial_targets(trials, targets):
         trial_targets[trial].append(targets[idx])
     return trial_targets
 
-def get_target_dir_from_cursor(cursor_pos, target_pos):
+def get_relative_point_location(ref_point_pos, new_point_pos):
     '''
-    This function calculates the instantaneous target direction from the current cursor position. Assumes angle 0 starts from the direciton of vector [1, 0]
-    This function is specific to the 2D case at the moment.
+    This function calculates the relative location (angle and position) of a point compared to a reference point.
+    Assumes angle 0 starts from the direciton of vector [1, 0].
+    This function is specific to the 2D case at the moment but can handle a single point entry or multiple.
 
     Args:
-        cursor_pos (x, y): Current cursor position in spatial coordinates
-        target_pos (x, y): Current target position in spatial coordinates
+        ref_point_pos (nxpts, nypts): Point position of reference point in spatial coordinates
+        new_point_pos (nxpts, nypts): Point position of new point in spatial coordinates
 
     Returns:
         A tuple containing:
-            | **relative_target_angle (float):** Absolute angle between cursor and target position [rad]
-            | **relative_target_pos (float):** Absolute position of the target relative to the cursor
+            | **relative_new_point_angle (float):** Absolute angle between cursor and target position [rad]
+            | **relative_new_point_pos (float):** Absolute position of the target relative to the cursor
     '''
-    relative_target_pos = target_pos - cursor_pos
-    relative_target_angle = np.arctan2(relative_target_pos[1], relative_target_pos[0])
-    if relative_target_angle < 0:
-        relative_target_angle = 2*np.pi + relative_target_angle
+    # Handle single point case
+    relative_new_point_pos = new_point_pos - ref_point_pos
 
-    return relative_target_angle, relative_target_pos
+    if len(ref_point_pos.shape) == 1 or relative_new_point_pos.shape[1] == 1:
+        relative_new_point_angle = np.arctan2(relative_new_point_pos[1], relative_new_point_pos[0])
+        if relative_new_point_angle < 0:
+            relative_new_point_angle = 2*np.pi + relative_new_point_angle
+    
+    # Handle multi-point case
+    else:
+        relative_new_point_angle = np.arctan2(relative_new_point_pos[:,1], relative_new_point_pos[:,0])
+        relative_new_point_angle_mask = relative_new_point_angle < 0
+        relative_new_point_angle[relative_new_point_angle_mask] = 2*np.pi + relative_new_point_angle[relative_new_point_angle_mask]
 
-def get_inst_target_dir(trialaligned_xpos, trialaligned_ypos, targetpospertrial):
+    return relative_new_point_angle, relative_new_point_pos
+
+def get_inst_target_dir(trial_aligned_pos, targetpospertrial):
     '''
     This function calculates the instantaneous direction from the cursor to the target at each time point across each trial.
-    This function is specific to the 2D case at the moment.
+    This function is specific to the 2D case at the moment with X coordinates being the horizontal dimension and Y coordinates being the vertical dimension. 
 
     Args:
-         trialaligned_xpos (ntime, ntrials): X-position of the cursor
-         trialaligned_ypos (ntime, ntrials): Y-position of the cursor
-         targetpospertrial (ntrials, 2): X and Y pos of target
+         trial_aligned_pos (ntime, ntrials, 2): Position of the cursor in X and Y coordinates.trial_aligned_pos[:,:,0] corresponds to the X cursor positions and trial_aligned_pos[:,:,1] to the Y cursor positions.
+         targetpospertrial (ntrials, 2): X and Y pos of target.
 
     Returns:
         (ntime, ntrials): Array including instantaneous direction to the target from the cursor [rad]
 
     '''
-    ntime = trialaligned_xpos.shape[0]
-    ntrials = trialaligned_xpos.shape[1]
+    ntime = trial_aligned_pos.shape[0]
+    ntrials = trial_aligned_pos.shape[1]
     inst_target_dir = np.zeros((ntime, ntrials))*np.nan
 
     for itrial in range(ntrials):
-        for itime in range(ntime):
-            cursor_location = [trialaligned_xpos[itime, itrial], trialaligned_ypos[itime, itrial]]
-            target_location = targetpospertrial[itrial, :]
-            rel_target_angle, _ = get_target_dir_from_cursor(cursor_location, target_location)
-            inst_target_dir[itime, itrial] = rel_target_angle
+        cursor_location = trial_aligned_pos[:, itrial,:]
+        target_location = targetpospertrial[itrial, :]
+        rel_target_angle, _ = get_relative_point_location(cursor_location, target_location)
+        inst_target_dir[:, itrial] = rel_target_angle
 
     return inst_target_dir
 
-def mean_fr_inst_dir(data, cursorxpos, cursorypos, targetpos, data_binwidth, targetloc_binwidth, data_samplerate, cursor_samplerate):
+def mean_fr_inst_dir(data, trial_aligned_pos, targetpos, data_binwidth, ntarget_directions, data_samplerate, cursor_samplerate):
     '''
-    This function takes trial aligned neural data, cursor position, and target position and calculates
-    the mean firing rate per target location. 
+    This function takes trial aligned neural data, cursor position, and target position then calculates
+    the mean firing rate per target location. Each target location is the instantaneous target direction from the 
+    current cursor position, and therefore has multiple values during a single trial. The target locaitons are determined by calling aopy.postproc.get_inst_target_dir. 
+    The target directions are assumed to be evenly spaced around the origin and the 0'th target starts directly horizontal from the origin.
+    This function is specific to the 2D case at the moment with X coordinates being the horizontal dimension and Y coordinates being the vertical dimension. 
 
     Args:
         data (ntime, nunit, ntrial): Trial aligned data
-        cursorxpos (ntime, ntrial): Trial aligned cursor position
-        cursorypos (ntime, ntrial): Trial aligned cursor position
+        trial_aligned_pos (ntime, ntrials, 2): Position of the cursor in X and Y coordinates.trial_aligned_pos[:,:,0] corresponds to the X cursor positions and trial_aligned_pos[:,:,1] to the Y cursor positions.
         targetpos (ntrial, 2): Target position for each trial. First column is x target position, second column is y target position.
         data_binwidth (float): Bin size for neural data and cursor position. Can not be smaller than allowed by cursor position sampling rate.
-        targetloc_binwidth (float): Bin size for lumping target positions [deg]
+        ntarget_directions (float): Number of directions to bin instantaneous direction into.
         data_samplerate (int): Sampling rate for data
         cursor_samplerate (int): Sampling rate for cursor position
 
     Returns:
-        (nunit, ndirection): Average firing rate per unit per direction bin.
+        (nunit, ntarget_directions): Average firing rate per unit per direction bin.
         
     '''
     # Check that binwidths are not lower than allowed by sampling rate
@@ -209,31 +219,31 @@ def mean_fr_inst_dir(data, cursorxpos, cursorypos, targetpos, data_binwidth, tar
         data_binwidth = max_cursor_binwidth
     
     ndatatime, nunit, ntrial = data.shape
-    ndirection = 360//targetloc_binwidth
     nbins = math.ceil(ndatatime/(data_samplerate*data_binwidth)) # the number of bins
-
-    # Check target bin width is evenly spaced around task circle
-    if 360%targetloc_binwidth != 0:
-        warnings.warn("Target location bins are not evenly spaced. Please choose a bin width that evenly divides into 360 degrees")
 
     # Bin neural data and cursor pos for each trial to make them the same samplingrate
     binned_data = np.zeros((nbins, nunit, ntrial))*np.nan
     for itrial in range(ntrial):
         binned_data[:,:,itrial] = precondition.bin_spikes(data[:,:,itrial], data_samplerate, data_binwidth)
 
-    binned_cursorxpos = precondition.bin_spikes(cursorxpos, cursor_samplerate, data_binwidth)
-    binned_cursorypos = precondition.bin_spikes(cursorypos, cursor_samplerate, data_binwidth)
+    # (use precondition.bin_spikes to get average value in each bin)
+    binned_cursorxpos = precondition.bin_spikes(trial_aligned_pos[:,:,0], cursor_samplerate, data_binwidth)
+    binned_cursorypos = precondition.bin_spikes(trial_aligned_pos[:,:,1], cursor_samplerate, data_binwidth)
+    binned_cursorpos = np.concatenate((np.expand_dims(binned_cursorxpos,axis=2),np.expand_dims(binned_cursorypos,axis=2)), axis=2)
 
     # Get instantaneous target location for each cursor pos (ntime, ntrial)
-    #print(binned_cursorxpos.shape, binned_cursorypos.shape, targetpos.shape)
-    inst_target_dir = get_inst_target_dir(binned_cursorxpos, binned_cursorypos, targetpos)
-    target_binid = 1 + (inst_target_dir-(np.deg2rad(targetloc_binwidth)/2))//np.deg2rad(targetloc_binwidth)
-    target_binid[target_binid==ndirection] = 0
+    inst_target_dir = get_inst_target_dir(binned_cursorpos, targetpos)
+
+    # Match the instantaneous direction to the correct target direction bin and ensure the bin
+    # range starts entered on target 0 (directly horizontal from the origin)
+    targetloc_binwidth = (2*np.pi)/ntarget_directions # [rad] Angular bin size of each target direction
+    target_binid = 1 + (inst_target_dir-(targetloc_binwidth/2))//targetloc_binwidth
+    target_binid[target_binid==ntarget_directions] = 0 #combine first and last bins
 
     # Average data and place into correct points in array
-    mean_dir_fr = np.zeros((nunit, ndirection))
+    mean_dir_fr = np.zeros((nunit, ntarget_directions))
     for iunit in range(nunit):
-        for idir in range(ndirection):
+        for idir in range(ntarget_directions):
             temp_data = binned_data[:,iunit,:]
             mean_dir_fr[iunit, idir] = np.mean(temp_data[target_binid==idir])
 
