@@ -119,6 +119,14 @@ class TestTrajectoryFuncs(unittest.TestCase):
         np.testing.assert_almost_equal(rotated_data[1,:], rotated_point[0,:])
 
     def test_get_relative_point_location(self):
+        # Test with multiple points
+        cursorpos = np.array(((1,1),(1,1),(1,1)))
+        targetpos = np.array(((-1,-1),(-1,-1),(-1,-1)))
+        relative_target_angle, relative_target_pos = get_relative_point_location(cursorpos, targetpos)
+        np.testing.assert_almost_equal(relative_target_angle, np.deg2rad(np.array((225, 225, 225))))
+        np.testing.assert_almost_equal(relative_target_pos, np.array(((-2, -2),(-2, -2),(-2, -2))))
+
+        # Test with one point
         cursorpos = np.array((1,1))
         targetpos = np.array((-1,-1))
         relative_target_angle, relative_target_pos = get_relative_point_location(cursorpos, targetpos)
