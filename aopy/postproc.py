@@ -210,7 +210,7 @@ def mean_fr_inst_dir(data, trial_aligned_pos, targetpos, data_binwidth, ntarget_
         cursor_samplerate (int): Sampling rate for cursor position
 
     Returns:
-        (nunit, ntarget_directions): Average firing rate per unit per direction bin.
+        (nunit, ntarget_directions): Average firing rate per unit per direction bin. [spikes/s]
         
     '''
     # Check that binwidths are not lower than allowed by sampling rate
@@ -227,8 +227,8 @@ def mean_fr_inst_dir(data, trial_aligned_pos, targetpos, data_binwidth, ntarget_
         binned_data[:,:,itrial] = precondition.bin_spikes(data[:,:,itrial], data_samplerate, data_binwidth)
 
     # (use precondition.bin_spikes to get average value in each bin)
-    binned_cursorxpos = precondition.bin_spikes(trial_aligned_pos[:,:,0], cursor_samplerate, data_binwidth)
-    binned_cursorypos = precondition.bin_spikes(trial_aligned_pos[:,:,1], cursor_samplerate, data_binwidth)
+    binned_cursorxpos = precondition.bin_spikes(trial_aligned_pos[:,:,0], cursor_samplerate, data_binwidth)/cursor_samplerate
+    binned_cursorypos = precondition.bin_spikes(trial_aligned_pos[:,:,1], cursor_samplerate, data_binwidth)/cursor_samplerate
     binned_cursorpos = np.concatenate((np.expand_dims(binned_cursorxpos,axis=2),np.expand_dims(binned_cursorypos,axis=2)), axis=2)
 
     # Get instantaneous target location for each cursor pos (ntime, ntrial)

@@ -345,16 +345,16 @@ def bin_spikes(data, fs, bin_width):
     '''
 
     dT = 1/fs
-    bin_width = round(bin_width*fs) # from [s] to index
-    nbins = math.ceil(data.shape[0]/bin_width) # the number of bins
+    bin_width_idx = round(bin_width*fs) # from [s] to index
+    nbins = math.ceil(data.shape[0]/bin_width_idx) # the number of bins
     nch = data.shape[1]
     binned_spikes = np.zeros((nbins,nch))
 
     for idx in range(nbins):
         if idx == nbins - 1:
-            binned_spikes[idx,:] = np.sum(data[idx * bin_width :, :], axis = 0)
+            binned_spikes[idx,:] = np.sum(data[idx * bin_width_idx :, :], axis = 0)
         else:
-            binned_spikes[idx,:] = np.sum(data[idx * bin_width : (idx + 1) * bin_width, :], axis = 0)
+            binned_spikes[idx,:] = np.sum(data[idx * bin_width_idx : (idx + 1) * bin_width_idx, :], axis = 0)
 
-    binned_spikes = binned_spikes/dT # convert from [spikes/bin] to [spikes/s]    
+    binned_spikes = binned_spikes/bin_width # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes

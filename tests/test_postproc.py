@@ -158,9 +158,9 @@ class TestTrajectoryFuncs(unittest.TestCase):
 
         meanfr = mean_fr_inst_dir(data, cursorpos, targetpos, data_binwidth, ntarget_directions, data_samplerate, cursor_samplerate)
         exp_meanfr = np.zeros((10, int(360/45)))*np.nan
-        exp_meanfr[:,1] = 100
-        exp_meanfr[:,5] = 100
-        
+        exp_meanfr[:,1] = 10
+        exp_meanfr[:,5] = 10
+    
         self.assertEqual(meanfr.shape[1], 360/45) # Check correct num of direction bins
         np.testing.assert_almost_equal(meanfr, exp_meanfr)
     

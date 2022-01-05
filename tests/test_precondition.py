@@ -247,10 +247,10 @@ class SpikeDetectionTests(unittest.TestCase):
         data_T = data.T
         fs = 10
         binned_spikes = precondition.bin_spikes(data_T, fs, 0.5)
-        # print(binned_spikes)
+
         self.assertEqual(binned_spikes.shape[0], 4)
         self.assertEqual(binned_spikes.shape[1], 2)
-        self.assertEqual(binned_spikes[0,0], 2*fs) # [spikes/s] 2 spikes/bin * fs
+        self.assertEqual(binned_spikes[0,0], 4) # Sum first 5 points and * 2
 
 if __name__ == "__main__":
     unittest.main()
