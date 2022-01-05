@@ -1286,15 +1286,19 @@ def parse_oculomatic(data_dir, files, debug=True):
     
     eye_metadata = dict()
     
-    bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
+    if 'hdf' in files:
+        bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
 
-    # get eye channels 
-    if 'left_eye_ach' in bmi3d_event_metadata and 'right_eye_ach' in bmi3d_event_metadata:
-        eye_channels = bmi3d_event_metadata['left_eye_ach'] + bmi3d_event_metadata['right_eye_ach']
-        if debug: print(f'use bmi3d supplied eye channel definition {eye_channels}')
+        # get eye channels 
+        if 'left_eye_ach' in bmi3d_event_metadata and 'right_eye_ach' in bmi3d_event_metadata:
+            eye_channels = bmi3d_event_metadata['left_eye_ach'] + bmi3d_event_metadata['right_eye_ach']
+            if debug: print(f'use bmi3d supplied eye channel definition {eye_channels}')
+        else:
+            eye_channels = [9, 8, 10, 11]
+            if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
     else:
-        eye_channels = [9, 8, 10, 11]
-        if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
+        eye_channels = [8, 9, 10, 11]
+        if debug: print(f'No metadata from BMI3D, assuming eye channels {eye_channels} ')
         
     eye_metadata['channels'] = eye_channels
     eye_metadata['labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
