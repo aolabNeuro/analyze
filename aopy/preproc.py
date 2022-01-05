@@ -5,8 +5,9 @@
 import numpy as np
 import numpy.lib.recfunctions as rfn
 from . import data as aodata
-from . import utils
+from . import utils, precondition
 import os
+import h5py
 from scipy import interpolate
 
 from . import analysis
@@ -1399,18 +1400,21 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         aodata.save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         aodata.save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
 
-def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batchsize=1., filter_kwargs={}):
     '''
     Process lfp data:
         Loads 'ecube' headstage data and metadata
     Saves broadband data into the HDF datasets:
-        Headstages (nt, nch)
+        lfp_data (nt, nch)
+        lfp_metadata (dict)
     
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
         result_filename (str): where to store the processed result
-        overwrite (bool): whether to remove existing processed files if they exist
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        batchsize (float, optional): time in seconds for each batch to be processed into lfp
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
 
     Returns:
         None
@@ -1419,15 +1423,45 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
     filepath = os.path.join(result_dir, result_filename)
     if not overwrite and os.path.exists(filepath):
         contents = aodata.get_hdf_dictionary(result_dir, result_filename)
-        if "Headstages" in contents:
+        if "lfp_data" in contents:
             print("File {} already preprocessed, doing nothing.".format(result_filename))
             return
+    elif os.path.exists(filepath):
+        os.remove(filepath) # maybe bad, since it deletes everything, not just lfp_data
 
     # Preprocess neural data into lfp
     if 'ecube' in files:
         data_path = os.path.join(data_dir, files['ecube'])
-        broadband = aodata.proc_ecube_data(data_path, 'Headstages', filepath)
-        # TODO filter broadband data into LFP
+        metadata = aodata.load_ecube_metadata(data_path, 'Headstages')
+        samplerate = metadata['samplerate']
+        chunksize = int(batchsize * samplerate)
+        lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+        downsample_factor = int(samplerate/lfp_samplerate)
+        lfp_samples = np.ceil(metadata['n_samples']/downsample_factor)
+        n_channels = metadata['n_channels']
+        dtype = 'int16'
+
+        # Create an hdf dataset
+        result_filepath = os.path.join(result_dir, result_filename)
+        hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
+        dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+
+        # Filter broadband data into LFP directly into the hdf file
+        n_samples = 0
+        for broadband_chunk in aodata.load_ecube_data_chunked(data_path, 'Headstages', chunksize=chunksize):
+            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+            chunk_len = lfp_chunk.shape[0]
+            dset[n_samples:n_samples+chunk_len,:] = lfp_chunk
+            n_samples += chunk_len
+        hdf.close()
+
+        # Append the lfp metadata to the file
+        lfp_metadata = metadata
+        lfp_metadata['lfp_samplerate'] = lfp_samplerate
+        lfp_metadata['low_cut'] = 500
+        lfp_metadata['buttord'] = 4
+        lfp_metadata.update(filter_kwargs)
+        aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
 
 def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, overwrite=False, **kwargs):
     '''
@@ -1488,3 +1522,4 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     }
     aodata.save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
     aodata.save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
+
