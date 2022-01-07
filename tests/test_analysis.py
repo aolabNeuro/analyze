@@ -42,7 +42,7 @@ class FactorAnalysisTests(unittest.TestCase):
         data_dimensionality = np.argmax(np.mean(log_likelihood_score, 1))
         self.assertEqual(data_dimensionality, 2)
 
-class FindExtremaTests(unittest.TestCase):
+class classify_cells_tests(unittest.TestCase):
     def test_find_trough_peak_idx(self):
         #Test single waveform
         deg_step = np.pi/8
@@ -87,6 +87,34 @@ class FindExtremaTests(unittest.TestCase):
         self.assertGreater(extremum_time_edge2, len(theta_edge)-1) 
         self.assertLess(extremum_value_edge2, 0)
 
+    def test_classify_cells_spike_width(self):
+        # make artificial narrow and long spikes
+        npts = 32
+        nspikes = 100
+        narrow_sp_width = 6 #pts
+        long_sp_width = 18 #pts
+        nunits = 10
+        waveform_data=[]
+
+        x = np.arange(npts)
+        long_spikes = np.zeros(npts)
+        narrow_spikes = np.zeros(npts)
+        long_spikes[5:long_sp_width+5] = -np.sin(x[:long_sp_width]/3)
+        narrow_spikes[5:narrow_sp_width+5] = -np.sin(x[:narrow_sp_width])
+
+        for iunit in range(nunits):
+            if iunit%2 == 0:
+                randdata = np.random.rand(npts,nspikes)/10
+                temp_wf_data = np.tile(narrow_spikes, (nspikes,1)).T + randdata
+            else:
+                randdata = np.random.rand(npts,nspikes)/10
+                temp_wf_data = np.tile(long_spikes, (nspikes,1)).T + randdata
+            waveform_data.append(temp_wf_data)
+        
+        TTP, unit_lbls, avg_wfs, _ = aopy.analysis.classify_cells_spike_width(waveform_data, 100)
+        exp_unit_lbls = np.array([1,0,1,0,1,0,1,0,1,0])
+        np.testing.assert_allclose(unit_lbls, exp_unit_lbls)
+
 class FanoFactorTests(unittest.TestCase):
     def test_get_unit_spiking_mean_variance(self): 
         spiking_data = np.zeros((2,2,2)) #(ntime, nunits, ntr)
@@ -104,11 +132,26 @@ class PCATests(unittest.TestCase):
         single_num_dims = 1
 
         VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data)
+
         np.testing.assert_allclose(VAF, single_dim_VAF, atol=1e-7)
         self.assertAlmostEqual(num_dims, single_num_dims)
         self.assertEqual(proj_data, None)
 
-        # Test projection
+        # Test max_dims optional parameter
+        np.random.seed(0)
+        data = np.random.randn(3,3)
+        _, num_dims, proj = aopy.analysis.get_pca_dimensions(data, max_dims=1, project_data=True)
+        self.assertEqual(num_dims, 1)
+        self.assertEqual(proj.shape[1], 1)
+
+        # Test VAF parameter
+        np.random.seed(0)
+        data = np.random.randn(3,3)
+        _, num_dims, proj = aopy.analysis.get_pca_dimensions(data, VAF=0.5, project_data=True)
+        self.assertEqual(num_dims, 1)
+        self.assertEqual(proj.shape[1], 1)
+
+        # Test projection optional parameter
         single_dim_data = np.array([[1, 0, 0], [0, 0, 0], [0, 0, 0], [0, 0, 0]])
         expected_single_dim_data = np.array([[0.75], [-0.25], [-0.25], [-0.25]])
         VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data, project_data=True)
@@ -117,9 +160,9 @@ class PCATests(unittest.TestCase):
 class misc_tests(unittest.TestCase):
     def test_find_outliers(self):
         # Test correct identification of outliers
-        data = np.array([[0.5,0.5], [0.75,0.75], [1,1], [10,10]])
+        data = np.array([[-0.5,-0.5],[0.01,0.01],[0.1,0.1],[-0.75,-0.75], [1,1], [10,10]])
         outliers_labels, _ = aopy.analysis.find_outliers(data, 2)
-        expected_outliers_labels = np.array([True, True, True, False])
+        expected_outliers_labels = np.array([True, True, True, True, True, False])
         np.testing.assert_allclose(outliers_labels, expected_outliers_labels)
 
         # Test correct distance calculation
@@ -127,7 +170,24 @@ class misc_tests(unittest.TestCase):
         _, outliers_dist = aopy.analysis.find_outliers(data, 2)
         expected_outliers_dist = np.array([1, 0, 0, 1])
         np.testing.assert_allclose(outliers_dist, expected_outliers_dist)
-        
+
+class tuningcurve_fitting_tests(unittest.TestCase):
+    def test_run_tuningcurve_fit(self):
+        nunits = 7
+        targets = np.arange(0, 360, 45)
+        mds_true = np.linspace(1, 3, nunits)/2
+        pds_offset = np.arange(-45,270,45)
+        data = np.zeros((nunits,8))*np.nan
+        for ii in range(nunits):
+            data[ii,:] = mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
+
+        # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_offset, np.rad2deg(pd)-90)
+
+
+
 class CalcTests(unittest.TestCase):
 
     def test_calc_rms(self):
@@ -186,6 +246,44 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(ampls.shape[1], 2)
         self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
         self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
+
+    def test_calc_sem(self):
+        data = np.arange(10, dtype=float)
+        SEM = aopy.analysis.calc_sem(data)
+        self.assertAlmostEqual(np.std(data)/np.sqrt(10), SEM)
+
+        # test with NaN
+        data[5] = np.nan
+        SEM = aopy.analysis.calc_sem(data)
+        self.assertAlmostEqual(np.nanstd(data)/np.sqrt(9), SEM)
+
+        # Test with multiple dimensions
+        data = np.tile(data, (2,2, 1))
+        SEM = aopy.analysis.calc_sem(data, axis=(0,2))
+        np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
+
+class ModelFitTests(unittest.TestCase):
+
+    def test_linear_fit_analysis(self):
+        test_slope = 2
+        test_intercept = 1
+        xdata = np.arange(5)
+        ydata = test_slope*xdata + test_intercept
+        linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata)
+        np.testing.assert_allclose(linear_fit, ydata)
+        self.assertAlmostEqual(pcc, 1.)
+
+        # Test fit intercept
+        _, _, _, _, fit = aopy.analysis.linear_fit_analysis2D(xdata, ydata, fit_intercept=False)
+        self.assertAlmostEqual(fit.intercept_, 0)
+
+        # Test Weights
+        ydata[0] = 3
+        weights = np.array([0, 1, 1, 1, 1])
+        linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
+        np.testing.assert_allclose(linear_fit[1:], ydata[1:])
+
+        
 
 if __name__ == "__main__":
     unittest.main()

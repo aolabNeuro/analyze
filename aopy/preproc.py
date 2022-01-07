@@ -5,8 +5,10 @@
 import numpy as np
 import numpy.lib.recfunctions as rfn
 from . import data as aodata
-from . import utils
+from . import utils, precondition
 import os
+import h5py
+from scipy import interpolate
 
 '''
 Timestamps and events
@@ -140,6 +142,68 @@ def fill_missing_timestamps(uncorrected_timestamps):
         corrected_timestamps[missing] = corrected_timestamps[idx[missing]]
 
     return corrected_timestamps
+
+def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrap_values='extrapolate'):
+    '''
+    This function uses linear interpolation (scipy.interpolate.interp1d) to convert timestamped data to timeseries data given new sampling points.
+    Timestamps must be monotonic. If the timestamps or timestamp_values include a nan, this function ignores the corresponding timestamp value and performs interpolation between the neighboring values.
+    To calculate the new points from 'samplerate' this function creates sample points with the same range as 'timestamps' (timestamps[0], timestamps[-1]).
+    Either the 'samplerate' or 'sampling_points' optional argument must be used. If neither are filled, the function will display a warning and return nothing.
+    If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
+    If the input timestamps are not monotonic, the function will display a warning and return nothing.
+    The optional argument 'interp_kind' corresponds to 'kind' and 'extrap_values' corresponds to 'fill_values' in scipy.interpolate.interp1d.
+    More information about 'extrap_values' can be found on the scipy.interpolate.interp1d documentation page. 
+
+    Example::
+    >>> timestamps = np.array([1,2,3,4])
+    >>> timestamp_values = np.array([100,200,100,300])
+    >>> timeseries, sampling_points = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+    >>> print(timeseries)
+    np.array([100,150,200,150,100,200,300])
+    >>> print(sampling_points)
+    np.array([1,1.5,2,2.5,3,3.5,4])
+
+    Args:
+        timestamps (nstamps): Timestamps of original data to be interpolated between.
+        timestamp_values (nstamps): Values corresponding to the timestamps.
+        samplerate (float): Optional argument if new sampling points should be calculated based on the timstamps. Sampling rate of newly sampled output array. [Hz]
+        output_array (nt): Optional argument to pass predefined sampling points. 
+        interp_kind (str): Optional argument to define the kind of interpolation used. Defaults to 'linear'
+        extrap_values (str, array, or tuple): Optional argument to define how values out of the range of 'timestamps' are fliled. This defaults to extrapolate but a tuple or array can be input to further define these values. ('fill_value' in scipy.interpolate.interp1d)
+
+    Returns:
+        tuple: tuple containing:
+        | **timeseries (nt):** New timeseries of data.
+        | **sampling_points (nt):** Sampling points used to calculate the new time series.
+
+    '''
+    # Check for nans and remove them
+    if not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values))):
+        nanmask_stamps = np.logical_not(np.isnan(timestamps))
+        nanmask_values = np.logical_not(np.isnan(timestamp_values))
+        nanmask = np.logical_and(nanmask_stamps, nanmask_values)
+        timestamps = timestamps[nanmask]
+        timestamp_values = timestamp_values[nanmask]
+
+    # Check that timestamps are monotonic
+    if not np.all(np.diff(timestamps) > 0):
+        print("Warning: Input timemeseries is not monotonic")
+        return
+
+    # Check for sampling points information
+    if samplerate is None and sampling_points is None:
+        print("Warning: Not information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
+        return
+
+    # Calculate output sampling points if none are input
+    if sampling_points is None:
+        sampling_points = np.arange(timestamps[0], timestamps[-1]+(1/samplerate), 1/samplerate)
+
+    # Interpolate
+    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values)
+    timeseries = f_interp(sampling_points)
+
+    return timeseries, sampling_points
 
 '''
 Trial alignment
@@ -1064,18 +1128,21 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         aodata.save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         aodata.save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
 
-def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batchsize=1., filter_kwargs={}):
     '''
     Process lfp data:
         Loads 'ecube' headstage data and metadata
     Saves broadband data into the HDF datasets:
-        Headstages (nt, nch)
+        lfp_data (nt, nch)
+        lfp_metadata (dict)
     
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
         result_filename (str): where to store the processed result
-        overwrite (bool): whether to remove existing processed files if they exist
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        batchsize (float, optional): time in seconds for each batch to be processed into lfp
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
 
     Returns:
         None
@@ -1084,12 +1151,42 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False):
     filepath = os.path.join(result_dir, result_filename)
     if not overwrite and os.path.exists(filepath):
         contents = aodata.get_hdf_dictionary(result_dir, result_filename)
-        if "Headstages" in contents:
+        if "lfp_data" in contents:
             print("File {} already preprocessed, doing nothing.".format(result_filename))
             return
+    elif os.path.exists(filepath):
+        os.remove(filepath) # maybe bad, since it deletes everything, not just lfp_data
 
     # Preprocess neural data into lfp
     if 'ecube' in files:
         data_path = os.path.join(data_dir, files['ecube'])
-        broadband = aodata.proc_ecube_data(data_path, 'Headstages', filepath)
-        # TODO filter broadband data into LFP
+        metadata = aodata.load_ecube_metadata(data_path, 'Headstages')
+        samplerate = metadata['samplerate']
+        chunksize = int(batchsize * samplerate)
+        lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+        downsample_factor = int(samplerate/lfp_samplerate)
+        lfp_samples = np.ceil(metadata['n_samples']/downsample_factor)
+        n_channels = metadata['n_channels']
+        dtype = 'int16'
+
+        # Create an hdf dataset
+        result_filepath = os.path.join(result_dir, result_filename)
+        hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
+        dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+
+        # Filter broadband data into LFP directly into the hdf file
+        n_samples = 0
+        for broadband_chunk in aodata.load_ecube_data_chunked(data_path, 'Headstages', chunksize=chunksize):
+            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+            chunk_len = lfp_chunk.shape[0]
+            dset[n_samples:n_samples+chunk_len,:] = lfp_chunk
+            n_samples += chunk_len
+        hdf.close()
+
+        # Append the lfp metadata to the file
+        lfp_metadata = metadata
+        lfp_metadata['lfp_samplerate'] = lfp_samplerate
+        lfp_metadata['low_cut'] = 500
+        lfp_metadata['buttord'] = 4
+        lfp_metadata.update(filter_kwargs)
+        aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)

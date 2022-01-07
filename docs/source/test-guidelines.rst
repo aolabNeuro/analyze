@@ -1,4 +1,4 @@
-Wriring tests
+Writing tests
 =============
 
 To run the test modules individually, call

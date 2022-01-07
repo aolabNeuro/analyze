@@ -66,6 +66,51 @@ class DigitalCalcTests(unittest.TestCase):
         filled = fill_missing_timestamps(uncorrected_timestamps)
         self.assertCountEqual(expected, filled)
 
+    def test_interp_timestamps2timeseries(self):
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        expected_timeseries = np.array([100,150,200,150,100,200,300])
+        expected_new_samplepts = np.array([1,1.5,2,2.5,3,3.5,4])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, expected_new_samplepts)
+
+        # Test if nans are included
+        timestamps = np.array([1,2,np.nan,4])
+        timestamp_values = np.array([100,np.nan,100,400])
+        expected_timeseries = np.array([100,150,200,250,300,350,400])
+        expected_new_samplepts = np.array([1,1.5,2,2.5,3,3.5,4])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, expected_new_samplepts)
+
+        # Test is sample point array is input
+        timestamps = np.array([1,2,3,4])+4
+        timestamp_values = np.array([100,200,100,300])
+        expected_timeseries = np.array([100,150,200,150,100,200,300])
+        input_samplepts = np.array([1,1.5,2,2.5,3,3.5,4])+4
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, input_samplepts)
+
+        # Test warning messages:
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        out = interp_timestamps2timeseries(timestamps, timestamp_values)
+        self.assertEqual(out, None)
+        timestamps = np.array([1,2,1,4])
+        out = interp_timestamps2timeseries(timestamps, timestamp_values)
+        self.assertEqual(out, None)
+
+        # Test extrapolate
+        timestamps = np.array([1,2,3,4])
+        timestamp_values = np.array([100,200,100,300])
+        expected_timeseries = np.array([100,150,200,150,100,200,300, 400, 500])
+        input_samplepts = np.array([1,1.5,2,2.5,3,3.5,4,4.5,5])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, input_samplepts)
+
 class EventFilterTests(unittest.TestCase):
 
     def test_trial_align_events(self):
@@ -482,9 +527,27 @@ class TestPrepareExperiment(unittest.TestCase):
         files['optitrack'] = 'Pretend take (1315).csv'
         proc_exp(data_dir, files, write_dir, result_filename, overwrite=True)
         proc_mocap(data_dir, files, write_dir, result_filename, overwrite=True)
-        contents = get_hdf_dictionary(data_dir, result_filename)
+        contents = get_hdf_dictionary(write_dir, result_filename)
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
+
+class TestProcessData(unittest.TestCase):
+
+    def test_proc_lfp(self):
+        result_filename = 'test_proc_lfp.hdf'
+        files = {'ecube': 'fake ecube data'}
+        proc_lfp(data_dir, files, write_dir, result_filename, overwrite=True)
+
+        contents = get_hdf_dictionary(write_dir, result_filename)
+        self.assertIn('lfp_data', contents)
+        self.assertIn('lfp_metadata', contents)
+
+        lfp_data = load_hdf_data(write_dir, result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, result_filename, 'lfp_metadata')
+
+        self.assertEqual(lfp_data.shape, (1000, 8))
+        self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
+
 
 if __name__ == "__main__":
     unittest.main()
