@@ -188,7 +188,7 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-def run_tuningcurve_fit(mean_fr, targets):
+def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
     '''
     This function calculates the tuning parameters from center out task neural data.
     It fits a sinusoidal tuning curve to the mean firing rates for each unit.
@@ -199,6 +199,7 @@ def run_tuningcurve_fit(mean_fr, targets):
     Args:
         mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
         targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
+        fit_with_nans (bool): Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be forced regardless of nans. If false, any unit that contains a nan will have the corresponding outputs set to nan.
 
     Returns:
         tuple: Tuple containing:
@@ -214,11 +215,12 @@ def run_tuningcurve_fit(mean_fr, targets):
     pd = np.empty((nunits))*np.nan
 
     for iunit in range(nunits):
-        params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:])
-        fit_params[iunit,:] = params
+        if fit_with_nans or ~np.isnan(mean_fr[iunit,:]).any():
+            params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:], check_finite=False)
+            fit_params[iunit,:] = params
 
-        md[iunit] = get_modulation_depth(params[0], params[1])
-        pd[iunit] = get_preferred_direction(params[0], params[1])
+            md[iunit] = get_modulation_depth(params[0], params[1])
+            pd[iunit] = get_preferred_direction(params[0], params[1])
 
     return fit_params, md, pd
 
