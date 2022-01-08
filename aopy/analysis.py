@@ -198,7 +198,7 @@ def run_tuningcurve_fit(mean_fr, targets):
 
     Args:
         mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
-        targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
+        targets (ntargets): Targets locations to fit to [rad]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
 
     Returns:
         tuple: Tuple containing:
