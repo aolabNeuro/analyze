@@ -258,7 +258,7 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
 
     This function conducts the following processing steps:
 
-       | **1. ** For each unit, project each waveform into the top PCs. Number of PCs determined by 'pca_varthresh'
+        | **1. ** For each unit, project each waveform into the top PCs. Number of PCs determined by 'pca_varthresh'
         | **2. ** For each unit, remove outlier spikes. Outlier threhsold determined by 'std_threshold'. If the number of waveforms is less than 'min_wf', no waveforms are removed.
         | **3. ** For each unit, average remaining waveforms.
         | **4. ** For each unit, calculate spike width using a local polynomial interpolation.
