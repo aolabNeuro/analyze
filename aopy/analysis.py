@@ -5,18 +5,21 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
-
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
+from sklearn import model_selection
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
-from sklearn import model_selection
+
+import scipy
 from scipy import interpolate
+from scipy.optimize import curve_fit
 from scipy import stats
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
+import warnings
 from . import preproc
 
 '''
@@ -658,6 +661,44 @@ def find_outliers(data, std_threshold):
     good_data_idx = (distances < (dist_std*std_threshold))
                   
     return good_data_idx.flatten(), distances.flatten()
+
+def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_level:float = 0.5) -> np.ndarray:
+    """
+    Function that fits a linear regression to each matching column of X and Y arrays. 
+    
+    Args:
+        X [np.ndarray]: number of data points by number of columns. columns of independant vars. 
+        Y [np.ndarray]: number of data points by number of columns. columns of dependant vars
+        coeffcient_coeff_warning_level (float): if any column returns a corr coeff less than this level 
+
+    Returns:
+        tuple: tuple containing:
+            | **slope (n_columns):** slope of each fit
+            | **intercept (n_columns):** intercept of each fit
+            | **corr_coefficient (n_columns):** corr_coefficient of each fit
+    """
+    
+    # Make sure the same shape
+    assert X.shape == Y.shape
+    
+    n_columns = X.shape[1]
+
+    slope = np.empty((n_columns,))
+    intercept = np.zeros((n_columns,))
+    corr_coeff = np.zeros((n_columns,))
+    
+    # Iterate through the columns
+    for i in range(n_columns):
+        
+        x = X[:,i]
+        y = Y[:,i]
+        
+        slope[i], intercept[i], corr_coeff[i],  *_ = scipy.stats.linregress(x, y)
+
+        if corr_coeff[i] <= coefficient_coeff_warning_level: 
+            warnings.warn(f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
+        
+    return slope, intercept, corr_coeff
 
 def calc_freq_domain_amplitude(data, samplerate, rms=False):
     '''

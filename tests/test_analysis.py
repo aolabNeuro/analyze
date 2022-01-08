@@ -262,6 +262,29 @@ class CalcTests(unittest.TestCase):
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
 
+class CurveFittingTests(unittest.TestCase):
+
+    def test_fit_linear_regression(self):
+        """
+        Creates same columns of elements 1 through 9, and linearly transform with known slope and intercept
+        """
+    
+        NUM_ROWS, NUM_COLUMNS = 10,3
+        
+        X = np.arange(NUM_ROWS).reshape(-1,1)
+        X = np.tile(X, (1,NUM_COLUMNS) )
+        
+        #create dependant vars.
+        slope = 2.0
+        intercept = 3.0
+        r = 1.0 
+        Y = slope * X + intercept    
+        
+        result_slope, result_intercept, result_coeff = aopy.analysis.fit_linear_regression(X, Y)
+        np.testing.assert_allclose(np.tile([slope], (NUM_COLUMNS,) ), result_slope)
+        np.testing.assert_allclose(np.tile([intercept], (NUM_COLUMNS,) ), result_intercept)
+        np.testing.assert_allclose(np.tile([r], (NUM_COLUMNS,) ), result_coeff)
+        
 class ModelFitTests(unittest.TestCase):
 
     def test_linear_fit_analysis(self):
@@ -283,7 +306,6 @@ class ModelFitTests(unittest.TestCase):
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
 
-        
 
 if __name__ == "__main__":
     unittest.main()
