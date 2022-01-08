@@ -258,7 +258,7 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
 
     This function conducts the following processing steps:
 
-        | **1. ** For each unit, project each waveform into the top PCs. Number of PCs determined by 'pca_varthresh'
+       | **1. ** For each unit, project each waveform into the top PCs. Number of PCs determined by 'pca_varthresh'
         | **2. ** For each unit, remove outlier spikes. Outlier threhsold determined by 'std_threshold'. If the number of waveforms is less than 'min_wf', no waveforms are removed.
         | **3. ** For each unit, average remaining waveforms.
         | **4. ** For each unit, calculate spike width using a local polynomial interpolation.
@@ -323,7 +323,7 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
     # Ensure lowest TTP unit is inhibitory (0)
     minttpidx = np.argmin(TTP)
     if unit_labels[minttpidx] == 1:
-        gmm_labels_proc = 1 - unit_labels
+        unit_labels = 1 - unit_labels
     
     return TTP, unit_labels, avg_wfs, sss_unitid
 
