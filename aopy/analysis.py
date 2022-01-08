@@ -199,7 +199,7 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
     Args:
         mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
         targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
-        fit_with_nans (bool): Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be forced regardless of nans. If false, any unit that contains a nan will have the corresponding outputs set to nan.
+        fit_with_nans (bool): Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be run on non-nan values. If false, any unit that contains a nan will have the corresponding outputs set to nan.
 
     Returns:
         tuple: Tuple containing:
@@ -215,8 +215,18 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
     pd = np.empty((nunits))*np.nan
 
     for iunit in range(nunits):
-        if fit_with_nans or ~np.isnan(mean_fr[iunit,:]).any():
-            params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:], check_finite=False)
+        # If there is a nan in the values of interest skip curve fitting, otherwise fit
+        if ~np.isnan(mean_fr[iunit,:]).any():
+            params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:])
+            fit_params[iunit,:] = params
+
+            md[iunit] = get_modulation_depth(params[0], params[1])
+            pd[iunit] = get_preferred_direction(params[0], params[1])
+
+        # If this doesn't work, check if fit_with_nans is true. It it is remove nans and fit
+        elif fit_with_nans:
+            nonnanidx = ~np.isnan(mean_fr[iunit,:])
+            params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit,nonnanidx])
             fit_params[iunit,:] = params
 
             md[iunit] = get_modulation_depth(params[0], params[1])
