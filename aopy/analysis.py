@@ -323,7 +323,7 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
     # Ensure lowest TTP unit is inhibitory (0)
     minttpidx = np.argmin(TTP)
     if unit_labels[minttpidx] == 1:
-        gmm_labels_proc = 1 - unit_labels
+        unit_labels = 1 - unit_labels
     
     return TTP, unit_labels, avg_wfs, sss_unitid
 

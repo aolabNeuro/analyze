@@ -112,7 +112,7 @@ class classify_cells_tests(unittest.TestCase):
             waveform_data.append(temp_wf_data)
         
         TTP, unit_lbls, avg_wfs, _ = aopy.analysis.classify_cells_spike_width(waveform_data, 100)
-        exp_unit_lbls = np.array([1,0,1,0,1,0,1,0,1,0])
+        exp_unit_lbls = np.array([0,1,0,1,0,1,0,1,0,1])
         np.testing.assert_allclose(unit_lbls, exp_unit_lbls)
 
 class FanoFactorTests(unittest.TestCase):
