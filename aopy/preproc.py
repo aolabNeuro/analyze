@@ -327,7 +327,7 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
 
     if data.ndim == 1:
         data.shape = (data.shape[0], 1)
-    trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))
+    trial_aligned = np.zeros((len(trigger_times), n_samples, *data.shape[1:]))*np.nan
 
     # Don't look at trigger times that are after the end of the data
     max_trigger_time = (data.shape[0]/samplerate) - time_after
