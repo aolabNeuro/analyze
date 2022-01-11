@@ -244,15 +244,16 @@ Performance metrics
 def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
     '''
     A wrapper around get_trial_segments which counts the number of trials with a reward event 
-    and divides by the total number of trials in a predefinted window to calculate rolling success percent
-    or the success percent across all input 
+    and divides by the total number of trials. This function can either calculated the success percent
+    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
+    input argument.  
 
     Args:
         events (nevents): events vector, can be codes, event names, anything to match
         start_events (int, str, or list, optional): set of start events to match
         end_events (int, str, or list, optional): set of end events to match
         success_events (int, str, or list, optional): which events make a trial a successful trial
-        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
 
     Returns:
         float or array (nwindow): success percent = number of successful trials out of all trials attempted.
@@ -277,15 +278,15 @@ def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWA
 def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
     '''
     Args:
-        events (nevents): 
-        event_times (nevents):
+        events (nevents): events vector, can be codes, event names, anything to match
+        event_times (nevents): time of events in 'events'
         start_events (int, str, or list, optional): set of start events to match
         end_events (int, str, or list, optional): set of end events to match
         success_events (int, str, or list, optional): which events make a trial a successful trial
         window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
 
     Returns:
-        float or array (nwindow): success rate [success/s]
+        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
     '''
     # Get event time information
     _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
