@@ -312,6 +312,8 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
         None
     '''
 
+    # TODO: calculate some chunk size to prevent overloading memory
+
     metadata = load_ecube_metadata(data_dir, data_source)
     n_samples = metadata['n_samples']
     n_channels = metadata['n_channels']
@@ -326,7 +328,7 @@ def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
 
     # Open and read the eCube data into the new hdf dataset
     n_read = 0
-    for chunk in _process_channels(data_dir, data_source, range(n_channels), n_samples, **dataset_kwargs):
+    for chunk in load_ecube_data_chunked(data_dir, data_source, chunksize=chunksize, **dataset_kwargs):
         chunk_len = chunk.shape[0]
         dset[n_read:n_read+chunk_len,:] = chunk
         n_read += chunk_len
