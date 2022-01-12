@@ -15,7 +15,7 @@ from scipy.optimize import curve_fit
 import scipy
 from scipy import interpolate
 from scipy.optimize import curve_fit
-from scipy import stats
+from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
@@ -237,27 +237,78 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
 
     return fit_params, md, pd
 
-def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD"):
+'''
+Performance metrics
+'''
+
+def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
     '''
     A wrapper around get_trial_segments which counts the number of trials with a reward event 
-    and divides by the total number of trials to calculate success rate
+    and divides by the total number of trials. This function can either calculated the success percent
+    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
+    input argument.  
 
     Args:
-        events (nt): events vector, can be codes, event names, anything to match
-        start_events (list, optional): set of start events to match
-        end_events (list, optional): set of end events to match
-        success_events (list, optional): which events make a trial a successful trial
+        events (nevents): events vector, can be codes, event names, anything to match
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
 
     Returns:
-        float: success rate = number of successful trials out of all trials
+        float or array (nwindow): success percent = number of successful trials out of all trials attempted.
     '''
     segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
     n_trials = len(segments)
     success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
-    n_success = np.count_nonzero(success_trials)
-    success_rate = n_success / n_trials
-    return success_rate
 
+    # If requested, calculate success percent across entire input events
+    if window_size is None:
+        n_success = np.count_nonzero(success_trials)  
+        success_percent = n_success / n_trials
+
+    # Otherwise, compute rolling success percent
+    else:
+        filter_array = np.ones(window_size)
+        success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
+        success_percent = success_per_window/window_size
+
+    return success_percent
+
+def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
+    '''
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        event_times (nevents): time of events in 'events'
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
+    '''
+    # Get event time information
+    _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
+    trial_acq_time = times[:,1]-times[:,0]
+    ntrials = times.shape[0]
+    
+    # Get % of successful trials per window 
+    success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
+    
+    # Determine rolling target acquisition time info 
+    if window_size is None:
+        nsuccess = success_perc*ntrials
+        acq_time = np.sum(trial_acq_time)
+
+    else:
+        nsuccess = success_perc*window_size
+        filter_array = np.ones(window_size)
+        acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
+    
+    success_rate = nsuccess / acq_time
+
+    return success_rate
 '''
 Cell type classification analysis
 '''
