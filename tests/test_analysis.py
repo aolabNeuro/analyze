@@ -221,21 +221,62 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
-    def test_calc_success_rate(self):
-        
+    def test_calc_success_percent(self):
+        # Test integer events
         events = [0, 2, 4, 6, 0, 2, 3, 6]
         start_evt = 0
         end_events = [3, 6]
         reward_evt = 3
-        success_rate = calc_success_rate(events, start_evt, end_events, reward_evt)
-        self.assertEqual(success_rate, 0.5)
-
+        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt)
+        self.assertEqual(success_perc, 0.5)
+        # Test string events
         events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
         start_events = [b"TARGET_ON"]
         end_events = [b"REWARD", b"TRIAL_END"]
         success_events = [b"REWARD"]
-        success_rate = calc_success_rate(events, start_events, end_events, success_events)
-        self.assertEqual(success_rate, 0.5)
+        success_perc = aopy.analysis.calc_success_percent(events, start_events, end_events, success_events)
+        self.assertEqual(success_perc, 0.5)
+
+        # Test rolling success percent calculation
+        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
+        ntrials = 12
+        window_size = 3
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        expected_success_perc = np.ones(ntrials-window_size+1)*(1/3)
+        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt, window_size=window_size)
+        np.testing.assert_allclose(success_perc, expected_success_perc)
+
+    def test_calc_success_rate(self):
+        # Test integer events
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        event_times = np.arange(len(events))
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        success_rate = aopy.analysis.calc_success_rate(events, event_times, start_evt, end_events, reward_evt)
+        self.assertEqual(success_rate, 1/5)
+        # Test string events
+        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
+        start_events = [b"TARGET_ON"]
+        end_events = [b"REWARD", b"TRIAL_END"]
+        success_events = [b"REWARD"]
+        success_rate = aopy.analysis.calc_success_rate(events,event_times, start_events, end_events, success_events)
+        self.assertEqual(success_rate, 1/4)
+
+        # Test rolling success rate calculation
+        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
+        event_times = np.arange(len(events))
+        ntrials = 12
+        window_size = 3
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        expected_success_rate = np.ones(ntrials-window_size+1)*(1/5)
+        success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
+        print(success_perc)
+        np.testing.assert_allclose(success_perc, expected_success_rate)
 
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
