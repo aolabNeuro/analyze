@@ -1491,8 +1491,10 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     if not overwrite and os.path.exists(filepath):
         contents = aodata.get_hdf_dictionary(result_dir, result_filename)
         if "eye_data" in contents and "eye_metadata" in contents:
-            print("File {} already preprocessed, doing nothing.".format(result_filename))
-            return None, None
+            print("Eye data already preprocessed in {}, returning existing data.".format(result_filename))
+            eye_data = aodata.load_hdf_group(result_dir, result_filename, 'eye_data')
+            eye_metadata = aodata.load_hdf_group(result_dir, result_filename, 'eye_metadata')
+            return eye_data, eye_metadata
     
     # Load the preprocessed experimental data
     try:

@@ -631,11 +631,6 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIsNotNone(eye)
         self.assertIsNotNone(meta)
 
-        # Test that nothing is returned if no new eye calibration calculated
-        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=True)
-        self.assertIsNone(eye)
-        self.assertIsNone(meta)
-
 
 
     def preproc_multiple(self):
