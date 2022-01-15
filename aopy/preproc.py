@@ -1297,7 +1297,8 @@ def parse_oculomatic(data_dir, files, debug=True):
             eye_channels = [9, 8, 10, 11]
             if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
     else:
-        eye_channels = [8, 9, 10, 11]
+        # from https://github.com/aolabNeuro/analyze/issues/225
+        eye_channels = [10, 11, 8, 9]
         if debug: print(f'No metadata from BMI3D, assuming eye channels {eye_channels} ')
         
     eye_metadata['channels'] = eye_channels
