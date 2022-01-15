@@ -1480,6 +1480,7 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
         result_filename (str): what to call the preprocessed filename
         debug (bool, optional): if true, prints additional debug messages
         overwrite (bool, optional): whether to recalculated and overwrite existing preprocessed eyetracking data
+        save_res (bool, optional): whether to save the calculated eyetracking data
         **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproccalc_eye_calibration()`
 
     Returns:
