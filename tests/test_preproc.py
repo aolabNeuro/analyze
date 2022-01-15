@@ -616,11 +616,21 @@ class TestPrepareExperiment(unittest.TestCase):
         if os.path.exists(os.path.join(write_dir, result_filename)):
             os.remove(os.path.join(write_dir, result_filename))
         proc_exp(data_dir, files, write_dir, result_filename)
-        proc_eyetracking(data_dir, files, write_dir, result_filename)
+
+        # Test that eye calibration is returned, but results are not saved
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
+        self.assertIsNotNone(eye)
+        self.assertIsNotNone(meta)
+        self.assertRaises(ValueError, lambda: load_hdf_group(write_dir, result_filename, 'eye_data'))
+        self.assertRaises(ValueError, lambda: load_hdf_group(write_dir, result_filename, 'eye_metadata'))
+
+        # Test that eye calibration is saved
+        proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=True)
         eye = load_hdf_group(write_dir, result_filename, 'eye_data')
         meta = load_hdf_group(write_dir, result_filename, 'eye_metadata')
         self.assertIsNotNone(eye)
         self.assertIsNotNone(meta)
+
 
 
     def preproc_multiple(self):
