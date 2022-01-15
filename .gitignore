@@ -9,3 +9,4 @@ docs/source/_build
 docs/_build
 build/
 htmlcov
+.idea/
