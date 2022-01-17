@@ -200,7 +200,11 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_allclose(mds_true, md)
         np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
-
+        # Test that code runs with too many nans
+        data[0,:] = np.nan
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets, fit_with_nans=True)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
 
 class CalcTests(unittest.TestCase):
