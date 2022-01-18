@@ -1468,7 +1468,7 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batc
         lfp_metadata.update(filter_kwargs)
         aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
 
-def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, overwrite=False, **kwargs):
+def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, overwrite=False, save_res=True, **kwargs):
     '''
     Loads eyedata from ecube analog signal and calculates calibration profile using least square fitting.
     Requires that experimental data has already been preprocessed in the same result hdf file.
@@ -1479,19 +1479,23 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
         result_dir (str): where to store the processed result 
         result_filename (str): what to call the preprocessed filename
         debug (bool, optional): if true, prints additional debug messages
-        overwrite (bool, optional): whether to overwrite existing preprocessed eyetracking data
+        overwrite (bool, optional): whether to recalculated and overwrite existing preprocessed eyetracking data
+        save_res (bool, optional): whether to save the calculated eyetracking data
         **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproccalc_eye_calibration()`
 
     Returns:
-        None
+        eye_dict (dict): all the data pertaining to eye tracking, calibration
+        eye_metadata (dict): metadata for eye tracking
     '''
     # Check if data already exists
     filepath = os.path.join(result_dir, result_filename)
     if not overwrite and os.path.exists(filepath):
         contents = aodata.get_hdf_dictionary(result_dir, result_filename)
         if "eye_data" in contents and "eye_metadata" in contents:
-            print("File {} already preprocessed, doing nothing.".format(result_filename))
-            return
+            print("Eye data already preprocessed in {}, returning existing data.".format(result_filename))
+            eye_data = aodata.load_hdf_group(result_dir, result_filename, 'eye_data')
+            eye_metadata = aodata.load_hdf_group(result_dir, result_filename, 'eye_metadata')
+            return eye_data, eye_metadata
     
     # Load the preprocessed experimental data
     try:
@@ -1525,6 +1529,8 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
         'cursor_calibration_data': cursor_calibration_data,
         'eye_calibration_data': eye_calibration_data
     }
-    aodata.save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
-    aodata.save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
+    if save_res:
+        aodata.save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
+        aodata.save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
+    return eye_dict, eye_metadata
 
