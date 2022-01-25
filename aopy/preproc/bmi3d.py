@@ -544,6 +544,7 @@ def _prepare_bmi3d_v1(data, metadata):
         elif len(sync_clock) < len(internal_clock):
             print("Warning: length of clock timestamps on eCube ({}) doesn't match bmi3d record ({})".format(len(sync_clock), len(internal_clock)))
             approx_clock[:len(sync_clock)] = sync_clock['timestamp']
+            valid_clock_cycles = len(sync_clock)
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', approx_clock, dtypes='f8')
