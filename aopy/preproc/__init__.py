@@ -11,6 +11,7 @@ from .. import analysis
 from .. import postproc
 from .. import data as aodata
 from .. import utils, precondition
+from . import bmi3d
 
 '''
 Timestamps and events
