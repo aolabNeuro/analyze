@@ -3,7 +3,7 @@ from .bmi3d import parse_bmi3d
 from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
-from ..data import load_ecube_data_chunked, load_ecube_metadata, save_hdf, load_hdf_group, get_hdf_dictionary
+from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
 import h5py
 
@@ -164,7 +164,7 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     return eye_dict, eye_metadata
 
 
-def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False, batchsize=1.):
+def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1.):
     '''
     Process broadband data:
         Loads 'ecube' headstage data and metadata
@@ -177,7 +177,7 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
         files (dict): dictionary of filenames indexed by system
         result_filename (str): where to store the processed result
         overwrite (bool, optional): whether to remove existing processed files if they exist
-        batchsize (float, optional): time in seconds for each batch to be processed
+        max_memory_gb (float, optional): max memory used to load binary data at one time
 
     Returns:
         None
@@ -194,23 +194,10 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
 
     # Copy the broadband data into an HDF dataset
     if 'ecube' in files:
-        data_path = os.path.join(data_dir, files['ecube'])
-        metadata = load_ecube_metadata(data_path, 'Headstages')
-        samplerate = metadata['samplerate']
-        chunksize = int(batchsize * samplerate)
-
-        # Create an hdf dataset
+        
+        # Process the binary data
         result_filepath = os.path.join(result_dir, result_filename)
-        hdf = h5py.File(result_filepath, 'a')
-        dset = hdf.create_dataset('broadband_data', (metadata['n_samples'], metadata['n_channels']), dtype='int16')
-
-        # Write broadband data directly into the hdf file
-        n_samples = 0
-        for broadband_chunk in load_ecube_data_chunked(data_path, 'Headstages', chunksize=chunksize):
-            chunk_len = broadband_chunk.shape[0]
-            dset[n_samples:n_samples+chunk_len,:] = broadband_chunk
-            n_samples += chunk_len
-        hdf.close()
+        _, metadata = proc_ecube_data(data_dir, files['ecube'], result_filepath, result_name='broadband_data', max_memory_gb=max_memory_gb)
 
         # Append the broadband metadata to the file
         save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
