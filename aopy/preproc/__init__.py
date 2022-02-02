@@ -161,3 +161,43 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
         save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
         save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
     return eye_dict, eye_metadata
+
+def proc_lfp(preproc_dir, preproc_filename, filter_kwargs={}):
+    '''
+    Loads broadband hdf5 data and saves these datasets into a new hdf5 file:
+        lfp_data (nt, nch)
+        lfp_metadata (dict)
+    
+    Args:
+
+
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
+
+    Returns:
+        None
+    '''  
+
+    # # Load broadband data using dask
+    # if no broadband data: return
+    # # TODO
+    # broadband = 
+
+    # # Create an hdf dataset
+    # hdf_filepath = os.path.join(preproc_dir, preproc_filename)
+    # hdf = h5py.File(hdf_filepath, 'a') # should append existing or write new?
+    # dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+
+    # # Filter broadband data into LFP directly into the hdf file
+    # lfp = precondition.filter_lfp(broadband, samplerate, **filter_kwargs)
+
+    # hdf.close()
+
+    # # Append the lfp metadata to the file
+    # lfp_metadata = {}
+    # lfp_metadata['lfp_samplerate'] = lfp_samplerate
+    # lfp_metadata['low_cut'] = 500
+    # lfp_metadata['buttord'] = 4
+    # lfp_metadata.update(filter_kwargs)
+    # aodata.save_hdf(preproc_dir, preproc_filename, lfp_metadata, "/lfp_metadata", append=True)
+
+    pass
