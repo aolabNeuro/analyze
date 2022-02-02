@@ -318,6 +318,47 @@ class CalcTests(unittest.TestCase):
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
 
+    def test_calc_mean_erp(self):
+        nevents = 3
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 1000
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+
+        # Make the data zero everywhere except for one sample after each event time
+        print([int(t)+1 for t in event_times*samplerate])
+        data[[int(t)+1 for t in event_times*samplerate],0] = 1
+        data[[int(t)+1 for t in event_times*samplerate],1] = 2
+
+        self.assertEqual(np.sum(data[:,0]), nevents)
+        self.assertEqual(np.sum(data[:,1]), nevents*2)
+
+        mean_erp = aopy.analysis.calc_mean_erp(data, event_times, 0.1, 0.1, samplerate, subtract_baseline=False)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+        # Subtract baseline
+        data += 1
+        mean_erp = aopy.analysis.calc_mean_erp(data, event_times, 0.1, 0.1, samplerate)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+    def test_calc_max_erp(self):
+        nevents = 3
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 1000
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+
+        # Make the data zero everywhere except for one sample after each event time
+        data[[int(t)+1 for t in event_times*samplerate],0] = 1
+        data[[int(t)+1 for t in event_times*samplerate],1] = 2
+
+        max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate)
+        self.assertTrue(max_erp[0] > 0.5) 
+        self.assertTrue(max_erp[1] > 1.)
+        # not sure why the max erp isn't exactly 1 (or 2 for ch2), it seems to get spread out over a couple samples
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):
