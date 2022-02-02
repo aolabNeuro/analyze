@@ -3,8 +3,9 @@ from .bmi3d import parse_bmi3d
 from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
-from ..data import save_hdf, load_hdf_group, get_hdf_dictionary
+from ..data import load_ecube_data_chunked, load_ecube_metadata, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
+import h5py
 
 '''
 proc_* wrappers
@@ -161,6 +162,58 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
         save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
         save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
     return eye_dict, eye_metadata
+
+
+def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False, batchsize=1.):
+    '''
+    Process broadband data:
+        Loads 'ecube' headstage data and metadata
+    Saves broadband data into the HDF datasets:
+        broadband_data (nt, nch)
+        broadband_metadata (dict)
+
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        batchsize (float, optional): time in seconds for each batch to be processed
+
+    Returns:
+        None
+    '''
+
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "broadband_data" in contents:
+            raise FileExistsError("File {} already preprocessed, doing nothing.".format(result_filename))
+    elif os.path.exists(filepath):
+        os.remove(filepath) # maybe bad, since it deletes everything, not just broadband data
+
+    # Copy the broadband data into an HDF dataset
+    if 'ecube' in files:
+        data_path = os.path.join(data_dir, files['ecube'])
+        metadata = load_ecube_metadata(data_path, 'Headstages')
+        samplerate = metadata['samplerate']
+        chunksize = int(batchsize * samplerate)
+
+        # Create an hdf dataset
+        result_filepath = os.path.join(result_dir, result_filename)
+        hdf = h5py.File(result_filepath, 'a')
+        dset = hdf.create_dataset('broadband_data', (metadata['n_samples'], metadata['n_channels']), dtype='int16')
+
+        # Write broadband data directly into the hdf file
+        n_samples = 0
+        for broadband_chunk in load_ecube_data_chunked(data_path, 'Headstages', chunksize=chunksize):
+            chunk_len = broadband_chunk.shape[0]
+            dset[n_samples:n_samples+chunk_len,:] = broadband_chunk
+            n_samples += chunk_len
+        hdf.close()
+
+        # Append the broadband metadata to the file
+        save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
 
 def proc_lfp(preproc_dir, preproc_filename, filter_kwargs={}):
     '''

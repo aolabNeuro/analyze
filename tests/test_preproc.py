@@ -1,3 +1,4 @@
+from nbformat import write
 from aopy.preproc import *
 from aopy.preproc.bmi3d import *
 from aopy.data import *
@@ -645,6 +646,27 @@ class TestPrepareExperiment(unittest.TestCase):
         contents = get_hdf_dictionary(write_dir, result_filename)
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
+
+class ProcTests(unittest.TestCase):
+
+    def test_proc_broadband(self):
+        files = {'ecube': "short headstage test"}
+        result_filename = 'short_headstage_test_broadband.hdf'
+        result_filepath = os.path.join(write_dir, result_filename)
+        if os.path.exists(result_filepath):
+            os.remove(result_filepath)
+        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False, batchsize=1.)
+        self.assertTrue(os.path.exists(result_filepath))
+        contents = get_hdf_dictionary(write_dir, result_filename)
+        self.assertIn('broadband_data', contents)
+        self.assertIn('broadband_metadata', contents)
+
+        # Don't overwrite
+        test_fun = lambda: proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False, batchsize=1.)
+        self.assertRaises(FileExistsError, test_fun)
+
+        # Overwrite
+        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True, batchsize=1.)
 
 if __name__ == "__main__":
     unittest.main()
