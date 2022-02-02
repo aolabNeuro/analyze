@@ -196,8 +196,9 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
     if 'ecube' in files:
         
         # Process the binary data
+        data_filepath = os.path.join(data_dir, files['ecube'])
         result_filepath = os.path.join(result_dir, result_filename)
-        _, metadata = proc_ecube_data(data_dir, files['ecube'], result_filepath, result_name='broadband_data', max_memory_gb=max_memory_gb)
+        _, metadata = proc_ecube_data(data_filepath, 'Headstages', result_filepath, result_name='broadband_data', max_memory_gb=max_memory_gb)
 
         # Append the broadband metadata to the file
         save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)

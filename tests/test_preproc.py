@@ -654,18 +654,18 @@ class ProcTests(unittest.TestCase):
         result_filepath = os.path.join(write_dir, result_filename)
         if os.path.exists(result_filepath):
             os.remove(result_filepath)
-        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False, batchsize=1.)
+        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False)
         self.assertTrue(os.path.exists(result_filepath))
         contents = get_hdf_dictionary(write_dir, result_filename)
         self.assertIn('broadband_data', contents)
         self.assertIn('broadband_metadata', contents)
 
         # Don't overwrite
-        test_fun = lambda: proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False, batchsize=1.)
+        test_fun = lambda: proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False)
         self.assertRaises(FileExistsError, test_fun)
 
         # Overwrite
-        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True, batchsize=1.)
+        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
 
 if __name__ == "__main__":
     unittest.main()
