@@ -7,6 +7,7 @@ import os
 import h5py
 from scipy import interpolate
 
+from . import bmi3d
 from .. import analysis
 from .. import postproc
 from .. import data as aodata
