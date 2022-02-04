@@ -1,6 +1,6 @@
 import os
 import re
-
+import datetime
 
 class FileQuery:
     """
@@ -33,9 +33,28 @@ class FileQuery:
         sessions.sort(reverse=True)
         return sessions[:n]
 
-    def get_preprocessed_sessions_from_date_range(self, start, end):
-        # TODO: Implement this
-        return NotImplementedError
+    def get_raw_sessions_from_date_range(self, start, end):
+        """
+        :param start: (DateTime, None) start date to query from, inclusive
+        :param end: (DateTime, None) end date to query to, inclusive
+        :return: (list[int]) sessions to
+        """
+        if start is None:
+            # TODO: handle start is None situation more gracefully
+            # currently just set to 2020 since oldest data is in 2021 it seems.
+            start = datetime.datetime(2020, 12, 31)
+        if end is None:
+            end = datetime.now()
+        days_between = (end - start).days + 1  # inclusive
+        date_list = [(start + datetime.timedelta(days=idx)) for idx in range(days_between)]
+        date_str_list = [x.strftime("%Y%m%d") for x in date_list]
+        sessions = []
+        for date_str in date_str_list:
+            # look in hdf directory
+            file_names = [f for f in os.listdir(f"{self.raw_dir}/hdf") if date_str in f]
+            sessions_for_date = [int(re.findall(r'te\d+', f)[0]) for f in file_names]
+            sessions = sessions + sessions_for_date
+        return sessions
 
     def get_raw_filenames_for_session(self, session_id):
         """
