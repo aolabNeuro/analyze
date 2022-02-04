@@ -1,6 +1,7 @@
 import os
 import re
-from datetime import datetime
+import datetime
+
 class FileQuery:
     """
     A helper class to query for different file paths and sessions that exist for the animals
