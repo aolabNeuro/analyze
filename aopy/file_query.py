@@ -1,7 +1,6 @@
 import os
 import re
-import datetime
-
+from datetime import datetime
 class FileQuery:
     """
     A helper class to query for different file paths and sessions that exist for the animals
@@ -52,7 +51,8 @@ class FileQuery:
         for date_str in date_str_list:
             # look in hdf directory
             file_names = [f for f in os.listdir(f"{self.raw_dir}/hdf") if date_str in f]
-            sessions_for_date = [int(re.findall(r'te\d+', f)[0]) for f in file_names]
+            sessions_for_date = [re.findall(r'te\d+', f)[0] for f in file_names]
+            sessions_for_date = [int(re.findall(r'\d+', s)[0]) for s in sessions_for_date]
             sessions = sessions + sessions_for_date
         return sessions
 
