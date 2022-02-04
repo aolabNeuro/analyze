@@ -3,7 +3,7 @@
 
 import numpy as np
 import numpy.lib.recfunctions as rfn
-from . import get_measured_clock_timestamps, fill_missing_timestamps, get_trial_segments, get_unique_conditions
+from .base import get_measured_clock_timestamps, fill_missing_timestamps, get_trial_segments, get_unique_conditions
 from .. import data as aodata
 from .. import utils
 import os

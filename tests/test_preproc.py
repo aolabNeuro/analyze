@@ -646,23 +646,5 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
 
-class TestProcessData(unittest.TestCase):
-
-    def test_proc_lfp(self):
-        result_filename = 'test_proc_lfp.hdf'
-        files = {'ecube': 'fake ecube data'}
-        proc_lfp(data_dir, files, write_dir, result_filename, overwrite=True)
-
-        contents = get_hdf_dictionary(write_dir, result_filename)
-        self.assertIn('lfp_data', contents)
-        self.assertIn('lfp_metadata', contents)
-
-        lfp_data = load_hdf_data(write_dir, result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, result_filename, 'lfp_metadata')
-
-        self.assertEqual(lfp_data.shape, (1000, 8))
-        self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
-
-
 if __name__ == "__main__":
     unittest.main()
