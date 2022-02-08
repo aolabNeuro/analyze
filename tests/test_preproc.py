@@ -326,15 +326,15 @@ class EventFilterTests(unittest.TestCase):
         trigger_times = np.array([5, 55])
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertEqual(len(trial_aligned), len(trigger_times))
-        self.assertTrue(np.allclose(trial_aligned[0], np.arange(5, 15)))
-        self.assertTrue(np.allclose(trial_aligned[1], np.arange(55, 65)))
+        np.testing.assert_allclose(trial_aligned[0], np.arange(5, 15)))
+        np.testing.assert_allclose(trial_aligned[1], np.arange(55, 65)))
         
         # Test with nonzero time_before
         time_before = 2
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertEqual(len(trial_aligned), len(trigger_times))
-        self.assertTrue(np.allclose(trial_aligned[0], np.arange(3, 15)))
-        self.assertTrue(np.allclose(trial_aligned[1], np.arange(53, 65)))
+        np.testing.assert_allclose(trial_aligned[0], np.arange(3, 15)))
+        np.testing.assert_allclose(trial_aligned[1], np.arange(53, 65)))
         
         # Test shape is consistent
         data = np.ones((100,2))
