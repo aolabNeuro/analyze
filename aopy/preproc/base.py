@@ -335,7 +335,7 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
         trial_data = np.zeros((n_samples,data.shape[1]))*np.nan
         idx_start = int(np.floor(t0*samplerate))
         idx_end = min(data.shape[0], idx_start+n_samples)
-        trial_data[:idx_end-idx_start,:] = data[idx_start:idx_end,:]
+        trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,:]
         trial_aligned[t,:min(len(trial_data),n_samples),:] = trial_data[:min(len(trial_data),n_samples),:]
     return trial_aligned
 
