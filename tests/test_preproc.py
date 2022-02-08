@@ -339,11 +339,11 @@ class EventFilterTests(unittest.TestCase):
         # Test shape is consistent
         data = np.ones((100,2))
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
+        self.assertEqual(trial_aligned.shape, (len(trigger_times), time_before + time_after, 2))
         data = np.ones((100,1))
         trigger_times = [5]
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        self.assertEqual(trial_aligned.shape, (1, time_after, 1))
+        self.assertEqual(trial_aligned.shape, (1, time_before + time_after, 1))
         
         # Test if trigger_times is after the length of data
         data = np.arange(50)
