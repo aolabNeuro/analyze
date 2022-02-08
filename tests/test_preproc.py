@@ -347,6 +347,8 @@ class EventFilterTests(unittest.TestCase):
         
         # Test if trigger_times is after the length of data
         data = np.arange(50)
+        time_before = 0
+        trigger_times = [5, 55]
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         np.testing.assert_allclose(np.squeeze(trial_aligned), np.arange(5,15))
         
