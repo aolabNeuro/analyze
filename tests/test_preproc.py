@@ -317,24 +317,45 @@ class EventFilterTests(unittest.TestCase):
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
         
     def test_trial_align_data(self):
+        
+        # Test simple case with 0 time_before
         data = np.arange(100)
         samplerate = 1
         time_before = 0
         time_after = 10
         trigger_times = np.array([5, 55])
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        print(trial_aligned)
         self.assertEqual(len(trial_aligned), len(trigger_times))
         self.assertTrue(np.allclose(trial_aligned[0], np.arange(5, 15)))
         self.assertTrue(np.allclose(trial_aligned[1], np.arange(55, 65)))
+        
+        # Test with nonzero time_before
+        time_before = 2
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertEqual(len(trial_aligned), len(trigger_times))
+        self.assertTrue(np.allclose(trial_aligned[0], np.arange(3, 15)))
+        self.assertTrue(np.allclose(trial_aligned[1], np.arange(53, 65)))
+        
+        # Test shape is consistent
         data = np.ones((100,2))
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
-
+        data = np.ones((100,1))
+        trigger_times = [5]
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertEqual(trial_aligned.shape, (1, time_after, 1))
+        
         # Test if trigger_times is after the length of data
         data = np.arange(50)
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        np.allclose(trial_aligned, np.arange(5,15))
+        np.testing.assert_allclose(trial_aligned, np.arange(5,15))
+        
+        # Test with time_before bleeding into the start of data
+        time_before = 10
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertTrue(np.count_nonzero(np.isnan(trial_aligned)), 5)
+        np.testing.assert_allclose(trial_aligned[5:], np.arange(0,15))
+
 
     def test_trial_align_times(self):
         timestamps = np.array([2, 6, 7, 10, 25, 27])
