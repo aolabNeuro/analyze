@@ -892,3 +892,39 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
+
+
+def plot_dist_to_targets(
+        dist_eye_target=None,
+        dist_cursor_target=None,
+        eye_sample_rate=25000,
+        cursor_sample_rate=120,
+        ax=None,
+        xlim=800
+):
+    '''
+    Plots the distance to peripheral target of eye and cursor trajectories as a function of time.
+    Args:
+        dist_eye_target (list(list(float), None) each outer list should contain the distances of a single trial
+            of eye data. Will not plot if None specified.
+        dist_cursor_target (list(list(float), None) same as above, for cursor data.
+        eye_sample_rate (int) sample rate of eye data, in Hz.
+        cursor_sample_rate (int) sample rate of cursor data, in Hz
+        ax (axes handle): Axes to plot
+        xlim (int) in miliseconds, to specify cutoff for the plot.
+    '''
+    if ax is None:
+        ax = plt.gca()
+    if dist_eye_target is not None:
+        for dist in dist_eye_target:
+            eye_times_ms = np.arange(len(dist)) / eye_sample_rate * 1000
+            ax.plot(eye_times_ms, dist, color='b', alpha=0.1, label="Eye Distance")
+    if dist_cursor_target is not None:
+        for dist in dist_cursor_target:
+            cursor_times_ms = np.arange(len(dist)) / cursor_sample_rate * 1000
+            ax.plot(cursor_times_ms, dist, color='r', alpha=0.1, label="Cursor Distance")
+    ax.set_xlim(0, xlim)
+    ax.legend()
+    ax.set_title("Eye and Cursor Distances To Target For Success Trials")
+    ax.set_xlabel("Time (ms)")
+    ax.set_ylabel("Distance (cm)")

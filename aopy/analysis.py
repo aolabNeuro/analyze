@@ -22,6 +22,11 @@ from numpy.linalg import inv as inv # used in Kalman Filter
 import warnings
 from . import preproc
 
+TARGET_ON_CODES = range(17,26)
+TRIAL_END = 239
+SUCCESS_CODE = 48
+CENTER_ON = 16
+
 '''
 Correlation / dimensionality analysis
 '''
@@ -856,3 +861,126 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
+
+
+def get_eye_trajectories_by_trial(
+        eye_data, exp_data,
+        start_events=[TARGET_ON_CODES], end_events=[TRIAL_END],
+        eye_sample_rate=25000
+):
+    '''
+    Finds eye trajectories in monitor space by trial.
+    Args:
+        eye_data (dict) eye data after eye calibration:
+        exp_data (dict) preprocessed experimental data:
+        start_events (list(int)) event codes to mark start of each trial:
+        end_events (list(int)) event codes to mark end of each trial:
+        eye_sample_rate (int)
+
+    Returns:
+        tuple: tuple containing:
+            | **eye_data_by_trial (list of list of position):**  trajectories of eye movement in monitor space by trial
+            | **trial_segments (list of list of events):** a segment of each trial
+            | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
+    '''
+    events = exp_data['events']
+    clock = exp_data['clock']
+    event_times = clock['timestamp_sync'][events['time']]
+
+    eye_calibed = eye_data["calibrated_data"]
+    # get all segments from peripheral target on -> trial end
+    trial_segments, trial_times_bmi3d = preproc.get_trial_segments(events['code'], event_times, start_events, end_events)
+    # grab eye trajectories
+    eye_data_by_trial = []
+    for trial_start, trial_end in trial_times_bmi3d:
+        # grab list of eye positions
+        eye_index_start = (trial_start * eye_sample_rate).astype(int)
+        eye_index_end = (trial_end * eye_sample_rate).astype(int)
+        trial_eye_calibed = eye_calibed[eye_index_start:eye_index_end, :]
+        eye_data_by_trial.append(trial_eye_calibed)
+    return eye_data_by_trial, trial_segments, trial_times_bmi3d
+
+
+def get_cursor_trajectories_by_trial(exp_data, start_events=[TARGET_ON_CODES], end_events=[TRIAL_END]):
+    '''
+    Finds cursor trajectories by trial.
+    Args:
+        exp_data (dict) preprocessed experimental data:
+        start_events (list(int)) event codes to mark start of each trial:
+        end_events (list(int)) event codes to mark end of each trial:
+        eye_sample_rate (int)
+
+    Returns:
+        tuple: tuple containing:
+            | **cursor_data_by_trial (list of list of position):**  trajectories of cursor for each trial
+            | **trial_segments (list of list of events):** a segment of each trial
+            | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
+    '''
+    # grab cursor trajectories
+    # Find cursor data
+    events = exp_data['events']
+
+    cursor_data = exp_data['task']['cursor'][:, [0, 2]]
+    event_cycles = events['time']
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], event_cycles, start_events, end_events)
+    cursor_data_by_trial = []
+    for trial_start, trial_end in trial_cycles:
+        # grab list of eye positions
+        trial_cursor_pos = cursor_data[trial_start:trial_end, :]
+        cursor_data_by_trial.append(trial_cursor_pos)
+    return cursor_data_by_trial, trial_segments, trial_cycles
+
+def get_target_positions(exp_data):
+    # Preprocessing to get target positions
+    target_pos_by_idx = np.empty([9, 3], dtype=object)
+    for trial in exp_data['trials']:
+        target_pos_by_idx[trial["index"], :] = trial["target"]
+    target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
+    return target_pos_by_idx
+
+
+def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_events=[TRIAL_END], eye_sample_rate=25000):
+    '''
+    Given eye and experimental data, grab trials where the cursor reaches the peripheral target
+    for these trials, calculate the eye and cursor trajectories' distance to peripheral targets
+    Args:
+        eye_data (dict) eye data after eye calibration:
+        exp_data (dict) preprocessed experimental data:
+        start_events (list(int)) event codes to mark start of each trial:
+        end_events (list(int)) event codes to mark end of each trial:
+        eye_sample_rate (int)
+
+    Returns:
+        tuple: tuple containing:
+            | **dist_eye_target (list of list of distances):**  distances of eye position to peripheral target for each trial
+            | **dist_cursor_target (list of list of distances):** distances of cursor position to peripheral target for each trial
+    '''
+
+    eye_data_by_trial, _, _ = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events, eye_sample_rate)
+    cursor_data_by_trial, trial_segments, _ = get_cursor_trajectories_by_trial(exp_data, start_events, end_events)
+
+    target_pos_by_idx = get_target_positions(exp_data)
+
+    # Grab all successful trials in session
+    success_indices = [i for i, t in enumerate(trial_segments) if SUCCESS_CODE in t]
+
+    # segment indexes always start with peripheral TARGET_ON
+    # use CENTER_ON code to calculate
+    # the peripheral target index for each trial.
+    target_indices = [t[0] - CENTER_ON for t in trial_segments]
+
+    # Grab out data corresponding to successful trials from each list
+    success_eye_pos = [eye_data_by_trial[i] for i in success_indices]
+    success_cursor_pos = [cursor_data_by_trial[i] for i in success_indices]
+    target_pos = [target_pos_by_idx[target_indices[i]] for i in success_indices]
+
+    dist_eye_target = []
+    for i, eye_pos in enumerate(success_eye_pos):
+        dist = np.sqrt((eye_pos[:, 0] - target_pos[i][0]) ** 2 + (eye_pos[:, 1] - target_pos[i][1]) ** 2)
+        dist_eye_target.append(dist)
+
+    dist_cursor_target = []
+    for i, cursor_pos in enumerate(success_cursor_pos):
+        dist = np.sqrt((cursor_pos[:, 0] - target_pos[i][0]) ** 2 + (cursor_pos[:, 1] - target_pos[i][1]) ** 2)
+        dist_cursor_target.append(dist)
+    return dist_eye_target, dist_cursor_target
