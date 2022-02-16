@@ -4,6 +4,7 @@
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 from matplotlib.animation import FuncAnimation
 import matplotlib.dates as mdates
 
@@ -915,16 +916,23 @@ def plot_dist_to_targets(
     '''
     if ax is None:
         ax = plt.gca()
+    # for the custom legend
+    custom_lines = []
+    labels = []
     if dist_eye_target is not None:
         for dist in dist_eye_target:
             eye_times_ms = np.arange(len(dist)) / eye_sample_rate * 1000
             ax.plot(eye_times_ms, dist, color='b', alpha=0.1, label="Eye Distance")
+        custom_lines.append(Line2D([0], [0], color='b', lw=2))
+        labels.append("Eye Distances to Targets")
     if dist_cursor_target is not None:
         for dist in dist_cursor_target:
             cursor_times_ms = np.arange(len(dist)) / cursor_sample_rate * 1000
             ax.plot(cursor_times_ms, dist, color='r', alpha=0.1, label="Cursor Distance")
+        custom_lines.append(Line2D([0], [0], color='r', lw=2))
+        labels.append("Cursor Distances to Targets")
+
     ax.set_xlim(0, xlim)
-    ax.legend()
     ax.set_title("Eye and Cursor Distances To Target For Success Trials")
     ax.set_xlabel("Time (ms)")
     ax.set_ylabel("Distance (cm)")
