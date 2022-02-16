@@ -187,5 +187,18 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
         self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
+class ISITests(unittest.TestCase):
+    def test_calc_ISI(self):
+        data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        data_T = data.T
+        fs = 100
+        bin_width = 0.01
+        hist_width = 0.1
+        ISI_hist, hist_bins = aopy.analysis.calc_ISI(data_T, fs, bin_width, hist_width)
+        self.assertEqual(ISI_hist[1, 0], 2)
+        self.assertEqual(ISI_hist[2, 0], 2)
+        self.assertEqual(ISI_hist[1, 1], 3)
+
+
 if __name__ == "__main__":
     unittest.main()
