@@ -931,7 +931,7 @@ def plot_dist_to_targets(
             ax.plot(cursor_times_ms, dist, color='r', alpha=0.1, label="Cursor Distance")
         custom_lines.append(Line2D([0], [0], color='r', lw=2))
         labels.append("Cursor Distances to Targets")
-
+    ax.legend(custom_lines, labels)
     ax.set_xlim(0, xlim)
     ax.set_title("Eye and Cursor Distances To Target For Success Trials")
     ax.set_xlabel("Time (ms)")
