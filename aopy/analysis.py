@@ -516,6 +516,35 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
 
     return list(explained_variance), num_dims, projected_data
 
+def get_pca_sliding_window(data, max_dims = 10, window_size = 1000):
+    '''
+    Use PCA to estimate the covariance structure
+
+    Args:
+        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
+        max_dims (int): (default = 10) the number of principal components to reduce feature set to
+        window_size (int): default = 1000) the number of samples (length nt) used to estimate the sliding PCA
+
+    Returns:
+        pca_var (list): variance accounted for by each principal component 1=100%
+        pca_sval (list): singular values of PCA
+    '''
+    pca_var = []
+    pca_sval = []
+    ii = 0
+    while ii < (len(data) - window_size):
+        print(ii)
+        pca = PCA(n_components=10)
+        pca.fit(data[ii: ii+window_size, :])
+        pca_var.append(pca.explained_variance_ratio_)
+        pca_sval.append(pca.singular_values_)
+    #     print(pca.explained_variance_ratio_)
+    #     print(pca.singular_values_)
+        ii += 1
+
+    return pca_var, pca_sval
+
+
 def calc_rms(signal, remove_offset=True):
     '''
     Root mean square of a signal
