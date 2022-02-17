@@ -346,10 +346,11 @@ class EventFilterTests(unittest.TestCase):
         self.assertEqual(trial_aligned.shape, (1, time_before + time_after, 1))
         
         # Test with time_before bleeding into the start of data
+        data = np.arange(100)
         time_before = 10
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
         self.assertTrue(np.count_nonzero(np.isnan(trial_aligned)), 5)
-        np.testing.assert_allclose(np.squeeze(trial_aligned[5:]), np.arange(0,15))
+        np.testing.assert_allclose(np.squeeze(trial_aligned)[5:], np.arange(0,15))
         
         # Test if trigger_times is after the length of data
         data = np.arange(50)
