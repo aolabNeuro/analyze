@@ -534,7 +534,7 @@ def get_pca_sliding_window(data, max_dims = 10, window_size = 1000):
     ii = 0
     while ii < (len(data) - window_size):
         print(ii)
-        pca = PCA(n_components=10)
+        pca = PCA(n_components=max_dims)
         pca.fit(data[ii: ii+window_size, :])
         pca_var.append(pca.explained_variance_ratio_)
         pca_sval.append(pca.singular_values_)
