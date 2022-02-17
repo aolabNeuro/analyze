@@ -245,7 +245,7 @@ def mean_fr_inst_dir(data, trial_aligned_pos, targetpos, data_binwidth, ntarget_
     for iunit in range(nunit):
         for idir in range(ntarget_directions):
             temp_data = binned_data[:,iunit,:]
-            mean_dir_fr[iunit, idir] = np.mean(temp_data[target_binid==idir])
+            mean_dir_fr[iunit, idir] = np.nanmean(temp_data[target_binid==idir])
 
     return mean_dir_fr
 
@@ -296,3 +296,17 @@ def sample_events(events, times, samplerate):
         frame_events[event_frame,unique_idx] = True
         
     return frame_events, unique_events
+
+def get_calibrated_eye_data(eye_data, coefficients):
+    """
+    Apply the least square fitting coefficients to segments of eye data
+    
+    Args:
+        eye_data (nt, nch): data to calibrate. Typically 4 channels (left eye x, left eye y, right eye x, right eye y)
+        coefficients (nch, 2): coefficients to use for calibration for each channel of data
+        
+    returns:
+        (nt, nch) ndarray: calibrated data
+    """    
+    #caliberated_eye_data_segments = np.empty((num_time_points, num_dims))
+    return eye_data * coefficients[:,0] + coefficients[:,1]
