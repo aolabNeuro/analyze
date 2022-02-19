@@ -18,8 +18,6 @@ from scipy.optimize import curve_fit
 from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
-
-import warnings
 from . import preproc
 
 '''
@@ -856,3 +854,83 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
+
+def get_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_proportion=0.15):
+    '''
+    This function calculates the accumulated log-likelihood ratio (AccLLR) that the input data matches the timeseries input as condition 1 or condition 2. 
+    This approach was designed to work on a trial-by-trial basis and determine if the input data matches a condition and arrival time of the difference. Therefore, AccLLR can also be used to determine the arrival time of neural activity.
+    Positive values of AccLLR correspond to the data better matching condition 1. Negative values of AccLLR correspond to the data better matching condition 2.
+    AccLLR for spikes assumes Poisson firing statistics, and AccLLR for LFP assumes Gaussian activity. Based on Banerjee et al. 2010, more paper informtion listed below.
+    Increasing the proportion of AccLLR maximum used for classification results in more conservative and accurate classification results
+    but leads to longer delays in seletion time and more trials that are unclassfied. 
+    If multiple trials are input, use the trial averaging approach outlined in the paper where the LLR is calculated and summed at each time point accross trials.
+    
+    Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
+    https://pubmed.ncbi.nlm.nih.gov/20884767/
+
+    If modality is 'lfp' use the following log-likelihood ratio equation. (Equation (3) in the paper):
+    
+    .. math::
+    
+        LL(t)=log \\frac{P[x(t)-\mu_1(t)|\sigma^2]}{P[x(t)-\mu_2(t)|\sigma^2]}
+        
+    If modality is 'spikes' use the following log-likelihood ratio equation. (Equation (5) in the paper):
+    
+    .. math::
+    
+        LL(t)=log \\frac{P[dN(t))|\lambda_1(t)]}{P[dN(t))|\lambda_2(t)]}
+    
+    Args:
+        data (npts, ntrial): Input data to compare to each condition
+        cond1 (npts): neural activity series of interest (condition 1)
+        cond2 (npts): neural activity during a baseline period for comparison (condition 2)
+        modality (str): Either 'lfp' or 'spikes'. 'lfp' uses a Gaussian distribution assumption and 'spikes' uses a Poisson distribution assumption
+        bin_width (float): Bin width of input activity
+        thresh_proportion (float): Proportion of maximum AccLLR where the threshold is set to classify trials as condition 1 or condition 2. 
+
+    Returns: 
+        Tuple containing:
+            | **accLLR (npts):** AccLLR time series
+            | **selection_time_idx (int):** Time where AccLLR crosses the threshold
+    '''
+    # Ensure data is 2D
+    if len(data.shape) == 1:
+        data = data[:,None]
+    npts = data.shape[0]
+    ntrials = data.shape[1]
+    LLR = np.zeros(npts)*np.nan # LLR at exact time points
+    
+    if modality == 'spikes':
+    
+        # Calculate AccLLR across all trials at each point
+        for ipt in range(npts):
+            temp_LLR = np.zeros(ntrials)*np.nan
+            for itrial in range(ntrials):
+                # Doesn't include delta t term.... not sure its necessary. Seems like it should be scale independent
+                temp_LLR[itrial] = (cond2[ipt] - cond1[ipt])*bin_width +data[ipt, itrial]*np.log(cond1[ipt]/cond2[ipt])
+            
+            LLR[ipt] = np.nansum(temp_LLR)
+        
+    
+    elif modality == 'lfp':
+    
+        # Calculate AccLLR parameters
+        sigma_sq = np.var(data)
+    
+        # Calculate AccLLR across all trials at each point
+        for ipt in range(npts):
+            temp_LLR = np.zeros(ntrials)*np.nan
+            for itrial in range(ntrials):
+            
+                temp_LLR[itrial] = ((data[ipt, itrial]-cond2[ipt])**2) - ((data[ipt, itrial]-cond1[ipt])**2)/2*sigma_sq
+            
+            LLR[ipt] = np.nansum(temp_LLR)
+
+    else:
+        warnings.warn('Plesae input a valid modality')
+    
+    accLLR = np.cumsum(LLR)
+    thresh_val = thresh_proportion*np.max(np.abs(accLLR))
+    selection_time_idx = np.where(np.abs(accLLR)>thresh_val)[0][0]
+    
+    return accLLR, selection_time_idx*bin_width
