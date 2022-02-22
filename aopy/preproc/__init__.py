@@ -10,6 +10,53 @@ import h5py
 '''
 proc_* wrappers
 '''
+def proc_day(data_dir, result_dir, overwrite=False, save_res=True):
+    files = {}
+    exp_result_filename = None
+    assert exp_result_filename is not None
+    print('processing experiment data...')
+    proc_exp(
+        data_dir,
+        files,
+        result_dir,
+        result_filename = exp_result_filename,
+        overwrite = overwrite,
+        save_res = save_res
+    )
+    eyetracking_result_filename = None
+    assert eyetracking_result_filename is not None
+    print('processing eyetracking data...')
+    proc_eyetracking(
+        data_dir,
+        files,
+        result_dir,
+        result_filename = eyetracking_result_filename,
+        debug = False, #TODO: is this supposed to be True by default?
+        overwrite = overwrite,
+        save_res = save_res,
+    )
+    broadband_result_filename = None
+    assert broadband_result_filename is not None
+    print('processing broadband data...')
+    proc_broadband(
+        data_dir,
+        files,
+        result_dir,
+        result_filename=broadband_result_filename,
+        overwrite=overwrite
+    )
+    lfp_result_filename = None
+    assert broadband_result_filename is not None
+    print('processing local field potential data...')
+    proc_lfp(
+        data_dir,
+        files,
+        result_dir,
+        result_filename = lfp_result_filename,
+        overwrite=overwrite,
+        filter_kwargs={'ayy':'lmao'}
+    )
+
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
     Process experiment data files: 
@@ -203,7 +250,7 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
         # Append the broadband metadata to the file
         save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
 
-def proc_lfp(preproc_dir, preproc_filename, filter_kwargs={}):
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, filter_kwargs={}):
     '''
     Loads broadband hdf5 data and saves these datasets into a new hdf5 file:
         lfp_data (nt, nch)
