@@ -112,7 +112,7 @@ class classify_cells_tests(unittest.TestCase):
             waveform_data.append(temp_wf_data)
         
         TTP, unit_lbls, avg_wfs, _ = aopy.analysis.classify_cells_spike_width(waveform_data, 100)
-        exp_unit_lbls = np.array([1,0,1,0,1,0,1,0,1,0])
+        exp_unit_lbls = np.array([0,1,0,1,0,1,0,1,0,1])
         np.testing.assert_allclose(unit_lbls, exp_unit_lbls)
 
 class FanoFactorTests(unittest.TestCase):
@@ -186,6 +186,25 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_allclose(mds_true, md)
         np.testing.assert_allclose(pds_offset, np.rad2deg(pd)-90)
 
+        # Check that forcing nans runs the function
+        data[0,0] = np.nan
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets, fit_with_nans=True)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_offset, np.rad2deg(pd)-90)
+
+        # Check that nans propogate correctly
+        mds_true[0] = np.nan
+        pds_true = pds_offset.astype(float)
+        pds_true[0] = np.nan
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
+
+        # Test that code runs with too many nans
+        data[0,:] = np.nan
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets, fit_with_nans=True)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
 
 class CalcTests(unittest.TestCase):
@@ -206,21 +225,62 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
-    def test_calc_success_rate(self):
-        
+    def test_calc_success_percent(self):
+        # Test integer events
         events = [0, 2, 4, 6, 0, 2, 3, 6]
         start_evt = 0
         end_events = [3, 6]
         reward_evt = 3
-        success_rate = calc_success_rate(events, start_evt, end_events, reward_evt)
-        self.assertEqual(success_rate, 0.5)
-
+        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt)
+        self.assertEqual(success_perc, 0.5)
+        # Test string events
         events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
         start_events = [b"TARGET_ON"]
         end_events = [b"REWARD", b"TRIAL_END"]
         success_events = [b"REWARD"]
-        success_rate = calc_success_rate(events, start_events, end_events, success_events)
-        self.assertEqual(success_rate, 0.5)
+        success_perc = aopy.analysis.calc_success_percent(events, start_events, end_events, success_events)
+        self.assertEqual(success_perc, 0.5)
+
+        # Test rolling success percent calculation
+        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
+        ntrials = 12
+        window_size = 3
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        expected_success_perc = np.ones(ntrials-window_size+1)*(1/3)
+        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt, window_size=window_size)
+        np.testing.assert_allclose(success_perc, expected_success_perc)
+
+    def test_calc_success_rate(self):
+        # Test integer events
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        event_times = np.arange(len(events))
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        success_rate = aopy.analysis.calc_success_rate(events, event_times, start_evt, end_events, reward_evt)
+        self.assertEqual(success_rate, 1/5)
+        # Test string events
+        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
+        start_events = [b"TARGET_ON"]
+        end_events = [b"REWARD", b"TRIAL_END"]
+        success_events = [b"REWARD"]
+        success_rate = aopy.analysis.calc_success_rate(events,event_times, start_events, end_events, success_events)
+        self.assertEqual(success_rate, 1/4)
+
+        # Test rolling success rate calculation
+        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
+        event_times = np.arange(len(events))
+        ntrials = 12
+        window_size = 3
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        expected_success_rate = np.ones(ntrials-window_size+1)*(1/5)
+        success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
+        print(success_perc)
+        np.testing.assert_allclose(success_perc, expected_success_rate)
 
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
@@ -262,6 +322,29 @@ class CalcTests(unittest.TestCase):
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
 
+class CurveFittingTests(unittest.TestCase):
+
+    def test_fit_linear_regression(self):
+        """
+        Creates same columns of elements 1 through 9, and linearly transform with known slope and intercept
+        """
+    
+        NUM_ROWS, NUM_COLUMNS = 10,3
+        
+        X = np.arange(NUM_ROWS).reshape(-1,1)
+        X = np.tile(X, (1,NUM_COLUMNS) )
+        
+        #create dependant vars.
+        slope = 2.0
+        intercept = 3.0
+        r = 1.0 
+        Y = slope * X + intercept    
+        
+        result_slope, result_intercept, result_coeff = aopy.analysis.fit_linear_regression(X, Y)
+        np.testing.assert_allclose(np.tile([slope], (NUM_COLUMNS,) ), result_slope)
+        np.testing.assert_allclose(np.tile([intercept], (NUM_COLUMNS,) ), result_intercept)
+        np.testing.assert_allclose(np.tile([r], (NUM_COLUMNS,) ), result_coeff)
+        
 class ModelFitTests(unittest.TestCase):
 
     def test_linear_fit_analysis(self):
@@ -283,7 +366,6 @@ class ModelFitTests(unittest.TestCase):
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
 
-        
 
 if __name__ == "__main__":
     unittest.main()

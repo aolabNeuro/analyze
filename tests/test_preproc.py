@@ -1,4 +1,5 @@
 from aopy.preproc import *
+from aopy.preproc.bmi3d import *
 from aopy.data import *
 import numpy as np
 import unittest
@@ -49,9 +50,26 @@ class DigitalCalcTests(unittest.TestCase):
         expected_array = np.array([0.1, 0.75, 1.2, np.nan])
         np.testing.assert_allclose(parsed_times, expected_array)
 
+        # Check idx
+        approx_times = [0.1, 0.5, 1.0, 1.2]
+        measured_times = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 1.0, 1.3]
+        radius = 0.1
+        parsed_times, parsed_idx = find_measured_event_times(approx_times, measured_times, radius, return_idx=True)
+
+        expected_array = np.array([0.1, 0.5, 1.0, np.nan])
+        expected_idx = np.array([0, 4, 7, np.nan])
+        np.testing.assert_allclose(parsed_times, expected_array)
+        np.testing.assert_allclose(parsed_idx, expected_idx)
+
     def test_get_measured_clock_timestamps(self):
         latency_estimate = 0.1
-        search_radius = 0.001
+        search_radius = 1
+        estimated_timestamps = np.array([0.5, 2., 3.8, 5.0])
+        measured_timestamps = np.array([0.64, 2.1, 3.8, 4.9])
+        uncorrected = get_measured_clock_timestamps(estimated_timestamps, measured_timestamps, latency_estimate, search_radius)
+        self.assertCountEqual(measured_timestamps, uncorrected)
+
+        search_radius = 0.005
         estimated_timestamps = np.arange(10000)/100
         measured_timestamps = estimated_timestamps.copy()*1.00001 + latency_estimate
         measured_timestamps = np.delete(measured_timestamps, [500])
@@ -413,6 +431,23 @@ class EventFilterTests(unittest.TestCase):
         self.assertCountEqual(trials['trial'], [0, 0, 0, 0, 1, 1, 1, 1])
         self.assertEqual(np.sum(trials['index']), 28)
 
+    def test_calc_eye_calibration(self):
+        cursor_data = np.array([[1, 2, 3, 4, 5, 6], [2, 3, 4, 5, 6, 7]]).T
+        eye_data = np.array([[0, 1, 2, 3, 4, 5, 6, 7], [3, 4, 5 ,6 ,7, 8, 9, 10]]).T
+        cursor_samplerate = 1
+        eye_samplerate = 1
+        event_cycles = [2, 3, 4, 5]
+        event_times = [2, 3, 4, 5]
+        event_codes = [0, 1, 0, 1]
+        coeff, corr_coeff = calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, 
+            event_cycles, event_times, event_codes, align_events=[0], trial_end_events=[1])
+        
+        expected_coeff = [[1., 1.], [1., -1.]]
+        expected_corr_coeff = [1., 1.]
+
+        np.testing.assert_allclose(expected_coeff, coeff)
+        np.testing.assert_allclose(expected_corr_coeff, corr_coeff)
+
 class TestPrepareExperiment(unittest.TestCase):
 
     def test_parse_bmi3d(self):
@@ -432,20 +467,22 @@ class TestPrepareExperiment(unittest.TestCase):
             self.assertIn('trials', data)
 
 
-        # Test sync version 0
+        # Test sync version 0 (and -1)
         files = {}
         files['hdf'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
         check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], -1)
         self.assertIn('fps', metadata)
         self.assertAlmostEqual(metadata['fps'], 120.)
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
+        n_cycles = data['clock']['time'][-1] + 1
+        self.assertEqual(len(data['clock']), n_cycles)
 
         # Test sync version 1
-        # TODO
 
-        # Test sync version 2
-
-        # Test sync version 3 
+        # Test sync version 2 
         files = {}
         files['hdf'] = 'beig20210407_01_te1315.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
@@ -455,11 +492,18 @@ class TestPrepareExperiment(unittest.TestCase):
         files['ecube'] = '2021-04-07_BMI3D_te1315'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
         check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 2)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
         self.assertTrue(metadata['has_measured_timestamps'])
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
+        n_cycles = data['clock']['time'][-1] + 1
+        # self.assertEqual(len(data['clock']), n_cycles)
+
+        # Test sync version 3
         
         # Test sync version 4
         files = {}
@@ -471,23 +515,55 @@ class TestPrepareExperiment(unittest.TestCase):
         files['ecube'] = '2021-06-14_BMI3D_te1825'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
         check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 4)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
         self.assertEqual(len(data['measure_clock_online']), 1682)
         self.assertTrue(metadata['has_measured_timestamps'])
-        self.assertEqual(len(data['clock']['timestamp']), 1830)
-        self.assertEqual(len(data['task']), 1830)
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
+        n_cycles = data['clock']['time'][-1] + 1
+        self.assertEqual(len(data['clock']), n_cycles)
+
+        # Test sync version 5
+
+        # Test sync version 6
+
+        # Test sync version 7
+        files = {}
+        files['hdf'] = 'test20211213_01_te3498.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        check_required_fields(data, metadata)
+        files['ecube'] = '2021-12-13_BMI3D_te3498'
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        self.assertEqual(metadata['sync_protocol_version'], 7)
+        self.assertEqual(len(data['clock']), 4848)
+        # self.assertEqual(len(data['events']), 66) # seems to be 67
+        print(metadata['n_missing_markers'])
+        self.assertTrue(metadata['has_measured_timestamps'])
+        evt = data['events'][27]
+        self.assertEqual(evt['event'], b'CURSOR_ENTER_TARGET')
+        self.assertEqual(evt['time'], 1742)
 
         # Run some trial alignment to make sure the number of trials makes sense
         events = data['events']
         start_states = [b'TARGET_ON']
         end_states = [b'TRIAL_END'] 
         trial_states, trial_idx = get_trial_segments(events['event'], events['time'], start_states, end_states)
-        self.assertEqual(len(trial_states), 6)
-        self.assertEqual(len(np.unique(data['trials']['trial'])), 7) # TODO maybe should fix this so trials is also len(trial_states)??
+        self.assertEqual(len(trial_states), 10)
+        self.assertEqual(len(np.unique(data['trials']['trial'])), 11) # TODO maybe should fix this so trials is also len(trial_states)??
 
+    def test_parse_oculomatic(self):
+        files = {}
+        files['ecube'] = '2021-09-30_BMI3D_te2952'
+        files['hdf'] = 'beig20210930_02_te2952.hdf'
+        data, metadata = parse_oculomatic(data_dir, files)
 
+        self.assertIn('data', data)
+        self.assertIn('samplerate', metadata)
+        self.assertIn('channels', metadata)
+        self.assertIn('labels', metadata)
 
     def test_parse_optitrack(self):
         files = {}
@@ -519,6 +595,45 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIsNotNone(mocap)
         self.assertIsNotNone(mocap_meta)
 
+    def test_proc_eyetracking(self):
+        result_filename = 'test_proc_eyetracking_short.hdf'
+        files = {}
+        files['ecube'] = '2021-09-30_BMI3D_te2952'
+        files['hdf'] = 'beig20210930_02_te2952.hdf'
+
+        # Should fail because no preprocessed experimental data
+        if os.path.exists(os.path.join(write_dir, result_filename)):
+            os.remove(os.path.join(write_dir, result_filename))
+        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename))
+
+        proc_exp(data_dir, files, write_dir, result_filename)
+
+        # Should fail because not enough trials in this session
+        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename))
+
+        result_filename = 'test_proc_eyetracking.hdf'
+        files['ecube'] = '2021-09-29_BMI3D_te2949'
+        files['hdf'] = 'beig20210929_02_te2949.hdf'
+        if os.path.exists(os.path.join(write_dir, result_filename)):
+            os.remove(os.path.join(write_dir, result_filename))
+        proc_exp(data_dir, files, write_dir, result_filename)
+
+        # Test that eye calibration is returned, but results are not saved
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
+        self.assertIsNotNone(eye)
+        self.assertIsNotNone(meta)
+        self.assertRaises(ValueError, lambda: load_hdf_group(write_dir, result_filename, 'eye_data'))
+        self.assertRaises(ValueError, lambda: load_hdf_group(write_dir, result_filename, 'eye_metadata'))
+
+        # Test that eye calibration is saved
+        proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=True)
+        eye = load_hdf_group(write_dir, result_filename, 'eye_data')
+        meta = load_hdf_group(write_dir, result_filename, 'eye_metadata')
+        self.assertIsNotNone(eye)
+        self.assertIsNotNone(meta)
+
+
+
     def preproc_multiple(self):
         result_filename = 'test_proc_multiple.hdf'
         files = {}
@@ -531,7 +646,6 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
 
-class TestProcessData(unittest.TestCase):
 
     def test_proc_lfp(self):
         result_filename = 'test_proc_lfp.hdf'
@@ -547,7 +661,6 @@ class TestProcessData(unittest.TestCase):
 
         self.assertEqual(lfp_data.shape, (1000, 8))
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
-
 
 if __name__ == "__main__":
     unittest.main()
