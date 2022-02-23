@@ -352,12 +352,17 @@ class EventFilterTests(unittest.TestCase):
 
     def test_get_trial_segments(self):
         events = [0, 2, 4, 6, 0, 2, 3, 6]
-        times = np.arange(len(events))
+        times = [0, 1, 2, 3, 4, 5, 6, 7]
         start_evt = 2
         end_evt = [3, 4]
         segments, times = get_trial_segments(events, times, start_evt, end_evt)
         self.assertTrue(np.allclose(segments, [[2, 4], [2, 3]]))
         self.assertTrue(np.allclose(times, [[1, 2], [5, 6]]))
+
+        # Test if start_and_end_time_only set to false
+        segments, times = get_trial_segments(events, times,  start_evt, end_evt, start_and_end_time_only=False)
+        self.assertTrue(np.allclose(segments, [[2, 4, 6], [2, 3, 6]]))
+        self.assertTrue(np.allclose(times, [[1, 2, 3], [4, 5, 6]]))
 
     def test_locate_trials_with_event(self):
         # Test with ints
