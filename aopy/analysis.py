@@ -196,7 +196,7 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
+def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''
     This function calculates the tuning parameters from center out task neural data.
     It fits a sinusoidal tuning curve to the mean firing rates for each unit.
@@ -207,7 +207,8 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
     Args:
         mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
         targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
-        fit_with_nans (bool): Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be run on non-nan values. If false, any unit that contains a nan will have the corresponding outputs set to nan.
+        fit_with_nans (bool): Optional. Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be run on non-nan values but will return nan is less than 3 non-nan values. If false, any unit that contains a nan will have the corresponding outputs set to nan.
+        min_data_pts (int): Optional. 
 
     Returns:
         tuple: Tuple containing:
@@ -234,11 +235,15 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
         # If this doesn't work, check if fit_with_nans is true. It it is remove nans and fit
         elif fit_with_nans:
             nonnanidx = ~np.isnan(mean_fr[iunit,:])
-            params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit,nonnanidx])
-            fit_params[iunit,:] = params
+            if np.sum(nonnanidx) >= min_data_pts: # If there are enough data points run curve fitting, else return nan
+                params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit,nonnanidx])
+                fit_params[iunit,:] = params
 
-            md[iunit] = get_modulation_depth(params[0], params[1])
-            pd[iunit] = get_preferred_direction(params[0], params[1])
+                md[iunit] = get_modulation_depth(params[0], params[1])
+                pd[iunit] = get_preferred_direction(params[0], params[1])
+            else:
+                md[iunit] = np.nan
+                pd[iunit] = np.nan
 
     return fit_params, md, pd
 
