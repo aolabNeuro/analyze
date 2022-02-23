@@ -17,12 +17,13 @@ from scipy import interpolate
 from scipy.optimize import curve_fit
 from scipy import stats, signal
 import warnings
-from numpy.linalg import inv as inv # used in Kalman Filter
+from numpy.linalg import inv as inv  # used in Kalman Filter
 
 import warnings
 from . import preproc
 
-TARGET_ON_CODES = range(17,26)
+TARGET_ON_CODES = range(17, 26)
+CURSOR_ENTER_TARGET_CODES = range(81, 89)
 TRIAL_END = 239
 SUCCESS_CODE = 48
 CENTER_ON = 16
@@ -30,6 +31,8 @@ CENTER_ON = 16
 '''
 Correlation / dimensionality analysis
 '''
+
+
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
     Estimate the latent dimensionality of an input dataset by appling cross validated 
@@ -81,6 +84,7 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
 
     return log_likelihood_score, iterations_required
 
+
 def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
     """
     Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
@@ -102,14 +106,14 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
     explained_variance = pca.explained_variance_ratio_
     total_explained_variance = np.cumsum(explained_variance)
     if max_dims is None:
-        num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+        num_dims = np.min(np.where(total_explained_variance > VAF)[0]) + 1
     else:
-        temp_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+        temp_dims = np.min(np.where(total_explained_variance > VAF)[0]) + 1
         num_dims = np.min([max_dims, temp_dims])
 
     if project_data:
         all_projected_data = pca.transform(data)
-        projected_data = all_projected_data[:,:num_dims]
+        projected_data = all_projected_data[:, :num_dims]
     else:
         projected_data = None
 
@@ -167,11 +171,11 @@ def get_preferred_direction(b1, b2):
     '''
     b1sign = np.sign(b1)
     b2sign = np.sign(b2)
-    temp_pd = np.arctan2(b2sign*b2**2, b1sign*b1**2)
+    temp_pd = np.arctan2(b2sign * b2 ** 2, b1sign * b1 ** 2)
     if temp_pd < 0:
-      pd = (2*np.pi)+temp_pd
+        pd = (2 * np.pi) + temp_pd
     else:
-      pd = temp_pd
+        pd = temp_pd
     return pd
 
 
@@ -196,6 +200,7 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
+
 def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''
     This function calculates the tuning parameters from center out task neural data.
@@ -219,25 +224,25 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     nunits = np.shape(mean_fr)[0]
     ntargets = len(targets)
 
-    fit_params = np.empty((nunits,3))*np.nan
-    md = np.empty((nunits))*np.nan
-    pd = np.empty((nunits))*np.nan
+    fit_params = np.empty((nunits, 3)) * np.nan
+    md = np.empty((nunits)) * np.nan
+    pd = np.empty((nunits)) * np.nan
 
     for iunit in range(nunits):
         # If there is a nan in the values of interest skip curve fitting, otherwise fit
-        if ~np.isnan(mean_fr[iunit,:]).any():
-            params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:])
-            fit_params[iunit,:] = params
+        if ~np.isnan(mean_fr[iunit, :]).any():
+            params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit, :])
+            fit_params[iunit, :] = params
 
             md[iunit] = get_modulation_depth(params[0], params[1])
             pd[iunit] = get_preferred_direction(params[0], params[1])
 
         # If this doesn't work, check if fit_with_nans is true. It it is remove nans and fit
         elif fit_with_nans:
-            nonnanidx = ~np.isnan(mean_fr[iunit,:])
-            if np.sum(nonnanidx) >= min_data_pts: # If there are enough data points run curve fitting, else return nan
-                params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit,nonnanidx])
-                fit_params[iunit,:] = params
+            nonnanidx = ~np.isnan(mean_fr[iunit, :])
+            if np.sum(nonnanidx) >= min_data_pts:  # If there are enough data points run curve fitting, else return nan
+                params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit, nonnanidx])
+                fit_params[iunit, :] = params
 
                 md[iunit] = get_modulation_depth(params[0], params[1])
                 pd[iunit] = get_preferred_direction(params[0], params[1])
@@ -247,11 +252,14 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
 
     return fit_params, md, pd
 
+
 '''
 Performance metrics
 '''
 
-def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
+
+def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"],
+                         success_events=b"REWARD", window_size=None):
     '''
     A wrapper around get_trial_segments which counts the number of trials with a reward event 
     and divides by the total number of trials. This function can either calculated the success percent
@@ -274,16 +282,17 @@ def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWA
 
     # If requested, calculate success percent across entire input events
     if window_size is None:
-        n_success = np.count_nonzero(success_trials)  
+        n_success = np.count_nonzero(success_trials)
         success_percent = n_success / n_trials
 
     # Otherwise, compute rolling success percent
     else:
         filter_array = np.ones(window_size)
         success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
-        success_percent = success_per_window/window_size
+        success_percent = success_per_window / window_size
 
     return success_percent
+
 
 def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
     '''
@@ -300,28 +309,32 @@ def calc_success_rate(events, event_times, start_events, end_events, success_eve
     '''
     # Get event time information
     _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
-    trial_acq_time = times[:,1]-times[:,0]
+    trial_acq_time = times[:, 1] - times[:, 0]
     ntrials = times.shape[0]
-    
+
     # Get % of successful trials per window 
     success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
-    
+
     # Determine rolling target acquisition time info 
     if window_size is None:
-        nsuccess = success_perc*ntrials
+        nsuccess = success_perc * ntrials
         acq_time = np.sum(trial_acq_time)
 
     else:
-        nsuccess = success_perc*window_size
+        nsuccess = success_perc * window_size
         filter_array = np.ones(window_size)
         acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
-    
+
     success_rate = nsuccess / acq_time
 
     return success_rate
+
+
 '''
 Cell type classification analysis
 '''
+
+
 def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_varthresh=0.75, min_wfs=10):
     '''
     Calculates waveform width and classifies units into putative exciatory and inhibitory cell types based on pulse width.
@@ -351,7 +364,7 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
             | **avg_wfs (nunit, nt):** Average waveform of accepted waveforms for each unit
             | **sss_unitid (1D):*** Unit index of spikes with a lower number of spikes than allowed by 'min_wfs'
     '''
-    TTP = [] 
+    TTP = []
     sss_unitid = []
 
     # Get data size parameters.
@@ -359,12 +372,12 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
     nunits = len(waveform_data)
 
     # Initialize array for average waveforms
-    avg_wfs = np.zeros((nt, nunits)) 
+    avg_wfs = np.zeros((nt, nunits))
 
     # Iterate through all units
-    for iunit in range(nunits): 
-        iwfdata = waveform_data[iunit] # shape (nt, nunit) - waveforms for each unit
-        
+    for iunit in range(nunits):
+        iwfdata = waveform_data[iunit]  # shape (nt, nunit) - waveforms for each unit
+
         # Use PCA and kmeans to remove outliers if there are enough data points
         if iwfdata.shape[1] >= min_wfs:
             # Use each time point as a feature and each spike as a sample.
@@ -373,32 +386,33 @@ def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_v
         else:
             good_wf_idx = np.arange(iwfdata.shape[1])
             sss_unitid.append(iunit)
-            
-        iwfdata_good = iwfdata[:,good_wf_idx]
+
+        iwfdata_good = iwfdata[:, good_wf_idx]
 
         # Average good waveforms
-        iwfdata_good_avg = np.mean(iwfdata_good, axis = 1)    
-        avg_wfs[:,iunit] = iwfdata_good_avg
+        iwfdata_good_avg = np.mean(iwfdata_good, axis=1)
+        avg_wfs[:, iunit] = iwfdata_good_avg
 
         # Calculate 1st order TTP approximation
         troughidx_1st, peakidx_1st = find_trough_peak_idx(iwfdata_good_avg)
 
         # Interpolate peaks with a parabolic fit
-        troughidx_2nd, _, _  = interpolate_extremum_poly2(troughidx_1st, iwfdata_good_avg, extrap_peaks=False)
+        troughidx_2nd, _, _ = interpolate_extremum_poly2(troughidx_1st, iwfdata_good_avg, extrap_peaks=False)
         peakidx_2nd, _, _ = interpolate_extremum_poly2(peakidx_1st, iwfdata_good_avg, extrap_peaks=False)
 
         # Calculate 2nd order TTP approximation
-        TTP.append(1e6*(peakidx_2nd - troughidx_2nd)/samplerate)    
-    
-    gmm_proc = GaussianMixture(n_components = 2, random_state = 0).fit(np.array(TTP).reshape(-1, 1))
+        TTP.append(1e6 * (peakidx_2nd - troughidx_2nd) / samplerate)
+
+    gmm_proc = GaussianMixture(n_components=2, random_state=0).fit(np.array(TTP).reshape(-1, 1))
     unit_labels = gmm_proc.predict(np.array(TTP).reshape(-1, 1))
-    
+
     # Ensure lowest TTP unit is inhibitory (0)
     minttpidx = np.argmin(TTP)
     if unit_labels[minttpidx] == 1:
         unit_labels = 1 - unit_labels
-    
+
     return TTP, unit_labels, avg_wfs, sss_unitid
+
 
 def find_trough_peak_idx(unit_data):
     '''
@@ -418,30 +432,31 @@ def find_trough_peak_idx(unit_data):
     # Handle condition where the input data is a 1D array
     if len(unit_data.shape) == 1:
         troughidx = np.argmin(unit_data)
-        
-        wfdecreaseidx = np.where(np.diff(unit_data[troughidx:])<0)
-        
+
+        wfdecreaseidx = np.where(np.diff(unit_data[troughidx:]) < 0)
+
         if np.size(wfdecreaseidx) == 0:
-            peakidx = len(unit_data)-1
+            peakidx = len(unit_data) - 1
         else:
             peakidx = np.min(wfdecreaseidx) + troughidx
 
     # Handle 2D input data array  
     else:
-        troughidx = np.argmin(unit_data, axis = 0)
+        troughidx = np.argmin(unit_data, axis=0)
         peakidx = np.empty(troughidx.shape)
 
         for trialidx in range(len(peakidx)):
-            
-            wfdecreaseidx = np.where(np.diff(unit_data[troughidx[trialidx]:,trialidx])<0)
+
+            wfdecreaseidx = np.where(np.diff(unit_data[troughidx[trialidx]:, trialidx]) < 0)
 
             # Handle the condition where there is no negative derivative.
             if np.size(wfdecreaseidx) == 0:
-                peakidx[trialidx] = len(unit_data[:,trialidx])-1
+                peakidx[trialidx] = len(unit_data[:, trialidx]) - 1
             else:
                 peakidx[trialidx] = np.min(wfdecreaseidx) + troughidx[trialidx]
-        
+
     return troughidx, peakidx
+
 
 def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
     '''
@@ -468,31 +483,32 @@ def interpolate_extremum_poly2(extremum_idx, data, extrap_peaks=False):
     # Handle condition where the peak is at the beginning of a dataset
     if extremum_idx == 0:
         edge_idx = True
-        xpts = np.arange((extremum_idx), extremum_idx+3, 1)
-        ypts = data[extremum_idx:extremum_idx+3]
-    
+        xpts = np.arange((extremum_idx), extremum_idx + 3, 1)
+        ypts = data[extremum_idx:extremum_idx + 3]
+
     # Handle condition where the peak is at the end of a dataset
-    elif extremum_idx == len(data)-1:
+    elif extremum_idx == len(data) - 1:
         edge_idx = True
-        xpts = np.arange((extremum_idx-2), extremum_idx+1, 1)
-        ypts = data[extremum_idx-2:extremum_idx+1]
-        
+        xpts = np.arange((extremum_idx - 2), extremum_idx + 1, 1)
+        ypts = data[extremum_idx - 2:extremum_idx + 1]
+
     # Condition where the peak is in the middle of the dataset
     else:
         edge_idx = False
-        xpts = np.arange((extremum_idx-1), extremum_idx+2, 1)
-        ypts = data[extremum_idx-1:extremum_idx+2]
-    
+        xpts = np.arange((extremum_idx - 1), extremum_idx + 2, 1)
+        ypts = data[extremum_idx - 1:extremum_idx + 2]
+
     f = interpolate.lagrange(xpts, ypts)
-    extremum_time = -f[1]/(2*f[2])
-    extremum_value = (f[2]*(extremum_time**2)) + (f[1]*extremum_time) + f[0]
-    
+    extremum_time = -f[1] / (2 * f[2])
+    extremum_value = (f[2] * (extremum_time ** 2)) + (f[1] * extremum_time) + f[0]
+
     # If end points should not be extrapolated from...
-    if extrap_peaks==False and edge_idx:
+    if extrap_peaks == False and edge_idx:
         extremum_time = extremum_idx
         extremum_value = data[extremum_time]
 
     return extremum_time, extremum_value, f
+
 
 def get_unit_spiking_mean_variance(spiking_data):
     '''
@@ -508,16 +524,17 @@ def get_unit_spiking_mean_variance(spiking_data):
             | **unit_variance:** The spike count variance for each unit across the input time
     '''
 
-    counts = np.sum(spiking_data, axis=1) # Counts has the shape (nunits, ntr)
-    unit_mean = np.mean(counts, axis=1) # Averge the counts for each unit across all trials
-    unit_variance = np.var(counts, axis=1) # Calculate the count variance for each unit across all trials
+    counts = np.sum(spiking_data, axis=1)  # Counts has the shape (nunits, ntr)
+    unit_mean = np.mean(counts, axis=1)  # Averge the counts for each unit across all trials
+    unit_variance = np.var(counts, axis=1)  # Calculate the count variance for each unit across all trials
 
     return unit_mean, unit_variance
 
-  
+
 '''
 KALMAN FILTER 
 '''
+
 
 class KFDecoder(object):
     """
@@ -569,7 +586,7 @@ class KFDecoder(object):
 
         A = X2 * X1.T * inv(X1 * X1.T)  # Transition matrix
         W = (X2 - A * X1) * (X2 - A * X1).T / (
-                    nt - 1) / self.C  # Covariance of transition matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1 and X2). We also introduce the extra parameter C here.
+                nt - 1) / self.C  # Covariance of transition matrix. Note we divide by nt-1 since only nt-1 points were used in the computation (that's the length of X1 and X2). We also introduce the extra parameter C here.
 
         # Calculate the measurement matrix (from x_t to z_t) using least-squares, and compute its covariance
         # In our case, this is the transformation from kinematics to spikes
@@ -673,14 +690,18 @@ class KFDecoder(object):
             # Do second part of state update - based on measurement matrix
             K = P_m * H.T * inv(H * P_m * H.T + Q)  # Calculate Kalman gain ( K = P_ap*H'* inv(H*P_ap*H' + Q) )
             P = (np.matrix(np.eye(num_states)) - K * H) * P_m  # (a posteriori estimate, P (I - K*H)*P_ap )
-            state = state_m + K * (Z[:,t + 1] - H * state_m)  # compute a posteriori estimate of x (X(k) = X(k|k-1) + K*(Z - H*X(k|k-1))
+            state = state_m + K * (Z[:,
+                                   t + 1] - H * state_m)  # compute a posteriori estimate of x (X(k) = X(k|k-1) + K*(Z - H*X(k|k-1))
             states[:, t + 1] = np.squeeze(state)  # Record state at the timestep
         y_test_predicted = states.T
         return y_test_predicted
 
+
 '''
 METRIC CALCULATIONS
 '''
+
+
 def calc_rms(signal, remove_offset=True):
     '''
     Root mean square of a signal
@@ -697,10 +718,11 @@ def calc_rms(signal, remove_offset=True):
         m = np.mean(signal, axis=0)
     else:
         m = 0
-    
+
     return np.sqrt(np.mean(np.square(signal - m), axis=0))
 
-def find_outliers(data, std_threshold):   
+
+def find_outliers(data, std_threshold):
     '''
     Use kmeans clustering to find the center point of a dataset and distances from each data point
     to the center point. Data points further than a specified number of standard deviations away
@@ -725,17 +747,18 @@ def find_outliers(data, std_threshold):
             | **good_data_idx (n):** Labels each data point if it is an outlier (True = good, False = outlier)
             | **distances (n):** Distance of each data point from center
     '''
-    
+
     # Check ncluster input
-    kmeans_model = KMeans(n_clusters = 1).fit(data)
+    kmeans_model = KMeans(n_clusters=1).fit(data)
     distances = kmeans_model.transform(data)
     cluster_labels = kmeans_model.labels_
-    dist_std = np.sqrt(np.sum(distances**2)/len(distances))
-    good_data_idx = (distances < (dist_std*std_threshold))
-                  
+    dist_std = np.sqrt(np.sum(distances ** 2) / len(distances))
+    good_data_idx = (distances < (dist_std * std_threshold))
+
     return good_data_idx.flatten(), distances.flatten()
 
-def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_level:float = 0.5) -> np.ndarray:
+
+def fit_linear_regression(X: np.ndarray, Y: np.ndarray, coefficient_coeff_warning_level: float = 0.5) -> np.ndarray:
     """
     Function that fits a linear regression to each matching column of X and Y arrays. 
     
@@ -750,28 +773,30 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
             | **intercept (n_columns):** intercept of each fit
             | **corr_coefficient (n_columns):** corr_coefficient of each fit
     """
-    
+
     # Make sure the same shape
     assert X.shape == Y.shape
-    
+
     n_columns = X.shape[1]
 
     slope = np.empty((n_columns,))
     intercept = np.zeros((n_columns,))
     corr_coeff = np.zeros((n_columns,))
-    
+
     # Iterate through the columns
     for i in range(n_columns):
-        
-        x = X[:,i]
-        y = Y[:,i]
-        
-        slope[i], intercept[i], corr_coeff[i],  *_ = scipy.stats.linregress(x, y)
 
-        if corr_coeff[i] <= coefficient_coeff_warning_level: 
-            warnings.warn(f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
-        
+        x = X[:, i]
+        y = Y[:, i]
+
+        slope[i], intercept[i], corr_coeff[i], *_ = scipy.stats.linregress(x, y)
+
+        if corr_coeff[i] <= coefficient_coeff_warning_level:
+            warnings.warn(
+                f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
+
     return slope, intercept, corr_coeff
+
 
 def calc_freq_domain_amplitude(data, samplerate, rms=False):
     '''
@@ -794,14 +819,15 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
     # Compute FFT along time dimension
     freq_data = np.fft.fft(data, axis=0)
     length = np.shape(freq_data)[0]
-    freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
-    non_negative_freq = freq[freq>=0]
+    freq = np.fft.fftfreq(length, d=1. / samplerate)
+    data_ampl = abs(freq_data[freq >= 0, :]) * 2 / length  # compute the one-sided amplitude
+    non_negative_freq = freq[freq >= 0]
 
     # Apply factor of root 2 to turn amplitude into RMS amplitude
     if rms:
-        data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
+        data_ampl[1:, :] = data_ampl[1:, :] / np.sqrt(2)
     return non_negative_freq, data_ampl
+
 
 def calc_sem(data, axis=None):
     '''
@@ -823,13 +849,16 @@ def calc_sem(data, axis=None):
         nd array: SEM value(s).
     '''
     n = np.sum(~np.isnan(data), axis=axis)
-    SEM = np.nanstd(data, axis=axis)/np.sqrt(n)
+    SEM = np.nanstd(data, axis=axis) / np.sqrt(n)
 
     return SEM
+
 
 '''
 MODEL FITTING
 '''
+
+
 def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     '''
     This functions fits a line to input data using linear regression, calculates the fitting score
@@ -857,13 +886,13 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
         | **reg_fit (sklearn.linear_model._base.LinearRegression)
     '''
     xdata = xdata.reshape(-1, 1)
-    ydata = ydata.reshape(-1,1)
+    ydata = ydata.reshape(-1, 1)
 
-    reg_fit = LinearRegression(fit_intercept=fit_intercept).fit(xdata,ydata, sample_weight=weights)
+    reg_fit = LinearRegression(fit_intercept=fit_intercept).fit(xdata, ydata, sample_weight=weights)
     linear_fit_score = reg_fit.score(xdata, ydata)
     pcc_all = stats.pearsonr(xdata.flatten(), ydata.flatten())
 
-    linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
+    linear_fit = reg_fit.coef_[0][0] * xdata.flatten() + reg_fit.intercept_
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
 
@@ -894,7 +923,8 @@ def get_eye_trajectories_by_trial(
 
     eye_calibed = eye_data["calibrated_data"]
     # get all segments from peripheral target on -> trial end
-    trial_segments, trial_times_bmi3d = preproc.get_trial_segments(events['code'], event_times, start_events, end_events)
+    trial_segments, trial_times_bmi3d = preproc.get_trial_segments(events['code'], event_times, start_events,
+                                                                   end_events)
     # grab eye trajectories
     eye_data_by_trial = []
     for trial_start, trial_end in trial_times_bmi3d:
@@ -935,6 +965,7 @@ def get_cursor_trajectories_by_trial(exp_data, start_events=[TARGET_ON_CODES], e
         cursor_data_by_trial.append(trial_cursor_pos)
     return cursor_data_by_trial, trial_segments, trial_cycles
 
+
 def get_target_positions(exp_data):
     # Preprocessing to get target positions
     target_pos_by_idx = np.empty([9, 3], dtype=object)
@@ -944,7 +975,8 @@ def get_target_positions(exp_data):
     return target_pos_by_idx
 
 
-def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_events=[TRIAL_END], eye_sample_rate=25000):
+def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_events=[TRIAL_END],
+                        eye_sample_rate=25000):
     '''
     Given eye and experimental data, grab trials where the cursor reaches the peripheral target
     for these trials, calculate the eye and cursor trajectories' distance to peripheral targets
@@ -961,7 +993,8 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
             | **dist_cursor_target (list of list of distances):** distances of cursor position to peripheral target for each trial
     '''
 
-    eye_data_by_trial, _, _ = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events, eye_sample_rate)
+    eye_data_by_trial, _, _ = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events,
+                                                            eye_sample_rate)
     cursor_data_by_trial, trial_segments, _ = get_cursor_trajectories_by_trial(exp_data, start_events, end_events)
 
     target_pos_by_idx = get_target_positions(exp_data)
@@ -989,3 +1022,58 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
         dist = np.sqrt((cursor_pos[:, 0] - target_pos[i][0]) ** 2 + (cursor_pos[:, 1] - target_pos[i][1]) ** 2)
         dist_cursor_target.append(dist)
     return dist_eye_target, dist_cursor_target
+
+
+def get_movement_error_var_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):
+    events = exp_data['events']
+
+    # grab cursor trajectories
+    # Find cursor data
+    cursor_data = exp_data['task']['cursor'][:, [0, 2]]
+    event_cycles = events['time']
+
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], event_cycles, start_codes, end_codes)
+
+    # Preprocessing to get target positions
+    target_pos_by_idx = np.empty([9, 3], dtype=object)
+    for trial in exp_data['trials']:
+        target_pos_by_idx[trial["index"], :] = trial["target"]
+    target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
+
+    origin_pos = target_pos_by_idx[0]
+
+    movement_error_by_trial = []
+    movement_var_by_trial = []
+    for events, times in zip(trial_segments, trial_cycles):
+        start_time, end_time = times
+        target = events[0] - 16
+        target_pos = target_pos_by_idx[target]
+        trial_cursor_pos = cursor_data[start_time:end_time, :]
+        perp_dists = np.array([
+            np.abs(np.cross(target_pos - origin_pos, origin_pos - pos)) / np.linalg.norm(target_pos - origin_pos)
+            for pos in trial_cursor_pos
+        ])
+        error = np.sqrt(np.sum(np.absolute(perp_dists))) / perp_dists.shape[0]
+        avg = np.average(perp_dists)
+        var = np.sqrt(np.sum((perp_dists - avg) ** 2) / perp_dists.shape[0])
+        movement_error_by_trial.append(error)
+        movement_var_by_trial.append(var)
+    return movement_error_by_trial, movement_var_by_trial
+
+
+def get_time_to_target_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):
+    events = exp_data['events']
+    clock = exp_data['clock']
+
+    # grab cursor trajectories
+    # Find cursor data
+    event_cycles = events['time']
+
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], event_cycles, start_codes, end_codes)
+
+    time_to_targets = []
+    for start_time, end_time in trial_cycles:
+        timer_start = clock['timestamp_sync'][start_time]
+        timer_end = clock['timestamp_sync'][end_time]
+        time_to_targets.append(timer_end - timer_start)
+    return time_to_targets
