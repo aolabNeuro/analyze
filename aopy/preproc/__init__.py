@@ -6,14 +6,14 @@ from .. import postproc
 from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
 import h5py
+from glob import glob
 
 '''
 proc_* wrappers
 '''
 def proc_day(data_dir, result_dir, overwrite=False, save_res=True):
-    files = {}
-    exp_result_filename = None
-    assert exp_result_filename is not None
+    files = glob(os.path.join(data_dir,'*.bin'))
+    exp_result_filename = 'experiment_data.h5'
     print('processing experiment data...')
     proc_exp(
         data_dir,
@@ -23,8 +23,7 @@ def proc_day(data_dir, result_dir, overwrite=False, save_res=True):
         overwrite = overwrite,
         save_res = save_res
     )
-    eyetracking_result_filename = None
-    assert eyetracking_result_filename is not None
+    eyetracking_result_filename = 'eyetracking_data.h5'
     print('processing eyetracking data...')
     proc_eyetracking(
         data_dir,
@@ -35,8 +34,7 @@ def proc_day(data_dir, result_dir, overwrite=False, save_res=True):
         overwrite = overwrite,
         save_res = save_res,
     )
-    broadband_result_filename = None
-    assert broadband_result_filename is not None
+    broadband_result_filename = 'broadband_data.h5'
     print('processing broadband data...')
     proc_broadband(
         data_dir,
@@ -45,8 +43,7 @@ def proc_day(data_dir, result_dir, overwrite=False, save_res=True):
         result_filename=broadband_result_filename,
         overwrite=overwrite
     )
-    lfp_result_filename = None
-    assert broadband_result_filename is not None
+    lfp_result_filename = 'lfp_data.h5'
     print('processing local field potential data...')
     proc_lfp(
         data_dir,
