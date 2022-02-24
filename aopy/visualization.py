@@ -211,7 +211,7 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
     '''
     Wrapper around plt.imshow for spatial data
 
@@ -235,6 +235,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         data_map (2,n array): map of x,y data
         x (list): list of x positions
         y (list): list of y positions
+        alpha_map (2,n array): map of alpha values (optional, default alpha=1 everywhere)
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
 
@@ -253,11 +254,19 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
     cmap.set_bad(color='black')
+    
+    # Make an alpha map scaled between 0 and 1
+    if alpha_map is None:
+        alpha_map = 1
+    else:
+        alpha_range = np.nanmax(alpha_map) - np.nanmin(alpha_map)
+        alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
+        alpha_map[np.isnan(alpha_map)] = 0
 
     # Plot
     if ax is None:
         ax = plt.gca()
-    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 

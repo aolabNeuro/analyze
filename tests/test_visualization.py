@@ -61,6 +61,15 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_spatial_map(interp_map, xy[0], xy[1])
         savefig(write_dir, filename)
 
+        # Test using an alpha map on top of the spatial map
+        filename = 'posmap_alphamap.png'
+        data_map = get_data_map(data_missing, x_missing, y_missing)
+        self.assertEqual(data_map.shape, (10, 10))
+        plt.figure()
+        plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
+        savefig(write_dir, filename)
+
+
     def test_single_spatial_map(self):
         data = 2.0
         x_pos, y_pos = np.meshgrid(1,1)
