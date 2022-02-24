@@ -44,12 +44,21 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_spatial_map(data_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
-        filename = 'posmap_interp.png'
-        interp_map = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=0.01)
+        # Fill in the missing values by using calc_data_map instead of get_data_map
+        filename = 'posmap_calcmap.png'
+        interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
         self.assertEqual(interp_map.shape, (10, 10))
-        self.assertTrue(np.isnan(interp_map[0,0]))
+        self.assertFalse(np.isnan(interp_map[0,0]))
         plt.figure()
-        plot_spatial_map(interp_map, x_missing, y_missing)
+        plot_spatial_map(interp_map, xy[0], xy[1])
+        savefig(write_dir, filename)
+
+        # Use cubic interpolation to generate a high resolution map
+        filename = 'posmap_calcmap_interp.png'
+        interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [100, 100], threshold_dist=1.5, interp_method='cubic')
+        self.assertEqual(interp_map.shape, (100, 100))
+        plt.figure()
+        plot_spatial_map(interp_map, xy[0], xy[1])
         savefig(write_dir, filename)
 
     def test_single_spatial_map(self):
