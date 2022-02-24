@@ -1036,7 +1036,7 @@ def get_movement_error_var_for_session(exp_data, start_codes=[TARGET_ON_CODES], 
 
     # Preprocessing to get target positions
     target_pos_by_idx = np.empty([9, 3], dtype=object)
-    for trial in exp_data['trials']:
+    for trial in exp_data['bmi3d_trials']:
         target_pos_by_idx[trial["index"], :] = trial["target"]
     target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
 
