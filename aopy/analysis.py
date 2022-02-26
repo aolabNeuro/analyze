@@ -21,8 +21,11 @@ from numpy.linalg import inv as inv # used in Kalman Filter
 
 import warnings
 from . import preproc
+from . import data
+from . import utils
 
 TARGET_ON_CODES = range(17,26)
+CURSOR_ENTER_TARGET_CODES = range(81, 89)
 TRIAL_END = 239
 SUCCESS_CODE = 48
 CENTER_ON = 16
@@ -868,9 +871,17 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
 
 
+def get_raw_timestamps(exp_metadata):
+    ecube_file = exp_metadata["source_files"]["ecube"]
+    digital_events, metadata = data.load_ecube_digital("", ecube_file)
+    clock = utils.mask_and_shift(digital_events, 0x1000000)
+    clock_timestamps, _ = utils.detect_edges(clock, metadata['samplerate'], falling=False)
+    return clock_timestamps
+
+
 def get_eye_trajectories_by_trial(
-        eye_data, exp_data,
-        start_events=[TARGET_ON_CODES], end_events=[TRIAL_END],
+        eye_data, exp_data, timestamps,
+        start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES],
         eye_sample_rate=25000
 ):
     '''
@@ -878,6 +889,7 @@ def get_eye_trajectories_by_trial(
     Args:
         eye_data (dict) eye data after eye calibration:
         exp_data (dict) preprocessed experimental data:
+        timestamps (list) list of timestamps corresponding to each event
         start_events (list(int)) event codes to mark start of each trial:
         end_events (list(int)) event codes to mark end of each trial:
         eye_sample_rate (int)
@@ -886,31 +898,32 @@ def get_eye_trajectories_by_trial(
         tuple: tuple containing:
             | **eye_data_by_trial (list of list of position):**  trajectories of eye movement in monitor space by trial
             | **trial_segments (list of list of events):** a segment of each trial
-            | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
+            | **trial_timestamps (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
     '''
     events = exp_data['events']
-    clock = exp_data['clock']
-    event_times = clock['timestamp_sync'][events['time']]
+    event_times = timestamps[events['time']]
 
     eye_calibed = eye_data["calibrated_data"]
     # get all segments from peripheral target on -> trial end
-    trial_segments, trial_times_bmi3d = preproc.get_trial_segments(events['code'], event_times, start_events, end_events)
+    trial_segments, trial_timestamps = preproc.get_trial_segments(events['code'], event_times, start_events, end_events)
     # grab eye trajectories
     eye_data_by_trial = []
-    for trial_start, trial_end in trial_times_bmi3d:
+    trial_full_timestamps = []
+    for trial_start, trial_end in trial_timestamps:
         # grab list of eye positions
         eye_index_start = (trial_start * eye_sample_rate).astype(int)
         eye_index_end = (trial_end * eye_sample_rate).astype(int)
         trial_eye_calibed = eye_calibed[eye_index_start:eye_index_end, :]
         eye_data_by_trial.append(trial_eye_calibed)
-    return eye_data_by_trial, trial_segments, trial_times_bmi3d
+    return eye_data_by_trial, trial_segments, trial_timestamps
 
 
-def get_cursor_trajectories_by_trial(exp_data, start_events=[TARGET_ON_CODES], end_events=[TRIAL_END]):
+def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES]):
     '''
     Finds cursor trajectories by trial.
     Args:
         exp_data (dict) preprocessed experimental data:
+        timestamps (list) list of timestamps corresponding to each event:
         start_events (list(int)) event codes to mark start of each trial:
         end_events (list(int)) event codes to mark end of each trial:
         eye_sample_rate (int)
@@ -919,7 +932,7 @@ def get_cursor_trajectories_by_trial(exp_data, start_events=[TARGET_ON_CODES], e
         tuple: tuple containing:
             | **cursor_data_by_trial (list of list of position):**  trajectories of cursor for each trial
             | **trial_segments (list of list of events):** a segment of each trial
-            | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
+            | **trial_timestamps (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
     '''
     # grab cursor trajectories
     # Find cursor data
@@ -929,11 +942,13 @@ def get_cursor_trajectories_by_trial(exp_data, start_events=[TARGET_ON_CODES], e
     event_cycles = events['time']
     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], event_cycles, start_events, end_events)
     cursor_data_by_trial = []
+    trial_timestamps = []
     for trial_start, trial_end in trial_cycles:
         # grab list of eye positions
         trial_cursor_pos = cursor_data[trial_start:trial_end, :]
         cursor_data_by_trial.append(trial_cursor_pos)
-    return cursor_data_by_trial, trial_segments, trial_cycles
+        trial_timestamps.append((timestamps[trial_start], timestamps[trial_end]))
+    return cursor_data_by_trial, trial_segments, trial_timestamps
 
 def get_target_positions(exp_data):
     # Preprocessing to get target positions
@@ -944,7 +959,7 @@ def get_target_positions(exp_data):
     return target_pos_by_idx
 
 
-def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_events=[TRIAL_END], eye_sample_rate=25000):
+def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES], eye_sample_rate=25000):
     '''
     Given eye and experimental data, grab trials where the cursor reaches the peripheral target
     for these trials, calculate the eye and cursor trajectories' distance to peripheral targets
@@ -989,3 +1004,58 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
         dist = np.sqrt((cursor_pos[:, 0] - target_pos[i][0]) ** 2 + (cursor_pos[:, 1] - target_pos[i][1]) ** 2)
         dist_cursor_target.append(dist)
     return dist_eye_target, dist_cursor_target
+
+
+def get_movement_error_var_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):
+    events = exp_data['events']
+
+    # grab cursor trajectories
+    # Find cursor data
+    cursor_data = exp_data['task']['cursor'][:, [0, 2]]
+    event_cycles = events['time']
+
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], event_cycles, start_codes, end_codes)
+
+    # Preprocessing to get target positions
+    target_pos_by_idx = np.empty([9, 3], dtype=object)
+    for trial in exp_data['bmi3d_trials']:
+        target_pos_by_idx[trial["index"], :] = trial["target"]
+    target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
+
+    origin_pos = target_pos_by_idx[0]
+
+    movement_error_by_trial = []
+    movement_var_by_trial = []
+    for events, times in zip(trial_segments, trial_cycles):
+        start_time, end_time = times
+        target = events[0] - 16
+        target_pos = target_pos_by_idx[target]
+        trial_cursor_pos = cursor_data[start_time:end_time, :]
+        perp_dists = np.array([
+            np.abs(np.cross(target_pos - origin_pos, origin_pos - pos)) / np.linalg.norm(target_pos - origin_pos)
+            for pos in trial_cursor_pos
+        ])
+        error = np.sqrt(np.sum(np.absolute(perp_dists))) / perp_dists.shape[0]
+        avg = np.average(perp_dists)
+        var = np.sqrt(np.sum((perp_dists - avg) ** 2) / perp_dists.shape[0])
+        movement_error_by_trial.append(error)
+        movement_var_by_trial.append(var)
+    return movement_error_by_trial, movement_var_by_trial
+
+
+def get_time_to_target_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):
+    events = exp_data['events']
+    clock = exp_data['clock']
+
+    # grab cursor trajectories
+    # Find cursor data
+    event_cycles = events['time']
+
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], event_cycles, start_codes, end_codes)
+
+    time_to_targets = []
+    for start_time, end_time in trial_cycles:
+        timer_start = clock['timestamp_sync'][start_time]
+        timer_end = clock['timestamp_sync'][end_time]
+        time_to_targets.append(timer_end - timer_start)
+    return time_to_targets
