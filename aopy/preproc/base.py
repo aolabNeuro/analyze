@@ -368,7 +368,7 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
     return trial_aligned, trial_indices
 
 
-def get_trial_segments(events, times, start_events, end_events, start_and_end_time_only=True):
+def get_trial_segments(events, times, start_events, end_events):
     '''
     Gets times for the start and end of each trial according to the given set of start_events and end_events
 
@@ -377,13 +377,11 @@ def get_trial_segments(events, times, start_events, end_events, start_and_end_ti
         times (nt): times vector
         start_events (list): set of start events to match
         end_events (list): set of end events to match
-        start_and_end_time_only (bool) only return start and end timestamps in for each trial
     Returns:
         tuple: tuple containing:
             | **segments (list of list of events):** a segment of each trial
-            | **times (list of list of times):** list of timestamps for each trial.
-                if start_and_end_time_only set to True, only return times corresponding to start and end times.
-                else return times for each event in the trial.
+            | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
+
     Note:
         - if there are multiple matching start or end events in a trial, only consider the first one
     '''
@@ -403,14 +401,50 @@ def get_trial_segments(events, times, start_events, end_events, start_and_end_ti
                 break # start event must be followed by end event otherwise not valid
             if np.in1d(events[idx_end], end_events):
                 segments.append(events[idx_start:idx_end+1])
-                if start_and_end_time_only:
-                    segment_times.append([times[idx_start], times[idx_end]])
-                else:
-                    segment_times.append(times[idx_start:idx_end+1])
+                segment_times.append([times[idx_start], times[idx_end]])
                 break
             idx_end += 1
     segment_times = np.array(segment_times)
     return segments, segment_times
+
+
+def get_trial_segments_all_times(events, times, start_events, end_events):
+    '''
+    same logic as get_trial_segments above but returns all timestamps corresponding to events 
+    instead of just start and end times. 
+    Args:
+        events (nt): events vector
+        times (nt): times vector
+        start_events (list): set of start events to match
+        end_events (list): set of end events to match
+    Returns:
+        tuple: tuple containing:
+            | **segments (list of list of events):** a segment of each trial
+            | **times (list of list of times):** list of timestamps for each event in each trial.
+    Note:
+        - if there are multiple matching start or end events in a trial, only consider the first one
+    '''
+    # Find the indices in events that correspond to start events
+    evt_start_idx = np.where(np.in1d(events, start_events))[0]
+
+    # Extract segments for each start event
+    segments = []
+    segment_times = []
+    for idx_evt in range(len(evt_start_idx)):
+        idx_start = evt_start_idx[idx_evt]
+        idx_end = evt_start_idx[idx_evt] + 1
+
+        # Look forward for a matching end event
+        while idx_end < len(events):
+            if np.in1d(events[idx_end], start_events):
+                break # start event must be followed by end event otherwise not valid
+            if np.in1d(events[idx_end], end_events):
+                segments.append(events[idx_start:idx_end+1])
+                segment_times.append(times[idx_start:idx_end+1])
+                break
+            idx_end += 1
+    return segments, segment_times
+
 
 def get_data_segments(data, segment_times, samplerate):
     '''
