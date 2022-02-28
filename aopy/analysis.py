@@ -897,25 +897,25 @@ def get_eye_trajectories_by_trial(
     Returns:
         tuple: tuple containing:
             | **eye_data_by_trial (list of list of position):**  trajectories of eye movement in monitor space by trial
-            | **trial_segments (list of list of events):** a segment of each trial
-            | **trial_timestamps (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
+            | **times_by_trial (list of list of times):** list of timestamps corresponding to the data
     '''
     events = exp_data['events']
-    event_times = timestamps[events['time']]
+    cyles = events['time']
 
     eye_calibed = eye_data["calibrated_data"]
     # get all segments from peripheral target on -> trial end
-    trial_segments, trial_timestamps = preproc.get_trial_segments(events['code'], event_times, start_events, end_events)
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
     # grab eye trajectories
     eye_data_by_trial = []
-    trial_full_timestamps = []
-    for trial_start, trial_end in trial_timestamps:
+    times_by_trial = []
+    for trial_start, trial_end in trial_cycles:
         # grab list of eye positions
-        eye_index_start = (trial_start * eye_sample_rate).astype(int)
-        eye_index_end = (trial_end * eye_sample_rate).astype(int)
-        trial_eye_calibed = eye_calibed[eye_index_start:eye_index_end, :]
+        times = timestamps[trial_start:trial_end]
+        eye_indices = (times * eye_sample_rate).astype(int)
+        trial_eye_calibed = eye_calibed[eye_indices, :]
         eye_data_by_trial.append(trial_eye_calibed)
-    return eye_data_by_trial, trial_segments, trial_timestamps
+        times_by_trial.append(times)
+    return eye_data_by_trial, times_by_trial
 
 
 def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES]):
@@ -931,24 +931,24 @@ def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_
     Returns:
         tuple: tuple containing:
             | **cursor_data_by_trial (list of list of position):**  trajectories of cursor for each trial
-            | **trial_segments (list of list of events):** a segment of each trial
-            | **trial_timestamps (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
+            | **times_by_trial (list of list of times):** list of timestamps corresponding to the data
     '''
     # grab cursor trajectories
     # Find cursor data
     events = exp_data['events']
 
     cursor_data = exp_data['task']['cursor'][:, [0, 2]]
-    event_cycles = events['time']
-    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], event_cycles, start_events, end_events)
+    cyles = events['time']
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
     cursor_data_by_trial = []
-    trial_timestamps = []
+    times_by_trial = []
     for trial_start, trial_end in trial_cycles:
         # grab list of eye positions
         trial_cursor_pos = cursor_data[trial_start:trial_end, :]
         cursor_data_by_trial.append(trial_cursor_pos)
-        trial_timestamps.append((timestamps[trial_start], timestamps[trial_end]))
-    return cursor_data_by_trial, trial_segments, trial_timestamps
+        times_by_trial.append(timestamps[trial_start:trial_end])
+    return cursor_data_by_trial, times_by_trial
+
 
 def get_target_positions(exp_data):
     # Preprocessing to get target positions
@@ -957,7 +957,6 @@ def get_target_positions(exp_data):
         target_pos_by_idx[trial["index"], :] = trial["target"]
     target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
     return target_pos_by_idx
-
 
 def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES], eye_sample_rate=25000):
     '''
@@ -973,37 +972,27 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
     Returns:
         tuple: tuple containing:
             | **dist_eye_target (list of list of distances):**  distances of eye position to peripheral target for each trial
+            | **eye_times (list of list of times):** list of timestamps corresponding to the eye distances
             | **dist_cursor_target (list of list of distances):** distances of cursor position to peripheral target for each trial
+            | **cursor_times (list of list of times):** list of timestamps corresponding to the cursor distances
+
     '''
 
-    eye_data_by_trial, _, _ = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events, eye_sample_rate)
-    cursor_data_by_trial, trial_segments, _ = get_cursor_trajectories_by_trial(exp_data, start_events, end_events)
+    eye_traj, eye_times, _ = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events, eye_sample_rate)
+    cursor_traj, cursor_times, _ = get_cursor_trajectories_by_trial(exp_data, start_events, end_events)
 
-    target_pos_by_idx = get_target_positions(exp_data)
-
-    # Grab all successful trials in session
-    success_indices = [i for i, t in enumerate(trial_segments) if SUCCESS_CODE in t]
-
-    # segment indexes always start with peripheral TARGET_ON
-    # use CENTER_ON code to calculate
-    # the peripheral target index for each trial.
-    target_indices = [t[0] - CENTER_ON for t in trial_segments]
-
-    # Grab out data corresponding to successful trials from each list
-    success_eye_pos = [eye_data_by_trial[i] for i in success_indices]
-    success_cursor_pos = [cursor_data_by_trial[i] for i in success_indices]
-    target_pos = [target_pos_by_idx[target_indices[i]] for i in success_indices]
+    target_pos = get_target_positions(exp_data)
 
     dist_eye_target = []
-    for i, eye_pos in enumerate(success_eye_pos):
+    for i, eye_pos in enumerate(eye_traj):
         dist = np.sqrt((eye_pos[:, 0] - target_pos[i][0]) ** 2 + (eye_pos[:, 1] - target_pos[i][1]) ** 2)
         dist_eye_target.append(dist)
 
     dist_cursor_target = []
-    for i, cursor_pos in enumerate(success_cursor_pos):
+    for i, cursor_pos in enumerate(cursor_traj):
         dist = np.sqrt((cursor_pos[:, 0] - target_pos[i][0]) ** 2 + (cursor_pos[:, 1] - target_pos[i][1]) ** 2)
         dist_cursor_target.append(dist)
-    return dist_eye_target, dist_cursor_target
+    return dist_eye_target, eye_times, dist_cursor_target, cursor_times
 
 
 def get_movement_error_var_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):

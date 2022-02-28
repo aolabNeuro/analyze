@@ -898,8 +898,8 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
 def plot_dist_to_targets(
         dist_eye_target=None,
         dist_cursor_target=None,
-        eye_sample_rate=25000,
-        cursor_sample_rate=120,
+        eye_times=None,
+        cursor_times=None,
         ax=None,
         xlim=800
 ):
@@ -920,15 +920,15 @@ def plot_dist_to_targets(
     custom_lines = []
     labels = []
     if dist_eye_target is not None:
-        for dist in dist_eye_target:
-            eye_times_ms = np.arange(len(dist)) / eye_sample_rate * 1000
-            ax.plot(eye_times_ms, dist, color='b', alpha=0.1, label="Eye Distance")
+        for dist, time in zip(dist_eye_target, eye_times):
+            time_milis = (np.array(time) - time[0]) * 1000
+            ax.plot(time_milis, dist, color='b', alpha=0.1, label="Eye Distance")
         custom_lines.append(Line2D([0], [0], color='b', lw=2))
         labels.append("Eye Distances to Targets")
     if dist_cursor_target is not None:
-        for dist in dist_cursor_target:
-            cursor_times_ms = np.arange(len(dist)) / cursor_sample_rate * 1000
-            ax.plot(cursor_times_ms, dist, color='r', alpha=0.1, label="Cursor Distance")
+        for dist, time in zip(dist_cursor_target, cursor_times):
+            time_milis = (np.array(time) - time[0]) * 1000
+            ax.plot(time_milis, dist, color='r', alpha=0.1, label="Cursor Distance")
         custom_lines.append(Line2D([0], [0], color='r', lw=2))
         labels.append("Cursor Distances to Targets")
     ax.legend(custom_lines, labels)
