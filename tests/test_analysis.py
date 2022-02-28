@@ -318,7 +318,7 @@ class CalcTests(unittest.TestCase):
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
 
-    def test_calc_mean_erp(self):
+    def test_calc_erp(self):
         nevents = 3
         event_times = 0.2 + np.arange(nevents)
         samplerate = 1000
@@ -333,13 +333,24 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(np.sum(data[:,0]), nevents)
         self.assertEqual(np.sum(data[:,1]), nevents*2)
 
-        mean_erp = aopy.analysis.calc_mean_erp(data, event_times, 0.1, 0.1, samplerate, subtract_baseline=False)
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, subtract_baseline=False)
+        self.assertEqual(erp.shape[0], 3)
+
+        mean_erp = np.mean(erp, axis=0)
         self.assertEqual(np.sum(mean_erp[:,0]), 1)
         self.assertEqual(np.sum(mean_erp[:,1]), 2)
 
         # Subtract baseline
         data += 1
-        mean_erp = aopy.analysis.calc_mean_erp(data, event_times, 0.1, 0.1, samplerate)
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate)
+        mean_erp = np.mean(erp, axis=0)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+        # Specify baseline window
+        data[0] = 100
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, baseline_window=())
+        mean_erp = np.mean(erp, axis=0)
         self.assertEqual(np.sum(mean_erp[:,0]), 1)
         self.assertEqual(np.sum(mean_erp[:,1]), 2)
 

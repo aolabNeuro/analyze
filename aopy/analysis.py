@@ -818,7 +818,7 @@ def calc_sem(data, axis=None):
     return SEM
 
 
-def calc_mean_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True):
+def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
     Calculates the mean (across trials) event-related potential (ERP) for the given timeseries data.
 
@@ -830,9 +830,11 @@ def calc_mean_erp(data, event_times, time_before, time_after, samplerate, subtra
         samplerate (float): sampling rate of the data
         subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
             the time_before period preceding each event. Must supply a positive time_before. Default True
+        baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
+            Default is the entire time_before period.
 
     Returns:
-        nch: array of maximum mean-ERP for each channel during the given time periods
+        (ntr, nt, nch): array of event-aligned responses for each channel during the given time periods
 
     '''
     if subtract_baseline and time_before <= 0:
@@ -845,20 +847,26 @@ def calc_mean_erp(data, event_times, time_before, time_after, samplerate, subtra
     if subtract_baseline:
         
         # Take a mean across the data before the events as a baseline
-        n_samples = aligned_data.shape[1]
+        if not baseline_window:
+            baseline_window = (0, time_before)
+        elif len(baseline_window) < 2 or baseline_window[1] < baseline_window[0]:
+            raise ValueError("baseline_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
         before_samples = int(time_before*samplerate)
-        event_mean = np.mean(aligned_data[:,:before_samples,:], axis=1)
+        s0 = before_samples - int(baseline_window[1]*samplerate)
+        s1 = before_samples - int(baseline_window[0]*samplerate)
+        event_mean = np.mean(aligned_data[:,s0:s1,:], axis=1)
 
         # Subtract the baseline to calculate ERP
+        n_samples = aligned_data.shape[1]
         event_mean = np.tile(event_mean, (n_samples, 1, 1)).reshape((n_events, n_samples, -1))
         erp = aligned_data - event_mean
     else:
 
         # Just use the aligned data as-is
         erp = aligned_data
-    
-    # Average across trials
-    return np.mean(erp, axis=0)
+
+    return erp
 
 def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True):
     '''
@@ -878,7 +886,7 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
         nch: array of maximum mean-ERP for each channel during the given time periods
 
     '''
-    mean_erp = calc_mean_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline)
+    mean_erp = np.mean(calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline), axis=0)
 
     # Find the index that maximizes the absolute value, then use that index to get the actual signed value
     idx_max_erp = np.argmax(np.abs(mean_erp), axis=0)
