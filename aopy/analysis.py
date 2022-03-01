@@ -905,6 +905,7 @@ def get_eye_trajectories_by_trial(
     eye_calibed = eye_data["calibrated_data"]
     # get all segments from peripheral target on -> trial end
     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
+    print(len(trial_segments))
     # grab eye trajectories
     eye_data_by_trial = []
     times_by_trial = []
@@ -940,6 +941,7 @@ def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_
     cursor_data = exp_data['task']['cursor'][:, [0, 2]]
     cyles = events['time']
     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
+    print(len(trial_segments))
     cursor_data_by_trial = []
     times_by_trial = []
     for trial_start, trial_end in trial_cycles:
@@ -980,8 +982,7 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
 
     eye_traj, eye_times = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events, eye_sample_rate)
     cursor_traj, cursor_times = get_cursor_trajectories_by_trial(exp_data, start_events, end_events)
-    print(len(eye_traj))
-    print(len(eye_times))
+
     target_pos = get_target_positions(exp_data)
 
     dist_eye_target = []
