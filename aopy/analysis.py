@@ -24,7 +24,7 @@ from . import preproc
 from . import data
 from . import utils
 
-TARGET_ON_CODES = range(17,26)
+TARGET_ON_CODES = range(17, 26)
 CURSOR_ENTER_TARGET_CODES = range(81, 89)
 TRIAL_END = 239
 SUCCESS_CODE = 48
@@ -904,6 +904,8 @@ def get_eye_trajectories_by_trial(
 
     eye_calibed = eye_data["calibrated_data"]
     # get all segments from peripheral target on -> trial end
+    print(start_events)
+    print(end_events)
     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
     print(len(trial_segments))
     # grab eye trajectories
@@ -940,6 +942,8 @@ def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_
 
     cursor_data = exp_data['task']['cursor'][:, [0, 2]]
     cyles = events['time']
+    print(start_events)
+    print(end_events)
     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
     print(len(trial_segments))
     cursor_data_by_trial = []
