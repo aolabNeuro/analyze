@@ -366,9 +366,8 @@ class CalcTests(unittest.TestCase):
         data[[int(t)+1 for t in event_times*samplerate],1] = 2
 
         max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate)
-        self.assertTrue(max_erp[0] > 0.5) 
-        self.assertTrue(max_erp[1] > 1.)
-        # not sure why the max erp isn't exactly 1 (or 2 for ch2), it seems to get spread out over a couple samples
+        self.assertEqual(max_erp[0], 1) 
+        self.assertEqual(max_erp[1], 2)
 
         # Specify search window
         search_window = (0.05, 0.06)
