@@ -956,13 +956,21 @@ def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_
     return cursor_data_by_trial, times_by_trial
 
 
-def get_target_positions(exp_data):
+def get_target_positions_by_trial(exp_data, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES]):
     # Preprocessing to get target positions
     target_pos_by_idx = np.empty([9, 3], dtype=object)
     for trial in exp_data['bmi3d_trials']:
         target_pos_by_idx[trial["index"], :] = trial["target"]
     target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
-    return target_pos_by_idx
+
+    events = exp_data['events']
+    cycles = events['time']
+    target_pos_by_trial = []
+    trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cycles, start_events, end_events)
+    for events in trial_segments:
+        on_target_idx = events[0]
+        target_pos_by_trial.append(target_pos_by_idx[on_target_idx - CENTER_ON])
+    return target_pos_by_trial
 
 def get_dist_to_targets(eye_data, exp_data, exp_metadata, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES], eye_sample_rate=25000):
     '''
@@ -987,7 +995,7 @@ def get_dist_to_targets(eye_data, exp_data, exp_metadata, start_events=[TARGET_O
     eye_traj, eye_times = get_eye_trajectories_by_trial(eye_data, exp_data, timestamps, start_events, end_events, eye_sample_rate)
     cursor_traj, cursor_times = get_cursor_trajectories_by_trial(exp_data, timestamps, start_events, end_events)
 
-    target_pos = get_target_positions(exp_data)
+    target_pos = get_target_positions_by_trial(exp_data)
 
     dist_eye_target = []
     for i, eye_pos in enumerate(eye_traj):
