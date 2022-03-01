@@ -373,6 +373,32 @@ class EventFilterTests(unittest.TestCase):
         np.testing.assert_allclose(np.squeeze(trial_aligned[0]), np.arange(5,15))
         self.assertTrue(np.count_nonzero(np.isnan(trial_aligned[1])), 15)
 
+        # Test other samplerate
+        # At 50 Hz, 0.1s should be 5 samples
+        nevents = 4
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 50
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+        event_samples = [int(t*samplerate) for t in event_times]
+        for ch in range(nch):
+            data[event_samples,ch] = ch+1
+        time_before = 0.1
+        time_after = 0.1
+        aligned_data = trial_align_data(data, event_times, time_before, time_after, samplerate)
+        for t in aligned_data:
+            np.testing.assert_allclose(np.array(
+                [[0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [1., 2.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.]]), t)
+
 
     def test_trial_align_times(self):
         timestamps = np.array([2, 6, 7, 10, 25, 27])
