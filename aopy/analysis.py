@@ -953,7 +953,7 @@ def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_
 def get_target_positions(exp_data):
     # Preprocessing to get target positions
     target_pos_by_idx = np.empty([9, 3], dtype=object)
-    for trial in exp_data['trials']:
+    for trial in exp_data['bmi3d_trials']:
         target_pos_by_idx[trial["index"], :] = trial["target"]
     target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
     return target_pos_by_idx
