@@ -868,7 +868,7 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
 
     return erp
 
-def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True):
+def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None):
     '''
     Calculates the maximum (across time) mean (across trials) event-related potential (ERP) 
     for the given timeseries data.
@@ -881,15 +881,30 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
         samplerate (float): sampling rate of the data
         subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
             the time_before period preceding each event. Must supply a positive time_before. Default True
+        baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
+            Default is the entire time_before period.
+        max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
+            after event). Default is the entire time_after period.
 
     Returns:
         nch: array of maximum mean-ERP for each channel during the given time periods
 
     '''
-    mean_erp = np.mean(calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline), axis=0)
+    mean_erp = np.mean(calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window), axis=0)
+
+    # Limit the search to the given window
+    start_idx = int(time_before*samplerate)
+    end_idx = start_idx + int(time_after*samplerate)
+    if max_search_window:
+        if len(max_search_window) < 2 or max_search_window[1] < max_search_window[0]:
+            raise ValueError("max_search_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
+        end_idx = start_idx + int(max_search_window[1]*samplerate)
+        start_idx += int(max_search_window[0]*samplerate)
+    mean_erp_window = mean_erp[start_idx:end_idx,:]
 
     # Find the index that maximizes the absolute value, then use that index to get the actual signed value
-    idx_max_erp = np.argmax(np.abs(mean_erp), axis=0)
+    idx_max_erp = start_idx + np.argmax(np.abs(mean_erp_window), axis=0)
     max_erp = np.array([mean_erp[idx_max_erp[i],i] for i in range(mean_erp.shape[1])])
 
     return max_erp

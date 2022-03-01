@@ -370,6 +370,12 @@ class CalcTests(unittest.TestCase):
         self.assertTrue(max_erp[1] > 1.)
         # not sure why the max erp isn't exactly 1 (or 2 for ch2), it seems to get spread out over a couple samples
 
+        # Specify search window
+        search_window = (0.05, 0.06)
+        max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate, max_search_window=search_window)
+        self.assertTrue(max_erp[0] == 0) 
+        self.assertTrue(max_erp[1] == 0)
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):
