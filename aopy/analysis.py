@@ -903,11 +903,9 @@ def get_eye_trajectories_by_trial(
     cyles = events['time']
 
     eye_calibed = eye_data["calibrated_data"]
+    eye_pos = np.stack(((eye_calibed[:, 0] + eye_calibed[:, 2]) / 2, (eye_calibed[:, 1] + eye_calibed[:, 3]) / 2), axis=1)
     # get all segments from peripheral target on -> trial end
-    print(start_events)
-    print(end_events)
     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
-    print(len(trial_segments))
     # grab eye trajectories
     eye_data_by_trial = []
     times_by_trial = []
@@ -915,8 +913,8 @@ def get_eye_trajectories_by_trial(
         # grab list of eye positions
         times = timestamps[trial_start:trial_end]
         eye_indices = (times * eye_sample_rate).astype(int)
-        trial_eye_calibed = eye_calibed[eye_indices, :]
-        eye_data_by_trial.append(trial_eye_calibed)
+        trial_eye_pos = eye_pos[eye_indices, :]
+        eye_data_by_trial.append(trial_eye_pos)
         times_by_trial.append(times)
     return eye_data_by_trial, times_by_trial
 
@@ -942,10 +940,7 @@ def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_
 
     cursor_data = exp_data['task']['cursor'][:, [0, 2]]
     cyles = events['time']
-    print(start_events)
-    print(end_events)
     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
-    print(len(trial_segments))
     cursor_data_by_trial = []
     times_by_trial = []
     for trial_start, trial_end in trial_cycles:
