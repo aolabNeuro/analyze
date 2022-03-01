@@ -426,7 +426,7 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
 
     # Initial plot
     fig, ax = plt.subplots()
-    im = plot_spatial_map(data_map[0], x, y, ax, cmap)
+    im = plot_spatial_map(data_map[0], x, y, ax=ax, cmap=cmap)
 
     # Change the color limits
     min_c = np.min(np.array(data_map))
