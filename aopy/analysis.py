@@ -964,7 +964,7 @@ def get_target_positions(exp_data):
     target_pos_by_idx = target_pos_by_idx[:, [0, 2]]
     return target_pos_by_idx
 
-def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES], eye_sample_rate=25000):
+def get_dist_to_targets(eye_data, exp_data, exp_metadata, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES], eye_sample_rate=25000):
     '''
     Given eye and experimental data, grab trials where the cursor reaches the peripheral target
     for these trials, calculate the eye and cursor trajectories' distance to peripheral targets
@@ -983,9 +983,9 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
             | **cursor_times (list of list of times):** list of timestamps corresponding to the cursor distances
 
     '''
-
-    eye_traj, eye_times = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events, eye_sample_rate)
-    cursor_traj, cursor_times = get_cursor_trajectories_by_trial(exp_data, start_events, end_events)
+    timestamps = get_raw_timestamps(exp_metadata)
+    eye_traj, eye_times = get_eye_trajectories_by_trial(eye_data, exp_data, timestamps, start_events, end_events, eye_sample_rate)
+    cursor_traj, cursor_times = get_cursor_trajectories_by_trial(exp_data, timestamps, start_events, end_events)
 
     target_pos = get_target_positions(exp_data)
 
@@ -1004,7 +1004,7 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
 def get_movement_error_var_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):
     events = exp_data['events']
 
-    # grab cursor trajectories
+    # grab cursor trajectoriess
     # Find cursor data
     cursor_data = exp_data['task']['cursor'][:, [0, 2]]
     event_cycles = events['time']
