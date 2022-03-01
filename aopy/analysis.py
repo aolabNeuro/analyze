@@ -980,7 +980,8 @@ def get_dist_to_targets(eye_data, exp_data, start_events=[TARGET_ON_CODES], end_
 
     eye_traj, eye_times = get_eye_trajectories_by_trial(eye_data, exp_data, start_events, end_events, eye_sample_rate)
     cursor_traj, cursor_times = get_cursor_trajectories_by_trial(exp_data, start_events, end_events)
-
+    print(len(eye_traj))
+    print(len(eye_times))
     target_pos = get_target_positions(exp_data)
 
     dist_eye_target = []
