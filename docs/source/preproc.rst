@@ -61,9 +61,11 @@ A record of the time at which each cycle in the bmi state machine loop occurred.
    * - ``timestamp_measure_online`` (float)
      - Uncorrected timestamps measured from the screen and digitized online
 
-The preprocessed ``timestamp`` field will be most useful for aligning data to things that appear on the screen. However, in some cases 
+The figure below shows what each timestamp information is captured by each variable. The preprocessed ``timestamp`` field will be most useful for aligning data to things that appear on the screen. However, in some cases
 there may not be anything appearing on the screen, such as when aligning to laser onset. In these cases, the ``timestamp_sync`` will be
 more accurate and should be applied to events, described below.
+
+.. image:: _images/timestamps_explained.png
 
 **events**
 
