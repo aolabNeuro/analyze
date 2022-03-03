@@ -197,12 +197,13 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     # Check that timestamps are monotonic
     if not np.all(np.diff(timestamps) > 0):
         print("Warning: Input timemeseries is not monotonic")
-        return
 
     # Check for sampling points information
     if samplerate is None and sampling_points is None:
-        print("Warning: Not information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
-        return
+        raise ValueError("Not information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
+
+    if interp_kind not in ['nearest', 'next', 'previous', 'linear', 'cubic']:
+        raise ValueError(f"Unknown interpolation method {interp_kind}")
 
     # Calculate output sampling points if none are input
     if sampling_points is None:
