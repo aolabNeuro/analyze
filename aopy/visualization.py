@@ -500,6 +500,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
     if ax is None:
         ax = plt.gca()
 
+    if unique_only:
+        target_positions = np.unique(target_positions,axis=0)
+
     for i in range(0, target_positions.shape[0]):
 
         # Pad the vector to make sure it is length 3
