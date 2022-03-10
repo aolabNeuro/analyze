@@ -316,3 +316,4 @@ def max_repeated_nans(a):
     else:
         idx = np.nonzero(mask[1:] != mask[:-1])[0]
         return (idx[1::2] - idx[::2]).max()
+

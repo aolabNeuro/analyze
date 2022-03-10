@@ -5,17 +5,26 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
-
 from sklearn.decomposition import PCA, FactorAnalysis
+from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
-from scipy.optimize import curve_fit
 from sklearn import model_selection
+from sklearn.linear_model import LinearRegression
+from scipy.optimize import curve_fit
+
+import scipy
 from scipy import interpolate
+from scipy.optimize import curve_fit
+from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 
+import warnings
 from . import preproc
 
+'''
+Correlation / dimensionality analysis
+'''
 def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=1000, verbose=False):
     '''
     Estimate the latent dimensionality of an input dataset by appling cross validated 
@@ -67,6 +76,40 @@ def factor_analysis_dimensionality_score(data_in, dimensions, nfold, maxiter=100
 
     return log_likelihood_score, iterations_required
 
+def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
+    """
+    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
+    
+    Args:
+        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
+        max_dims (int): (default None) the maximum number of dimensions to reduce data onto.
+        VAF (float): (default 0.9) variance accounted for (VAF)
+        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
+
+    Returns:
+        tuple: Tuple containing: 
+            | **explained_variance (list ndims long):** variance accounted for by each principal component
+            | **num_dims (int):** number of principal components required to account for variance
+            | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
+    """
+    pca = PCA()
+    pca.fit(data)
+    explained_variance = pca.explained_variance_ratio_
+    total_explained_variance = np.cumsum(explained_variance)
+    if max_dims is None:
+        num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+    else:
+        temp_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
+        num_dims = np.min([max_dims, temp_dims])
+
+    if project_data:
+        all_projected_data = pca.transform(data)
+        projected_data = all_projected_data[:,:num_dims]
+    else:
+        projected_data = None
+
+    return list(explained_variance), num_dims, projected_data
+
 
 '''
 Curve fitting
@@ -74,22 +117,22 @@ Curve fitting
 
 
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
-def func(target, b1, b2, b3):
+def curve_fitting_func(target_theta, b1, b2, b3):
     '''
 
     Args:
-        target (int) center out task target index ( takes values from 0 to 7)
-        b1, b2, b3 : parameters used for curve fitting
+        target_theta (float): center out task target direction index [degrees]
+        b1, b2, b3 (float): parameters used for curve fitting
 
     .. math::
     
         b1 * cos(\\theta) + b2 * sin(\\theta) + b3
 
-    Returns: result from above equation
+    Returns:
+        float: Evaluation of the fitting function for a given target.
 
     '''
-    theta = 45 * (target - 1)
-    return b1 * np.cos(np.deg2rad(theta)) + b2 * np.sin(np.deg2rad(theta)) + b3
+    return b1 * np.cos(np.deg2rad(target_theta)) + b2 * np.sin(np.deg2rad(target_theta)) + b3
 
 
 def get_modulation_depth(b1, b2):
@@ -100,6 +143,8 @@ def get_modulation_depth(b1, b2):
     
         \\sqrt{b_1^2+b_2^2}
 
+    Returns:
+        float: Modulation depth (amplitude) of the curve fit
     '''
     return np.sqrt((b1 ** 2) + (b2 ** 2))
 
@@ -111,9 +156,18 @@ def get_preferred_direction(b1, b2):
     .. math:: 
         
         arctan(\\frac{b_1^2}{b_2^2})
-        
+    
+    Returns:
+        float: Preferred direction of the curve fit in radians
     '''
-    return np.arctan2(b2 ** 2, b1 ** 2)
+    b1sign = np.sign(b1)
+    b2sign = np.sign(b2)
+    temp_pd = np.arctan2(b2sign*b2**2, b1sign*b1**2)
+    if temp_pd < 0:
+      pd = (2*np.pi)+temp_pd
+    else:
+      pd = temp_pd
+    return pd
 
 
 def get_mean_fr_per_direction(data, target_dir):
@@ -137,70 +191,209 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-def run_curvefitting(means, make_plot=True, fig_title='Tuning Curve', n_subplot_rows=None, n_subplot_cols= None):
+def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''
+    This function calculates the tuning parameters from center out task neural data.
+    It fits a sinusoidal tuning curve to the mean firing rates for each unit.
+    Uses approach outlined in Orsborn 2014/Georgopolous 1986.
+    Note: To orient PDs with the quadrant of best fit, this function samples the target location
+    with high resolution between 0-360 degrees.
+
     Args:
-        means (2D array) : Mean firing rate [n_targets x n_neurons]
-        make_plot (bool) : Generates plot with curve fitting and mean firing rate for n_neuons
-        Fig title (str) : Figure title
-        n_rows (int) : No of rows in subplot
-        n_cols (int) : No. of cols in subplot
+        mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
+        targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
+        fit_with_nans (bool): Optional. Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be run on non-nan values but will return nan is less than 3 non-nan values. If false, any unit that contains a nan will have the corresponding outputs set to nan.
+        min_data_pts (int): Optional. 
 
     Returns:
         tuple: Tuple containing:
-            | **params_day (Numpy array):** Curve fitting parameters
-            | **modulation depth (Numpy array):** Modulation depth of neuron
-            | **preferred direction (Numpy array):** preferred direction of neurons
+            | **fit_params (3, nunits):** Curve fitting parameters for each unit
+            | **modulation depth (ntargets, nunits):** Modulation depth of each unit
+            | **preferred direction (ntargets, nunits):** preferred direction of each unit [rad]
     '''
-    params_day = []
-    mod_depth = []
-    pd = []
+    nunits = np.shape(mean_fr)[0]
+    ntargets = len(targets)
 
-    if make_plot:
-        # sns.set_context('paper')
-        plt.figure(figsize=(20, 10))
+    fit_params = np.empty((nunits,3))*np.nan
+    md = np.empty((nunits))*np.nan
+    pd = np.empty((nunits))*np.nan
 
-    for this_neuron in range(np.shape(means)[1]):
-        xdata = np.arange(1, 9)
-        ydata = np.array(means)[:, this_neuron]
-    # print(ydata)
+    for iunit in range(nunits):
+        # If there is a nan in the values of interest skip curve fitting, otherwise fit
+        if ~np.isnan(mean_fr[iunit,:]).any():
+            params, _ = curve_fit(curve_fitting_func, targets, mean_fr[iunit,:])
+            fit_params[iunit,:] = params
 
-        params, params_cov = curve_fit(func, xdata, ydata)
-        # print(params)
-        params_day.append(params)
+            md[iunit] = get_modulation_depth(params[0], params[1])
+            pd[iunit] = get_preferred_direction(params[0], params[1])
 
-        mod_depth.append(get_modulation_depth(params[0], params[1]))
-        pd.append(get_preferred_direction(params[0], params[1]))
+        # If this doesn't work, check if fit_with_nans is true. It it is remove nans and fit
+        elif fit_with_nans:
+            nonnanidx = ~np.isnan(mean_fr[iunit,:])
+            if np.sum(nonnanidx) >= min_data_pts: # If there are enough data points run curve fitting, else return nan
+                params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit,nonnanidx])
+                fit_params[iunit,:] = params
 
-        if make_plot:
-            plt.subplot(n_subplot_rows, n_subplot_cols, this_neuron + 1)
-            plt.plot(xdata, ydata, 'b-', label='data')
-            plt.plot(xdata, func(xdata, params[0], params[1], params[2]), 'b--', label='fit')
-            plt.suptitle(fig_title, y=1.01)
-            plt.ylim(0, 600)
-            plt.xticks(np.arange(1, 8, 2))
-    return np.array(params_day), np.array(mod_depth), np.array(pd)
+                md[iunit] = get_modulation_depth(params[0], params[1])
+                pd[iunit] = get_preferred_direction(params[0], params[1])
+            else:
+                md[iunit] = np.nan
+                pd[iunit] = np.nan
 
-def calc_success_rate(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD"):
+    return fit_params, md, pd
+
+'''
+Performance metrics
+'''
+
+def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
     '''
     A wrapper around get_trial_segments which counts the number of trials with a reward event 
-    and divides by the total number of trials to calculate success rate
+    and divides by the total number of trials. This function can either calculated the success percent
+    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
+    input argument.  
 
     Args:
-        events (nt): events vector, can be codes, event names, anything to match
-        start_events (list, optional): set of start events to match
-        end_events (list, optional): set of end events to match
-        success_events (list, optional): which events make a trial a successful trial
+        events (nevents): events vector, can be codes, event names, anything to match
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
 
     Returns:
-        float: success rate = number of successful trials out of all trials
+        float or array (nwindow): success percent = number of successful trials out of all trials attempted.
     '''
     segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
     n_trials = len(segments)
     success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
-    n_success = np.count_nonzero(success_trials)
-    success_rate = n_success / n_trials
+
+    # If requested, calculate success percent across entire input events
+    if window_size is None:
+        n_success = np.count_nonzero(success_trials)  
+        success_percent = n_success / n_trials
+
+    # Otherwise, compute rolling success percent
+    else:
+        filter_array = np.ones(window_size)
+        success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
+        success_percent = success_per_window/window_size
+
+    return success_percent
+
+def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
+    '''
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        event_times (nevents): time of events in 'events'
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
+    '''
+    # Get event time information
+    _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
+    trial_acq_time = times[:,1]-times[:,0]
+    ntrials = times.shape[0]
+    
+    # Get % of successful trials per window 
+    success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
+    
+    # Determine rolling target acquisition time info 
+    if window_size is None:
+        nsuccess = success_perc*ntrials
+        acq_time = np.sum(trial_acq_time)
+
+    else:
+        nsuccess = success_perc*window_size
+        filter_array = np.ones(window_size)
+        acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
+    
+    success_rate = nsuccess / acq_time
+
     return success_rate
+'''
+Cell type classification analysis
+'''
+def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_varthresh=0.75, min_wfs=10):
+    '''
+    Calculates waveform width and classifies units into putative exciatory and inhibitory cell types based on pulse width.
+    Units with lower spike width are considered inhibitory cells (label: 0) and higher spike width are considered excitatory cells (label: 1)
+    The pulse width is defined as the time between the waveform trough to the waveform peak. (trough-to-peak time)
+    Assumes all waveforms are recorded for the same number of time points. 
+
+    This function conducts the following processing steps:
+
+        | **1. ** For each unit, project each waveform into the top PCs. Number of PCs determined by 'pca_varthresh'
+        | **2. ** For each unit, remove outlier spikes. Outlier threhsold determined by 'std_threshold'. If the number of waveforms is less than 'min_wf', no waveforms are removed.
+        | **3. ** For each unit, average remaining waveforms.
+        | **4. ** For each unit, calculate spike width using a local polynomial interpolation.
+        | **5. ** Use a gaussian mixture model to classify all units
+
+    Args:
+        waveform_data (nunit long list of (nt x nwaveforms) arrays): Waveforms of each unit. Each element of the list is a 2D array for each unit. Each 2D array contains the timeseries of all recorded waveforms for a given unit.
+        samplerate (float): sampling rate of the points in each waveform. 
+        std_threshold (float): For outlier removal. The maximum number of standard deviations (in PC space) away from the mean a given waveform is allowed to be. Defaults to 3
+        pca_varthresh (float): Variance threshold for determining the number of dimensions to project spiking data onto. Defaults to 0.75.
+        min_wfs (int): Minimum number of waveform samples required to perform outlier detection.
+
+    Returns:
+        tuple: A tuple containing
+            | **TTP (nunit):** Spike width of each unit. [us]
+            | **unit_labels (nunit):** Label of each unit. 0: low spike width (inhibitory), 1: high spike width (excitatory)
+            | **avg_wfs (nunit, nt):** Average waveform of accepted waveforms for each unit
+            | **sss_unitid (1D):*** Unit index of spikes with a lower number of spikes than allowed by 'min_wfs'
+    '''
+    TTP = [] 
+    sss_unitid = []
+
+    # Get data size parameters.
+    nt, _ = waveform_data[0].shape
+    nunits = len(waveform_data)
+
+    # Initialize array for average waveforms
+    avg_wfs = np.zeros((nt, nunits)) 
+
+    # Iterate through all units
+    for iunit in range(nunits): 
+        iwfdata = waveform_data[iunit] # shape (nt, nunit) - waveforms for each unit
+        
+        # Use PCA and kmeans to remove outliers if there are enough data points
+        if iwfdata.shape[1] >= min_wfs:
+            # Use each time point as a feature and each spike as a sample.
+            _, _, iwfdata_proj = get_pca_dimensions(iwfdata.T, max_dims=None, VAF=pca_varthresh, project_data=True)
+            good_wf_idx, _ = find_outliers(iwfdata_proj, std_threshold)
+        else:
+            good_wf_idx = np.arange(iwfdata.shape[1])
+            sss_unitid.append(iunit)
+            
+        iwfdata_good = iwfdata[:,good_wf_idx]
+
+        # Average good waveforms
+        iwfdata_good_avg = np.mean(iwfdata_good, axis = 1)    
+        avg_wfs[:,iunit] = iwfdata_good_avg
+
+        # Calculate 1st order TTP approximation
+        troughidx_1st, peakidx_1st = find_trough_peak_idx(iwfdata_good_avg)
+
+        # Interpolate peaks with a parabolic fit
+        troughidx_2nd, _, _  = interpolate_extremum_poly2(troughidx_1st, iwfdata_good_avg, extrap_peaks=False)
+        peakidx_2nd, _, _ = interpolate_extremum_poly2(peakidx_1st, iwfdata_good_avg, extrap_peaks=False)
+
+        # Calculate 2nd order TTP approximation
+        TTP.append(1e6*(peakidx_2nd - troughidx_2nd)/samplerate)    
+    
+    gmm_proc = GaussianMixture(n_components = 2, random_state = 0).fit(np.array(TTP).reshape(-1, 1))
+    unit_labels = gmm_proc.predict(np.array(TTP).reshape(-1, 1))
+    
+    # Ensure lowest TTP unit is inhibitory (0)
+    minttpidx = np.argmin(TTP)
+    if unit_labels[minttpidx] == 1:
+        unit_labels = 1 - unit_labels
+    
+    return TTP, unit_labels, avg_wfs, sss_unitid
 
 def find_trough_peak_idx(unit_data):
     '''
@@ -320,7 +513,6 @@ def get_unit_spiking_mean_variance(spiking_data):
 '''
 KALMAN FILTER 
 '''
-
 
 class KFDecoder(object):
     """
@@ -481,41 +673,9 @@ class KFDecoder(object):
         y_test_predicted = states.T
         return y_test_predicted
 
-def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
-    """
-    Use PCA to estimate the dimensionality required to account for the variance in the given data. If requested it also projects the data onto those dimensions.
-    
-    Args:
-        data (nt, nch): time series data where each channel is considered a 'feature' (nt=n_samples, nch=n_features)
-        max_dims (int): (default None) the maximum number of dimensions
-                        if left unset, will equal the dimensions (number of columns) in the dataset
-        VAF (float): (default 0.9) variance accounted for (VAF)
-        project_data (bool): (default False). If the function should project the high dimensional input data onto the calculated number of dimensions
-
-    Returns:
-        tuple: Tuple containing: 
-            | **explained_variance (list):** variance accounted for by each principal component
-            | **num_dims (int):** number of principal components required to account for variance
-            | **projected_data (nt, ndims):** Data projected onto the dimensions required to explain the input variance fraction. If the input 'project_data=False', the function will return 'projected_data=None'
-    """
-
-    if max_dims is None:
-        max_dims = np.shape(data)[1]
-
-    pca = PCA()
-    pca.fit(data)
-    explained_variance = pca.explained_variance_ratio_
-    total_explained_variance = np.cumsum(explained_variance)
-    num_dims = np.min(np.where(total_explained_variance>VAF)[0])+1
-
-    if project_data:
-        all_projected_data = pca.transform(data)
-        projected_data = all_projected_data[:,:num_dims]
-    else:
-        projected_data = None
-
-    return list(explained_variance), num_dims, projected_data
-
+'''
+METRIC CALCULATIONS
+'''
 def calc_rms(signal, remove_offset=True):
     '''
     Root mean square of a signal
@@ -552,23 +712,61 @@ def find_outliers(data, std_threshold):
         [True, True, True, False] [3.6239, 3.2703, 2.9168, 9.8111]
 
     Args:
-        data [n, nfeatures]: Input data to plot in an nfeature dimensional space and compute outliers
-        std_threshold [float]: Number of standard deviations away a data point is required to be to be classified as an outlier
+        data (n, nfeatures): Input data to plot in an nfeature dimensional space and compute outliers
+        std_threshold (float): Number of standard deviations away a data point is required to be to be classified as an outlier
         
     Returns:
         tuple: Tuple containing: 
-            | **good_data_idx [n]:** Labels each data point if it is an outlier (True = good, False = outlier)
-            | **distances [n]:** Distance of each data point from center
+            | **good_data_idx (n):** Labels each data point if it is an outlier (True = good, False = outlier)
+            | **distances (n):** Distance of each data point from center
     '''
     
     # Check ncluster input
     kmeans_model = KMeans(n_clusters = 1).fit(data)
     distances = kmeans_model.transform(data)
     cluster_labels = kmeans_model.labels_
-    dist_std = np.std(distances)
+    dist_std = np.sqrt(np.sum(distances**2)/len(distances))
     good_data_idx = (distances < (dist_std*std_threshold))
                   
     return good_data_idx.flatten(), distances.flatten()
+
+def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_level:float = 0.5) -> np.ndarray:
+    """
+    Function that fits a linear regression to each matching column of X and Y arrays. 
+    
+    Args:
+        X [np.ndarray]: number of data points by number of columns. columns of independant vars. 
+        Y [np.ndarray]: number of data points by number of columns. columns of dependant vars
+        coeffcient_coeff_warning_level (float): if any column returns a corr coeff less than this level 
+
+    Returns:
+        tuple: tuple containing:
+            | **slope (n_columns):** slope of each fit
+            | **intercept (n_columns):** intercept of each fit
+            | **corr_coefficient (n_columns):** corr_coefficient of each fit
+    """
+    
+    # Make sure the same shape
+    assert X.shape == Y.shape
+    
+    n_columns = X.shape[1]
+
+    slope = np.empty((n_columns,))
+    intercept = np.zeros((n_columns,))
+    corr_coeff = np.zeros((n_columns,))
+    
+    # Iterate through the columns
+    for i in range(n_columns):
+        
+        x = X[:,i]
+        y = Y[:,i]
+        
+        slope[i], intercept[i], corr_coeff[i],  *_ = scipy.stats.linregress(x, y)
+
+        if corr_coeff[i] <= coefficient_coeff_warning_level: 
+            warnings.warn(f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
+        
+    return slope, intercept, corr_coeff
 
 def calc_freq_domain_amplitude(data, samplerate, rms=False):
     '''
@@ -599,3 +797,67 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
     if rms:
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
+
+def calc_sem(data, axis=None):
+    '''
+    This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
+    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
+    calculated across the entire input array.
+
+    .. math::
+    
+        SEM = \\frac{\\sigma}{\\sqrt{n}}
+        
+
+    Args:
+        data (nd array): Input data matrix of any dimension
+        axis (int or tuple): Axis to perform SEM calculation on
+    
+    Returns:
+        nd array: SEM value(s).
+    '''
+    n = np.sum(~np.isnan(data), axis=axis)
+    SEM = np.nanstd(data, axis=axis)/np.sqrt(n)
+
+    return SEM
+
+'''
+MODEL FITTING
+'''
+def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
+    '''
+    This functions fits a line to input data using linear regression, calculates the fitting score
+    (coefficient of determination), and calculates Pearson's correlation coefficient. Optional weights
+    can be input to adjust the linear fit. This function then applies the linear fit to the input xdata.
+
+    Linear regression fit is calculated using:
+    https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LinearRegression.html
+    
+    Pearson correlation coefficient is calculated using:
+    https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.pearsonr.html
+
+
+    Args:
+        xdata (npts):
+        ydata (npts):
+        weights (npts):
+
+    Returns:
+        tuple: Tuple containing:
+        | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
+        | **linear_fit_score (float):** Coefficient of determination for linear fit
+        | **pcc (float):** Pearson's correlation coefficient
+        | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
+        | **reg_fit (sklearn.linear_model._base.LinearRegression)
+    '''
+    xdata = xdata.reshape(-1, 1)
+    ydata = ydata.reshape(-1,1)
+
+    reg_fit = LinearRegression(fit_intercept=fit_intercept).fit(xdata,ydata, sample_weight=weights)
+    linear_fit_score = reg_fit.score(xdata, ydata)
+    pcc_all = stats.pearsonr(xdata.flatten(), ydata.flatten())
+
+    linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
+
+    return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit

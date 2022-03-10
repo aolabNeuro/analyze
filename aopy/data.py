@@ -11,6 +11,7 @@ import os
 import glob
 import warnings
 import pickle
+import yaml
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -435,7 +436,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", compression=0, a
     Args: 
         data_dir (str): destination file directory
         hdf_filename (str): name of the hdf file to be saved
-        data_dict (dict, optional): the data to be saved as a hdf file
+        data_dict (dict): the data to be saved as a hdf file
         data_group (str, optional): where to store the data in the hdf
         compression(int, optional): gzip compression level. 0 indicate no compression. Compression not added to existing datasets. (default: 0)
         append (bool, optional): append an existing hdf file or create a new hdf file
@@ -788,6 +789,44 @@ def map_acq2elec(signalpath_table, acq_ch_subset=None):
 
     return acq_chs, connected_elecs
 
+def map_elec2acq(signalpath_table, elecs):
+    '''
+    This function finds the acquisition channels that correspond to the input electrode numbers given the signal path table input. 
+    This function works by calling aopy.data.map_acq2elec and subsampling the output.
+    If a requested electrode isn't connected to an acquisition channel a warning will be displayed alerting the user
+    and the corresponding index in the output array will be a np.nan value.
+
+    Args:
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        elecs (nelec): Electrodes to find the acquisition channels for
+
+    Returns:
+        acq_chs: Acquisition channels that map to electrodes (e.g. nelec/256 for viventi ECoG array)
+    '''
+    acq_chs, connected_elecs = map_acq2elec(signalpath_table)
+    elec_idx = np.in1d(connected_elecs, elecs) # Find elements in 'connected_elecs' that are also in 'elecs'
+
+    # If the output acq_chs are not the same length as the input electodes, 1+ electrodes weren't connected
+    if np.sum(elec_idx) < len(elecs):
+        output_acq_chs = np.zeros(len(elecs))
+        output_acq_chs[:] = np.nan
+        missing_elecs = []
+
+        for ielec, elecid in enumerate(elecs):
+            matched_idx = np.where(connected_elecs == elecid)[0]
+            if len(matched_idx) == 0:
+                missing_elecs.append(elecid)
+            else:
+                output_acq_chs[ielec] = acq_chs[matched_idx]
+        warning_str = 'Electrodes ' + str(missing_elecs) + ' are not connected.'
+        print(warning_str)
+
+        return output_acq_chs
+
+    else:
+        return acq_chs[elec_idx]
+
+
 def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
@@ -961,7 +1000,7 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
 
 def pkl_write(file_to_write, values_to_dump, write_dir):
     '''
-    Write data into a pickle file.
+    Write data into a pickle file. Note: H5D5 (HDF) files can not be pickled.  Refer :func:`aopy.data.save_hdf` for saving HDF data
     
     Args:
         file_to_write (str): filename with '.pkl' extension
@@ -971,7 +1010,7 @@ def pkl_write(file_to_write, values_to_dump, write_dir):
     Returns:
         None
 
-    examples: pkl_write(meta.pkl, data, '/data_dir')
+    examples: pkl_write('meta.pkl', data, '/data_dir')
     '''
     file = os.path.join(write_dir, file_to_write)
     with open(file, 'wb') as pickle_file:
@@ -994,3 +1033,39 @@ def pkl_read(file_to_read, read_dir):
     with open(file, "rb") as f:
         this_dat = pickle.load(f)
     return this_dat
+
+
+def yaml_write(filename, data):
+    '''
+    YAML stands for Yet Another Markup Language. It can be used to save Params or configuration files.
+    Args:
+        filename(str): Filename including the full path
+        data (dict) : Params data to be dumped into a yaml file
+    Returns: None
+
+    Example:
+        >>>params = [{ 'CENTER_TARGET_ON': 16 , 'CURSOR_ENTER_CENTER_TARGET' : 80 , 'REWARD' : 48 , 'DELAY_PENALTY' : 66 }]
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>yaml_write(params_file, params)
+    '''
+    with open(filename, 'w') as file:
+        documents = yaml.dump(data, file)
+
+
+def yaml_read(filename):
+    '''
+    The FullLoader parameter handles the conversion from YAML scalar values to Python the dictionary format
+    Args:
+        filename(str): Filename including the full path
+
+    Returns:
+        data (dict) : Params data dumped into a yaml file
+
+    Example:
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>task_codes = yaml_read(params_file, params)
+    '''
+    with open(filename) as file:
+        task_codes = yaml.load(file, Loader=yaml.FullLoader)
+
+    return task_codes
