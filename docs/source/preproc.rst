@@ -61,11 +61,19 @@ A record of the time at which each cycle in the bmi state machine loop occurred.
    * - ``timestamp_measure_online`` (float)
      - Uncorrected timestamps measured from the screen and digitized online
 
-The figure below shows what each timestamp information is captured by each variable. The preprocessed ``timestamp`` field will be most useful for aligning data to things that appear on the screen. However, in some cases
-there may not be anything appearing on the screen, such as when aligning to laser onset. In these cases, the ``timestamp_sync`` will be
-more accurate and should be applied to events, described below.
+The figure below shows what each timestamp information is captured by each variable. 
 
 .. image:: _images/timestamps_explained.png
+
+From the experiment computer a clock is recorded in three ways:
+
+#. Directly into the HDF record -- this clock is inaccurate but nice to have as backup
+#. As a digital signal from a NIDAQ DIO card -- for accurate (with some latency) sync of BMI3D cycles
+#. By measuring a flickering square on the screen with a photodiode -- for accurate measurement of displayed frame timestamps
+
+The preprocessed ``timestamp`` field should be used for aligning data to things that appear on the screen. However, in some cases
+there may not be anything appearing on the screen, such as when aligning to laser onset. In these cases, the ``timestamp_sync`` will be
+more accurate and should also be applied to events, described below.
 
 **events**
 
