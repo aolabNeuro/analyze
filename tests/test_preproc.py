@@ -527,9 +527,6 @@ class TestPrepareExperiment(unittest.TestCase):
             self.assertIn('clock', data)
             self.assertIn('events', data)
             self.assertIn('task', data)
-            self.assertIn('state', data)
-            self.assertIn('trials', data)
-
 
         # Test sync version 0 (and -1)
         files = {}
@@ -616,7 +613,6 @@ class TestPrepareExperiment(unittest.TestCase):
         end_states = [b'TRIAL_END'] 
         trial_states, trial_idx = get_trial_segments(events['event'], events['time'], start_states, end_states)
         self.assertEqual(len(trial_states), 10)
-        self.assertEqual(len(np.unique(data['trials']['trial'])), 11) # TODO maybe should fix this so trials is also len(trial_states)??
 
     def test_parse_oculomatic(self):
         files = {}
