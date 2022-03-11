@@ -329,7 +329,7 @@ def derivative(x, y, norm=True):
     Returns:
         nt: derivative of y
     '''
-    dy = np.gradient(y, axis=0)
+    dy = np.gradient(y, axis=0, edge_order=2)
     if norm and dy.ndim > 1:
         dy = np.linalg.norm(dy, axis=1)
     dx = np.gradient(x)

@@ -374,7 +374,7 @@ def get_trial_trajectories(preproc_dir, preprocessed_filename, trial_start_codes
         time = data['clock']['timestamp']
         raw_kinematics = preproc(time, cursor)
         samplerate = metadata['analog_samplerate']
-        kinematics = interp_timestamps2timeseries(time, raw_kinematics, samplerate, interp_kind='previous')
+        kinematics, _ = interp_timestamps2timeseries(time, raw_kinematics, samplerate, interp_kind='previous')
     elif datatype == 'eye':
         eye_data = load_hdf_group(preproc_dir, preprocessed_filename, 'eye_data')
         eye_metadata = load_hdf_group(preproc_dir, preprocessed_filename, 'eye_metadata')

@@ -208,7 +208,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
         sampling_points = np.arange(timestamps[0], timestamps[-1]+(1/samplerate), 1/samplerate)
 
     # Interpolate
-    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values)
+    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values, axis=0)
     timeseries = f_interp(sampling_points)
 
     return timeseries, sampling_points

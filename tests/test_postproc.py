@@ -4,6 +4,7 @@ import numpy as np
 import warnings
 import unittest
 import os
+import matplotlib.pyplot as plt
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -240,18 +241,39 @@ class TestGetFuncs(unittest.TestCase):
         aopy.preproc.proc_exp(data_dir, files, write_dir, preprocessed_filename, overwrite=True)
         aopy.preproc.proc_eyetracking(data_dir, files, write_dir, preprocessed_filename)
 
+        # Plot cursor trajectories - expect 9 trials
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
-        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, 
-                            trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor')
+        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes)
+        self.assertEqual(len(trajs), 9)
+        self.assertEqual(trajs[1].shape, (32969, 3)) # x y z
         bounds = [-10, 10, -10, 10]
         aopy.visualization.plot_trajectories(trajs, bounds=bounds)
         figname = 'get_trial_trajectories.png'
         aopy.visualization.savefig(write_dir, figname)
-        
+
+        # Plot eye trajectories - expect same 9 trials but no eye pos to plot
+        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, datatype='eye')
+        self.assertEqual(len(trajs), 9)
+        self.assertEqual(trajs[1].shape, (32969, 4)) # two eyes x and y
+        plt.figure()
+        aopy.visualization.plot_trajectories(trajs, bounds=bounds)
+        figname = 'get_eye_trajectories.png'
+        aopy.visualization.savefig(write_dir, figname) # expect a bunch of noise
+
+        # Try cursor velocity
+        vel, _ = get_trial_velocity_estimates(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes)
+        self.assertEqual(len(vel), 9)
+        self.assertEqual(vel[1].shape, (32969,))
+        plt.figure()
+        plt.plot(vel[1])
+        figname = 'get_trial_velocities.png'
+        aopy.visualization.savefig(write_dir, figname)
+
+        # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
-        vel, _ = get_trial_velocity_estimates(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
-        velocity = ([np.max(vel[i], initial=0) for i in range(len(vel))])
+        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
+        self.assertEqual(len(trajs), 7)
 
     def test_get_target_locations(self):
         files = {}

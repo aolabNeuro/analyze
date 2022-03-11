@@ -150,9 +150,9 @@ class TestDigitalCalc(unittest.TestCase):
 
     def test_derivative(self):
         x = np.linspace(0, 10, 1000)
-        y = x*2
+        y = x**2
         dydx = derivative(x, y, norm=False)
-        expected = np.ones(1000)*2
+        expected = x*2
         np.testing.assert_allclose(dydx, expected)
 
         x = np.linspace(0, 10, 1000)
