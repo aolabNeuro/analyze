@@ -197,7 +197,6 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     # Check that timestamps are monotonic
     if not np.all(np.diff(timestamps) > 0):
         print("Warning: Input timemeseries is not monotonic")
-        return
 
     # Check for sampling points information
     if samplerate is None and sampling_points is None:

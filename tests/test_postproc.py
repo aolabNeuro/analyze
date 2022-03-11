@@ -1,7 +1,26 @@
 from aopy.postproc import *
+import aopy
 import numpy as np
 import warnings
 import unittest
+import os
+
+test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
+write_dir = os.path.join(test_dir, 'tmp')
+if not os.path.exists(write_dir):
+    os.mkdir(write_dir)
+
+CENTER_TARGET_ON = 16
+CURSOR_ENTER_CENTER_TARGET = 80
+CURSOR_ENTER_PERIPHERAL_TARGET = list(range(81,89))
+PERIPHERAL_TARGET_ON = list(range(17,25))
+CENTER_TARGET_OFF = 32
+REWARD = 48
+DELAY_PENALTY = 66
+TIMEOUT_PENALTY = 65
+HOLD_PENALTY = 64
+TRIAL_END = 239
 
 class TestTrajectoryFuncs(unittest.TestCase):
 
@@ -213,5 +232,36 @@ class TestGetFuncs(unittest.TestCase):
         calibrated = get_calibrated_eye_data(eye_data, coefficients)
         np.testing.assert_array_equal(eye_data, calibrated)
 
+    def test_get_trial_trajectories(self):
+        files = {}
+        files['hdf'] = 'test20211213_01_te3498.hdf'
+        files['ecube'] = '2021-12-13_BMI3D_te3498'
+        preprocessed_filename = 'preprocessed_te3498.hdf'
+        aopy.preproc.proc_exp(data_dir, files, write_dir, preprocessed_filename, overwrite=True)
+        aopy.preproc.proc_eyetracking(data_dir, files, write_dir, preprocessed_filename)
+
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [REWARD, TRIAL_END]
+        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, 
+                            trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor')
+        bounds = [-10, 10, -10, 10]
+        aopy.visualization.plot_trajectories(trajs, bounds=bounds)
+        figname = 'get_trial_trajectories.png'
+        aopy.visualization.savefig(write_dir, figname)
+        
+        trial_filter = lambda t: TRIAL_END not in t
+        vel, _ = get_trial_velocity_estimates(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
+        velocity = ([np.max(vel[i], initial=0) for i in range(len(vel))])
+
+    def test_get_target_locations(self):
+        files = {}
+        files['hdf'] = 'test20211213_01_te3498.hdf'
+        files['ecube'] = '2021-12-13_BMI3D_te3498'
+        preprocessed_filename = 'preprocessed_te3498.hdf'
+        aopy.preproc.proc_exp(data_dir, files, write_dir, preprocessed_filename, overwrite=True)
+
+        target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+        locs = get_target_locations(write_dir, preprocessed_filename, target_indices)
+        
 if __name__ == "__main__":
     unittest.main()

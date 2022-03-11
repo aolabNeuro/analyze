@@ -5,7 +5,12 @@
 import numpy as np
 import math
 import warnings
-from . import precondition, preproc, data
+import scipy
+from . import preproc
+from . import precondition, data
+from aopy.preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments
+from aopy.utils import derivative
+from aopy.data import load_hdf_group
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
@@ -310,3 +315,110 @@ def get_calibrated_eye_data(eye_data, coefficients):
     """    
     #caliberated_eye_data_segments = np.empty((num_time_points, num_dims))
     return eye_data * coefficients[:,0] + coefficients[:,1]
+
+def get_trial_velocity_estimates(*args, **kwargs):
+    '''
+    Estimates velocity from cursor position, then finds the trial segments for velocity using 
+    :func:`~aopy.postproc.get_trial_trajectories()`.
+    
+    Args:
+        *args: arguments for :func:`~aopy.postproc.get_trial_trajectories`
+        **kwargs: parameters for :func:`~aopy.postproc.get_trial_trajectories`
+        
+    Returns:
+        tuple: tuple containing:
+            | **velocities (ntrial):** array of velocity estimates for each trial
+            | **trial_segments (ntrial):** array of numeric code segments for each trial
+    '''
+    return get_trial_trajectories(*args, **kwargs, preproc=derivative)
+
+
+def get_trial_trajectories(preproc_dir, preprocessed_filename, trial_start_codes, trial_end_codes, 
+                           trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor'):
+    '''
+    Loads x,y,z cursor (or eye) trajectories for each "trial" from a preprocessed HDF file. Trials can
+    be specified by numeric start and end codes. Trials can also be filtered so that only successful
+    trials are included, for example. The filter is applied to numeric code segments for each trial. 
+    Finally, the cursor data can be preprocessed by a supplied function to, for example, convert 
+    position to velocity estimates. The preprocessing function is applied to the (time, position)
+    cursor or eye data.
+    
+    Example:
+        trial_filter = lambda t: TRIAL_END not in t
+        trajectories, segments = get_trial_trajectories("/data/preprocessed", "preprocessed-example.hdf",
+                                                       [CURSOR_ENTER_CENTER_TARGET], 
+                                                       [REWARD, TRIAL_END], 
+                                                       trial_filter=trial_filter) 
+    
+    Args:
+        preproc_dir (str): path to the preprocessed directory
+        preproc_filename (str): filename of the preprocessed HDF file
+        trial_start_codes (list): list of numeric codes representing the start of a trial
+        trial_end_codes (list): list of numeric codes representing the end of a trial
+        trial_filter (fn, optional): function mapping trial segments to boolean values. Any trials
+            for which the filter returns False will not be included in the output
+        preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
+            a smoothing function or an estimate of velocity from position
+        data (str, optional): choice of 'cursor' or 'eye' kinematics to load
+    
+    Returns:
+        tuple: tuple containing:
+            | **trajectories (ntrial):** array of filtered cursor trajectories for each trial
+            | **trial_segments (ntrial):** array of numeric code segments for each trial
+        
+    '''
+    data = load_hdf_group(preproc_dir, preprocessed_filename, 'exp_data')
+    metadata = load_hdf_group(preproc_dir, preprocessed_filename, 'exp_metadata')
+    if datatype == 'cursor':
+        cursor = data['task']['cursor'][:,[0,2,1]] # cursor (x, z, y) position on each bmi3d cycle
+        time = data['clock']['timestamp']
+        raw_kinematics = preproc(time, cursor)
+        samplerate = metadata['analog_samplerate']
+        kinematics = interp_timestamps2timeseries(time, raw_kinematics, samplerate, interp_kind='previous')
+    elif datatype == 'eye':
+        eye_data = load_hdf_group(preproc_dir, preprocessed_filename, 'eye_data')
+        eye_metadata = load_hdf_group(preproc_dir, preprocessed_filename, 'eye_metadata')
+        samplerate = eye_metadata['samplerate']
+        raw_kinematics = eye_data['calibrated_data']
+        time = np.arange(len(raw_kinematics))/samplerate
+        kinematics = preproc(time, raw_kinematics)
+    else:
+        raise ValueError(f"Unknown datatype {datatype}")
+
+    assert kinematics is not None
+    
+    event_codes = data['events']['code']
+    event_times = data['events']['timestamp']
+
+    trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
+                                                                  trial_start_codes, trial_end_codes)
+    trajectories = np.array(get_data_segments(kinematics, trial_times, samplerate), dtype='object')
+    trial_segments = np.array(trial_segments, dtype='object')
+    success_trials = [trial_filter(t) for t in trial_segments]
+    
+    return trajectories[success_trials], trial_segments[success_trials]
+
+def get_target_locations(preproc_dir, preproc_filename, target_indices):
+    '''
+    Loads the x,y,z location of targets in a preprocessed HDF file given by their index. Requires
+    that the preprocessed `exp_data` includes a `trials` structured array containing `index` and 
+    `target` fields (the default behavior of `:func:~aopy.preproc.proc_exp`)
+    
+    Args:
+        preproc_dir (str): path to the preprocessed directory
+        preproc_filename (str): filename of the preprocessed HDF file
+        target_indices (ntarg): a list of which targets to fetch
+        
+    Returns:
+        ndarray: (ntarg x 3) array of coordinates of the given targets
+    '''
+    data = load_hdf_group(preproc_dir, preproc_filename, 'exp_data')
+    try:
+        trials = data['trials']
+    except:
+        trials = data['bmi3d_trials']
+    locations = []
+    for i in range(len(target_indices)):
+        trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
+        locations.append(trials['target'][trial_idx][[0,2,1]])
+    return np.array(locations)
