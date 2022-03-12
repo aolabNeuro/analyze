@@ -11,48 +11,51 @@ from glob import glob
 '''
 proc_* wrappers
 '''
-def proc_day(data_dir, result_dir, overwrite=False, save_res=True):
-    files = glob(os.path.join(data_dir,'*.bin'))
-    exp_result_filename = 'experiment_data.h5'
-    print('processing experiment data...')
-    proc_exp(
-        data_dir,
-        files,
-        result_dir,
-        result_filename = exp_result_filename,
-        overwrite = overwrite,
-        save_res = save_res
-    )
-    eyetracking_result_filename = 'eyetracking_data.h5'
-    print('processing eyetracking data...')
-    proc_eyetracking(
-        data_dir,
-        files,
-        result_dir,
-        result_filename = eyetracking_result_filename,
-        debug = False, #TODO: is this supposed to be True by default?
-        overwrite = overwrite,
-        save_res = save_res,
-    )
-    broadband_result_filename = 'broadband_data.h5'
-    print('processing broadband data...')
-    proc_broadband(
-        data_dir,
-        files,
-        result_dir,
-        result_filename=broadband_result_filename,
-        overwrite=overwrite
-    )
-    lfp_result_filename = 'lfp_data.h5'
-    print('processing local field potential data...')
-    proc_lfp(
-        data_dir,
-        files,
-        result_dir,
-        result_filename = lfp_result_filename,
-        overwrite=overwrite,
-        filter_kwargs={'ayy':'lmao'}
-    )
+def proc_day(data_dir, result_dir, files, overwrite=False, save_res=True, proc_exp=True, proc_eyetracking=True, proc_broadband=True, proc_lfp=True):
+    if proc_exp:
+        exp_result_filename = 'experiment_data.h5'
+        print('processing experiment data...')
+        proc_exp(
+            data_dir,
+            files,
+            result_dir,
+            result_filename = exp_result_filename,
+            overwrite = overwrite,
+            save_res = save_res
+        )
+    if proc_eyetracking:
+        eyetracking_result_filename = 'eyetracking_data.h5'
+        print('processing eyetracking data...')
+        proc_eyetracking(
+            data_dir,
+            files,
+            result_dir,
+            result_filename = eyetracking_result_filename,
+            debug = False, #TODO: is this supposed to be True by default?
+            overwrite = overwrite,
+            save_res = save_res,
+        )
+    if proc_broadband:
+        broadband_result_filename = 'broadband_data.h5'
+        print('processing broadband data...')
+        proc_broadband(
+            data_dir,
+            files,
+            result_dir,
+            result_filename=broadband_result_filename,
+            overwrite=overwrite
+        )
+    if proc_lfp:
+        lfp_result_filename = 'lfp_data.h5'
+        print('processing local field potential data...')
+        proc_lfp(
+            data_dir,
+            files,
+            result_dir,
+            result_filename = lfp_result_filename,
+            overwrite=overwrite,
+            filter_kwargs={'ayy':'lmao'}
+        )
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
