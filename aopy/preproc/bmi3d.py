@@ -547,6 +547,9 @@ def _prepare_bmi3d_v1(data, metadata):
             valid_clock_cycles = len(sync_clock)
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
+        else:
+            # Same shape, just replace the approx clock with the sync clock
+            approx_clock = sync_clock['timestamp']
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', approx_clock, dtypes='f8')
     else:
         print("Warning: no sync clock connected! This will usually result in problems.")
