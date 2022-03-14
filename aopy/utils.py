@@ -300,6 +300,34 @@ def get_edges_from_onsets(onsets, pulse_width):
         values[2+2*t] = 0
     return timestamps, values
 
+def get_pulse_times( digital_data, channel, samplerate ):
+    
+    """get_pulse_times
+    
+    Compute pulse times and corresponding duty cycles from a digital data timing channel.
+    
+    Args:
+        digital_data (np.array): [n_time x n_channel] array of data read from ecube digital panel
+        channel (int): channel to read from digital_data
+        sample_rate (numeric): data sampling rate (Hz)
+    
+    Returns:
+        pulse_times (np.array): array of floats indicating pulse start times
+        duty_cycle (np.array): array of floats indicating pulse duty cycle (quotient of pulse width and pulse period)
+    """
+    
+    edge_times, edge_val = detect_edges(digital_data[:,channel],samplerate)
+    start_idx = np.where(edge_val==1)[0][0]
+    end_idx = np.where(edge_val==0)[0][-1]
+    edge_times = edge_times[start_idx:(end_idx+1)]
+    edge_val = edge_val[start_idx:(end_idx+1)]
+    edge_pairs = edge_times.reshape(-1,2)
+    pulse_times = edge_pairs[:,0]
+    pulse_period = np.diff(pulse_times,axis=0)
+    duty_cycle = np.diff(edge_pairs,axis=-1)/pulse_period[0]
+    
+    return pulse_times, duty_cycle
+
 def max_repeated_nans(a):
     '''
     Utility to calculate the maximum number of consecutive nans
