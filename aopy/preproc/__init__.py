@@ -12,6 +12,7 @@ from glob import glob
 proc_* wrappers
 '''
 def proc_day(data_dir, result_dir, files, overwrite=False, save_res=True, proc_exp=True, proc_eyetracking=True, proc_broadband=True, proc_lfp=True):
+    # add other processing steps as they are written! -M.N.
     if proc_exp:
         exp_result_filename = 'experiment_data.h5'
         print('processing experiment data...')
