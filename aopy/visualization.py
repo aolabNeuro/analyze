@@ -152,6 +152,22 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
+    Example:
+        Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        
+        ::
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+
+            interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
+            plot_spatial_map(interp_map, xy[0], xy[1])
+
+        .. image:: _images/posmap_calcmap.png
+
     Args:
         data (nch): list of values
         x_pos (nch): list of x positions
@@ -161,21 +177,31 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         threshold_dist (float): distance to neighbors before disregarding a point on the image
 
     Returns:
-        2,n array: map of the data on the given grid
+        tuple: tuple containing:
+        | *data_map (2,n array):* map of the data on the given grid
+        | *xy (2,n array):* new grid positions to use with this map
+
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
     xy = np.vstack((x_pos, y_pos)).T
-    xq, yq = np.meshgrid(np.arange(extent[0], x_spacing * grid_size[0], x_spacing),
-                         np.arange(extent[2], y_spacing * grid_size[1], y_spacing))
-    X = griddata(xy, data, (np.reshape(xq, -1), np.reshape(yq, -1)), method=interp_method, rescale=False)
+    xq, yq = np.meshgrid(np.arange(extent[0], extent[0] + x_spacing * grid_size[0], x_spacing),
+                         np.arange(extent[2], extent[2] + y_spacing * grid_size[1], y_spacing))
+    
+    # Remove nan values
+    non_nan = np.logical_not(np.isnan(data))
+    data = data[non_nan]
+    xy = xy[non_nan]
+    
+    # Interpolate
+    new_xy = (np.reshape(xq, -1), np.reshape(yq, -1))
+    X = griddata(xy, data, new_xy, method=interp_method, rescale=False)
 
     # Construct kd-tree, functionality copied from scipy.interpolate
     tree = cKDTree(xy)
     xi = _ndim_coords_from_arrays((np.reshape(xq, -1), np.reshape(yq, -1)))
-
     dists, indexes = tree.query(xi)
 
     # Mask values with distances over the threshold with NaNs
@@ -183,10 +209,10 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         X[dists > threshold_dist] = np.nan
 
     data_map = np.reshape(X, grid_size)
-    return data_map
+    return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
     '''
     Wrapper around plt.imshow for spatial data
 
@@ -210,6 +236,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         data_map (2,n array): map of x,y data
         x (list): list of x positions
         y (list): list of y positions
+        alpha_map (2,n array): map of alpha values (optional, default alpha=1 everywhere)
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
 
@@ -228,11 +255,19 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
     cmap.set_bad(color='black')
+    
+    # Make an alpha map scaled between 0 and 1
+    if alpha_map is None:
+        alpha_map = 1
+    else:
+        alpha_range = np.nanmax(alpha_map) - np.nanmin(alpha_map)
+        alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
+        alpha_map[np.isnan(alpha_map)] = 0
 
     # Plot
     if ax is None:
         ax = plt.gca()
-    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
@@ -392,7 +427,7 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
 
     # Initial plot
     fig, ax = plt.subplots()
-    im = plot_spatial_map(data_map[0], x, y, ax, cmap)
+    im = plot_spatial_map(data_map[0], x, y, ax=ax, cmap=cmap)
 
     # Change the color limits
     min_c = np.min(np.array(data_map))
@@ -465,6 +500,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
 
     if ax is None:
         ax = plt.gca()
+
+    if unique_only:
+        target_positions = np.unique(target_positions,axis=0)
 
     for i in range(0, target_positions.shape[0]):
 
