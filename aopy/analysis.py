@@ -911,11 +911,14 @@ def get_eye_trajectories_by_trial(
     times_by_trial = []
     for trial_start, trial_end in trial_cycles:
         # grab list of eye positions
-        times = timestamps[trial_start:trial_end]
-        eye_indices = (times * eye_sample_rate).astype(int)
-        trial_eye_pos = eye_pos[eye_indices, :]
+        time_start = timestamps[trial_start]
+        time_end = timestamps[trial_end]
+        idx_start = int(time_start * eye_sample_rate)
+        idx_end = int(time_end * eye_sample_rate)
+        # eye_indices = (times * eye_sample_rate).astype(int)
+        trial_eye_pos = eye_pos[idx_start:idx_end]
         eye_data_by_trial.append(trial_eye_pos)
-        times_by_trial.append(times)
+        times_by_trial.append(np.arange(idx_start, idx_end) / eye_sample_rate)
     return eye_data_by_trial, times_by_trial
 
 
