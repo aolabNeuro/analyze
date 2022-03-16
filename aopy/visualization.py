@@ -586,7 +586,7 @@ def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=Non
     if bounds is not None: set_bounds(bounds, ax)
 
 
-def plot_trajectories(trajectories, bounds=None, ax=None):
+def plot_trajectories(trajectories, bounds=None, ax=None, labels=None):
     '''
     Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
 
@@ -629,8 +629,9 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
             ax.plot(*path.T)
         ax.set_box_aspect((1, 1, 1))
     except:
-        for path in trajectories:
-            ax.plot(path[:, 0], path[:, 1])
+        for i, path in enumerate(trajectories):
+            label = labels[i] if labels else None
+            ax.plot(path[:, 0], path[:, 1], label=label)
         ax.set_aspect('equal', adjustable='box')
 
     if bounds is not None: set_bounds(bounds, ax)
