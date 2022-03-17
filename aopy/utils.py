@@ -300,7 +300,7 @@ def get_edges_from_onsets(onsets, pulse_width):
         values[2+2*t] = 0
     return timestamps, values
 
-def get_pulse_times( digital_data, channel, samplerate ):
+def get_pulse_times( digital_data, sync_channel, trigger_channel, samplerate ):
     
     """get_pulse_times
     
@@ -316,9 +316,16 @@ def get_pulse_times( digital_data, channel, samplerate ):
         duty_cycle (np.array): array of floats indicating pulse duty cycle (quotient of pulse width and pulse period)
     """
     
-    edge_times, edge_val = detect_edges(digital_data[:,channel],samplerate)
-    start_idx = np.where(edge_val==1)[0][0]
-    end_idx = np.where(edge_val==0)[0][-1]
+    # compute trigger pulse times
+    trig_edge_times, _ = detect_edges(digital_data[:,trigger_channel],samplerate)
+    assert len(trig_edge_times) == 12, f'ERROR: Trigger channel pulse sequence should have exactly 12 edges, 6 in each start/end trigger. {len(trig_edge_times)} detected.'
+    start_time = trig_edge_times[0]
+    end_time = trig_edge_times[6]
+    
+    # compute sync pulse times, d.c.
+    edge_times, edge_val = detect_edges(digital_data[:,sync_channel],samplerate)
+    start_idx = np.where(np.logical_and(edge_val==1,np.abs(edge_times - start_time) == np.abs(edge_times-start_time).min()))[0][0]
+    end_idx = np.where(np.logical_and(edge_val==1,np.abs(edge_times - end_time) == np.abs(edge_times-end_time).min()))[0][0] + 1
     edge_times = edge_times[start_idx:(end_idx+1)]
     edge_val = edge_val[start_idx:(end_idx+1)]
     edge_pairs = edge_times.reshape(-1,2)
