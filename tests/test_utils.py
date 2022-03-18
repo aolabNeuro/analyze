@@ -125,8 +125,8 @@ class TestDigitalCalc(unittest.TestCase):
         trig_ch_idx = 1
         samplerate = 1
         pulse_times, pulse_dc = get_pulse_times(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
-        self.assertEqual(test_03_times,pulse_times)
-        self.assertEqual(test_03_dc,pulse_dc)
+        self.assertTrue(np.all(test_03_times == pulse_times))
+        self.assertTrue(np.all(test_03_dc == pulse_dc))
 
     def test_find_first_significant_bit(self):
         data = 0b0100
