@@ -116,7 +116,7 @@ class TestDigitalCalc(unittest.TestCase):
         self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
 
     def test_get_pulse_times(self):
-        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,0,0,0,1,0,0,0]
+        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
         test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
         test_03_data    = np.stack((test_03,test_03_trigger)).T
         test_03_times = np.array([2, 6, 10, 14])
