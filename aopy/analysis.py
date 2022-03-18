@@ -879,6 +879,48 @@ def get_raw_timestamps(exp_metadata):
     return clock_timestamps
 
 
+# def get_eye_trajectories_by_trial(
+#         eye_data, exp_data, timestamps,
+#         start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES],
+#         eye_sample_rate=25000
+# ):
+#     '''
+#     Finds eye trajectories in monitor space by trial.
+#     Args:
+#         eye_data (dict) eye data after eye calibration:
+#         exp_data (dict) preprocessed experimental data:
+#         timestamps (list) list of timestamps corresponding to each event
+#         start_events (list(int)) event codes to mark start of each trial:
+#         end_events (list(int)) event codes to mark end of each trial:
+#         eye_sample_rate (int)
+#
+#     Returns:
+#         tuple: tuple containing:
+#             | **eye_data_by_trial (list of list of position):**  trajectories of eye movement in monitor space by trial
+#             | **times_by_trial (list of list of times):** list of timestamps corresponding to the data
+#     '''
+#     events = exp_data['events']
+#     cyles = events['time']
+#
+#     eye_calibed = eye_data["calibrated_data"]
+#     eye_pos = np.stack(((eye_calibed[:, 0] + eye_calibed[:, 2]) / 2, (eye_calibed[:, 1] + eye_calibed[:, 3]) / 2), axis=1)
+#     # get all segments from peripheral target on -> trial end
+#     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
+#     # grab eye trajectories
+#     eye_data_by_trial = []
+#     times_by_trial = []
+#     for trial_start, trial_end in trial_cycles:
+#         # grab list of eye positions
+#         time_start = timestamps[trial_start]
+#         time_end = timestamps[trial_end]
+#         idx_start = int(time_start * eye_sample_rate)
+#         idx_end = int(time_end * eye_sample_rate)
+#         # eye_indices = (times * eye_sample_rate).astype(int)
+#         trial_eye_pos = eye_pos[idx_start:idx_end]
+#         eye_data_by_trial.append(trial_eye_pos)
+#         times_by_trial.append(np.arange(idx_start, idx_end) / eye_sample_rate)
+#     return eye_data_by_trial, times_by_trial
+
 def get_eye_trajectories_by_trial(
         eye_data, exp_data, timestamps,
         start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES],
@@ -911,14 +953,13 @@ def get_eye_trajectories_by_trial(
     times_by_trial = []
     for trial_start, trial_end in trial_cycles:
         # grab list of eye positions
-        time_start = timestamps[trial_start]
-        time_end = timestamps[trial_end]
-        idx_start = int(time_start * eye_sample_rate)
-        idx_end = int(time_end * eye_sample_rate)
-        # eye_indices = (times * eye_sample_rate).astype(int)
-        trial_eye_pos = eye_pos[idx_start:idx_end]
+        # time_start = timestamps[trial_start]
+        # time_end = timestamps[trial_end]
+        times = timestamps[trial_start:trial_end]
+        eye_indices = (times * eye_sample_rate).astype(int)
+        trial_eye_pos = eye_pos[eye_indices]
         eye_data_by_trial.append(trial_eye_pos)
-        times_by_trial.append(np.arange(idx_start, idx_end) / eye_sample_rate)
+        times_by_trial.append(times)
     return eye_data_by_trial, times_by_trial
 
 
