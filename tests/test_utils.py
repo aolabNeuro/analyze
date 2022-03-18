@@ -77,6 +77,7 @@ class TestDigitalCalc(unittest.TestCase):
     def test_detect_edges(self):
         test_bool = [True, False, False, True, True, False, True, True, False, False, False, True]
         test_01 = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+        test_01_trigger = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0]
         test_02 = [0b11, 0, 0, 0, 0, 0, 0, 0b01, 0b10, 0b01, 0b11, 0b01, 0b00, 0b10, 0b00, 0b01, 0, 0b01, 0, 0b01, 0, 0b01, 0]
         test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
 
@@ -115,7 +116,17 @@ class TestDigitalCalc(unittest.TestCase):
         self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
 
     def test_get_pulse_times(self):
-        pass
+        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,0,0,0,1,0,0,0]
+        test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
+        test_03_data    = np.stack((test_03,test_03_trigger)).T
+        test_03_times = np.array([2, 6, 10, 14])
+        test_03_dc = np.array([0.5, 0.5, 0.5, 0.5])
+        sync_ch_idx = 0
+        trig_ch_idx = 1
+        samplerate = 1
+        pulse_times, pulse_dc = get_pulse_times(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
+        self.assertEqual(test_03_times,pulse_times)
+        self.assertEqual(test_03_dc,pulse_dc)
 
     def test_find_first_significant_bit(self):
         data = 0b0100

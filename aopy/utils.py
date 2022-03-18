@@ -331,7 +331,7 @@ def get_pulse_times( digital_data, sync_channel, trigger_channel, samplerate ):
     edge_pairs = edge_times.reshape(-1,2)
     pulse_times = edge_pairs[:,0]
     pulse_period = np.diff(pulse_times,axis=0)
-    duty_cycle = np.diff(edge_pairs,axis=-1)/pulse_period[0]
+    duty_cycle = np.squeeze(np.diff(edge_pairs,axis=-1))/pulse_period[0]
     
     return pulse_times, duty_cycle
 
