@@ -115,19 +115,6 @@ class TestDigitalCalc(unittest.TestCase):
         self.assertTrue(np.array_equal(ts, [2, 3, 4, 7, 9, 13]))
         self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
 
-    def test_get_pulse_times(self):
-        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
-        test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
-        test_03_data    = np.stack((test_03,test_03_trigger)).T
-        test_03_times = np.array([2, 6, 10, 14])
-        test_03_dc = np.array([0.5, 0.5, 0.5, 0.5])
-        sync_ch_idx = 0
-        trig_ch_idx = 1
-        samplerate = 1
-        pulse_times, pulse_dc = get_pulse_times(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
-        self.assertTrue(np.all(test_03_times == pulse_times))
-        self.assertTrue(np.all(test_03_dc == pulse_dc))
-
     def test_find_first_significant_bit(self):
         data = 0b0100
         ffs = find_first_significant_bit(data)
