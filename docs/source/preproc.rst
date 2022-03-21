@@ -437,3 +437,30 @@ API
 
 .. automodule:: aopy.preproc
     :members:
+
+API - Base
+----------
+
+.. automodule:: aopy.preproc.base
+    :members:
+
+
+API - BMI3D
+-----------
+
+.. automodule:: aopy.preproc.bmi3d
+    :members:
+
+
+API - Oculomatic
+----------------
+
+.. automodule:: aopy.preproc.oculomatic
+    :members:
+
+API - Optitrack
+----------------
+
+.. automodule:: aopy.preproc.optitrack
+    :members:
+    

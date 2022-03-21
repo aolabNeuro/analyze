@@ -34,7 +34,7 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
     if filter_type == 'highpass':
         Wn = cutoff_low
 
-    if filter_type == 'bandpass' or 'bandstop':
+    if filter_type in ['bandpass', 'bandstop']:
         Wn = [cutoff_low, cutoff_high]
 
     b,a = butter( order, Wn, btype=filter_type, fs =fs)
@@ -58,10 +58,10 @@ def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, 
             | **Wn (list):** frequency bands
     '''
 
-    if filter_type == 'lowpass' or 'highpass':
+    if filter_type in ['lowpass', 'highpass']:
         Wn = cutoff_freq
 
-    if filter_type == 'bandpass' or 'bandstop':
+    if filter_type in ['bandpass', 'bandstop']:
         if not bands:
             raise ValueError("Must provide lower and higher cut off frequency")
 

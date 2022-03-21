@@ -318,6 +318,7 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
+    trigger_times = np.array(trigger_times)
 
     if data.ndim == 1:
         data.shape = (data.shape[0], 1)
@@ -331,12 +332,15 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
         if np.isnan(t0):
             continue
         # sub = subvec(data, t0, n_samples, samplerate)
-        trial_data = np.empty((n_samples,data.shape[1]))
+        trial_data = np.zeros((n_samples,data.shape[1]))*np.nan
         idx_start = int(np.round(t0*samplerate, 0))
         idx_end = min(data.shape[0], idx_start+n_samples)
-        trial_data[:idx_end-idx_start,:] = data[idx_start:idx_end,:]
+        if idx_start < 0:
+            trial_data[-idx_start:idx_end-idx_start] = data[:idx_end,:]
+        else:
+            trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,:]
         trial_aligned[t,:min(len(trial_data),n_samples),:] = trial_data[:min(len(trial_data),n_samples),:]
-    return np.squeeze(trial_aligned)
+    return trial_aligned
 
 def trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=True):
     '''
