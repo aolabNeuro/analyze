@@ -300,40 +300,43 @@ def get_edges_from_onsets(onsets, pulse_width):
         values[2+2*t] = 0
     return timestamps, values
 
-def get_pulse_times( digital_data, sync_channel, trigger_channel, samplerate ):
-    
-    """get_pulse_times
-    
-    Compute pulse times and corresponding duty cycles from a digital data timing channel.
-    
+def get_pulse_edge_times( digital_data, samplerate ):
+
+    """get_pulse_edge_times
+
     Args:
-        digital_data (np.array): [n_time x n_channel] array of data read from ecube digital panel
-        channel (int): channel to read from digital_data
-        sample_rate (numeric): data sampling rate (Hz)
-    
+        digital_data (np.array): [n_time x 1] array of data from ecube digital panel
+        samplerate (numeric): data sampling rate (Hz)
+
     Returns:
-        pulse_times (np.array): array of floats indicating pulse start times
-        duty_cycle (np.array): array of floats indicating pulse duty cycle (quotient of pulse width and pulse period)
+        edge_times (np.array): [n_pulse x 2] start and end times from each detected pulse
     """
-    
-    # compute trigger pulse times
-    trig_edge_times, _ = detect_edges(digital_data[:,trigger_channel],samplerate)
-    assert len(trig_edge_times) == 12, f'ERROR: Trigger channel pulse sequence should have exactly 12 edges, 6 in each start/end trigger. {len(trig_edge_times)} detected.'
-    start_time = trig_edge_times[0]
-    end_time = trig_edge_times[6]
-    
-    # compute sync pulse times, d.c.
-    edge_times, edge_val = detect_edges(digital_data[:,sync_channel],samplerate)
-    start_idx = np.where(np.logical_and(edge_val==1,np.abs(edge_times - start_time) == np.abs(edge_times-start_time).min()))[0][0]
-    end_idx = np.where(np.logical_and(edge_val==1,np.abs(edge_times - end_time) == np.abs(edge_times-end_time).min()))[0][0] + 1
+
+    edge_times, edge_val = detect_edges(digital_data, samplerate)
+    start_idx = np.where(edge_val == 1)[0][0]
+    end_idx = np.where(edge_val == 0)[0][-1]
     edge_times = edge_times[start_idx:(end_idx+1)]
     edge_val = edge_val[start_idx:(end_idx+1)]
     edge_pairs = edge_times.reshape(-1,2)
+
+    return edge_pairs
+
+def compute_pulse_duty_cycles( edge_pairs ):
+
+    """compute_pulse_duty_cycles
+
+    Args:
+        edge_pairs (np.array): [n_pulse x 2] start, end times from a series of pulses
+
+    Returns:
+        duty_cycle (): _description_
+    """
+
     pulse_times = edge_pairs[:,0]
     pulse_period = np.diff(pulse_times,axis=0)
     duty_cycle = np.squeeze(np.diff(edge_pairs,axis=-1))/pulse_period[0]
-    
-    return pulse_times, duty_cycle
+
+    return duty_cycle
 
 def max_repeated_nans(a):
     '''
