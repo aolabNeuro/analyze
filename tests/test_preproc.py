@@ -111,14 +111,19 @@ class DigitalCalcTests(unittest.TestCase):
         np.testing.assert_allclose(timeseries, expected_timeseries)
         np.testing.assert_allclose(new_samplepts, input_samplepts)
 
-        # Test warning messages:
+        # Test invalid inputs:
         timestamps = np.array([1,2,3,4])
         timestamp_values = np.array([100,200,100,300])
-        out = interp_timestamps2timeseries(timestamps, timestamp_values)
-        self.assertEqual(out, None)
-        timestamps = np.array([1,2,1,4])
-        out = interp_timestamps2timeseries(timestamps, timestamp_values)
-        self.assertEqual(out, None)
+        fun = lambda: interp_timestamps2timeseries(timestamps, timestamp_values) # not enough inputs
+        self.assertRaises(ValueError, fun)
+        fun = lambda: interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2, interp_kind='foobar') # invalid method
+        self.assertRaises(Exception, fun)
+        
+        # Test non-monotonic input timestamps
+        timestamps = np.array([0,2,1,4])
+        timeseries, t = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+        self.assertTrue(len(timeseries) > 0)
+        self.assertEqual(np.count_nonzero(np.isnan(timeseries)), 0)
 
         # Test extrapolate
         timestamps = np.array([1,2,3,4])
