@@ -1099,8 +1099,9 @@ def get_e3v_video_frame_data( digital_data, sync_channel_idx, trigger_channel_id
     end_trig_time = trig_pulse_times[3]
     sync_pulse_edges = get_pulse_edge_times(digital_data[:,sync_channel_idx],samplerate)
     sync_pulse_times = sync_pulse_edges[:,0]
-    start_pulse_idx = np.where(np.abs(sync_pulse_times-start_trig_time) == np.abs(sync_pulse_times-start_trig_time).min())
-    end_pulse_idx = np.where(np.abs(sync_pulse_times-end_trig_time) == np.abs(sync_pulse_times-end_trig_time).min()) + 1
-    sync_duty_cycles = compute_pulse_duty_cycles(sync_pulse_edges[start_pulse_idx:,end_pulse_idx,:])
+    start_pulse_idx = np.where(np.abs(sync_pulse_times-start_trig_time) == np.abs(sync_pulse_times-start_trig_time).min())[0][0]
+    end_pulse_idx = np.where(np.abs(sync_pulse_times-end_trig_time) == np.abs(sync_pulse_times-end_trig_time).min())[0][0] + 1
+    sync_pulse_times = sync_pulse_times[start_pulse_idx:end_pulse_idx]
+    sync_duty_cycles = compute_pulse_duty_cycles(sync_pulse_edges[start_pulse_idx:end_pulse_idx,:])
 
     return sync_pulse_times, sync_duty_cycles
