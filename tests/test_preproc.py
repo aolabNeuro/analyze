@@ -117,7 +117,7 @@ class DigitalCalcTests(unittest.TestCase):
         fun = lambda: interp_timestamps2timeseries(timestamps, timestamp_values) # not enough inputs
         self.assertRaises(ValueError, fun)
         fun = lambda: interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2, interp_kind='foobar') # invalid method
-        self.assertRaises(ValueError, fun)
+        self.assertRaises(Exception, fun)
         
         # Test non-monotonic input timestamps
         timestamps = np.array([0,2,1,4])
