@@ -874,11 +874,13 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
 
     '''
     nunits = mean_fr.shape[0]
-    print(nunits)
     n_subplot_rows = ((nunits-1)//n_subplot_cols)+1
-  
+    axinput = True
+
     if ax is None:
         fig, ax = plt.subplots(n_subplot_rows, n_subplot_cols)
+        axinput = False
+        
     nplots = n_subplot_rows*n_subplot_cols
     for iunit in range(nplots):
         if nunits > n_subplot_cols and n_subplot_cols!=1:
@@ -901,7 +903,8 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
             ax[iunit].plot(targets, analysis.curve_fitting_func(targets, fit_params[iunit, 0], fit_params[iunit, 1], fit_params[iunit,2]), 'b--', label='fit')
             ax[iunit].set_title('Unit ' +str(iunit))
 
-    fig.tight_layout()
+    if not axinput:
+        fig.tight_layout()
         
 def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], linecolor=[0,0,0], box_width = 0.5, ax=None):
     '''
