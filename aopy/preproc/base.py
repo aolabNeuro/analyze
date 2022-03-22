@@ -159,18 +159,18 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     To calculate the new points from 'samplerate' this function creates sample points with the same range as 'timestamps' (timestamps[0], timestamps[-1]).
     Either the 'samplerate' or 'sampling_points' optional argument must be used. If neither are filled, the function will display a warning and return nothing.
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
-    If the input timestamps are not monotonic, the function will display a warning and return nothing.
     The optional argument 'interp_kind' corresponds to 'kind' and 'extrap_values' corresponds to 'fill_values' in scipy.interpolate.interp1d.
     More information about 'extrap_values' can be found on the scipy.interpolate.interp1d documentation page. 
 
-    Example::
-    >>> timestamps = np.array([1,2,3,4])
-    >>> timestamp_values = np.array([100,200,100,300])
-    >>> timeseries, sampling_points = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
-    >>> print(timeseries)
-    np.array([100,150,200,150,100,200,300])
-    >>> print(sampling_points)
-    np.array([1,1.5,2,2.5,3,3.5,4])
+    Example:
+        ::
+            >>> timestamps = np.array([1,2,3,4])
+            >>> timestamp_values = np.array([100,200,100,300])
+            >>> timeseries, sampling_points = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+            >>> print(timeseries)
+            np.array([100,150,200,150,100,200,300])
+            >>> print(sampling_points)
+            np.array([1,1.5,2,2.5,3,3.5,4])
 
     Args:
         timestamps (nstamps): Timestamps of original data to be interpolated between.
@@ -197,12 +197,10 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     # Check that timestamps are monotonic
     if not np.all(np.diff(timestamps) > 0):
         print("Warning: Input timemeseries is not monotonic")
-        return
 
     # Check for sampling points information
     if samplerate is None and sampling_points is None:
-        print("Warning: Not information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
-        return
+        raise ValueError("No information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
 
     # Calculate output sampling points if none are input
     if sampling_points is None:
