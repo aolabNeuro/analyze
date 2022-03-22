@@ -1,4 +1,5 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
+from platform import python_branch
 import unittest
 from aopy.visualization import *
 import matplotlib.pyplot as plt
@@ -107,25 +108,21 @@ class FilterTests(unittest.TestCase):
 
         fname = 'test_signal_filtered_Signal.png'
         plot_filtered_signal(self.t, self.x, x_filter[0], lowcut, highcut)
-        plt.show()
         savefig(write_dir, fname) # Should eliminate low and high frequency noise, only 600 Hz
 
         fname = 'test_phase_locking.png'
         plt.figure()
         plot_phase_locking(self.t, self.a, self.f0, x_filter[0])
-        plt.show()
         savefig(write_dir, fname) # Green and red should overlap
 
         fname = 'freq_response_vs_filter_order.png'
         plt.figure()
         plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
-        plt.show()
         savefig(write_dir, fname) # freq response should improve with higher order
 
         fname = 'plot_psd.png'
         plt.figure()
         plot_psd(self.x, x_filter[0], self.fs)
-        plt.show()
         savefig(write_dir, fname) # 312Hz and 2000Hz power should be much reduced after filtering
 
         tic = time.perf_counter()
@@ -139,6 +136,25 @@ class FilterTests(unittest.TestCase):
         plt.figure()
         plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
         savefig(write_dir, fname) # Should only have 600 Hz
+
+    def test_mtfilter(self):
+        band = [-500, 500] # signals within band can pass
+        N = 0.005 # N*sampling_rate is time window you analyze
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_mtfilter = precondition.mtfilter(self.x2, tapers, fs = self.fs, f0 = f0)
+        x_312hz = utils.generate_multichannel_test_signal(self.T, self.fs, 1, 312, self.a*1.5)
+        plt.figure()
+        plt.plot(self.x, label='Original signal (312 Hz + 600 Hz)')
+        plt.plot(x_312hz, label='Original signal (312 Hz)')
+        plt.plot(x_mtfilter[:,0], label='Multitaper-filtered signal')
+        plt.xlim([0,500])
+        plt.legend()
+        plt.show()
+
+        self.assertEqual(x_mtfilter.shape, self.x2.shape)
+
 
     def test_multitaper(self):
         f, psd_filter, mu = precondition.get_psd_multitaper(self.x, self.fs)

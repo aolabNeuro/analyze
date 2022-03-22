@@ -2,8 +2,9 @@
 # Code for cleaning and preparing neural data for users to interact with,
 # for example: down-sampling, outlier detection, and initial filtering
 
+from os import fsdecode, fspath, fstat
 from scipy import signal
-from scipy.signal import butter, lfilter, filtfilt, decimate
+from scipy.signal import butter, lfilter, filtfilt, decimate, windows
 import numpy as np
 import math
 import nitime.algorithms as tsa
@@ -161,6 +162,178 @@ def get_psd_welch(data, fs,n_freq = None):
     else:
         f, psd = signal.welch(data, fs, average='median', axis=0)
     return f, psd
+
+
+'''
+Filter functions related to multitaper method
+'''
+def dpsschk(tapers):
+    '''
+    Computes the Discrete Prolate Spheroidal Sequences (DPSS) array based on input TAPERS
+
+    Args:
+        tapers (list): tapers in [N, NW, K] form. N is window length and NW is standardized half bandwidth. K is the number of DPSS you use.
+
+    Returns:
+        e (N, K): K DPSS windows
+        v (K): The concentration ratios for K windows.
+    '''
+
+    length = len(tapers)
+    flag = 0
+
+    if length == 3:
+        flag = 1
+
+    if flag:
+        N = tapers[0]
+        NW = tapers[1]
+        K = tapers[2]
+
+        N = round(N)
+
+        if K < 1:
+            raise Exception('Error:  K must be greater than or equal to 1')
+        elif K > 2*NW-1:
+            raise Exception('Error:  K must be less than 2*P-1')
+
+        e, v = windows.dpss(N, NW, K,return_ratios=True)
+        e = e.T
+
+    else:
+        print('Tapers already calculated')
+        e = tapers;
+        v = 0
+    
+    return e, v
+
+def dp_proj(tapers, fs = 1, f0 = 0):
+    '''
+    Generates a prolate projection operator
+
+    Args:
+        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
+                        P is computed by N*NW and K is given by math.floor(2*P-1)
+                        (N*smapling rate) represents duration of data. 
+                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
+                        K is the number of tapers you use.
+        fs (float): sampling rate
+        f0 (float): center frequency of filiter
+
+    Returns:
+        dp_proj (nt, K): projection operator in [time, K] form
+    '''
+
+    if len(tapers) == 2:
+        n = tapers[0]
+        w = tapers[1]
+        p = n*w
+        k = math.floor(2*p-1)
+        tapers = [n, p, k]
+
+    if len(tapers) == 3:
+        tapers[0] = round(tapers[0]*fs)
+        tapers, v = dpsschk(tapers)
+
+    # determine parameters and assign matrices
+    N = tapers.shape[0]
+    K = tapers.shape[1]
+    pr_op = np.zeros((N,K),dtype = 'complex')
+
+    f0 = 0
+    shifter = np.exp(-2.*np.pi*1j*f0*np.arange(1,N+1)/fs);
+    for k in range(K):
+        pr_op[:,k] = shifter*tapers[:,k]
+        
+    return pr_op
+
+def mtfilt(tapers, fs = 1, f0 = 0):
+    '''
+    Generates a bandpass filter using the multitaper method
+
+    Args:
+        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
+                        P is computed by N*NW and K is given by math.floor(2*P-1)
+                        (N*smapling rate) represents duration of data. 
+                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
+                        K is the number of tapers you use.
+        fs (float): sampling rate
+        f0 (float): center frequency of filiter
+
+    Returns:
+        X (1, 2*N*fs): a bandpass filter
+    '''    
+    pr_op = dp_proj(tapers, fs, f0)
+    N = pr_op.shape[0]
+    X = np.zeros( (1,2*N), dtype = 'complex')
+    pr = pr_op@pr_op.T
+
+    for t in range(N):
+        X[0, t:t+N] = X[0, t:t+N] + pr[:,N-1-t].T
+    X = X/N 
+    
+    return X
+
+def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
+    '''
+    bandpass-filter a time series data
+
+    Args:
+        X (nt, nch): time series array
+        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
+                        P is computed by N*NW and K is given by math.floor(2*P-1)
+                        (N*smapling rate) represents duration of data. 
+                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
+                        K is the number of tapers you use.
+        fs (float): sampling rate
+        f0 (float): center frequency of filiter
+        flag (bool): if flag == 0, output data is centered. Otherwise, output data is not centered.
+        complexfrag: if complexflag == 0, output data becomes real. Otherwise, output data becomes complex.
+
+    Returns:
+        Y (nt, nch): filtered time-series data
+    '''   
+
+    if len(tapers) == 2:
+        n = tapers[0]
+        w = tapers[1]
+        p = n*w
+        k = math.floor(2*p-1)
+        tapers = [n, p, k]
+    elif len(tapers) == 3:
+        tapers[0] = tapers[0]*fs
+        tapers = dpsschk(tapers)
+
+    X = X.T
+    filt = mtfilt(tapers, fs, f0)
+    N = filt.shape[1]
+    szX = X.shape
+
+    if complexflag == 0:
+        filt = filt.real
+
+    if min(szX) > 1:
+        Y = np.zeros(szX) + 1j*np.zeros(szX)
+        for ii in range(szX[0]):
+            tmp = np.convolve(X[ii,:], filt[0,:])
+            if flag:
+                Y[ii,:] = tmp[N:szX[1]+N]
+            else:
+                Y[ii,:] = tmp[round(N/2):szX[1]+round(N/2)]
+
+    else:
+        Y = np.convolve(X, filt[0,:])
+        if flag:
+            Y[ii,:] = Y[N:szX[1]+N]
+        else:
+            Y[ii,:] = Y[round(N/2):szX[1]+round(N/2)]
+
+    if f0 > 0:
+        Y = 2*Y
+    
+    Y = Y.T
+    return Y
+
 
 '''
 Spike detection functions
