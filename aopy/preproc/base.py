@@ -207,7 +207,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
         sampling_points = np.arange(timestamps[0], timestamps[-1]+(1/samplerate), 1/samplerate)
 
     # Interpolate
-    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values)
+    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values, axis=0)
     timeseries = f_interp(sampling_points)
 
     return timeseries, sampling_points
@@ -545,6 +545,8 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
 
     # Get the corresponding cursor and eye data
     _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    if len(trial_times) == 0:
+        raise ValueError("Not enough trials to calibrate")
     align_times = trial_times[:,0] + offset
     sample_cursor_enter_target  = (align_times * cursor_samplerate).astype(int)
     cursor_data_aligned = cursor_data[sample_cursor_enter_target,:]
