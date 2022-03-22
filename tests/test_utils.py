@@ -115,6 +115,14 @@ class TestDigitalCalc(unittest.TestCase):
         self.assertTrue(np.array_equal(ts, [2, 3, 4, 7, 9, 13]))
         self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
 
+    def test_get_pulse_edge_times(self):
+        # see test_data:E3vFrameTests
+        pass
+
+    def test_compute_pulse_duty_cycles(self):
+        # see test_data:E3vFrameTests
+        pass
+
     def test_find_first_significant_bit(self):
         data = 0b0100
         ffs = find_first_significant_bit(data)

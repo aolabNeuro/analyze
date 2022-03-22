@@ -305,11 +305,11 @@ def get_pulse_edge_times( digital_data, samplerate ):
     """get_pulse_edge_times
 
     Args:
-        digital_data (np.array): [n_time x 1] array of data from ecube digital panel
+        digital_data (nt, 1): array of data from ecube digital panel
         samplerate (numeric): data sampling rate (Hz)
 
     Returns:
-        edge_times (np.array): [n_pulse x 2] start and end times from each detected pulse
+        edge_times (npulse, 2): start and end times from each detected pulse
     """
 
     edge_times, edge_val = detect_edges(digital_data, samplerate)
@@ -326,10 +326,10 @@ def compute_pulse_duty_cycles( edge_pairs ):
     """compute_pulse_duty_cycles
 
     Args:
-        edge_pairs (np.array): [n_pulse x 2] start, end times from a series of pulses
+        edge_pairs (npulse, 2): start, end times from a series of pulses
 
     Returns:
-        duty_cycle (): _description_
+        duty_cycle (npulse): duty cycle of each pulse. Pulse period assumed to be constant.
     """
 
     pulse_times = edge_pairs[:,0]

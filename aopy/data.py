@@ -5,7 +5,6 @@ from ctypes import util
 from random import sample
 import numpy as np
 
-from aopy import utils
 from .whitematter import ChunkedStream, Dataset
 import h5py
 import tables
@@ -1083,7 +1082,7 @@ def get_e3v_video_frame_data( digital_data, sync_channel_idx, trigger_channel_id
     Compute pulse times and duty cycles from e3vision video data frames collected on an ecube digital panel.
 
     Args:
-        digital_data (np.array): [n_time x n_channel] array of data read from ecube digital panel
+        digital_data (nt, nch): array of data read from ecube digital panel
         sync_channel_idx (int): sync channel to read from digital_data. Indicates each video frame.
         trigger_channel_idx (int): trigger channel to read from digital_data. Indicates start/end video triggers.
         sample_rate (numeric): data sampling rate (Hz)
@@ -1094,6 +1093,7 @@ def get_e3v_video_frame_data( digital_data, sync_channel_idx, trigger_channel_id
     """
 
     trig_pulse_edges = get_pulse_edge_times(digital_data[:,trigger_channel_idx],samplerate)
+    # watchtower triggers (start, end) are a triplet of pulses within a ~33ms window.
     trig_pulse_times = trig_pulse_edges[:,0]
     start_trig_time = trig_pulse_times[0]
     end_trig_time = trig_pulse_times[3]
