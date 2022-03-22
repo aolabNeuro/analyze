@@ -138,16 +138,17 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
     
     # Calibrate the eye data
-    cursor_data = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
-    clock = exp_data['clock']
+    cursor_data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
+    clock = exp_data['clock']['timestamp_sync']
+    cursor_samplerate = 25000    
+    cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, cursor_samplerate, interp_kind='linear')
     events = exp_data['events']
     eye_data = eye_data['data']
-    event_cycles = events['time'] # time points in bmi3d cycles
     event_codes = events['code']
-    event_times = clock['timestamp_sync'][events['time']] # time points in the ecube time frame
+    event_times = clock[events['time']] # time points in the ecube time frame
     coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
-        cursor_data, exp_metadata['fps'], eye_data, eye_metadata['samplerate'], 
-        event_cycles, event_times, event_codes, debug=debug, return_datapoints=True, **kwargs)
+        cursor_data_time, cursor_samplerate, eye_data, eye_metadata['samplerate'], 
+        event_times, event_codes, return_datapoints=True, **kwargs)
     calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
 
     # Save everything into the HDF file

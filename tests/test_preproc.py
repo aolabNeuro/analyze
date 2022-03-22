@@ -500,11 +500,10 @@ class EventFilterTests(unittest.TestCase):
         eye_data = np.array([[0, 1, 2, 3, 4, 5, 6, 7], [3, 4, 5 ,6 ,7, 8, 9, 10]]).T
         cursor_samplerate = 1
         eye_samplerate = 1
-        event_cycles = [2, 3, 4, 5]
         event_times = [2, 3, 4, 5]
         event_codes = [0, 1, 0, 1]
         coeff, corr_coeff = calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, 
-            event_cycles, event_times, event_codes, align_events=[0], trial_end_events=[1])
+            event_times, event_codes, align_events=[0], trial_end_events=[1])
         
         expected_coeff = [[1., 1.], [1., -1.]]
         expected_corr_coeff = [1., 1.]
