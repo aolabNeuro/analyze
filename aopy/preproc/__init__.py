@@ -136,14 +136,15 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
-    
+    eye_data = eye_data['data']
+
     # Calibrate the eye data
     cursor_data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
     clock = exp_data['clock']['timestamp_sync']
-    cursor_samplerate = 25000    
-    cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, cursor_samplerate, interp_kind='linear')
+    cursor_samplerate = eye_metadata['samplerate']
+    time = np.arange(len(eye_data))/cursor_samplerate
+    cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
     events = exp_data['events']
-    eye_data = eye_data['data']
     event_codes = events['code']
     event_times = clock[events['time']] # time points in the ecube time frame
     coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
