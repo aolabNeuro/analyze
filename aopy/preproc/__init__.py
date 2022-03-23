@@ -102,7 +102,18 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     '''
     Loads eyedata from ecube analog signal and calculates calibration profile using least square fitting.
     Requires that experimental data has already been preprocessed in the same result hdf file.
-    
+    The data is prepared into HDF datasets:
+    eye_data:
+        raw_data (nt, nch): raw eye data
+        calibrated_data (nt, nch): calibrated eye data
+        coefficients (nch, 2): linear regression coefficients
+        correlation_coeff (nch): best fit correlation coefficients from linear regression
+        cursor_calibration_data (ntr, 2): cursor coordinates used for calibration
+        eye_calibration_data (ntr, nch): eye coordinates used for calibration
+    eye_metadata:
+        samplerate (float): sampling rate of the calibrated eye data
+        see :func:`aopy.preproc.parse_oculomatic` for oculomatic metadata
+
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
