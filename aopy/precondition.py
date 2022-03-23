@@ -202,12 +202,12 @@ def dpsschk(tapers):
 
     else:
         print('Tapers already calculated')
-        e = tapers;
+        e = tapers
         v = 0
     
     return e, v
 
-def dp_proj(tapers, fs = 1, f0 = 0):
+def dp_proj(tapers, fs=1, f0=0):
     '''
     Generates a prolate projection operator
 
@@ -241,13 +241,13 @@ def dp_proj(tapers, fs = 1, f0 = 0):
     pr_op = np.zeros((N,K),dtype = 'complex')
 
     f0 = 0
-    shifter = np.exp(-2.*np.pi*1j*f0*np.arange(1,N+1)/fs);
+    shifter = np.exp(-2.*np.pi*1j*f0*np.arange(1,N+1)/fs)
     for k in range(K):
         pr_op[:,k] = shifter*tapers[:,k]
         
     return pr_op
 
-def mtfilt(tapers, fs = 1, f0 = 0):
+def mtfilt(tapers, fs=1, f0=0):
     '''
     Generates a bandpass filter using the multitaper method
 
@@ -276,7 +276,28 @@ def mtfilt(tapers, fs = 1, f0 = 0):
 
 def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
     '''
-    bandpass-filter a time series data
+    Bandpass-filter a time series data using the multitaper method
+
+    Example:
+        band = [-500, 500] # signals within band can pass
+        N = 0.005 # N*sampling_rate is time window you analyze
+        NW = (band[1]-band[0])/2
+        T = 0.05
+        fs = 25000
+        nch = 1
+        x_312hz = utils.generate_multichannel_test_signal(T, fs, nch, 312, self.a*1.5)
+        x_600hz = utils.generate_multichannel_test_signal(T, fs, nch, self.freq[0], self.a*0.5)
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_mtfilter = precondition.mtfilter(x_312hz + x_600hz, tapers, fs=fs, f0=f0)
+        plt.figure()
+        plt.plot(x_312hz + x_600hz, label='Original signal (312 Hz + 600 Hz)')
+        plt.plot(x_312hz, label='Original signal (312 Hz)')
+        plt.plot(x_mtfilter, label='Multitaper-filtered signal')
+        plt.xlim([0,500])
+        plt.legend()
+
+        .. image:: _images/mtfilter.png
 
     Args:
         X (nt, nch): time series array

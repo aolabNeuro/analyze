@@ -151,7 +151,9 @@ class FilterTests(unittest.TestCase):
         plt.plot(x_mtfilter[:,0], label='Multitaper-filtered signal')
         plt.xlim([0,500])
         plt.legend()
-        plt.show()
+        fname = 'mtfilter.png'
+        savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+
 
         self.assertEqual(x_mtfilter.shape, self.x2.shape)
 
@@ -167,7 +169,6 @@ class FilterTests(unittest.TestCase):
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('PSD')
         plt.legend()
-        plt.show()
         savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
 
         bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
@@ -177,7 +178,6 @@ class FilterTests(unittest.TestCase):
         plt.xticks(np.arange(len(bands)), bands)
         plt.xlabel('Frequency band (Hz)')
         plt.ylabel('Band Power')
-        plt.show()
         fname = 'lfp_bandpower.png'
         savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
 
