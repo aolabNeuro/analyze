@@ -713,9 +713,12 @@ class TestPrepareExperiment(unittest.TestCase):
 
 class ProcTests(unittest.TestCase):
 
-    def test_proc_day(self):
-        # if everything else works, this will work. Exempt! -M.N.
-        pass
+    def test_proc_single(self):
+        files = {}
+        files['ecube'] = 'fake ecube data'
+        files['hdf'] = 'test20211213_01_te3498.hdf'
+        result_prefix='fake_data'
+        proc_single(data_dir, write_dir, result_prefix, files, overwrite=True)
 
     def test_proc_broadband(self):
         files = {'ecube': "short headstage test"}

@@ -11,10 +11,9 @@ import h5py
 '''
 proc_* wrappers
 '''
-
-def proc_day(data_dir, result_dir, result_prefix, files, overwrite=False, save_res=True, **kwargs):
+def proc_single(data_dir, result_dir, result_prefix, files, overwrite=False, save_res=True, **kwargs):
     '''
-    _summary_
+    Preprocess a single recording, given a list of raw data files, into a series of hdf records with the same prefix.
 
     Args:
         data_dir (str): File directory of collected session data
