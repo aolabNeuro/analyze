@@ -7,37 +7,51 @@ from .. import precondition
 from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
 import h5py
-from glob import glob
 
 '''
 proc_* wrappers
 '''
-def proc_day(data_dir, result_dir, files, overwrite=False, save_res=True, proc_exp=True, proc_eyetracking=True, proc_broadband=True, proc_lfp=True):
-    if proc_exp:
-        exp_result_filename = 'experiment_data.h5'
+def proc_day(data_dir, result_dir, result_prefix, files, overwrite=False, save_res=True, **kwargs):
+    '''
+    _summary_
+
+    Args:
+        data_dir (_type_): _description_
+        result_dir (_type_): _description_
+        files (_type_): _description_
+        overwrite (bool, optional): _description_. Defaults to False.
+        save_res (bool, optional): _description_. Defaults to True.
+        **kwargs (dict, optional): 
+    '''
+    run_proc_exp = kwargs.pop('proc_exp', True)
+    run_proc_eyetracking = kwargs.pop('proc_eyetracking', True)
+    run_proc_broadband = kwargs.pop('proc_broadband', True)
+    run_proc_lfp = kwargs.pop('proc_lfp', True)
+
+    if run_proc_exp:
+        exp_result_filename = result_prefix + '.hdf'
         print('processing experiment data...')
         proc_exp(
             data_dir,
             files,
             result_dir,
-            result_filename = exp_result_filename,
-            overwrite = overwrite,
-            save_res = save_res
+            result_filename=exp_result_filename,
+            overwrite=overwrite,
+            save_res=save_res
         )
-    if proc_eyetracking:
-        eyetracking_result_filename = 'eyetracking_data.h5'
+    if run_proc_eyetracking:
+        eyetracking_result_filename = result_prefix + '.hdf'
         print('processing eyetracking data...')
         proc_eyetracking(
             data_dir,
             files,
             result_dir,
-            result_filename = eyetracking_result_filename,
-            debug = False, #TODO: is this supposed to be True by default?
-            overwrite = overwrite,
-            save_res = save_res,
+            result_filename=eyetracking_result_filename,
+            overwrite=overwrite,
+            save_res=save_res,
         )
-    if proc_broadband:
-        broadband_result_filename = 'broadband_data.h5'
+    if run_proc_broadband:
+        broadband_result_filename = result_prefix + '_broadband_data.hdf'
         print('processing broadband data...')
         proc_broadband(
             data_dir,
@@ -46,16 +60,16 @@ def proc_day(data_dir, result_dir, files, overwrite=False, save_res=True, proc_e
             result_filename=broadband_result_filename,
             overwrite=overwrite
         )
-    if proc_lfp:
-        lfp_result_filename = 'lfp_data.h5'
+    if run_proc_lfp:
+        lfp_result_filename = result_prefix + '_lfp_data.hdf'
         print('processing local field potential data...')
         proc_lfp(
             data_dir,
             files,
             result_dir,
-            result_filename = lfp_result_filename,
+            result_filename=lfp_result_filename,
             overwrite=overwrite,
-            filter_kwargs={'ayy':'lmao'}
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
         )
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
@@ -279,16 +293,15 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
     elif os.path.exists(filepath):
         os.remove(filepath) # maybe bad, since it deletes everything, not just lfp_data
 
-    # Preprocess neural data into lfp
-    chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
-    lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
-    downsample_factor = int(samplerate/lfp_samplerate)
+    # Preprocess neural data into lfp   
     dtype = 'int16'
-   
     if 'ecube' in files:
         data_path = os.path.join(data_dir, files['ecube'])
         metadata = load_ecube_metadata(data_path, 'Headstages')
         samplerate = metadata['samplerate']
+        chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
+        lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+        downsample_factor = int(samplerate/lfp_samplerate)
         lfp_samples = np.ceil(metadata['n_samples']/downsample_factor)
         n_channels = metadata['n_channels']
 
