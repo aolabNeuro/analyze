@@ -159,18 +159,18 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     To calculate the new points from 'samplerate' this function creates sample points with the same range as 'timestamps' (timestamps[0], timestamps[-1]).
     Either the 'samplerate' or 'sampling_points' optional argument must be used. If neither are filled, the function will display a warning and return nothing.
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
-    If the input timestamps are not monotonic, the function will display a warning and return nothing.
     The optional argument 'interp_kind' corresponds to 'kind' and 'extrap_values' corresponds to 'fill_values' in scipy.interpolate.interp1d.
     More information about 'extrap_values' can be found on the scipy.interpolate.interp1d documentation page. 
 
-    Example::
-    >>> timestamps = np.array([1,2,3,4])
-    >>> timestamp_values = np.array([100,200,100,300])
-    >>> timeseries, sampling_points = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
-    >>> print(timeseries)
-    np.array([100,150,200,150,100,200,300])
-    >>> print(sampling_points)
-    np.array([1,1.5,2,2.5,3,3.5,4])
+    Example:
+        ::
+            >>> timestamps = np.array([1,2,3,4])
+            >>> timestamp_values = np.array([100,200,100,300])
+            >>> timeseries, sampling_points = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+            >>> print(timeseries)
+            np.array([100,150,200,150,100,200,300])
+            >>> print(sampling_points)
+            np.array([1,1.5,2,2.5,3,3.5,4])
 
     Args:
         timestamps (nstamps): Timestamps of original data to be interpolated between.
@@ -197,12 +197,10 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     # Check that timestamps are monotonic
     if not np.all(np.diff(timestamps) > 0):
         print("Warning: Input timemeseries is not monotonic")
-        return
 
     # Check for sampling points information
     if samplerate is None and sampling_points is None:
-        print("Warning: Not information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
-        return
+        raise ValueError("No information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
 
     # Calculate output sampling points if none are input
     if sampling_points is None:
@@ -318,6 +316,7 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
+    trigger_times = np.array(trigger_times)
 
     if data.ndim == 1:
         data.shape = (data.shape[0], 1)
@@ -331,12 +330,15 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
         if np.isnan(t0):
             continue
         # sub = subvec(data, t0, n_samples, samplerate)
-        trial_data = np.empty((n_samples,data.shape[1]))
-        idx_start = int(np.floor(t0*samplerate))
+        trial_data = np.zeros((n_samples,data.shape[1]))*np.nan
+        idx_start = int(np.round(t0*samplerate, 0))
         idx_end = min(data.shape[0], idx_start+n_samples)
-        trial_data[:idx_end-idx_start,:] = data[idx_start:idx_end,:]
+        if idx_start < 0:
+            trial_data[-idx_start:idx_end-idx_start] = data[:idx_end,:]
+        else:
+            trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,:]
         trial_aligned[t,:min(len(trial_data),n_samples),:] = trial_data[:min(len(trial_data),n_samples),:]
-    return np.squeeze(trial_aligned)
+    return trial_aligned
 
 def trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=True):
     '''
