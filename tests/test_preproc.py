@@ -648,7 +648,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
 class ProcTests(unittest.TestCase):
 
-    def test_proc_day():
+    def test_proc_day(self):
         # if everything else works, this will work. Exempt! -M.N.
         pass
 

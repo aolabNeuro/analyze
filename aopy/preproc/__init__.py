@@ -3,6 +3,7 @@ from .bmi3d import parse_bmi3d
 from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
+from .. import precondition
 from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
 import h5py
@@ -279,16 +280,17 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
         os.remove(filepath) # maybe bad, since it deletes everything, not just lfp_data
 
     # Preprocess neural data into lfp
+    chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
+    lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+    downsample_factor = int(samplerate/lfp_samplerate)
+    dtype = 'int16'
+   
     if 'ecube' in files:
         data_path = os.path.join(data_dir, files['ecube'])
         metadata = load_ecube_metadata(data_path, 'Headstages')
         samplerate = metadata['samplerate']
-        chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
-        lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
-        downsample_factor = int(samplerate/lfp_samplerate)
         lfp_samples = np.ceil(metadata['n_samples']/downsample_factor)
         n_channels = metadata['n_channels']
-        dtype = 'int16'
 
         # Create an hdf dataset
         result_filepath = os.path.join(result_dir, result_filename)
@@ -304,10 +306,10 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
             n_samples += chunk_len
         hdf.close()
 
-        # Append the lfp metadata to the file
-        lfp_metadata = metadata
-        lfp_metadata['lfp_samplerate'] = lfp_samplerate
-        lfp_metadata['low_cut'] = 500
-        lfp_metadata['buttord'] = 4
-        lfp_metadata.update(filter_kwargs)
-        save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+    # Append the lfp metadata to the file
+    lfp_metadata = metadata
+    lfp_metadata['lfp_samplerate'] = lfp_samplerate
+    lfp_metadata['low_cut'] = 500
+    lfp_metadata['buttord'] = 4
+    lfp_metadata.update(filter_kwargs)
+    save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
