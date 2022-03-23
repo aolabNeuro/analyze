@@ -6,10 +6,57 @@ from .. import postproc
 from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
 import h5py
+from glob import glob
 
 '''
 proc_* wrappers
 '''
+def proc_day(data_dir, result_dir, files, overwrite=False, save_res=True, proc_exp=True, proc_eyetracking=True, proc_broadband=True, proc_lfp=True):
+    if proc_exp:
+        exp_result_filename = 'experiment_data.h5'
+        print('processing experiment data...')
+        proc_exp(
+            data_dir,
+            files,
+            result_dir,
+            result_filename = exp_result_filename,
+            overwrite = overwrite,
+            save_res = save_res
+        )
+    if proc_eyetracking:
+        eyetracking_result_filename = 'eyetracking_data.h5'
+        print('processing eyetracking data...')
+        proc_eyetracking(
+            data_dir,
+            files,
+            result_dir,
+            result_filename = eyetracking_result_filename,
+            debug = False, #TODO: is this supposed to be True by default?
+            overwrite = overwrite,
+            save_res = save_res,
+        )
+    if proc_broadband:
+        broadband_result_filename = 'broadband_data.h5'
+        print('processing broadband data...')
+        proc_broadband(
+            data_dir,
+            files,
+            result_dir,
+            result_filename=broadband_result_filename,
+            overwrite=overwrite
+        )
+    if proc_lfp:
+        lfp_result_filename = 'lfp_data.h5'
+        print('processing local field potential data...')
+        proc_lfp(
+            data_dir,
+            files,
+            result_dir,
+            result_filename = lfp_result_filename,
+            overwrite=overwrite,
+            filter_kwargs={'ayy':'lmao'}
+        )
+
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
     Process experiment data files: 
@@ -203,7 +250,7 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
         # Append the broadband metadata to the file
         save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
 
-def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batchsize=1., filter_kwargs={}):
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
     Process lfp data:
         Loads 'ecube' headstage data and metadata
@@ -236,7 +283,7 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batc
         data_path = os.path.join(data_dir, files['ecube'])
         metadata = load_ecube_metadata(data_path, 'Headstages')
         samplerate = metadata['samplerate']
-        chunksize = int(batchsize * samplerate)
+        chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
         lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
         downsample_factor = int(samplerate/lfp_samplerate)
         lfp_samples = np.ceil(metadata['n_samples']/downsample_factor)
