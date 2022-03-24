@@ -121,8 +121,13 @@ class CurveFittingTests(unittest.TestCase):
             data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
 
         # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
+        # Test without ax input
         fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+
+        # test with ax input
+        fig, ax = plt.subplots(2,4)
+        plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
         
     def test_plot_boxplots(self):
         data = np.random.normal(0, 2, size=(20, 5))
