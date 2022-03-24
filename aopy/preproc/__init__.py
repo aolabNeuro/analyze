@@ -12,6 +12,21 @@ from glob import glob
 proc_* wrappers
 '''
 def proc_day(data_dir, result_dir, files, overwrite=False, save_res=True, proc_exp=True, proc_eyetracking=True, proc_broadband=True, proc_lfp=True):
+    """proc_day
+
+    Run a sequence of data processing steps to handle a new session of experimental data.
+
+    Args:
+        data_dir (str): File directory of collected session data
+        result_dir (str): Target directory for processed data
+        files (dict): dict of file names to process in data_dir
+        overwrite (bool, optional): Overwrite files in result_dir. Defaults to False.
+        save_res (bool, optional): Save resulting computations. Defaults to True.
+        proc_exp (bool, optional): Process experimental metadata. Defaults to True.
+        proc_eyetracking (bool, optional): Process eye tracking data from optitrack system. Defaults to True.
+        proc_broadband (bool, optional): Process broadband data from ecube. Defaults to True.
+        proc_lfp (bool, optional): Process low-pass filtered LFP data from ecube. Defaults to True.
+    """
     # add other processing steps as they are written! -M.N.
     if proc_exp:
         exp_result_filename = 'experiment_data.h5'
