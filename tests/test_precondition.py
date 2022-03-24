@@ -316,11 +316,11 @@ class SpikeDetectionTests(unittest.TestCase):
         time_after = 0.05
         bin_width = 0.01
         binned_unit_spikes, time_bins = precondition.bin_spike_times(spike_times, time_before, time_after, bin_width)
-        print(binned_unit_spikes)
-        print(time_bins)
+        
         self.assertEqual(binned_unit_spikes[2], 100)
         self.assertEqual(binned_unit_spikes[3], 300)
-
+        self.assertEqual(time_bins[2], 0.025)
+        self.assertEqual(time_bins[3], 0.035)
 
 if __name__ == "__main__":
     unittest.main()
