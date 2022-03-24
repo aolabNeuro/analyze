@@ -855,7 +855,7 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
 
-def get_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_proportion=0.15):
+def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_proportion=0.15):
     '''
     This function calculates the accumulated log-likelihood ratio (AccLLR) that the input data matches the timeseries input as condition 1 or condition 2. 
     This approach was designed to work on a trial-by-trial basis and determine if the input data matches a condition and arrival time of the difference. Therefore, AccLLR can also be used to determine the arrival time of neural activity.
@@ -934,3 +934,28 @@ def get_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_pr
     selection_time_idx = np.where(np.abs(accLLR)>thresh_val)[0][0]
     
     return accLLR, selection_time_idx*bin_width
+
+def calc_accLLR_threshold(data, data_labels, cond1, cond2, modality, bin_width, step_size=0.01, false_alarm_prob=0.05):
+    '''
+    Sweeps the AccLLR method over the thresh_proportion parameter, estimates false alarm rates, 
+    and then choose a value for thresh_proportion that gives us the desired false alarm rate.
+    
+    Estimate the false alarm probability in the accLLR method by the proportion of 
+    trials from condition 2 whose AccLLR hit the upper detection threshold within the maximum 
+    accumulation time. 
+
+    Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
+    https://pubmed.ncbi.nlm.nih.gov/20884767/
+    '''
+
+    thresh_props = np.arange(0, 1, step_size)
+    fa_rates = []
+    for tp in thresh_props:
+        accLLR, selection_time_idx = calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_proportion=tp)
+        accLLR_cond1_within_time = np.logical_and(accLLR > 0, selection_time_idx < data.shape[0])
+        n_cond2 = np.count_nonzero(data_labels == 2)
+        n_accllr_cond1_within_time = np.count_nonzero(np.logical_and(data_labels == 2, accLLR_cond1_within_time))
+        false_alarms = n_accllr_cond1_within_time / n_cond2
+        fa_rates.append(false_alarms)
+
+    return thresh_props[fa_rates > false_alarm_prob][0]
