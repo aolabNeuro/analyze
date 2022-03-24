@@ -24,12 +24,6 @@ from . import preproc
 from . import data
 from . import utils
 
-TARGET_ON_CODES = range(17, 26)
-CURSOR_ENTER_TARGET_CODES = range(81, 89)
-TRIAL_END = 239
-SUCCESS_CODE = 48
-CENTER_ON = 16
-
 '''
 Correlation / dimensionality analysis
 '''
@@ -878,54 +872,8 @@ def get_raw_timestamps(exp_metadata):
     clock_timestamps, _ = utils.detect_edges(clock, metadata['samplerate'], falling=False)
     return clock_timestamps
 
-
-# def get_eye_trajectories_by_trial(
-#         eye_data, exp_data, timestamps,
-#         start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES],
-#         eye_sample_rate=25000
-# ):
-#     '''
-#     Finds eye trajectories in monitor space by trial.
-#     Args:
-#         eye_data (dict) eye data after eye calibration:
-#         exp_data (dict) preprocessed experimental data:
-#         timestamps (list) list of timestamps corresponding to each event
-#         start_events (list(int)) event codes to mark start of each trial:
-#         end_events (list(int)) event codes to mark end of each trial:
-#         eye_sample_rate (int)
-#
-#     Returns:
-#         tuple: tuple containing:
-#             | **eye_data_by_trial (list of list of position):**  trajectories of eye movement in monitor space by trial
-#             | **times_by_trial (list of list of times):** list of timestamps corresponding to the data
-#     '''
-#     events = exp_data['events']
-#     cyles = events['time']
-#
-#     eye_calibed = eye_data["calibrated_data"]
-#     eye_pos = np.stack(((eye_calibed[:, 0] + eye_calibed[:, 2]) / 2, (eye_calibed[:, 1] + eye_calibed[:, 3]) / 2), axis=1)
-#     # get all segments from peripheral target on -> trial end
-#     trial_segments, trial_cycles = preproc.get_trial_segments(events['code'], cyles, start_events, end_events)
-#     # grab eye trajectories
-#     eye_data_by_trial = []
-#     times_by_trial = []
-#     for trial_start, trial_end in trial_cycles:
-#         # grab list of eye positions
-#         time_start = timestamps[trial_start]
-#         time_end = timestamps[trial_end]
-#         idx_start = int(time_start * eye_sample_rate)
-#         idx_end = int(time_end * eye_sample_rate)
-#         # eye_indices = (times * eye_sample_rate).astype(int)
-#         trial_eye_pos = eye_pos[idx_start:idx_end]
-#         eye_data_by_trial.append(trial_eye_pos)
-#         times_by_trial.append(np.arange(idx_start, idx_end) / eye_sample_rate)
-#     return eye_data_by_trial, times_by_trial
-
-def get_eye_trajectories_by_trial(
-        eye_data, exp_data, timestamps,
-        start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES],
-        eye_sample_rate=25000
-):
+def get_eye_trajectories_by_trial(eye_data, exp_data, timestamps, eye_sample_rate,
+        start_events, end_events):
     '''
     Finds eye trajectories in monitor space by trial.
     Args:
@@ -962,8 +910,7 @@ def get_eye_trajectories_by_trial(
         times_by_trial.append(times)
     return eye_data_by_trial, times_by_trial
 
-
-def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES]):
+def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events, end_events):
     '''
     Finds cursor trajectories by trial.
     Args:
@@ -994,8 +941,7 @@ def get_cursor_trajectories_by_trial(exp_data, timestamps, start_events=[TARGET_
         times_by_trial.append(timestamps[trial_start:trial_end])
     return cursor_data_by_trial, times_by_trial
 
-
-def get_target_positions_by_trial(exp_data, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES]):
+def get_target_positions_by_trial(exp_data, start_events, end_events):
     # Preprocessing to get target positions
     target_pos_by_idx = np.empty([9, 3], dtype=object)
     for trial in exp_data['bmi3d_trials']:
@@ -1011,7 +957,7 @@ def get_target_positions_by_trial(exp_data, start_events=[TARGET_ON_CODES], end_
         target_pos_by_trial.append(target_pos_by_idx[on_target_idx - CENTER_ON])
     return target_pos_by_trial
 
-def get_dist_to_targets(eye_data, exp_data, exp_metadata, start_events=[TARGET_ON_CODES], end_events=[CURSOR_ENTER_TARGET_CODES], eye_sample_rate=25000):
+def get_dist_to_targets(eye_data, exp_data, exp_metadata, start_events, end_events, eye_sample_rate):
     '''
     Given eye and experimental data, grab trials where the cursor reaches the peripheral target
     for these trials, calculate the eye and cursor trajectories' distance to peripheral targets
@@ -1048,7 +994,7 @@ def get_dist_to_targets(eye_data, exp_data, exp_metadata, start_events=[TARGET_O
     return dist_eye_target, eye_times, dist_cursor_target, cursor_times
 
 
-def get_movement_error_var_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):
+def get_movement_error_var_for_session(exp_data, start_codes, end_codes):
     events = exp_data['events']
 
     # grab cursor trajectoriess
@@ -1085,7 +1031,7 @@ def get_movement_error_var_for_session(exp_data, start_codes=[TARGET_ON_CODES], 
     return movement_error_by_trial, movement_var_by_trial
 
 
-def get_time_to_target_for_session(exp_data, start_codes=[TARGET_ON_CODES], end_codes=[CURSOR_ENTER_TARGET_CODES]):
+def get_time_to_target_for_session(exp_data, start_codes, end_codes):
     events = exp_data['events']
     clock = exp_data['clock']
 
