@@ -129,20 +129,11 @@ def _parse_bmi3d_v1(data_dir, files):
     bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
     
     bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
-    bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
     bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
 
     sync_protocol_version = bmi3d_event_metadata['sync_protocol_version']
     bmi3d_sync_clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
-    bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials') # there isn't any trial metadata
     bmi3d_root_metadata = aodata.load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
-
-    if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
-        bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
-        metadata_dict.update(bmi3d_clda_meta)
-        data_dict.update(
-            {'bmi3d_clda': bmi3d_clda}
-        )
 
     # Copy metadata
     metadata_dict.update(bmi3d_task_metadata)
@@ -156,11 +147,27 @@ def _parse_bmi3d_v1(data_dir, files):
     # And data
     data_dict.update({
         'bmi3d_task': bmi3d_task,
-        'bmi3d_state': bmi3d_state,
         'bmi3d_clock': bmi3d_sync_clock,
         'bmi3d_events': bmi3d_events,
-        'bmi3d_trials': bmi3d_trials,
     })  
+
+    # Some data/metadata isn't always present
+    if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
+        bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
+        metadata_dict.update(bmi3d_clda_meta)
+        data_dict.update(
+            {'bmi3d_clda': bmi3d_clda}
+        )
+    if aodata.is_table_in_hdf('task_msgs', bmi3d_hdf_full_filename): 
+        bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
+        data_dict.update(
+            {'bmi3d_state': bmi3d_state}
+        )
+    if aodata.is_table_in_hdf('trials', bmi3d_hdf_full_filename): 
+        bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials')
+        data_dict.update(
+            {'bmi3d_trials': bmi3d_trials}
+        )
 
     if 'ecube' in files:
         ecube_filename = files['ecube']
@@ -244,7 +251,6 @@ def _prepare_bmi3d_v0(data, metadata):
     internal_clock = data['bmi3d_clock']
     internal_events = data['bmi3d_events']
     task = data['bmi3d_task']
-    state = data['bmi3d_state']
 
     # Calculate t0
     if 'sync_events' in data and 'sync_clock' in data and len(data['sync_clock']) > 0:
@@ -468,7 +474,6 @@ def _prepare_bmi3d_v0(data, metadata):
 
     data.update({
         'task': task,
-        'state': state,
         'clock': corrected_clock,
         'events': corrected_events,
         'trials': corrected_trials,
@@ -499,7 +504,6 @@ def _prepare_bmi3d_v1(data, metadata):
     internal_clock = data['bmi3d_clock']
     internal_events = data['bmi3d_events']
     task = data['bmi3d_task']
-    state = data['bmi3d_state']
 
     assert metadata['sync_protocol_version'] >= 7
 
@@ -547,6 +551,9 @@ def _prepare_bmi3d_v1(data, metadata):
             valid_clock_cycles = len(sync_clock)
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
+        else:
+            # Same shape, just replace the approx clock with the sync clock
+            approx_clock = sync_clock['timestamp']
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', approx_clock, dtypes='f8')
     else:
         print("Warning: no sync clock connected! This will usually result in problems.")
@@ -620,10 +627,7 @@ def _prepare_bmi3d_v1(data, metadata):
 
     data.update({
         'task': task,
-        'state': state,
         'clock': corrected_clock,
         'events': corrected_events,
-        'trials': data['bmi3d_trials'],
-
     })
     return data, metadata

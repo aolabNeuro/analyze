@@ -111,14 +111,19 @@ class DigitalCalcTests(unittest.TestCase):
         np.testing.assert_allclose(timeseries, expected_timeseries)
         np.testing.assert_allclose(new_samplepts, input_samplepts)
 
-        # Test warning messages:
+        # Test invalid inputs:
         timestamps = np.array([1,2,3,4])
         timestamp_values = np.array([100,200,100,300])
-        out = interp_timestamps2timeseries(timestamps, timestamp_values)
-        self.assertEqual(out, None)
-        timestamps = np.array([1,2,1,4])
-        out = interp_timestamps2timeseries(timestamps, timestamp_values)
-        self.assertEqual(out, None)
+        fun = lambda: interp_timestamps2timeseries(timestamps, timestamp_values) # not enough inputs
+        self.assertRaises(ValueError, fun)
+        fun = lambda: interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2, interp_kind='foobar') # invalid method
+        self.assertRaises(Exception, fun)
+        
+        # Test non-monotonic input timestamps
+        timestamps = np.array([0,2,1,4])
+        timeseries, t = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+        self.assertTrue(len(timeseries) > 0)
+        self.assertEqual(np.count_nonzero(np.isnan(timeseries)), 0)
 
         # Test extrapolate
         timestamps = np.array([1,2,3,4])
@@ -317,24 +322,88 @@ class EventFilterTests(unittest.TestCase):
         np.testing.assert_allclose(expected_aligned_times, trial_aligned_times)
         
     def test_trial_align_data(self):
+        
+        # Test simple case with 0 time_before
+        # Data looks like: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ...
+        # Trigger times:             *                              ...
+        # Aligned trials:            5 6 7 8 9 10 11 12 13 14 15    ...
         data = np.arange(100)
         samplerate = 1
         time_before = 0
         time_after = 10
         trigger_times = np.array([5, 55])
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        print(trial_aligned)
         self.assertEqual(len(trial_aligned), len(trigger_times))
-        self.assertTrue(np.allclose(trial_aligned[0], np.arange(5, 15)))
-        self.assertTrue(np.allclose(trial_aligned[1], np.arange(55, 65)))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[0]), np.arange(5, 15))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[1]), np.arange(55, 65))
+        
+        # Test with nonzero time_before
+        # Data looks like: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ...
+        # Trigger times:             *                              ...
+        # Aligned trials:        3 4 5 6 7 8 9 10 11 12 13 14 15    ...
+        time_before = 2
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertEqual(len(trial_aligned), len(trigger_times))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[0]), np.arange(3, 15))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[1]), np.arange(53, 65))
+        
+        # Test shape is consistent with more dimensions in data
         data = np.ones((100,2))
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        self.assertEqual(trial_aligned.shape, (len(trigger_times), time_after, 2))
-
-        # Test if trigger_times is after the length of data
-        data = np.arange(50)
+        self.assertEqual(trial_aligned.shape, (len(trigger_times), time_before + time_after, 2))
+        
+        # Test single trial
+        data = np.ones((100,1))
+        trigger_times = [5]
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        np.allclose(trial_aligned, np.arange(5,15))
+        self.assertEqual(trial_aligned.shape, (1, time_before + time_after, 1))
+        
+        # Test with time_before bleeding into the start of data
+        # Data looks like:            0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ...
+        # Trigger times:                        *                              ...
+        # Aligned trials:   $ $ $ $ $ 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15    ...
+        #                   where $ is NaN
+        data = np.arange(100)
+        time_before = 10
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        self.assertTrue(np.count_nonzero(np.isnan(trial_aligned)), 5)
+        np.testing.assert_allclose(np.squeeze(trial_aligned)[5:], np.arange(0,15))
+        
+        # Test if trigger_times is after the length of data
+        # Should ignore the trial at 55s
+        data = np.arange(50)
+        time_before = 0
+        trigger_times = [5, 55]
+        trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
+        np.testing.assert_allclose(np.squeeze(trial_aligned[0]), np.arange(5,15))
+        self.assertTrue(np.count_nonzero(np.isnan(trial_aligned[1])), 15)
+
+        # Test other samplerate
+        # At 50 Hz, 0.1s should be 5 samples
+        nevents = 4
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 50
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+        event_samples = [int(t*samplerate) for t in event_times]
+        for ch in range(nch):
+            data[event_samples,ch] = ch+1
+        time_before = 0.1
+        time_after = 0.1
+        aligned_data = trial_align_data(data, event_times, time_before, time_after, samplerate)
+        for t in aligned_data:
+            np.testing.assert_allclose(np.array(
+                [[0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [1., 2.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.],
+                [0., 0.]]), t)
+
 
     def test_trial_align_times(self):
         timestamps = np.array([2, 6, 7, 10, 25, 27])
@@ -463,9 +532,6 @@ class TestPrepareExperiment(unittest.TestCase):
             self.assertIn('clock', data)
             self.assertIn('events', data)
             self.assertIn('task', data)
-            self.assertIn('state', data)
-            self.assertIn('trials', data)
-
 
         # Test sync version 0 (and -1)
         files = {}
@@ -552,7 +618,6 @@ class TestPrepareExperiment(unittest.TestCase):
         end_states = [b'TRIAL_END'] 
         trial_states, trial_idx = get_trial_segments(events['event'], events['time'], start_states, end_states)
         self.assertEqual(len(trial_states), 10)
-        self.assertEqual(len(np.unique(data['trials']['trial'])), 11) # TODO maybe should fix this so trials is also len(trial_states)??
 
     def test_parse_oculomatic(self):
         files = {}
@@ -648,7 +713,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
 class ProcTests(unittest.TestCase):
 
-    def test_proc_day():
+    def test_proc_day(self):
         # if everything else works, this will work. Exempt! -M.N.
         pass
 
@@ -670,6 +735,21 @@ class ProcTests(unittest.TestCase):
 
         # Overwrite
         proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
+
+    def test_proc_lfp(self):
+        result_filename = 'test_proc_lfp.hdf'
+        files = {'ecube': 'fake ecube data'}
+        proc_lfp(data_dir, files, write_dir, result_filename, overwrite=True)
+
+        contents = get_hdf_dictionary(write_dir, result_filename)
+        self.assertIn('lfp_data', contents)
+        self.assertIn('lfp_metadata', contents)
+
+        lfp_data = load_hdf_data(write_dir, result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, result_filename, 'lfp_metadata')
+
+        self.assertEqual(lfp_data.shape, (1000, 8))
+        self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
 
 if __name__ == "__main__":
     unittest.main()
