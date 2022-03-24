@@ -360,6 +360,43 @@ def bin_spikes(data, fs, bin_width):
     binned_spikes = binned_spikes/bin_width # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes
 
+def bin_spike_times(spike_times, time_before, time_after, bin_width):
+    '''
+    Computes binned spikes (spike rate) [spikes/s]. The input data are 1D spike times in seconds.
+    Binned spikes are calculated at each bin whose width is determined by bin_width. 
+
+    Example:
+        >>> spike_times = np.array([0.0208, 0.0341, 0.0347, 0.0391, 0.0407])
+        >>> spike_times = spike_times.T
+        >>> time_before = 0
+        >>> time_after = 0.05
+        >>> bin_width = 0.01
+        >>> binned_unit_spikes, time_bins = precondition.bin_spike_times(spike_times, time_before, time_after, bin_width)
+        >>> print(binned_unit_spikes)
+            [  0.   0. 100. 300. 100.]
+        >>> print(time_bins)
+            [0.005 0.015 0.025 0.035 0.045]
+
+    Args:
+        spike_times (nspikes): 1D array of spike times [s]
+        time_before (float): start time to easimate spike rate [s]
+        time_after (float): end time to estimate spike rate (Estimation includes endpoint)[s]
+        bin_width (float): width of time-bin to use for estimating spike rate [s]
+
+    Returns:
+        binned_unit_spikes (nbin, nch): spike rate [spikes/s].
+        time_bins : the center of the time-bin over which firing rate is estimated. [s]
+    '''
+
+    time_bins = np.arange(time_before, time_after+bin_width, bin_width) # contain endpoint
+
+    binned_unit_spikes, _ = np.histogram(spike_times, bins=time_bins)
+    binned_unit_spikes = binned_unit_spikes/bin_width # convert [spikes] to [spikes/s]
+
+    time_bins = time_bins[0:-1] + np.diff(time_bins)/2 #change time_bins to be the center of the bin, not the edges.
+
+    return binned_unit_spikes, time_bins
+
 def downsample(data, old_samplerate, new_samplerate):
     '''
     Downsample by averaging. Computes a downsample factor based on old_samplerate/new_samplerate.

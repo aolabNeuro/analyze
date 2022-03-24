@@ -309,6 +309,19 @@ class SpikeDetectionTests(unittest.TestCase):
         self.assertEqual(binned_spikes.shape[1], 2)
         self.assertEqual(binned_spikes[0,0], 4) # Sum first 5 points and * 2
 
+    def test_bin_spike_times(self):
+        spike_times = np.array([0.0208, 0.0341, 0.0347, 0.0391, 0.0407])
+        spike_times = spike_times.T
+        time_before = 0
+        time_after = 0.05
+        bin_width = 0.01
+        binned_unit_spikes, time_bins = precondition.bin_spike_times(spike_times, time_before, time_after, bin_width)
+        
+        self.assertEqual(binned_unit_spikes[2], 100)
+        self.assertEqual(binned_unit_spikes[3], 300)
+        self.assertEqual(time_bins[2], 0.025)
+        self.assertEqual(time_bins[3], 0.035)
+
 if __name__ == "__main__":
     unittest.main()
 
