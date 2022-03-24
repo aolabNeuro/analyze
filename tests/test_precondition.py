@@ -170,7 +170,8 @@ class FilterTests(unittest.TestCase):
         plt.xlim((0, 1500))
         plt.title('band = [-50, 50], N = 0.1')
         plt.legend()
-        plt.show()
+        fname = 'mtfilter_narrow.png'
+        savefig(write_dir, fname) # Should have power in 30 Hz
 
         band = [0, 100]
         N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
@@ -185,7 +186,8 @@ class FilterTests(unittest.TestCase):
         plt.xlim((0, 1500))
         plt.title('band = [0, 100], N = 0.1')
         plt.legend()
-        plt.show()
+        fname = 'mtfilter_narrow_2.png'
+        savefig(write_dir, fname) # Should have power in 30 Hz
 
         band = [0, 50]
         N = 0.5 # In case where you narrow band, you should increase temporal resoultion N
