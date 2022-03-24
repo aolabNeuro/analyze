@@ -154,6 +154,53 @@ class FilterTests(unittest.TestCase):
         fname = 'mtfilter.png'
         savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
 
+        band = [-50, 50]
+        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz = utils.generate_multichannel_test_signal(2, self.fs, self.n_ch, 30, self.a)
+        noise = np.random.normal(0,1,x_30hz.shape)*self.a
+        x_30hz_noise = x_30hz + noise
+        x_30hz_mtfilter = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [-50, 50], N = 0.1')
+        plt.legend()
+        plt.show()
+
+        band = [0, 100]
+        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz_mtfilter2 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter2[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [0, 100], N = 0.1')
+        plt.legend()
+        plt.show()
+
+        band = [0, 50]
+        N = 0.5 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz_mtfilter3 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter3[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [0, 50], N = 0.5')
+        plt.legend()
+        plt.show()
 
         self.assertEqual(x_mtfilter.shape, self.x2.shape)
 

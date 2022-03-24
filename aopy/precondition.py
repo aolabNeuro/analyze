@@ -309,7 +309,7 @@ def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
         fs (float): sampling rate
         f0 (float): center frequency of filiter
         flag (bool): if flag == 0, output data is centered. Otherwise, output data is not centered.
-        complexfrag: if complexflag == 0, output data becomes real. Otherwise, output data becomes complex.
+        complexflag: if complexflag == 0, output data becomes real. Otherwise, output data becomes complex.
 
     Returns:
         Y (nt, nch): filtered time-series data
