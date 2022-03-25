@@ -151,6 +151,22 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
+    Example:
+        Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        
+        ::
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+
+            interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
+            plot_spatial_map(interp_map, xy[0], xy[1])
+
+        .. image:: _images/posmap_calcmap.png
+
     Args:
         data (nch): list of values
         x_pos (nch): list of x positions
@@ -160,21 +176,31 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         threshold_dist (float): distance to neighbors before disregarding a point on the image
 
     Returns:
-        2,n array: map of the data on the given grid
+        tuple: tuple containing:
+        | *data_map (2,n array):* map of the data on the given grid
+        | *xy (2,n array):* new grid positions to use with this map
+
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
     xy = np.vstack((x_pos, y_pos)).T
-    xq, yq = np.meshgrid(np.arange(extent[0], x_spacing * grid_size[0], x_spacing),
-                         np.arange(extent[2], y_spacing * grid_size[1], y_spacing))
-    X = griddata(xy, data, (np.reshape(xq, -1), np.reshape(yq, -1)), method=interp_method, rescale=False)
+    xq, yq = np.meshgrid(np.arange(extent[0], extent[0] + x_spacing * grid_size[0], x_spacing),
+                         np.arange(extent[2], extent[2] + y_spacing * grid_size[1], y_spacing))
+    
+    # Remove nan values
+    non_nan = np.logical_not(np.isnan(data))
+    data = data[non_nan]
+    xy = xy[non_nan]
+    
+    # Interpolate
+    new_xy = (np.reshape(xq, -1), np.reshape(yq, -1))
+    X = griddata(xy, data, new_xy, method=interp_method, rescale=False)
 
     # Construct kd-tree, functionality copied from scipy.interpolate
     tree = cKDTree(xy)
     xi = _ndim_coords_from_arrays((np.reshape(xq, -1), np.reshape(yq, -1)))
-
     dists, indexes = tree.query(xi)
 
     # Mask values with distances over the threshold with NaNs
@@ -182,10 +208,10 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         X[dists > threshold_dist] = np.nan
 
     data_map = np.reshape(X, grid_size)
-    return data_map
+    return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
     '''
     Wrapper around plt.imshow for spatial data
 
@@ -209,6 +235,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         data_map (2,n array): map of x,y data
         x (list): list of x positions
         y (list): list of y positions
+        alpha_map (2,n array): map of alpha values (optional, default alpha=1 everywhere)
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
 
@@ -227,11 +254,19 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
     cmap.set_bad(color='black')
+    
+    # Make an alpha map scaled between 0 and 1
+    if alpha_map is None:
+        alpha_map = 1
+    else:
+        alpha_range = np.nanmax(alpha_map) - np.nanmin(alpha_map)
+        alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
+        alpha_map[np.isnan(alpha_map)] = 0
 
     # Plot
     if ax is None:
         ax = plt.gca()
-    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
@@ -270,10 +305,8 @@ def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
         dpi (float): resolution of the video file
         savefig_kwargs (kwargs, optional): arguments to pass to savefig
     '''
-    from matplotlib.animation import FFMpegFileWriter  # requires ffmpeg
     filepath = os.path.join(base_dir, filename)
-    writer = FFMpegFileWriter()
-    animation.save(filepath, dpi=dpi, writer=writer, savefig_kwargs=savefig_kwargs)
+    animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
 
 
 def showanim(animation):
@@ -352,6 +385,59 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
     return FuncAnimation(fig, draw, frames=trajectory.shape[0],
                          init_func=lambda: None, interval=1000. / samplerate)
 
+def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
+    '''
+    Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
+    for each timepoint you want to animate, then put them into a list and feed them to this
+    function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
+
+    Example:
+        ::
+        
+            samplerate = 20
+            duration = 5
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            data_map = []
+            for frame in range(duration*samplerate):
+                t = np.linspace(-1, 1, 100) + float(frame)/samplerate
+                c = np.sin(t)
+                data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
+
+            filename = 'spatial_map_animation.mp4'
+            ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
+            saveanim(ani, write_dir, filename)
+
+        .. raw:: html
+
+            <video controls src="_static/spatial_map_animation.mp4"></video>
+
+    Args:
+        data_map (nt): array of 2d maps
+        x (list): list of x positions
+        y (list): list of y positions
+        samplerate (float): rate of the data_map samples
+        cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
+    '''
+
+    # Plotting subroutine
+    def plotdata(i):
+        im.set_data(data_map[i])
+        return im
+
+    # Initial plot
+    fig, ax = plt.subplots()
+    im = plot_spatial_map(data_map[0], x, y, ax=ax, cmap=cmap)
+
+    # Change the color limits
+    min_c = np.min(np.array(data_map))
+    max_c = np.max(np.array(data_map))
+    im.set_clim(min_c, max_c)
+        
+    # Create animation
+    ani = FuncAnimation(fig, plotdata, frames=len(data_map),
+                            interval=1000./samplerate)
+
+    return ani
 
 def set_bounds(bounds, ax=None):
     '''
@@ -373,7 +459,7 @@ def set_bounds(bounds, ax=None):
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
 
-def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):
+def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
@@ -414,6 +500,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
     if ax is None:
         ax = plt.gca()
 
+    if unique_only:
+        target_positions = np.unique(target_positions,axis=0)
+
     for i in range(0, target_positions.shape[0]):
 
         # Pad the vector to make sure it is length 3
@@ -441,6 +530,56 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         except:
             target = plt.Circle((pos[0], pos[1]),
                                 radius=target_radius, alpha=alpha[i], color=target_color)
+            ax.add_artist(target)
+            ax.set_aspect('equal', adjustable='box')
+    if bounds is not None: set_bounds(bounds, ax)
+
+def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
+    '''
+    Add circles to an axis. Works for 2D and 3D axes
+
+    Args:
+        circle_positions (ntarg, 3): array of target (x, y, z) locations
+        circle_radius (float): radius of each target
+        circle_color (str): color to draw circle - default is blue
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        origin (tuple, optional): (x, y, z) position of the origin
+        ax (plt.Axis, optional): axis to plot the targets on
+        unique_only (bool, optional): If True, function will only plot targets with unique positions (default: True)
+    '''
+
+    if unique_only:
+        circle_positions = np.unique(circle_positions,axis=0)
+
+    if isinstance(alpha,float):
+        alpha = alpha * np.ones(circle_positions.shape[0])
+    else:
+        assert len(alpha) == circle_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
+
+    if ax is None:
+        ax = plt.gca()
+
+    for i in range(0, circle_positions.shape[0]):
+
+        # Pad the vector to make sure it is length 3
+        pos = np.zeros((3,))
+        pos[:len(circle_positions[i])] = circle_positions[i]
+
+        # Plot in 3D or 2D
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        try:
+            ax.set_zlabel('z')
+            u = np.linspace(0, 2 * np.pi, 100)
+            v = np.linspace(0, np.pi, 100)
+            x = pos[0] + circle_radius * np.outer(np.cos(u), np.sin(v))
+            y = pos[1] + circle_radius * np.outer(np.sin(u), np.sin(v))
+            z = pos[2] + circle_radius * np.outer(np.ones(np.size(u)), np.cos(v))
+            ax.plot_surface(x, y, z, alpha=alpha[i], color=circle_color)
+            ax.set_box_aspect((1, 1, 1))
+        except:
+            target = plt.Circle((pos[0], pos[1]),
+                                radius=circle_radius, alpha=alpha[i], color=circle_color)
             ax.add_artist(target)
             ax.set_aspect('equal', adjustable='box')
     if bounds is not None: set_bounds(bounds, ax)
@@ -719,8 +858,78 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
 
     ax.set_xlabel(r'Time ($\mu$s)')
 
+def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
+    '''
+    This function plots the tuning curves output from analysis.run_tuningcurve_fit overlaying the actual firing rate data.
+    The dashed line is the model fit and the solid line is the actual data. 
 
+    .. image:: _images/tuning_curves_plot.png
 
+    Args:
+        fit_params (nunits, 3): Model fit coefficients. Output from analysis.run_tuningcurve_fit or analysis.curve_fitting_func
+        mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
+        target_theta (ntargets): Orientation of each target in a center out task [degrees]. Corresponds to order of targets in 'mean_fr'
+        n_subplot_cols (int): Number of columns to plot in subplot. This function will automatically calculate the number of rows. Defaults to 5
+        ax (axes handle): Axes to plot
 
+    '''
+    nunits = mean_fr.shape[0]
+    n_subplot_rows = ((nunits-1)//n_subplot_cols)+1
+    axinput = True
 
+    if ax is None:
+        fig, ax = plt.subplots(n_subplot_rows, n_subplot_cols)
+        axinput = False
+        
+    nplots = n_subplot_rows*n_subplot_cols
+    for iunit in range(nplots):
+        if nunits > n_subplot_cols and n_subplot_cols!=1:
+          nrow = iunit//n_subplot_cols
+          ncol = iunit - (nrow*n_subplot_cols)
+          # Remove axis that aren't used
+          if iunit >= nunits:
+            ax[nrow, ncol].remove()
+          else:
+            ax[nrow, ncol].plot(targets, mean_fr[iunit,:], 'b-', label='data')
+            ax[nrow, ncol].plot(targets, analysis.curve_fitting_func(targets, fit_params[iunit, 0], fit_params[iunit, 1], fit_params[iunit,2]), 'b--', label='fit')
+            ax[nrow, ncol].set_title('Unit ' +str(iunit))
 
+        else:
+          # Remove axis that aren't used
+          if iunit >= nunits:
+            ax[iunit].remove()
+          else:
+            ax[iunit].plot(targets, mean_fr[iunit,:], 'b-', label='data')
+            ax[iunit].plot(targets, analysis.curve_fitting_func(targets, fit_params[iunit, 0], fit_params[iunit, 1], fit_params[iunit,2]), 'b--', label='fit')
+            ax[iunit].set_title('Unit ' +str(iunit))
+
+    if not axinput:
+        fig.tight_layout()
+        
+def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], linecolor=[0,0,0], box_width = 0.5, ax=None):
+    '''
+    This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
+
+    .. image:: _images/boxplot_example.png
+
+    Args:
+        data (n1, n2): Data to plot. A different boxplot is created for each column of this variable.
+        plt_xaxis (n2): X-axis locations to plot the boxplot of each column
+        trendline (bool): If a line should be used to connect boxplots
+        facecolor (list or word):
+        linecolor (list or word):
+        ax (axes handle): Axes to plot
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    if trendline:
+        ax.plot(plt_xaxis, np.nanmedian(data, axis=0), color=facecolor)
+    
+    for featidx, ifeat in enumerate(plt_xaxis):
+        temp_data = data[:,featidx]
+        ax.boxplot(temp_data[~np.isnan(temp_data)], 
+            positions=np.array([ifeat]), patch_artist=True, widths=box_width, 
+            boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
+            whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
+            medianprops=dict(color=linecolor))

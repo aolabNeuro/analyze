@@ -1,7 +1,10 @@
 # data.py
 # Code for directly loading and saving data (and results)
 
+from ctypes import util
+from random import sample
 import numpy as np
+
 from .whitematter import ChunkedStream, Dataset
 import h5py
 import tables
@@ -11,6 +14,8 @@ import os
 import glob
 import warnings
 import pickle
+import yaml
+from .utils import get_pulse_edge_times, compute_pulse_duty_cycles
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -208,6 +213,16 @@ def load_ecube_metadata(data_dir, data_source):
 
     # For now just load the metadata provieded by pyECubeSig
     # TODO: Really need the channel names and voltage per bit from the xml file
+    # For now I am hard coding these. Please change!
+    HEADSTAGE_VOLTSPERBIT = 1.907348633e-7
+    ANALOG_VOLTSPERBIT = 3.0517578125e-4
+    if data_source == 'Headstages':
+        voltsperbit = HEADSTAGE_VOLTSPERBIT
+    elif data_source == 'AnalogPanel':
+        voltsperbit = ANALOG_VOLTSPERBIT
+    else:
+        voltsperbit = None
+
     n_channels = 0
     n_samples = 0
     dat = Dataset(data_dir)
@@ -222,6 +237,7 @@ def load_ecube_metadata(data_dir, data_source):
         data_source = data_source,
         n_channels = n_channels,
         n_samples = n_samples,
+        voltsperbit = voltsperbit,
     )
     return metadata
 
@@ -295,47 +311,44 @@ def load_ecube_data_chunked(data_dir, data_source, channels=None, chunksize=728)
     kwargs = dict(maxchunksize=chunksize*n_channels*np.dtype(dtype).itemsize)
     return _process_channels(data_dir, data_source, channels, n_samples, **kwargs)
 
-def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
+def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadband_data', max_memory_gb=1.):
     '''
     Loads and saves eCube data into an HDF file
 
     Requires load_ecube_metadata()
 
     Args:
-        data_dir (str): folder containing the data you want to load
+        data_path (str): path to folder containing the ecube data you want to load
         data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         result_filepath (str): path to hdf file to be written (or appended)
-        dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
+        max_memory_gb (float, optional): max memory used to load binary data at one time
 
     Returns:
-        None
+        tuple: tuple containing:
+        | **dset (h5py.Dataset):** the new hdf dataset
+        | **metadata (dict):** the ecube metadata
     '''
 
-    metadata = load_ecube_metadata(data_dir, data_source)
-    n_samples = metadata['n_samples']
-    n_channels = metadata['n_channels']
+    # Load the metadata to figure out the datatypes
+    metadata = load_ecube_metadata(data_path, data_source)
     if data_source == 'DigitalPanel':
         dtype = np.uint64
     else:
         dtype = np.int16
+    chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
 
     # Create an hdf dataset
-    hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
+    hdf = h5py.File(result_filepath, 'a')
+    dset = hdf.create_dataset(result_name, (metadata['n_samples'], metadata['n_channels']), dtype=dtype)
 
-    # Open and read the eCube data into the new hdf dataset
-    n_read = 0
-    for chunk in _process_channels(data_dir, data_source, range(n_channels), n_samples, **dataset_kwargs):
-        chunk_len = chunk.shape[0]
-        dset[n_read:n_read+chunk_len,:] = chunk
-        n_read += chunk_len
+    # Write broadband data directly into the hdf file
+    n_samples = 0
+    for broadband_chunk in load_ecube_data_chunked(data_path, 'Headstages', chunksize=chunksize):
+        chunk_len = broadband_chunk.shape[0]
+        dset[n_samples:n_samples+chunk_len,:] = broadband_chunk
+        n_samples += chunk_len
 
-    dat = Dataset(data_dir)
-    dset.attrs['samplerate'] = dat.samplerate
-    dset.attrs['data_source'] = data_source
-    dset.attrs['channels'] = range(n_channels)
-
-    return dset
+    return dset, metadata
 
 def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
@@ -435,7 +448,7 @@ def save_hdf(data_dir, hdf_filename, data_dict, data_group="/", compression=0, a
     Args: 
         data_dir (str): destination file directory
         hdf_filename (str): name of the hdf file to be saved
-        data_dict (dict, optional): the data to be saved as a hdf file
+        data_dict (dict): the data to be saved as a hdf file
         data_group (str, optional): where to store the data in the hdf
         compression(int, optional): gzip compression level. 0 indicate no compression. Compression not added to existing datasets. (default: 0)
         append (bool, optional): append an existing hdf file or create a new hdf file
@@ -788,6 +801,44 @@ def map_acq2elec(signalpath_table, acq_ch_subset=None):
 
     return acq_chs, connected_elecs
 
+def map_elec2acq(signalpath_table, elecs):
+    '''
+    This function finds the acquisition channels that correspond to the input electrode numbers given the signal path table input. 
+    This function works by calling aopy.data.map_acq2elec and subsampling the output.
+    If a requested electrode isn't connected to an acquisition channel a warning will be displayed alerting the user
+    and the corresponding index in the output array will be a np.nan value.
+
+    Args:
+        signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
+        elecs (nelec): Electrodes to find the acquisition channels for
+
+    Returns:
+        acq_chs: Acquisition channels that map to electrodes (e.g. nelec/256 for viventi ECoG array)
+    '''
+    acq_chs, connected_elecs = map_acq2elec(signalpath_table)
+    elec_idx = np.in1d(connected_elecs, elecs) # Find elements in 'connected_elecs' that are also in 'elecs'
+
+    # If the output acq_chs are not the same length as the input electodes, 1+ electrodes weren't connected
+    if np.sum(elec_idx) < len(elecs):
+        output_acq_chs = np.zeros(len(elecs))
+        output_acq_chs[:] = np.nan
+        missing_elecs = []
+
+        for ielec, elecid in enumerate(elecs):
+            matched_idx = np.where(connected_elecs == elecid)[0]
+            if len(matched_idx) == 0:
+                missing_elecs.append(elecid)
+            else:
+                output_acq_chs[ielec] = acq_chs[matched_idx]
+        warning_str = 'Electrodes ' + str(missing_elecs) + ' are not connected.'
+        print(warning_str)
+
+        return output_acq_chs
+
+    else:
+        return acq_chs[elec_idx]
+
+
 def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
@@ -961,7 +1012,7 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
 
 def pkl_write(file_to_write, values_to_dump, write_dir):
     '''
-    Write data into a pickle file.
+    Write data into a pickle file. Note: H5D5 (HDF) files can not be pickled.  Refer :func:`aopy.data.save_hdf` for saving HDF data
     
     Args:
         file_to_write (str): filename with '.pkl' extension
@@ -971,7 +1022,7 @@ def pkl_write(file_to_write, values_to_dump, write_dir):
     Returns:
         None
 
-    examples: pkl_write(meta.pkl, data, '/data_dir')
+    examples: pkl_write('meta.pkl', data, '/data_dir')
     '''
     file = os.path.join(write_dir, file_to_write)
     with open(file, 'wb') as pickle_file:
@@ -994,3 +1045,71 @@ def pkl_read(file_to_read, read_dir):
     with open(file, "rb") as f:
         this_dat = pickle.load(f)
     return this_dat
+
+
+def yaml_write(filename, data):
+    '''
+    YAML stands for Yet Another Markup Language. It can be used to save Params or configuration files.
+    Args:
+        filename(str): Filename including the full path
+        data (dict) : Params data to be dumped into a yaml file
+    Returns: None
+
+    Example:
+        >>>params = [{ 'CENTER_TARGET_ON': 16 , 'CURSOR_ENTER_CENTER_TARGET' : 80 , 'REWARD' : 48 , 'DELAY_PENALTY' : 66 }]
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>yaml_write(params_file, params)
+    '''
+    with open(filename, 'w') as file:
+        documents = yaml.dump(data, file)
+
+
+def yaml_read(filename):
+    '''
+    The FullLoader parameter handles the conversion from YAML scalar values to Python the dictionary format
+    Args:
+        filename(str): Filename including the full path
+
+    Returns:
+        data (dict) : Params data dumped into a yaml file
+
+    Example:
+        >>>params_file = '/test_data/task_codes.yaml'
+        >>>task_codes = yaml_read(params_file, params)
+    '''
+    with open(filename) as file:
+        task_codes = yaml.load(file, Loader=yaml.FullLoader)
+
+    return task_codes
+
+
+def get_e3v_video_frame_data( digital_data, sync_channel_idx, trigger_channel_idx, samplerate ):
+    
+    """get_e3v_video_frame_data
+
+    Compute pulse times and duty cycles from e3vision video data frames collected on an ecube digital panel.
+
+    Args:
+        digital_data (nt, nch): array of data read from ecube digital panel
+        sync_channel_idx (int): sync channel to read from digital_data. Indicates each video frame.
+        trigger_channel_idx (int): trigger channel to read from digital_data. Indicates start/end video triggers.
+        sample_rate (numeric): data sampling rate (Hz)
+
+    Returns:
+        pulse_times (np.array): array of floats indicating pulse start times
+        duty_cycle (np.array): array of floats indicating pulse duty cycle (quotient of pulse width and pulse period)
+    """
+
+    trig_pulse_edges = get_pulse_edge_times(digital_data[:,trigger_channel_idx],samplerate)
+    # watchtower triggers (start, end) are a triplet of pulses within a ~33ms window.
+    trig_pulse_times = trig_pulse_edges[:,0]
+    start_trig_time = trig_pulse_times[0]
+    end_trig_time = trig_pulse_times[3]
+    sync_pulse_edges = get_pulse_edge_times(digital_data[:,sync_channel_idx],samplerate)
+    sync_pulse_times = sync_pulse_edges[:,0]
+    start_pulse_idx = np.where(np.abs(sync_pulse_times-start_trig_time) == np.abs(sync_pulse_times-start_trig_time).min())[0][0]
+    end_pulse_idx = np.where(np.abs(sync_pulse_times-end_trig_time) == np.abs(sync_pulse_times-end_trig_time).min())[0][0] + 1
+    sync_pulse_times = sync_pulse_times[start_pulse_idx:end_pulse_idx]
+    sync_duty_cycles = compute_pulse_duty_cycles(sync_pulse_edges[start_pulse_idx:end_pulse_idx,:])
+
+    return sync_pulse_times, sync_duty_cycles

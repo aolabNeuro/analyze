@@ -151,13 +151,13 @@ class LoadDataTests(unittest.TestCase):
         hdf_filepath = os.path.join(write_dir, "preprocessed_ecube_data.hdf")
         if os.path.exists(hdf_filepath):
             os.remove(hdf_filepath)
-        proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
+        dset, metadata = proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
         assert os.path.exists(hdf_filepath)
         hdf = h5py.File(hdf_filepath, 'r')
-        assert 'Headstages' in hdf
-        assert hdf['Headstages'].attrs['samplerate'] == 25000.
-        assert hdf['Headstages'].shape[1] == 64
-        assert hdf['Headstages'].shape[0] == 214032
+        assert 'broadband_data' in hdf
+        assert hdf['broadband_data'].shape[1] == 64
+        assert hdf['broadband_data'].shape[0] == 214032
+        assert metadata['samplerate'] == 25000
     
     def test_save_hdf(self):
         import os
@@ -301,6 +301,33 @@ class TestPickle(unittest.TestCase):
 
         self.assertEqual(np.shape(val), np.shape(dat_1))
 
+class TestYaml(unittest.TestCase):
+
+    def test_yaml_fn(self):
+        test_dir = os.path.dirname(__file__)
+        tmp_dir = os.path.join(test_dir, 'tmp')
+        params_file = os.path.join(tmp_dir, 'task_codes.yaml')
+
+         # Testing yaml_write
+        params = [{'CENTER_TARGET_ON': 16,
+                   'CURSOR_ENTER_CENTER_TARGET': 80,
+                   'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
+                   'PERIPHERAL_TARGET_ON': list(range(17, 25)),
+                   'CENTER_TARGET_OFF': 32,
+                   'REWARD': 48,
+                   'DELAY_PENALTY': 66,
+                   'TIMEOUT_PENALTY': 65,
+                   'HOLD_PENALTY': 64,
+                   'PAUSE': 254,
+                   'TIME_ZERO': 238,
+                   'TRIAL_END': 239}]
+        yaml_write(params_file, params)
+
+        # Testing pkl_read
+        task_codes = yaml_read(params_file)
+
+        self.assertEqual(params,task_codes)
+
 class SignalPathTests(unittest.TestCase):
 
     def test_lookup_excel_value(self):
@@ -402,10 +429,36 @@ class SignalPathTests(unittest.TestCase):
         dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, zero_indexing=True)
         np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
 
+    def test_map_acq2elec(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+        elecs = np.array((1,100,150,200))
+        expected_acq_chs = np.array((58, 87, 158, 244))
 
+        acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
+        np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
+
+        # Test if electrodes requested are unconnected
+        elecs = np.array((1,100,33,155))
+        expected_acq_chs = np.array((58, 87, np.nan, np.nan))
+
+        acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
+        np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
+
+class E3vFrameTests(unittest.TestCase):
+
+    def test_get_pulse_times(self):
+        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
+        test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
+        test_03_data    = np.stack((test_03,test_03_trigger)).T
+        test_03_times = np.array([2, 6, 10, 14])
+        test_03_dc = np.array([0.5, 0.5, 0.5, 0.5])
+        sync_ch_idx = 0
+        trig_ch_idx = 1
+        samplerate = 1
+        pulse_times, pulse_dc = get_e3v_video_frame_data(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
+        self.assertTrue(np.all(test_03_times == pulse_times))
+        self.assertTrue(np.all(test_03_dc == pulse_dc))
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
