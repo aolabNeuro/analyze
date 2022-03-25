@@ -307,6 +307,17 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
         self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
+    def test_calc_ISI(self):
+        data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        data_T = data.T
+        fs = 100
+        bin_width = 0.01
+        hist_width = 0.1
+        ISI_hist, hist_bins = aopy.analysis.calc_ISI(data_T, fs, bin_width, hist_width)
+        self.assertEqual(ISI_hist[1, 0], 2)
+        self.assertEqual(ISI_hist[2, 0], 2)
+        self.assertEqual(ISI_hist[1, 1], 3)
+
     def test_calc_sem(self):
         data = np.arange(10, dtype=float)
         SEM = aopy.analysis.calc_sem(data)
@@ -422,6 +433,7 @@ class ModelFitTests(unittest.TestCase):
         weights = np.array([0, 1, 1, 1, 1])
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
+
 
 
 if __name__ == "__main__":

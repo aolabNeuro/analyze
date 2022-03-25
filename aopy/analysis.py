@@ -798,6 +798,62 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
 
+
+def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
+    '''
+    Computes inter-spike interval histogram. The input data is the sampled thresholded data (0 or 1 data).
+
+    Example:
+        >>> data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        >>> data_T = data.T
+        >>> fs = 100
+        >>> bin_width = 0.01
+        >>> hist_width = 0.1
+        >>> ISI_hist, hist_bins = analysis.calc_ISI(data_T, fs, bin_width, hist_width)
+        >>> print(ISI_hist) 
+            [[0. 0.]
+            [2. 3.]
+            [2. 1.]
+            [2. 1.]
+            [1. 2.]
+            [0. 0.]
+            [0. 0.]
+            [0. 0.]
+            [0. 0.]]
+
+    Args:
+        data (nt, n_unit): time series spike data with multiple units.
+        fs (float): sampling rate of data [Hz]
+        bin_width (float): bin_width to compute histogram [s]
+        hist_width (float): determines bin edge (0 < t < histo_width) [s]
+        plot_flag (bool, optional): display histogram. In plotting, number of intervals is summed across units.
+
+    Returns:
+        ISI_hist (n_bins, n_unit) : number of intervals
+        hist_bins (n_bins): bin edge to compute histogram
+    '''
+
+    n_unit = data.shape[1]
+    dT = 1/fs
+    hist_bins = np.arange(0, hist_width, bin_width)
+
+    ISI_hist = np.zeros((len(hist_bins)-1, n_unit))
+    for iU in range(n_unit):
+        spike_idx = np.where( data[:,iU] )
+        ISI = np.diff(spike_idx)*dT
+        ISI_hist[:,iU], _ = np.histogram(ISI, hist_bins)
+    
+    hist_bins = hist_bins[:-1] + np.diff(hist_bins)/2 # change hist_bins to be the center of the bin, not the edges
+
+    # for plot
+    if plot_flag:
+        plt.bar(hist_bins*1000, np.sum(ISI_hist,axis=1), width = bin_width*1000, edgecolor="black") #multiplied 1000 to rescale to [ms]
+        plt.xlabel('Interspike interval (ms)')
+        plt.ylabel('Number of intervals')
+        plt.show()
+
+    return ISI_hist, hist_bins
+
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
@@ -953,3 +1009,4 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
+
