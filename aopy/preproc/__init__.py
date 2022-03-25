@@ -4,13 +4,74 @@ from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
-from ..data import load_ecube_data_chunked, load_ecube_metadata, save_hdf, load_hdf_group, get_hdf_dictionary
+from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
 import h5py
 
 '''
 proc_* wrappers
 '''
+def proc_single(data_dir, result_dir, result_prefix, files, overwrite=False, save_res=True, **kwargs):
+    '''
+    Preprocess a single recording, given a list of raw data files, into a series of hdf records with the same prefix.
+
+    Args:
+        data_dir (str): File directory of collected session data
+        result_dir (str): Target directory for processed data
+        files (dict): dict of file names to process in data_dir
+        overwrite (bool, optional): Overwrite files in result_dir. Defaults to False.
+        save_res (bool, optional): Save resulting computations. Defaults to True.
+        **kwargs (dict, optional): boolean parameters with any of the following keys: proc_exp, proc_eyetracking, proc_broadband, proc_lfp
+    '''
+    run_proc_exp = kwargs.pop('proc_exp', True)
+    run_proc_eyetracking = kwargs.pop('proc_eyetracking', True)
+    run_proc_broadband = kwargs.pop('proc_broadband', True)
+    run_proc_lfp = kwargs.pop('proc_lfp', True)
+
+    if run_proc_exp:
+        exp_result_filename = result_prefix + '.hdf'
+        print('processing experiment data...')
+        proc_exp(
+            data_dir,
+            files,
+            result_dir,
+            result_filename=exp_result_filename,
+            overwrite=overwrite,
+            save_res=save_res
+        )
+    if run_proc_eyetracking:
+        eyetracking_result_filename = result_prefix + '.hdf'
+        print('processing eyetracking data...')
+        proc_eyetracking(
+            data_dir,
+            files,
+            result_dir,
+            result_filename=eyetracking_result_filename,
+            overwrite=overwrite,
+            save_res=save_res,
+        )
+    if run_proc_broadband:
+        broadband_result_filename = result_prefix + '_broadband_data.hdf'
+        print('processing broadband data...')
+        proc_broadband(
+            data_dir,
+            files,
+            result_dir,
+            result_filename=broadband_result_filename,
+            overwrite=overwrite
+        )
+    if run_proc_lfp:
+        lfp_result_filename = result_prefix + '_lfp_data.hdf'
+        print('processing local field potential data...')
+        proc_lfp(
+            data_dir,
+            files,
+            result_dir,
+            result_filename=lfp_result_filename,
+            overwrite=overwrite,
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+        )
+
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
     Process experiment data files: 
@@ -165,7 +226,46 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     return eye_dict, eye_metadata
 
 
-def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batchsize=1., filter_kwargs={}):
+def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1.):
+    '''
+    Process broadband data:
+        Loads 'ecube' headstage data and metadata
+    Saves broadband data into the HDF datasets:
+        broadband_data (nt, nch)
+        broadband_metadata (dict)
+
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        max_memory_gb (float, optional): max memory used to load binary data at one time
+
+    Returns:
+        None
+    '''
+
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = get_hdf_dictionary(result_dir, result_filename)
+        if "broadband_data" in contents:
+            raise FileExistsError("File {} already preprocessed, doing nothing.".format(result_filename))
+    elif os.path.exists(filepath):
+        os.remove(filepath) # maybe bad, since it deletes everything, not just broadband data
+
+    # Copy the broadband data into an HDF dataset
+    if 'ecube' in files:
+        
+        # Process the binary data
+        data_filepath = os.path.join(data_dir, files['ecube'])
+        result_filepath = os.path.join(result_dir, result_filename)
+        _, metadata = proc_ecube_data(data_filepath, 'Headstages', result_filepath, result_name='broadband_data', max_memory_gb=max_memory_gb)
+
+        # Append the broadband metadata to the file
+        save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
+
+def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
     Process lfp data:
         Loads 'ecube' headstage data and metadata
@@ -193,17 +293,17 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batc
     elif os.path.exists(filepath):
         os.remove(filepath) # maybe bad, since it deletes everything, not just lfp_data
 
-    # Preprocess neural data into lfp
+    # Preprocess neural data into lfp   
+    dtype = 'int16'
     if 'ecube' in files:
         data_path = os.path.join(data_dir, files['ecube'])
         metadata = load_ecube_metadata(data_path, 'Headstages')
         samplerate = metadata['samplerate']
-        chunksize = int(batchsize * samplerate)
+        chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
         lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
         downsample_factor = int(samplerate/lfp_samplerate)
         lfp_samples = np.ceil(metadata['n_samples']/downsample_factor)
         n_channels = metadata['n_channels']
-        dtype = 'int16'
 
         # Create an hdf dataset
         result_filepath = os.path.join(result_dir, result_filename)
@@ -219,10 +319,10 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, batc
             n_samples += chunk_len
         hdf.close()
 
-        # Append the lfp metadata to the file
-        lfp_metadata = metadata
-        lfp_metadata['lfp_samplerate'] = lfp_samplerate
-        lfp_metadata['low_cut'] = 500
-        lfp_metadata['buttord'] = 4
-        lfp_metadata.update(filter_kwargs)
-        save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+    # Append the lfp metadata to the file
+    lfp_metadata = metadata
+    lfp_metadata['lfp_samplerate'] = lfp_samplerate
+    lfp_metadata['low_cut'] = 500
+    lfp_metadata['buttord'] = 4
+    lfp_metadata.update(filter_kwargs)
+    save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)

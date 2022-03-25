@@ -151,13 +151,13 @@ class LoadDataTests(unittest.TestCase):
         hdf_filepath = os.path.join(write_dir, "preprocessed_ecube_data.hdf")
         if os.path.exists(hdf_filepath):
             os.remove(hdf_filepath)
-        proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
+        dset, metadata = proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
         assert os.path.exists(hdf_filepath)
         hdf = h5py.File(hdf_filepath, 'r')
-        assert 'Headstages' in hdf
-        assert hdf['Headstages'].attrs['samplerate'] == 25000.
-        assert hdf['Headstages'].shape[1] == 64
-        assert hdf['Headstages'].shape[0] == 214032
+        assert 'broadband_data' in hdf
+        assert hdf['broadband_data'].shape[1] == 64
+        assert hdf['broadband_data'].shape[0] == 214032
+        assert metadata['samplerate'] == 25000
     
     def test_save_hdf(self):
         import os
