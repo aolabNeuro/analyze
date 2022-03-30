@@ -1,7 +1,10 @@
 # data.py
 # Code for directly loading and saving data (and results)
 
+from ctypes import util
+from random import sample
 import numpy as np
+
 from .whitematter import ChunkedStream, Dataset
 import h5py
 import tables
@@ -18,6 +21,7 @@ from pandas import read_csv, read_excel, DataFrame
 import xarray as xr
 import warnings
 import yaml
+from .utils import get_pulse_edge_times, compute_pulse_duty_cycles
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -215,6 +219,16 @@ def load_ecube_metadata(data_dir, data_source):
 
     # For now just load the metadata provieded by pyECubeSig
     # TODO: Really need the channel names and voltage per bit from the xml file
+    # For now I am hard coding these. Please change!
+    HEADSTAGE_VOLTSPERBIT = 1.907348633e-7
+    ANALOG_VOLTSPERBIT = 3.0517578125e-4
+    if data_source == 'Headstages':
+        voltsperbit = HEADSTAGE_VOLTSPERBIT
+    elif data_source == 'AnalogPanel':
+        voltsperbit = ANALOG_VOLTSPERBIT
+    else:
+        voltsperbit = None
+
     n_channels = 0
     n_samples = 0
     dat = Dataset(data_dir)
@@ -229,6 +243,7 @@ def load_ecube_metadata(data_dir, data_source):
         data_source = data_source,
         n_channels = n_channels,
         n_samples = n_samples,
+        voltsperbit = voltsperbit,
     )
     return metadata
 
@@ -302,47 +317,44 @@ def load_ecube_data_chunked(data_dir, data_source, channels=None, chunksize=728)
     kwargs = dict(maxchunksize=chunksize*n_channels*np.dtype(dtype).itemsize)
     return _process_channels(data_dir, data_source, channels, n_samples, **kwargs)
 
-def proc_ecube_data(data_dir, data_source, result_filepath, **dataset_kwargs):
+def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadband_data', max_memory_gb=1.):
     '''
     Loads and saves eCube data into an HDF file
 
     Requires load_ecube_metadata()
 
     Args:
-        data_dir (str): folder containing the data you want to load
+        data_path (str): path to folder containing the ecube data you want to load
         data_source (str): type of data ("Headstages", "AnalogPanel", "DigitalPanel")
         result_filepath (str): path to hdf file to be written (or appended)
-        dataset_kwargs (kwargs): list of key value pairs to pass to the ecube dataset
+        max_memory_gb (float, optional): max memory used to load binary data at one time
 
     Returns:
-        None
+        tuple: tuple containing:
+        | **dset (h5py.Dataset):** the new hdf dataset
+        | **metadata (dict):** the ecube metadata
     '''
 
-    metadata = load_ecube_metadata(data_dir, data_source)
-    n_samples = metadata['n_samples']
-    n_channels = metadata['n_channels']
+    # Load the metadata to figure out the datatypes
+    metadata = load_ecube_metadata(data_path, data_source)
     if data_source == 'DigitalPanel':
         dtype = np.uint64
     else:
         dtype = np.int16
+    chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
 
     # Create an hdf dataset
-    hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = hdf.create_dataset(data_source, (n_samples, n_channels), dtype=dtype)
+    hdf = h5py.File(result_filepath, 'a')
+    dset = hdf.create_dataset(result_name, (metadata['n_samples'], metadata['n_channels']), dtype=dtype)
 
-    # Open and read the eCube data into the new hdf dataset
-    n_read = 0
-    for chunk in _process_channels(data_dir, data_source, range(n_channels), n_samples, **dataset_kwargs):
-        chunk_len = chunk.shape[0]
-        dset[n_read:n_read+chunk_len,:] = chunk
-        n_read += chunk_len
+    # Write broadband data directly into the hdf file
+    n_samples = 0
+    for broadband_chunk in load_ecube_data_chunked(data_path, 'Headstages', chunksize=chunksize):
+        chunk_len = broadband_chunk.shape[0]
+        dset[n_samples:n_samples+chunk_len,:] = broadband_chunk
+        n_samples += chunk_len
 
-    dat = Dataset(data_dir)
-    dset.attrs['samplerate'] = dat.samplerate
-    dset.attrs['data_source'] = data_source
-    dset.attrs['channels'] = range(n_channels)
-
-    return dset
+    return dset, metadata
 
 def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
@@ -1406,3 +1418,34 @@ def yaml_read(filename):
         task_codes = yaml.load(file, Loader=yaml.FullLoader)
 
     return task_codes
+
+def get_e3v_video_frame_data( digital_data, sync_channel_idx, trigger_channel_idx, samplerate ):
+    
+    """get_e3v_video_frame_data
+
+    Compute pulse times and duty cycles from e3vision video data frames collected on an ecube digital panel.
+
+    Args:
+        digital_data (nt, nch): array of data read from ecube digital panel
+        sync_channel_idx (int): sync channel to read from digital_data. Indicates each video frame.
+        trigger_channel_idx (int): trigger channel to read from digital_data. Indicates start/end video triggers.
+        sample_rate (numeric): data sampling rate (Hz)
+
+    Returns:
+        pulse_times (np.array): array of floats indicating pulse start times
+        duty_cycle (np.array): array of floats indicating pulse duty cycle (quotient of pulse width and pulse period)
+    """
+
+    trig_pulse_edges = get_pulse_edge_times(digital_data[:,trigger_channel_idx],samplerate)
+    # watchtower triggers (start, end) are a triplet of pulses within a ~33ms window.
+    trig_pulse_times = trig_pulse_edges[:,0]
+    start_trig_time = trig_pulse_times[0]
+    end_trig_time = trig_pulse_times[3]
+    sync_pulse_edges = get_pulse_edge_times(digital_data[:,sync_channel_idx],samplerate)
+    sync_pulse_times = sync_pulse_edges[:,0]
+    start_pulse_idx = np.where(np.abs(sync_pulse_times-start_trig_time) == np.abs(sync_pulse_times-start_trig_time).min())[0][0]
+    end_pulse_idx = np.where(np.abs(sync_pulse_times-end_trig_time) == np.abs(sync_pulse_times-end_trig_time).min())[0][0] + 1
+    sync_pulse_times = sync_pulse_times[start_pulse_idx:end_pulse_idx]
+    sync_duty_cycles = compute_pulse_duty_cycles(sync_pulse_edges[start_pulse_idx:end_pulse_idx,:])
+
+    return sync_pulse_times, sync_duty_cycles

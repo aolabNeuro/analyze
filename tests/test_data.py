@@ -151,13 +151,13 @@ class LoadDataTests(unittest.TestCase):
         hdf_filepath = os.path.join(write_dir, "preprocessed_ecube_data.hdf")
         if os.path.exists(hdf_filepath):
             os.remove(hdf_filepath)
-        proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
+        dset, metadata = proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
         assert os.path.exists(hdf_filepath)
         hdf = h5py.File(hdf_filepath, 'r')
-        assert 'Headstages' in hdf
-        assert hdf['Headstages'].attrs['samplerate'] == 25000.
-        assert hdf['Headstages'].shape[1] == 64
-        assert hdf['Headstages'].shape[0] == 214032
+        assert 'broadband_data' in hdf
+        assert hdf['broadband_data'].shape[1] == 64
+        assert hdf['broadband_data'].shape[0] == 214032
+        assert metadata['samplerate'] == 25000
     
     def test_save_hdf(self):
         import os
@@ -445,8 +445,20 @@ class SignalPathTests(unittest.TestCase):
         acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
         np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
 
+class E3vFrameTests(unittest.TestCase):
+
+    def test_get_pulse_times(self):
+        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
+        test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
+        test_03_data    = np.stack((test_03,test_03_trigger)).T
+        test_03_times = np.array([2, 6, 10, 14])
+        test_03_dc = np.array([0.5, 0.5, 0.5, 0.5])
+        sync_ch_idx = 0
+        trig_ch_idx = 1
+        samplerate = 1
+        pulse_times, pulse_dc = get_e3v_video_frame_data(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
+        self.assertTrue(np.all(test_03_times == pulse_times))
+        self.assertTrue(np.all(test_03_dc == pulse_dc))
+
 if __name__ == "__main__":
     unittest.main()
-
-
-
