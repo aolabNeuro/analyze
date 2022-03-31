@@ -341,7 +341,23 @@ def get_exp_var(exp_data,*args):
 # data filtration code
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
-def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw = 0.5 ):
+def bad_channel_detection( data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5 ):
+    """bad_channel_detection
+
+    Checks input [channel x sample] data array channel quality
+
+    Args:
+        data (channel x sample): numpy array of data
+        srate (int): sample rate
+        lf_c (int, optional): low frequency cutoff. Defaults to 100.
+        sg_win_t (numeric, optional): spectrogram window length. Defaults to 8.
+        sg_over_t (numeric, optional): spectrogram overlap length. Defaults to 4.
+        sg_bw (float, optional): spectrogram time-half-bandwidth product. Defaults to 0.5.
+
+    Returns:
+        bad_ch_mask (channel x 1): logical array indicating bad channels
+    """
+    
     print("Running bad channel assessment:")
     (num_ch,num_samp) = np.shape(data)
 
@@ -360,7 +376,22 @@ def bad_channel_detection( data, srate, lf_c=100, sg_win_t=8, sg_over_t=4, sg_bw
 
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
-def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100):
+def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100.):
+    """high_freq_data_detection
+
+    Checks multichannel numpy array data for excess high frequency power. Returns a logical array of time locations in which any channel has excess high power (indicates noise)
+
+    Args:
+        data (channel x sample): _description_
+        srate (numeric): data sampling rate
+        bad_channels (boolean array, optional): Array-like of boolean values indicating bad channels. Defaults to None.
+        lf_c (numeric, optional): low frequency cutoff. Defaults to 100.
+
+    Returns:
+        bad_data_mask (channel x sample): boolean array indicating time, channel points with detected high-frequency noise
+        bad_data_mask_all_ch (np.array): boolean array indicating time points at which any channel had high-frequency noise
+    """
+
     print("Running high frequency noise detection: lfc @ {0}".format(lf_c))
     [num_ch,num_samp] = np.shape(data)
     bad_data_mask_all_ch = np.zeros((num_ch,num_samp))
@@ -410,6 +441,17 @@ def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100):
 
 # py version of noiseByHistogram.m - get upper and lower signal value bounds from a histogram
 def histogram_defined_noise_levels( data, nbin=20 ):
+    """histogram_defined_noise_levels
+
+    Automatically determine bandwidth in a signal
+
+    Args:
+        data (np.array): single-channel data array
+        nbin (int, optional): number of histogram bins. Defaults to 20.
+
+    Returns:
+        noise_bounds (tuple): lower, upper bound values
+    """
     # remove data in outer bins of the histogram calculation
     hist, bin_edge = np.histogram(data,bins=nbin)
     low_edge, high_edge = bin_edge[1], bin_edge[-2]
@@ -428,6 +470,26 @@ def histogram_defined_noise_levels( data, nbin=20 ):
 
 # multitaper spectrogram estimator (handles missing data, i.e. NaN values
 def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None,detrend=False):
+    """mt_sgram
+
+    compute multitaper spectrogram from a time series data array
+
+    Args:
+        x (channel x samples): data array
+        srate (int): sample rate
+        win_t (float): spectrogram window length
+        over_t (float): spectrogram window overlap length
+        bw (float): time half-bandwidth product (determines number of tapers)
+        interp (bool, optional): interpolate np.nan values in x. Defaults to False.
+        mask (bool array, optional): boolean array masking time points in x. Defaults to None.
+        detrend (bool, optional): detrend data. Defaults to False.
+
+    Returns:
+        fxx (np.array): frequency values
+        txx (np.array): time values
+        Sxx (np.array): spectrogram estimate
+    """
+
     # x - input data
     # srate - sampling rate of x
     # win_t - length of window (s)
@@ -473,6 +535,23 @@ def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None,detrend=False):
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
 def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
                               win_n=20 ):
+
+    """saturated_data_detection
+
+    Detects saturated data segments in input data array
+
+    Args:
+        data (channel x sample): numpy array of multichannel data
+        srate (numeric): data sampling rate
+        bad_channels (bool array, optional): boolean array indicating bad data channels. Default: None
+        adapt_tol (float, optional): detection tolerance. Default: 1e-8
+        win_n (int, optional): sample length of detection window. Default: 20
+
+    Returns:
+        sat_data_mask (bool array): 1 x sample boolean array indicating saturated data detection
+        bad_all_ch_mask (bool array): channel x sample boolean array indicated separate channel saturation detected
+
+    """
     print("Running saturated data segment detection:")
     num_ch, num_samp = np.shape(data)
     if not bad_channels:
@@ -530,6 +609,16 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
 
 # 1-d interpolation of missing values (NaN) in multichannel data (unwraps, interpolates over NaN, fills in.)
 def interp_multichannel(x):
+    """interp_multichannel
+
+    interpolates nan segments in multichannel data
+
+    Args:
+        x (np.array): multichannel data array containing nan values
+
+    Returns:
+        x_interp (np.array): data array with interpolated nan values
+    """
     nan_idx = np.isnan(x)
     ok_idx = ~nan_idx
     xp = ok_idx.ravel().nonzero()[0]
@@ -541,6 +630,13 @@ def interp_multichannel(x):
 
 # simple progressbar, not tied to the iterator
 def print_progress_bar(count, total, status=''):
+    """print_progress_bar
+
+    Args:
+        count (num): current progress count
+        total (int): total count, i.e. what count is at 100%
+        status (str, optional): printed status message. Defaults to ''.
+    """
     bar_len = 60
     filled_len = int(round(bar_len * count / float(total)))
 
