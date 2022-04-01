@@ -1,24 +1,14 @@
 # data.py
 # Code for directly loading and saving data (and results)
 
-from ctypes import util
-from random import sample
-import numpy as np
-
 from ..whitematter import ChunkedStream, Dataset
-import h5py
-import tables
 import csv
 import os
 import glob
 import warnings
-import os.path as path # may need to build a switch here for PC/POSIX
-import re
-import json
 import pickle as pkl
 import numpy as np
 from pandas import read_csv, read_excel, DataFrame
-import xarray as xr
 import warnings
 import yaml
 from ..utils import get_pulse_edge_times, compute_pulse_duty_cycles
