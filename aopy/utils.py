@@ -355,3 +355,20 @@ def max_repeated_nans(a):
         idx = np.nonzero(mask[1:] != mask[:-1])[0]
         return (idx[1::2] - idx[::2]).max()
 
+# simple progressbar, not tied to the iterator
+def print_progress_bar(count, total, status=''):
+    """print_progress_bar
+
+    Args:
+        count (num): current progress count
+        total (int): total count, i.e. what count is at 100%
+        status (str, optional): printed status message. Defaults to ''.
+    """
+    bar_len = 60
+    filled_len = int(round(bar_len * count / float(total)))
+
+    percents = round(100.0 * count / float(total), 1)
+    bar = '=' * filled_len + '-' * (bar_len - filled_len)
+
+    sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
+    sys.stdout.flush()

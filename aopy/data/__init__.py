@@ -2,13 +2,15 @@
 # Code for directly loading and saving data (and results)
 
 from ..whitematter import ChunkedStream, Dataset
+import h5py
+import tables
 import csv
 import os
 import glob
 import warnings
 import pickle as pkl
 import numpy as np
-from pandas import read_csv, read_excel, DataFrame
+from pandas import read_csv, read_excel
 import warnings
 import yaml
 from ..utils import get_pulse_edge_times, compute_pulse_duty_cycles
