@@ -460,5 +460,31 @@ class E3vFrameTests(unittest.TestCase):
         self.assertTrue(np.all(test_03_times == pulse_times))
         self.assertTrue(np.all(test_03_dc == pulse_dc))
 
+class PesaranLabTests(unittest.TestCase):
+
+    def test_parse_file_info(self):
+        pass
+
+    def test_load_experiment_data(self):
+        pass
+
+    def test_load_mask_data(self):
+        pass
+
+    def test_read_lfp(self):
+        pass
+
+    def test_load_ecog_clfp_data(self):
+        pass
+
+    def test_read_from_start(self):
+        pass
+
+    def test_read_from_file(self):
+        pass
+
+    def test_get_exp_var(self):
+        pass
+
 if __name__ == "__main__":
     unittest.main()
