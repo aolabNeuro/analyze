@@ -18,6 +18,7 @@ from scipy.optimize import curve_fit
 from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
+import nitime.algorithms as tsa
 
 import warnings
 from . import preproc

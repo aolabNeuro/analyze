@@ -7,7 +7,6 @@ from scipy import signal
 from scipy.signal import butter, lfilter, filtfilt, decimate, windows
 import numpy as np
 import math
-import nitime.algorithms as tsa
 from . import analysis, utils
 '''
 Filter functions
