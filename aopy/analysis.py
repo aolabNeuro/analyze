@@ -1010,3 +1010,124 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
 
+######### Spectral Estimation and Analysis ############
+
+def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=False, jackknife=False, sides='default'):
+    """get_sgram_multitaper
+
+    Compute multitaper estimate from multichannel signal input.
+
+    Args:
+        data (_type_): _description_
+        fs (_type_): _description_
+        win_t (_type_): _description_
+        step_t (_type_): _description_
+        nw (_type_, optional): _description_. Defaults to None.
+        bw (_type_, optional): _description_. Defaults to None.
+        adaptive (bool, optional): _description_. Defaults to False.
+        jackknife (bool, optional): _description_. Defaults to False.
+        sides (str, optional): _description_. Defaults to 'default'.
+
+    Returns:
+        fxx (np.array): spectrogram frequency array
+        txx (np.array): spectrogram time array
+        Sxx (np.array): multitaper spectrogram estimate
+    """
+
+    (n_sample, n_ch) = data.shape()
+    total_t = n_sample/fs
+    n_window = (total_t-win_t)/step_t
+    window_len = win_t*fs
+    step_len = step_t*fs
+    n_fbin = None #TODO: figure this out
+    # n_fbin = (window_len+1)//2
+    txx = np.arange(n_fbin)*step_t # window start time
+    Sxx = np.zeros((n_fbin,n_window,n_ch))
+
+    data = interp_multichannel(data)
+
+    for idx_window in range(n_window):
+        window_sample_range = np.arange(window_len) + step_len*idx_window
+        win_data = data[window_sample_range,:]
+        _f, _win_psd, _ = tsa.multi_taper_psd(win_data, fs, nw, bw, adaptive, jackknife, sides)
+        Sxx[idx_window,:,:] = _win_psd
+
+    fxx = _f
+
+    return fxx, txx, Sxx
+
+def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
+    '''
+     Computes power spectral density using Multitaper functions
+
+    Args:
+        data (nt, nch): time series data where time axis is assumed to be on the last axis
+        fs (float): sampling rate of the signal
+        NW (float): Normalized half bandwidth of the data tapers in Hz
+        BW (float): sampling bandwidth of the data tapers in Hz
+        adaptive (bool): Use an adaptive weighting routine to combine the PSD estimates of different tapers.
+        jackknife (bool): Use the jackknife method to make an estimate of the PSD variance at each point.
+        sides (str): This determines which sides of the spectrum to return.
+
+    Returns:
+        tuple: Tuple containing:
+            | **f (nfft):** Frequency points vector
+            | **psd_est (nfft, nch):** estimated power spectral density (PSD)
+            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
+    '''
+    data = data.T # move time to the last axis
+    
+    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides)
+    return f, psd_mt.T, nu.T
+
+def multitaper_lfp_bandpower(f, psd_est, bands, no_log):
+    '''
+    Estimate band power in specified frequency bands using multitaper power spectral density estimate
+
+    Args:
+        f (nfft) : Frequency points vector
+        psd_est (nfft, nch): power spectral density - output of bandpass_multitaper_filter_data
+        bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
+        no_log (bool): boolean to select whether lfp band power should be in log scale or not
+
+    Returns:
+        lfp_power (n_features, nch): lfp band power for each channel for each band specified
+    '''
+    if psd_est.ndim == 1:
+        psd_est = np.expand_dims(psd_est, 1)
+
+    lfp_power = np.zeros((len(bands), psd_est.shape[1]))
+    small_epsilon = 0 # TODO: what is this for? It does nothing now, should it be possible to make nonzero? -Leo
+    fft_inds = dict()
+
+    for band_idx, band in enumerate(bands):
+            fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
+
+    for idx, band in enumerate(bands):
+        if no_log:
+            lfp_power[idx, :] = np.mean(psd_est[fft_inds[idx],:], axis=0)
+        else:
+            lfp_power[idx, :] = np.mean(np.log10(psd_est[fft_inds[idx],:] + small_epsilon), axis=0)
+
+    return lfp_power
+
+def get_psd_welch(data, fs,n_freq = None):
+    '''
+    Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
+
+    Args:
+        data (nt, ...): time series data.
+        fs (float): sampling rate
+        n_freq (int): no. of frequency points expected
+
+    Returns:
+        tuple: Tuple containing:
+            | **f (nfft):** frequency points vector
+            | **psd_est (nfft, ...):** estimated power spectral density (PSD)
+    '''
+    if n_freq:
+        f, psd = signal.welch(data, fs, average='median', nperseg=2*n_freq, axis=0)
+    else:
+        f, psd = signal.welch(data, fs, average='median', axis=0)
+    return f, psd
+

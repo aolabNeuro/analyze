@@ -1,8 +1,16 @@
 from aopy.analysis import calc_success_rate
+from aopy.visualization import savefig
 import aopy
+import os
 import numpy as np
 import warnings
 import unittest
+import matplotlib.pyplot as plt
+
+test_dir = os.path.dirname(__file__)
+write_dir = os.path.join(test_dir, 'tmp')
+if not os.path.exists(write_dir):
+    os.mkdir(write_dir)
 
 class FactorAnalysisTests(unittest.TestCase):
 
@@ -434,7 +442,51 @@ class ModelFitTests(unittest.TestCase):
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
 
+class SpectrumTests(unittest.TestCase):
 
+    def setUp(self):
+        self.T = 0.05
+        self.fs = 25000
+        self.freq = [600, 312, 2000]
+        self.a = 0.02
+        # testing generate test_signal
+        self.f0 = self.freq[0]
+        self.x, self.t = aopy.utils.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
+
+        self.n_ch = 8
+        self.x2 = aopy.utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[0], self.a*0.5) + \
+            aopy.utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[1], self.a*1.5)
+        self.t2 = np.arange(self.T*self.fs)/self.fs
+    
+    def test_multitaper(self):
+        f, psd_filter, mu = aopy.analysis.get_psd_multitaper(self.x, self.fs)
+        psd = aopy.analysis.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
+
+        fname = 'multitaper_powerspectrum.png'
+        plt.figure()
+        plt.plot(f, psd, label='Welch')
+        plt.plot(f, psd_filter, label='Multitaper')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('PSD')
+        plt.legend()
+        savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
+
+        bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
+        lfp = aopy.analysis.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        plt.figure()
+        plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
+        plt.xticks(np.arange(len(bands)), bands)
+        plt.xlabel('Frequency band (Hz)')
+        plt.ylabel('Band Power')
+        fname = 'lfp_bandpower.png'
+        savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+
+        f, psd_filter, mu = aopy.analysis.get_psd_multitaper(self.x2, self.fs)
+        self.assertEqual(psd_filter.shape[1], self.n_ch)
+        print(mu.shape)
+        lfp = aopy.analysis.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        self.assertEqual(lfp.shape[1], self.x2.shape[1])
+        self.assertEqual(lfp.shape[0], len(bands))
 
 if __name__ == "__main__":
     unittest.main()
