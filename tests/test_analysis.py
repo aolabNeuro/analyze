@@ -42,6 +42,7 @@ class FactorAnalysisTests(unittest.TestCase):
         data_dimensionality = np.argmax(np.mean(log_likelihood_score, 1))
         self.assertEqual(data_dimensionality, 2)
 
+
 class classify_cells_tests(unittest.TestCase):
     def test_find_trough_peak_idx(self):
         #Test single waveform
@@ -156,6 +157,15 @@ class PCATests(unittest.TestCase):
         expected_single_dim_data = np.array([[0.75], [-0.25], [-0.25], [-0.25]])
         VAF, num_dims, proj_data = aopy.analysis.get_pca_dimensions(single_dim_data, project_data=True)
         np.testing.assert_allclose(expected_single_dim_data, proj_data)
+
+class PR_tests(unittest.TestCase):
+    def test_pr_eig(self):
+        test_data = np.array([[2, 1, 2], [1, 2, 1], [1, 2, 1]])
+        pr = aopy.analysis.estimate_PR(test_data,'eig')
+        self.assertEqual(pr, 1)
+
+        pr_tr = aopy.analysis.estimate_PR(test_data,'trace')
+        self.assertEqual(pr_tr, 1)
 
 class misc_tests(unittest.TestCase):
     def test_find_outliers(self):

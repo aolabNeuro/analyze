@@ -110,6 +110,32 @@ def get_pca_dimensions(data, max_dims=None, VAF=0.9, project_data=False):
 
     return list(explained_variance), num_dims, projected_data
 
+def estimate_PR(data, method = 'eig'):
+  '''
+    This function calculates participation ratio for given data. Participation ratio counts the effective dimensions of the spread of data by taking the ratio of the square of the first and second moments of the eigenvalue probability density function. Refer: Recanatesi S, Dimensionality in recurrent spiking networks: Global trends in activity and local origins in connectivity. PLoS Comput Biol. 2019
+
+    .. math:: \\frac{ \\sum_{i=1}^{N}\\lambda_i }{\\sum_{i=1}^{N}{\\lambda_i}^2 }
+
+  Args:
+      data (2D Numpy array): Neural data in format (n_units, n_timepoints)
+      method (str): Takes either 'eig' or 'trace' as values. PR can be estimated using eigen values of covariance matrix or using trace of covariance.
+
+  Returns:
+      PR (int): dimensionality in terms of participation ratio
+
+  '''
+  # n_u, n_t = data.shape
+
+  C_neuron = np.cov(data)
+
+  if method == 'eig':
+      eig_val, eig_vec = np.linalg.eig(C_neuron)
+      PR = (np.sum(eig_val))**2/ np.sum(eig_val**2)
+
+  if method == 'trace':
+      PR = np.trace(C_neuron) ** 2 / np.trace(C_neuron @ C_neuron)
+
+  return PR
 
 '''
 Curve fitting
