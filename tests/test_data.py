@@ -8,8 +8,6 @@ import os
 import numpy as np
 import pandas as pd
 from matplotlib.testing.compare import compare_images
-from datetime import datetime
-from db import dbfunctions as db
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
