@@ -16,6 +16,34 @@ import warnings
 import pickle
 import yaml
 from .utils import get_pulse_edge_times, compute_pulse_duty_cycles
+import shutil
+
+def move_files(files_list, dest_dir):
+    '''
+    This is a function that moves files/folders in files_list to dest_dir. This function is part of a backup script.
+    Args:
+        files_list (list): List of strings with filenames including full filepath
+        dest_dir (str): Destination fullpath
+
+    Returns: Nothing
+
+    '''
+    for file_to_move in files_list:
+        if file_to_move:
+            source = file_to_move[0] # assuming there will only ever be one hdf file and one ecube directory per entry, which is the case in our setup..
+            dest = os.path.join(dest_dir, os.path.basename(source))
+            # print(dest)
+            if not os.path.exists(dest):
+                print(f"Copying {dest}...", end="")
+                if os.path.isfile(source):
+                    shutil.copy2(source, dest)
+                else:
+                    shutil.copytree(source,dest)
+                print("")
+            else:
+                print(f"File {source} already moved!")
+
+
 
 def get_filenames_in_dir(base_dir, te):
     '''
@@ -1113,3 +1141,5 @@ def get_e3v_video_frame_data( digital_data, sync_channel_idx, trigger_channel_id
     sync_duty_cycles = compute_pulse_duty_cycles(sync_pulse_edges[start_pulse_idx:end_pulse_idx,:])
 
     return sync_pulse_times, sync_duty_cycles
+
+

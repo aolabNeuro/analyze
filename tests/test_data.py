@@ -8,6 +8,8 @@ import os
 import numpy as np
 import pandas as pd
 from matplotlib.testing.compare import compare_images
+from datetime import datetime
+from db import dbfunctions as db
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -459,6 +461,22 @@ class E3vFrameTests(unittest.TestCase):
         pulse_times, pulse_dc = get_e3v_video_frame_data(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
         self.assertTrue(np.all(test_03_times == pulse_times))
         self.assertTrue(np.all(test_03_dc == pulse_dc))
+
+class Backup(unittest.TestCase):
+
+    def test_move_files(self):
+        source_dir = [['tests/data/test_source/dir_1'],['tests/data/test_source/dir_2']]
+        #source_files = [os.path.join(source_dir,'load_hdf_contents_test.hdf'), os.path.join(source_dir,'load_hdf_group_test.hdf')]
+
+        dest_dir = 'tests/tmp/test_destination'
+        if not os.path.exists(dest_dir):
+            os.mkdir(dest_dir)
+
+        move_files(source_dir,dest_dir)
+        dest_dir_file_bool1 = os.path.exists('tests/tmp/test_destination/dir_1')
+        dest_dir_file_bool2 = os.path.exists('tests/tmp/test_destination/dir_2')
+        self.assertTrue(dest_dir_file_bool1)
+        self.assertTrue(dest_dir_file_bool2)
 
 if __name__ == "__main__":
     unittest.main()
