@@ -488,5 +488,10 @@ class SpectrumTests(unittest.TestCase):
         self.assertEqual(lfp.shape[1], self.x2.shape[1])
         self.assertEqual(lfp.shape[0], len(bands))
 
+        #TODO: complete sgram test
+        # f_sg, t_sg, sgram = aopy.analysis.get_sgram_multitaper(
+        #     self.x, self.fs, self.win_t, self.step_t
+        # )
+
 if __name__ == "__main__":
     unittest.main()
