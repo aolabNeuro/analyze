@@ -935,7 +935,7 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     
     return accLLR, selection_time_idx*bin_width
 
-def calc_accLLR_threshold(data, data_labels, cond1, cond2, modality, bin_width, step_size=0.01, false_alarm_prob=0.05):
+def calc_accLLR_threshold(data_cond1, data_cond2, modality, bin_width, step_size=0.01, false_alarm_prob=0.05):
     '''
     Sweeps the AccLLR method over the thresh_proportion parameter, estimates false alarm rates, 
     and then choose a value for thresh_proportion that gives us the desired false alarm rate.
@@ -950,6 +950,13 @@ def calc_accLLR_threshold(data, data_labels, cond1, cond2, modality, bin_width, 
 
     thresh_props = np.arange(0, 1, step_size)
     fa_rates = []
+
+    # Define some test data and some training data?
+    cond1 = data_cond1[:,0]
+    cond2 = data_cond2[:,0]
+    data = np.concatenate((data_cond1[:,1:], data_cond2[:,1:]))
+    data_labels = np.concatenate((np.ones(len(data_cond1)-1), 2*np.ones(len(data_cond2)-1)))
+    
     for tp in thresh_props:
         accLLR, selection_time_idx = calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_proportion=tp)
         accLLR_cond1_within_time = np.logical_and(accLLR > 0, selection_time_idx < data.shape[0])
