@@ -12,8 +12,11 @@ from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 import numpy as np
 import os
+from PIL import Image
 import copy
 import pandas as pd
+from tqdm import tqdm
+
 
 from . import postproc
 from . import analysis
@@ -933,3 +936,106 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
+
+# refactor
+def profile_data_channels(data, samplerate, figuredir):
+    
+    if not os.path.exists(figuredir):
+        os.makedirs(figuredir)
+    nsample, nch = data.shape
+    
+    for chidx in tqdm(range(nch)):
+        chname = f'ch. {chidx+1}'
+        fig = plot_channel_summary(data[:,chidx], samplerate, chname=f'ch. {chidx+1}')
+        fig.savefig(os.path.join(figuredir,f'ch_{chidx}.png'))
+        
+    combine_channel_figures(figuredir, nch = nch)
+
+    
+def combine_channel_figures(figuredir, nch=256):
+    
+    assert os.path.exist(figuredir), f"Directory not found: {figuredir}"
+    
+    ncol = int(np.ceil(np.sqrt(nch))) # make things as square as possible
+    nrow = int(np.ceil(nch/ncol))
+    imgw = 900
+    imgh = 600
+    
+    grid = Image.open(mode='RGB', size=(ncol*imgw, nrow*imgh))
+    
+    print(f'profiling all {nch} channels...')
+    for chidx in tdqm(range(nch)):
+        figurefile = os.path.join(figuredir,f'ch_{chidx}.png')
+        rowidx = chidx // ncol
+        colidx = chidx % ncol
+        if not os.path.exists(figurefile):
+            continue
+        else:
+            with Image.open(figurefile) as img:
+                grid.paste(img,box=(colidx*imgw, rowidx*imgh))
+    
+    grid.save(os.path.join(figuredir,'all_ch.png'),'png')
+
+
+def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange=None, chname=None, figsize=(6, 5), dpi=150, frange=(0, 80), cmap_lim=(0, 40)):
+    """plot_channel_summary
+    
+    Plot time domain trace, spectrogram and normalized (z-scored) spectrogram. Computes spectrogram.
+    
+    ---------------
+    | time series |
+    |-------------|
+    | spectrogram |
+    |-------------|
+    | norm sgram  |
+    ---------------
+    
+    Args:
+        chdata (n_sample,1): neural recording data from a given channel (lfp, ecog, broadband)
+        samplerate (int): data sampling rate
+        nperseg (int): length of each spectrogram window (in samples)
+        noverlap (int): number of samples shared between neighboring spectrogram windows (in samples)
+    
+    Outputs:
+        fig (Figure): Figure object
+    """
+    
+    assert len(chdata.shape) < 2, "Input data array must be 1d"
+    
+    time = np.arange(len(chdata))/samplerate
+    if trange is None:
+        trange = (time[0], time[-1])
+                                   
+    if nperseg is None:
+        nperseg = int(2*samplerate)
+                                
+    if noverlap is None:
+        noverlap = int(1.5*samplerate)
+    
+    f_sg, t_sg, sgram = signal.spectrogram(
+        chdata,
+        fs=samplerate,
+        nperseg=nperseg,
+        noverlap=noverlap,
+        detrend='linear'
+    )
+    log_sgram = np.log10(sgram)
+    
+    fig, ax = plt.subplots(3,1,figsize=figsize,dpi=dpi,constrained_layout=True,sharex=True)
+    ax[0].plot(time, chdata)
+    sg_pcm = ax[1].pcolormesh(t_sg,f_sg,10*log_sgram,vmin=cmap_lim[0],vmax=cmap_lim[1],shading='auto')
+    ax[1].set_ylim(*frange)
+    sg_cb = plt.colorbar(sg_pcm,ax=ax[1])
+    sg_cb.ax.set_ylabel('dB$\mu$')
+    sgn_pcm = ax[2].pcolormesh(t_sg,f_sg,zscore(log_sgram,axis=-1),vmin=-3,vmax=3,shading='auto',cmap='bwr')
+    ax[2].set_ylim(*frange)
+    sgn_cb = plt.colorbar(sgn_pcm,ax=ax[2])
+    sgn_cb.ax.set_ylabel('z-scored dB$\mu$')
+    ax[0].set_xlim(*trange)
+    ax[0].set_ylabel('amp. ($\mu V$)')
+    ax[1].set_ylabel('freq. (Hz)')
+    ax[2].set_ylabel('freq. (Hz)')
+    ax[2].set_xlabel('time (s)')
+    ax[0].set_title(chname)
+    
+    return fig
