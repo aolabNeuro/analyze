@@ -865,6 +865,8 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     but leads to longer delays in seletion time and more trials that are unclassfied. 
     If multiple trials are input, use the trial averaging approach outlined in the paper where the LLR is calculated and summed at each time point accross trials.
     
+    Since spikes assume Poisson firing statistics, input spiking data must be binary.
+    
     Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
     https://pubmed.ncbi.nlm.nih.gov/20884767/
 
@@ -901,13 +903,16 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     LLR = np.zeros(npts)*np.nan # LLR at exact time points
     
     if modality == 'spikes':
-    
+        # If modality is spikes, ensure data is binary (all 0's and 1's)
+        binary_spike_mask = np.logical_and(~np.isclose(data, 0), ~np.isclose(data,1))
+        if np.sum(binary_spike_mask) > 0:
+            warnings.warn('Input spiking activity is not binary (all 0s and 1s)')
+
         # Calculate AccLLR across all trials at each point
         for ipt in range(npts):
             temp_LLR = np.zeros(ntrials)*np.nan
             for itrial in range(ntrials):
-                # Doesn't include delta t term.... not sure its necessary. Seems like it should be scale independent
-                temp_LLR[itrial] = (cond2[ipt] - cond1[ipt])*bin_width +data[ipt, itrial]*np.log(cond1[ipt]/cond2[ipt])
+                temp_LLR[itrial] = (cond2[ipt] - cond1[ipt])*bin_width + data[ipt, itrial]*np.log(cond1[ipt]/cond2[ipt])
             
             LLR[ipt] = np.nansum(temp_LLR)
         
@@ -966,3 +971,11 @@ def calc_accLLR_threshold(data_cond1, data_cond2, modality, bin_width, step_size
         fa_rates.append(false_alarms)
 
     return thresh_props[fa_rates > false_alarm_prob][0]
+
+
+def accLLR_wrapper(data_cond1, data_cond2):
+    '''
+    1. Separates data into 'model building' (training + test) and 'implementing' groups by trials 
+    2. Calculates accLLR threshold on training and test data
+    3. Implements accLLR on 'implementing' data
+    '''
