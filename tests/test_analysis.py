@@ -200,7 +200,11 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_allclose(mds_true, md)
         np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
-
+        # Test that code runs with too many nans
+        data[0,:] = np.nan
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets, fit_with_nans=True)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
 
 class CalcTests(unittest.TestCase):
@@ -303,6 +307,17 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
         self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
+    def test_calc_ISI(self):
+        data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        data_T = data.T
+        fs = 100
+        bin_width = 0.01
+        hist_width = 0.1
+        ISI_hist, hist_bins = aopy.analysis.calc_ISI(data_T, fs, bin_width, hist_width)
+        self.assertEqual(ISI_hist[1, 0], 2)
+        self.assertEqual(ISI_hist[2, 0], 2)
+        self.assertEqual(ISI_hist[1, 1], 3)
+
     def test_calc_sem(self):
         data = np.arange(10, dtype=float)
         SEM = aopy.analysis.calc_sem(data)
@@ -317,6 +332,63 @@ class CalcTests(unittest.TestCase):
         data = np.tile(data, (2,2, 1))
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
+
+    def test_calc_erp(self):
+        nevents = 3
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 1000
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+
+        # Make the data zero everywhere except for one sample after each event time
+        print([int(t)+1 for t in event_times*samplerate])
+        data[[int(t)+1 for t in event_times*samplerate],0] = 1
+        data[[int(t)+1 for t in event_times*samplerate],1] = 2
+
+        self.assertEqual(np.sum(data[:,0]), nevents)
+        self.assertEqual(np.sum(data[:,1]), nevents*2)
+
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, subtract_baseline=False)
+        self.assertEqual(erp.shape[0], 3)
+
+        mean_erp = np.mean(erp, axis=0)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+        # Subtract baseline
+        data += 1
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate)
+        mean_erp = np.mean(erp, axis=0)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+        # Specify baseline window
+        data[0] = 100
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, baseline_window=())
+        mean_erp = np.mean(erp, axis=0)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+    def test_calc_max_erp(self):
+        nevents = 3
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 1000
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+
+        # Make the data zero everywhere except for one sample after each event time
+        data[[int(t)+1 for t in event_times*samplerate],0] = 1
+        data[[int(t)+1 for t in event_times*samplerate],1] = 2
+
+        max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate)
+        self.assertEqual(max_erp[0], 1) 
+        self.assertEqual(max_erp[1], 2)
+
+        # Specify search window
+        search_window = (0.05, 0.06)
+        max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate, max_search_window=search_window)
+        self.assertTrue(max_erp[0] == 0) 
+        self.assertTrue(max_erp[1] == 0)
 
 class CurveFittingTests(unittest.TestCase):
 
@@ -361,6 +433,7 @@ class ModelFitTests(unittest.TestCase):
         weights = np.array([0, 1, 1, 1, 1])
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
+
 
 
 if __name__ == "__main__":

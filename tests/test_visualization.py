@@ -44,13 +44,31 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_spatial_map(data_map, x_missing, y_missing)
         savefig(write_dir, filename)
 
-        filename = 'posmap_interp.png'
-        interp_map = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=0.01)
+        # Fill in the missing values by using calc_data_map instead of get_data_map
+        filename = 'posmap_calcmap.png'
+        interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
         self.assertEqual(interp_map.shape, (10, 10))
-        self.assertTrue(np.isnan(interp_map[0,0]))
+        self.assertFalse(np.isnan(interp_map[0,0]))
         plt.figure()
-        plot_spatial_map(interp_map, x_missing, y_missing)
+        plot_spatial_map(interp_map, xy[0], xy[1])
         savefig(write_dir, filename)
+
+        # Use cubic interpolation to generate a high resolution map
+        filename = 'posmap_calcmap_interp.png'
+        interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [100, 100], threshold_dist=1.5, interp_method='cubic')
+        self.assertEqual(interp_map.shape, (100, 100))
+        plt.figure()
+        plot_spatial_map(interp_map, xy[0], xy[1])
+        savefig(write_dir, filename)
+
+        # Test using an alpha map on top of the spatial map
+        filename = 'posmap_alphamap.png'
+        data_map = get_data_map(data_missing, x_missing, y_missing)
+        self.assertEqual(data_map.shape, (10, 10))
+        plt.figure()
+        plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
+        savefig(write_dir, filename)
+
 
     def test_single_spatial_map(self):
         data = 2.0
@@ -103,8 +121,13 @@ class CurveFittingTests(unittest.TestCase):
             data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
 
         # If the mds and pds output are correct the fitting params are correct because they are required for the calculation.
+        # Test without ax input
         fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+
+        # test with ax input
+        fig, ax = plt.subplots(2,4)
+        plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
         
     def test_plot_boxplots(self):
         data = np.random.normal(0, 2, size=(20, 5))
