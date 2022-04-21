@@ -1,4 +1,5 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
+from platform import python_branch
 import unittest
 from aopy.visualization import *
 import matplotlib.pyplot as plt
@@ -88,10 +89,12 @@ class FilterTests(unittest.TestCase):
         self.a = 0.02
         # testing generate test_signal
         self.f0 = self.freq[0]
-        _x, _t = utils.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
+        self.x, self.t = utils.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
 
-        self.x = _x
-        self.t = _t
+        self.n_ch = 8
+        self.x2 = utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[0], self.a*0.5) + \
+            utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[1], self.a*1.5)
+        self.t2 = np.arange(self.T*self.fs)/self.fs
 
     def test_butterworth(self):
         # Sample rate and desired cutoff frequencies (in Hz).
@@ -99,66 +102,209 @@ class FilterTests(unittest.TestCase):
         lowcut = 500.0
         highcut = 1200.0
         tic = time.perf_counter()
-        x_filter, f_band = precondition.butterworth_filter_data(self.x, fs = self.fs, bands= [(lowcut, highcut)])
+        x_filter, f_band = precondition.butterworth_filter_data(self.x, fs=self.fs, bands=[(lowcut, highcut)])
         toc = time.perf_counter()
-        print(f" Butterworth filter executed in {toc - tic:0.4f} seconds")
+        print(f"Butterworth filter executed in {toc - tic:0.4f} seconds")
 
         fname = 'test_signal_filtered_Signal.png'
         plot_filtered_signal(self.t, self.x, x_filter[0], lowcut, highcut)
-        plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # Should eliminate low and high frequency noise, only 600 Hz
 
         fname = 'test_phase_locking.png'
+        plt.figure()
         plot_phase_locking(self.t, self.a, self.f0, x_filter[0])
-        plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # Green and red should overlap
 
         fname = 'freq_response_vs_filter_order.png'
+        plt.figure()
         plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
-        plt.show()
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # freq response should improve with higher order
 
         fname = 'plot_psd.png'
+        plt.figure()
         plot_psd(self.x, x_filter[0], self.fs)
+        savefig(write_dir, fname) # 312Hz and 2000Hz power should be much reduced after filtering
+
+        tic = time.perf_counter()
+        x_filter, f_band = precondition.butterworth_filter_data(self.x2, fs=self.fs, bands=[(lowcut, highcut)])
+        toc = time.perf_counter()
+        print(f"Butterworth filter executed in {toc - tic:0.4f} seconds for 8 channels")
+
+        self.assertEqual(x_filter[0].shape, (self.t2.size, self.n_ch))
+
+        fname = 'test_signal_filtered_multichannel.png'
+        plt.figure()
+        plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
+        savefig(write_dir, fname) # Should only have 600 Hz
+
+    def test_mtfilter(self):
+        band = [-500, 500] # signals within band can pass
+        N = 0.005 # N*sampling_rate is time window you analyze
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_mtfilter = precondition.mtfilter(self.x2, tapers, fs = self.fs, f0 = f0)
+        x_312hz = utils.generate_multichannel_test_signal(self.T, self.fs, 1, 312, self.a*1.5)
+        plt.figure()
+        plt.plot(self.x, label='Original signal (312 Hz + 600 Hz)')
+        plt.plot(x_312hz, label='Original signal (312 Hz)')
+        plt.plot(x_mtfilter[:,0], label='Multitaper-filtered signal')
+        plt.xlim([0,500])
+        plt.legend()
+        fname = 'mtfilter.png'
+        savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+
+        band = [-50, 50]
+        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz = utils.generate_multichannel_test_signal(2, self.fs, self.n_ch, 30, self.a)
+        noise = np.random.normal(0,1,x_30hz.shape)*self.a
+        x_30hz_noise = x_30hz + noise
+        x_30hz_mtfilter = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [-50, 50], N = 0.1')
+        plt.legend()
+        fname = 'mtfilter_narrow.png'
+        savefig(write_dir, fname) # Should have power in 30 Hz
+
+        band = [0, 100]
+        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz_mtfilter2 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter2[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [0, 100], N = 0.1')
+        plt.legend()
+        fname = 'mtfilter_narrow_2.png'
+        savefig(write_dir, fname) # Should have power in 30 Hz
+
+        band = [0, 50]
+        N = 0.5 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz_mtfilter3 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter3[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [0, 50], N = 0.5')
+        plt.legend()
         plt.show()
-        savefig(write_dir, fname)
+
+        self.assertEqual(x_mtfilter.shape, self.x2.shape)
+
 
     def test_multitaper(self):
         f, psd_filter, mu = precondition.get_psd_multitaper(self.x, self.fs)
         psd = precondition.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
 
         fname = 'multitaper_powerspectrum.png'
-        plot_db_spectral_estimate(f, psd, psd_filter, 'multitaper')
-        plt.show()
-        savefig(write_dir, fname)
+        plt.figure()
+        plt.plot(f, psd, label='Welch')
+        plt.plot(f, psd_filter, label='Multitaper')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('PSD')
+        plt.legend()
+        savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
 
-        bands = [(0, 10), (100, 200), (560, 660), (2000, 2010)]
-        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, 1, False)
+        bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
+        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        plt.figure()
         plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
         plt.xticks(np.arange(len(bands)), bands)
         plt.xlabel('Frequency band (Hz)')
         plt.ylabel('Band Power')
-        plt.show()
         fname = 'lfp_bandpower.png'
-        savefig(write_dir, fname)
+        savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+
+        f, psd_filter, mu = precondition.get_psd_multitaper(self.x2, self.fs)
+        self.assertEqual(psd_filter.shape[1], self.n_ch)
+        print(mu.shape)
+        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        self.assertEqual(lfp.shape[1], self.x2.shape[1])
+        self.assertEqual(lfp.shape[0], len(bands))
+
+
+    def test_downsample(self):
+        data = np.arange(100)
+        data_ds = precondition.downsample(data, 100, 10)
+        self.assertEqual(data_ds.shape, (10,))
+        self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
+
+        data = np.vstack((data, np.arange(100))).T
+        data_ds = precondition.downsample(data, 100, 10)
+        self.assertEqual(data_ds.shape, (10, 2))
+        self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
+
+    def test_filter_lfp(self):
+        
+        test_data = np.random.uniform(size=(100000,2))
+        filt = precondition.filter_lfp(test_data, 25000)
+        self.assertEqual(filt.shape, (100000/25, 2))
+        self.assertAlmostEqual(np.mean(test_data), np.mean(filt), places=3)
+
+    def test_filter_spikes(self):
+
+        test_data = np.random.uniform(size=(100000,2))
+        filt = precondition.filter_spikes(test_data, 25000)
+        self.assertEqual(filt.shape, test_data.shape)
+        self.assertNotAlmostEqual(np.mean(test_data), np.mean(filt), places=3) # After filtering these should be different
+
 
 class SpikeDetectionTests(unittest.TestCase):
         
     def test_calc_spike_threshold(self):
         data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
-        threshold_values = precondition.calc_spike_threshold(data)
-        expected_thresh_values = np.array((6,13.5,3))
+        threshold_values = precondition.calc_spike_threshold(data, high_threshold=True, rms_multiplier=3)
+        expected_thresh_values = np.array((8,18,3))
+        np.testing.assert_allclose(threshold_values, expected_thresh_values)
+
+        # Test low_threhshold
+        threshold_values = precondition.calc_spike_threshold(data, high_threshold=False, rms_multiplier=3)
+        expected_thresh_values = np.array((-4,-9,-3))
         np.testing.assert_allclose(threshold_values, expected_thresh_values)
 
     def test_detect_spikes(self):
         # Test spike time detection
         data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
         threshold_values = np.array((0.5, 0.5, 0.5))
-        spike_times, wfs = precondition.detect_spikes(data, 10, wf_length=None, threshold=threshold_values)
+        spike_times, wfs = precondition.detect_spikes(data, 10, threshold=threshold_values, above_thresh=True, wf_length=None)
         np.testing.assert_allclose(spike_times[0], np.array((0.1, 0.3)))
         np.testing.assert_allclose(spike_times[1], np.array((0.2)))
         np.testing.assert_allclose(spike_times[2], np.array((0.3)))
         self.assertEqual(len(wfs), 0)
+
+        # Test negative threshold detection
+        data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
+        threshold_values = np.array((0.5, 0.5, 0.5))
+        spike_times, wfs = precondition.detect_spikes(-data, 10, threshold=-threshold_values, above_thresh=False, wf_length=None)
+        np.testing.assert_allclose(spike_times[0], np.array((0.1, 0.3)))
+        np.testing.assert_allclose(spike_times[1], np.array((0.2)))
+        np.testing.assert_allclose(spike_times[2], np.array((0.3)))
+        self.assertEqual(len(wfs), 0)
+
+        # Test uneven threshold detection.
+        data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
+        threshold_values = np.array((2, 5, 0.5))
+        spike_times, wfs = precondition.detect_spikes(-data, 10, threshold=-threshold_values, above_thresh=False, wf_length=None)
+        np.testing.assert_allclose(spike_times[0], np.array((0.1, 0.3)))
+        np.testing.assert_allclose(spike_times[1], np.array((0.2)))
+        np.testing.assert_allclose(spike_times[2], np.array((0.3)))
+        self.assertEqual(len(wfs), 0)
+
 
         # Test waveforms
         large_data = np.zeros((20,4))
@@ -168,36 +314,78 @@ class SpikeDetectionTests(unittest.TestCase):
             
         large_data[10:,0] = np.arange(0,large_data.shape[0]-10) 
 
-        _, wfs = precondition.detect_spikes(large_data, 300, wf_length=10000, threshold=threshold)
-        np.testing.assert_allclose(wfs[0], np.array(((3,4,5),(3,4,5))))
-        np.testing.assert_allclose(wfs[1], np.array((8,9,10)).reshape(1,-1))
-        np.testing.assert_allclose(wfs[2], np.array((13,14,15)).reshape(1,-1))
+        _, wfs = precondition.detect_spikes(large_data, 300, threshold=threshold, tbefore_wf=3333, wf_length=10000)
+        np.testing.assert_allclose(wfs[0], np.array(((2,3,4),(2,3,4))))
+        np.testing.assert_allclose(wfs[1], np.array((7,8,9)).reshape(1,-1))
+        np.testing.assert_allclose(wfs[2], np.array((12,13,14)).reshape(1,-1))
         np.testing.assert_allclose(wfs[3], np.array((np.nan,np.nan,np.nan)).reshape(1,-1))
-
-        # Test automatic thresholding
-        spike_times, wfs = precondition.detect_spikes(large_data, 100, wf_length=10000, threshold=None)
-        np.testing.assert_allclose(spike_times[0], np.array((0.09, 0.19)))
-        np.testing.assert_allclose(spike_times[1], np.array((0.18)))
-        np.testing.assert_allclose(wfs[0], np.array(((9),(np.nan))).reshape(-1,1))
-        np.testing.assert_allclose(wfs[1], np.array((18)))
 
         # Test speed
         test_speed_data = np.random.normal(size=(250000, 256))
         start = time.time()
-        _, _ = spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, wf_length=1000, threshold=None)
+        threshold = precondition.calc_spike_threshold(test_speed_data)
+        spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, threshold=threshold, wf_length=10000)
         stop = time.time()
 
         print('Spike detection on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
+
+    def test_filter_spike_times_fast(self):
+        data = np.array(((0,0),(1,1),(0,0),(1,0),(0,0),(1,1)))
+        threshold = np.array((0.5,0.5))
+        spike_times, _ = precondition.detect_spikes(data,1,threshold=threshold,tbefore_wf=1e6,wf_length=2e6)
+        filtered_spike_times1, _ = precondition.filter_spike_times_fast(spike_times[0], refractory_period=2.5e6)
+        filtered_spike_times2, _ = precondition.filter_spike_times_fast(spike_times[1], refractory_period=2.5e6)
+        np.testing.assert_allclose(filtered_spike_times1, np.array((1)))
+        np.testing.assert_allclose(filtered_spike_times2, np.array((1,5)))
+
+    def test_filter_spike_times(self):
+        data = np.array(((0,0),(1,1),(0,0),(1,0),(0,0),(1,1)))
+        threshold = np.array((0.5,0.5))
+        spike_times, _ = precondition.detect_spikes(data,1,threshold=threshold,tbefore_wf=1e6,wf_length=2e6)
+        filtered_spike_times1, _ = precondition.filter_spike_times(spike_times[0], refractory_period=2.5e6)
+        filtered_spike_times2, _ = precondition.filter_spike_times(spike_times[1], refractory_period=2.5e6)
+        np.testing.assert_allclose(filtered_spike_times1, np.array((1,5)))
+        np.testing.assert_allclose(filtered_spike_times2, np.array((1,5)))
+
+    def test_filter_spike_times_speed(self):
+        test_speed_data = np.random.normal(size=(250000, 256))
+        threshold = precondition.calc_spike_threshold(test_speed_data)
+        spike_times, wfs = precondition.detect_spikes(test_speed_data, 25000, threshold=threshold, wf_length=10000)
+        
+        start = time.time()
+        for ich in range(len(spike_times)):
+            filtered_spike_times1, _ = precondition.filter_spike_times_fast(spike_times[ich], refractory_period=100)
+        stop = time.time()
+        print('Fast spike filtering on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
+
+        start = time.time()
+        for ich in range(len(spike_times)):
+            filtered_spike_times1, _ = precondition.filter_spike_times(spike_times[ich], refractory_period=100)
+        stop = time.time()
+        print('Regular spike filtering on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
 
     def test_binspikes(self):
         data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
         data_T = data.T
         fs = 10
         binned_spikes = precondition.bin_spikes(data_T, fs, 0.5)
-        # print(binned_spikes)
+
         self.assertEqual(binned_spikes.shape[0], 4)
         self.assertEqual(binned_spikes.shape[1], 2)
-        self.assertEqual(binned_spikes[0,0], 2*fs) # [spikes/s] 2 spikes/bin * fs
+        self.assertEqual(binned_spikes[0,0], 4) # Sum first 5 points and * 2
+
+    def test_bin_spike_times(self):
+        spike_times = np.array([0.0208, 0.0341, 0.0347, 0.0391, 0.0407])
+        spike_times = spike_times.T
+        time_before = 0
+        time_after = 0.05
+        bin_width = 0.01
+        binned_unit_spikes, time_bins = precondition.bin_spike_times(spike_times, time_before, time_after, bin_width)
+        
+        self.assertEqual(binned_unit_spikes[2], 100)
+        self.assertEqual(binned_unit_spikes[3], 300)
+        self.assertEqual(time_bins[2], 0.025)
+        self.assertEqual(time_bins[3], 0.035)
 
 if __name__ == "__main__":
     unittest.main()
