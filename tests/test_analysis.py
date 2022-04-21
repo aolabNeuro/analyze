@@ -3,6 +3,11 @@ import aopy
 import numpy as np
 import warnings
 import unittest
+import os
+
+test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
+write_dir = os.path.join(test_dir, 'tmp')
 
 class FactorAnalysisTests(unittest.TestCase):
 
@@ -361,6 +366,17 @@ class ModelFitTests(unittest.TestCase):
         weights = np.array([0, 1, 1, 1, 1])
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
+
+class AccLLRTests(unittest.TestCase):
+
+    def testAccLLR(self):
+        pass
+
+    # def testAccLLR_real_data(self):
+    #     data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
+    #     cond1 = data['cond1']
+    #     cond2 = data['cond2']
+    #     samplerate = data['samplerate']
 
 
 if __name__ == "__main__":
