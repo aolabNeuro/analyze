@@ -933,3 +933,14 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
+
+def advance_plot_color(ax, n):
+    '''
+    Utility to skip colors for the given axis.
+    
+    Args:
+        ax (pyplot.Axes): specify which axis to advance the color
+        n (int): how many colors to skip in the cycle
+    '''
+    for _ in range(n):
+        next(ax._get_lines.prop_cycler)

@@ -358,5 +358,10 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'events_time'
         savefig(write_dir,filename)
 
+    def test_advance_plot_color(self):
+        # Nothing to test here ;-)
+        pass
+
+
 if __name__ == "__main__":
     unittest.main()
