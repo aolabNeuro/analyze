@@ -188,6 +188,15 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     Returns:
         eye_dict (dict): all the data pertaining to eye tracking, calibration
         eye_metadata (dict): metadata for eye tracking
+
+    Example:
+        Uncalibrated raw data:
+
+        .. image:: _images/eye_trajectories.png
+
+        After calibration:
+
+        .. image:: _images/eye_trajectories_calibrated.png
     '''
     # Check if data already exists
     filepath = os.path.join(result_dir, result_filename)
@@ -219,20 +228,27 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     events = exp_data['events']
     event_codes = events['code']
     event_times = clock[events['time']] # time points in the ecube time frame
-    coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
-        cursor_data_time, cursor_samplerate, eye_data, eye_metadata['samplerate'], 
-        event_times, event_codes, return_datapoints=True, **kwargs)
-    calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
+    try:
+        coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
+            cursor_data_time, cursor_samplerate, eye_data, eye_metadata['samplerate'], 
+            event_times, event_codes, return_datapoints=True, **kwargs)
+
+        calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
+        eye_dict = {
+            'raw_data': eye_data,
+            'calibrated_data': calibrated_eye_data,
+            'coefficients': coeff,
+            'correlation_coeff': correlation_coeff,
+            'cursor_calibration_data': cursor_calibration_data,
+            'eye_calibration_data': eye_calibration_data
+        }
+
+    except ValueError:
+        # If there aren't enough trials, this will fail. We should still save the eye data, just don't
+        # include the calibrated data
+        eye_dict = {'raw_data': eye_data}
 
     # Save everything into the HDF file
-    eye_dict = {
-        'raw_data': eye_data,
-        'calibrated_data': calibrated_eye_data,
-        'coefficients': coeff,
-        'correlation_coeff': correlation_coeff,
-        'cursor_calibration_data': cursor_calibration_data,
-        'eye_calibration_data': eye_calibration_data
-    }
     if save_res:
         save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
         save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)

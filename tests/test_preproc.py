@@ -1,3 +1,5 @@
+from matplotlib import pyplot as plt
+from aopy import visualization
 from aopy.preproc import *
 from aopy.preproc.bmi3d import *
 from aopy.data import *
@@ -7,6 +9,7 @@ import unittest
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+img_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -672,15 +675,20 @@ class TestPrepareExperiment(unittest.TestCase):
 
         proc_exp(data_dir, files, write_dir, result_filename)
 
-        # Should fail because not enough trials in this session
-        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename))
+        # Not enough trials in this session to calibrate, so only raw data should be processed
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
+        self.assertIsNotNone(eye)
+        self.assertIsNotNone(meta)
+        self.assertIn('raw_data', eye)
+        self.assertIn('samplerate', meta)
 
+        # This dataset has more trials
         result_filename = 'test_proc_eyetracking.hdf'
         files['ecube'] = '2021-09-29_BMI3D_te2949'
         files['hdf'] = 'beig20210929_02_te2949.hdf'
         if os.path.exists(os.path.join(write_dir, result_filename)):
             os.remove(os.path.join(write_dir, result_filename))
-        proc_exp(data_dir, files, write_dir, result_filename)
+        exp_data, exp_metadata = proc_exp(data_dir, files, write_dir, result_filename)
 
         # Test that eye calibration is returned, but results are not saved
         eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
@@ -695,8 +703,26 @@ class TestPrepareExperiment(unittest.TestCase):
         meta = load_hdf_group(write_dir, result_filename, 'eye_metadata')
         self.assertIsNotNone(eye)
         self.assertIsNotNone(meta)
+        self.assertIn('raw_data', eye)
+        self.assertIn('calibrated_data', eye)
+        self.assertGreater(eye['correlation_coeff'][0], 0.5)
+        self.assertGreater(eye['correlation_coeff'][1], 0.5)
+        self.assertGreater(eye['correlation_coeff'][2], 0.5)
+        self.assertGreater(eye['correlation_coeff'][3], 0.5)
+        self.assertIn('samplerate', meta)
 
+        # Plot calibrated eye data to make sure everything is working properly
+        raw_data = eye['raw_data']
+        bounds = np.array(exp_metadata['cursor_bounds'])[[0,1,4,5]]
+        visualization.plot_trajectories([raw_data], bounds=bounds)
+        figname = 'eye_trajectories_raw.png'
+        visualization.savefig(img_dir, figname) # should have uncalibrated eye data
 
+        plt.figure()
+        eye_data = eye['calibrated_data']
+        visualization.plot_trajectories([eye_data], bounds=bounds)
+        figname = 'eye_trajectories_calibrated.png'
+        visualization.savefig(img_dir, figname) # should have centered eye data
 
     def preproc_multiple(self):
         result_filename = 'test_proc_multiple.hdf'
