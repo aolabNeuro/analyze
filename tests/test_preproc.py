@@ -598,7 +598,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
         # Test sync version 7
         files = {}
-        files['hdf'] = 'test20211213_01_te3498.hdf'
+        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
         files['ecube'] = '2021-12-13_BMI3D_te3498'
@@ -716,7 +716,7 @@ class ProcTests(unittest.TestCase):
     def test_proc_single(self):
         files = {}
         files['ecube'] = 'fake ecube data'
-        files['hdf'] = 'test20211213_01_te3498.hdf'
+        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
         result_prefix='fake_data'
         proc_single(data_dir, write_dir, result_prefix, files, overwrite=True)
 

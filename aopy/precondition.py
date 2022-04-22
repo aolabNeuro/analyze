@@ -279,23 +279,25 @@ def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
     Bandpass-filter a time series data using the multitaper method
 
     Example:
-        band = [-500, 500] # signals within band can pass
-        N = 0.005 # N*sampling_rate is time window you analyze
-        NW = (band[1]-band[0])/2
-        T = 0.05
-        fs = 25000
-        nch = 1
-        x_312hz = utils.generate_multichannel_test_signal(T, fs, nch, 312, self.a*1.5)
-        x_600hz = utils.generate_multichannel_test_signal(T, fs, nch, self.freq[0], self.a*0.5)
-        f0 = np.mean(band)
-        tapers = [N, NW]
-        x_mtfilter = precondition.mtfilter(x_312hz + x_600hz, tapers, fs=fs, f0=f0)
-        plt.figure()
-        plt.plot(x_312hz + x_600hz, label='Original signal (312 Hz + 600 Hz)')
-        plt.plot(x_312hz, label='Original signal (312 Hz)')
-        plt.plot(x_mtfilter, label='Multitaper-filtered signal')
-        plt.xlim([0,500])
-        plt.legend()
+        ::
+
+            band = [-500, 500] # signals within band can pass
+            N = 0.005 # N*sampling_rate is time window you analyze
+            NW = (band[1]-band[0])/2
+            T = 0.05
+            fs = 25000
+            nch = 1
+            x_312hz = utils.generate_multichannel_test_signal(T, fs, nch, 312, self.a*1.5)
+            x_600hz = utils.generate_multichannel_test_signal(T, fs, nch, self.freq[0], self.a*0.5)
+            f0 = np.mean(band)
+            tapers = [N, NW]
+            x_mtfilter = precondition.mtfilter(x_312hz + x_600hz, tapers, fs=fs, f0=f0)
+            plt.figure()
+            plt.plot(x_312hz + x_600hz, label='Original signal (312 Hz + 600 Hz)')
+            plt.plot(x_312hz, label='Original signal (312 Hz)')
+            plt.plot(x_mtfilter, label='Multitaper-filtered signal')
+            plt.xlim([0,500])
+            plt.legend()
 
         .. image:: _images/mtfilter.png
 
