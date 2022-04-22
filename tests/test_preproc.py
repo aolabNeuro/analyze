@@ -710,6 +710,33 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
 
+class ProcTests(unittest.TestCase):
+
+    def test_proc_single(self):
+        files = {}
+        files['ecube'] = 'fake ecube data'
+        files['hdf'] = 'test20211213_01_te3498.hdf'
+        result_prefix='fake_data'
+        proc_single(data_dir, write_dir, result_prefix, files, overwrite=True)
+
+    def test_proc_broadband(self):
+        files = {'ecube': "short headstage test"}
+        result_filename = 'short_headstage_test_broadband.hdf'
+        result_filepath = os.path.join(write_dir, result_filename)
+        if os.path.exists(result_filepath):
+            os.remove(result_filepath)
+        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False)
+        self.assertTrue(os.path.exists(result_filepath))
+        contents = get_hdf_dictionary(write_dir, result_filename)
+        self.assertIn('broadband_data', contents)
+        self.assertIn('broadband_metadata', contents)
+
+        # Don't overwrite
+        test_fun = lambda: proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False)
+        self.assertRaises(FileExistsError, test_fun)
+
+        # Overwrite
+        proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
 
     def test_proc_lfp(self):
         result_filename = 'test_proc_lfp.hdf'

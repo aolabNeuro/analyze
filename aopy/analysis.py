@@ -798,6 +798,62 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
 
+
+def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
+    '''
+    Computes inter-spike interval histogram. The input data is the sampled thresholded data (0 or 1 data).
+
+    Example:
+        >>> data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        >>> data_T = data.T
+        >>> fs = 100
+        >>> bin_width = 0.01
+        >>> hist_width = 0.1
+        >>> ISI_hist, hist_bins = analysis.calc_ISI(data_T, fs, bin_width, hist_width)
+        >>> print(ISI_hist) 
+            [[0. 0.]
+            [2. 3.]
+            [2. 1.]
+            [2. 1.]
+            [1. 2.]
+            [0. 0.]
+            [0. 0.]
+            [0. 0.]
+            [0. 0.]]
+
+    Args:
+        data (nt, n_unit): time series spike data with multiple units.
+        fs (float): sampling rate of data [Hz]
+        bin_width (float): bin_width to compute histogram [s]
+        hist_width (float): determines bin edge (0 < t < histo_width) [s]
+        plot_flag (bool, optional): display histogram. In plotting, number of intervals is summed across units.
+
+    Returns:
+        ISI_hist (n_bins, n_unit) : number of intervals
+        hist_bins (n_bins): bin edge to compute histogram
+    '''
+
+    n_unit = data.shape[1]
+    dT = 1/fs
+    hist_bins = np.arange(0, hist_width, bin_width)
+
+    ISI_hist = np.zeros((len(hist_bins)-1, n_unit))
+    for iU in range(n_unit):
+        spike_idx = np.where( data[:,iU] )
+        ISI = np.diff(spike_idx)*dT
+        ISI_hist[:,iU], _ = np.histogram(ISI, hist_bins)
+    
+    hist_bins = hist_bins[:-1] + np.diff(hist_bins)/2 # change hist_bins to be the center of the bin, not the edges
+
+    # for plot
+    if plot_flag:
+        plt.bar(hist_bins*1000, np.sum(ISI_hist,axis=1), width = bin_width*1000, edgecolor="black") #multiplied 1000 to rescale to [ms]
+        plt.xlabel('Interspike interval (ms)')
+        plt.ylabel('Number of intervals')
+        plt.show()
+
+    return ISI_hist, hist_bins
+
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
@@ -821,6 +877,98 @@ def calc_sem(data, axis=None):
     SEM = np.nanstd(data, axis=axis)/np.sqrt(n)
 
     return SEM
+
+
+def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
+    '''
+    Calculates the mean (across trials) event-related potential (ERP) for the given timeseries data.
+
+    Args:
+        data (nt, nch): timeseries data across channels
+        event_times (ntrial): list of event times
+        time_before (float): number of seconds to include before each event
+        time_after (float): number of seconds to include after each event
+        samplerate (float): sampling rate of the data
+        subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
+            the time_before period preceding each event. Must supply a positive time_before. Default True
+        baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
+            Default is the entire time_before period.
+
+    Returns:
+        (ntr, nt, nch): array of event-aligned responses for each channel during the given time periods
+
+    '''
+    if subtract_baseline and time_before <= 0:
+        raise ValueError("Input time_before must be positive in order to calculate baseline")
+        
+    # Align the data to the given event times (shape is [trials x time x channels])
+    n_events = len(event_times)
+    aligned_data = preproc.trial_align_data(data, event_times, time_before, time_after, samplerate)
+
+    if subtract_baseline:
+        
+        # Take a mean across the data before the events as a baseline
+        if not baseline_window:
+            baseline_window = (0, time_before)
+        elif len(baseline_window) < 2 or baseline_window[1] < baseline_window[0]:
+            raise ValueError("baseline_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
+        before_samples = int(time_before*samplerate)
+        s0 = before_samples - int(baseline_window[1]*samplerate)
+        s1 = before_samples - int(baseline_window[0]*samplerate)
+        event_mean = np.mean(aligned_data[:,s0:s1,:], axis=1)
+
+        # Subtract the baseline to calculate ERP
+        n_samples = aligned_data.shape[1]
+        event_mean = np.tile(event_mean, (n_samples, 1, 1)).reshape((n_events, n_samples, -1))
+        erp = aligned_data - event_mean
+    else:
+
+        # Just use the aligned data as-is
+        erp = aligned_data
+
+    return erp
+
+def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None):
+    '''
+    Calculates the maximum (across time) mean (across trials) event-related potential (ERP) 
+    for the given timeseries data.
+
+    Args:
+        data (nt, nch): timeseries data across channels
+        event_times (ntrial): list of event times
+        time_before (float): number of seconds to include before each event
+        time_after (float): number of seconds to include after each event
+        samplerate (float): sampling rate of the data
+        subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
+            the time_before period preceding each event. Must supply a positive time_before. Default True
+        baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
+            Default is the entire time_before period.
+        max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
+            after event). Default is the entire time_after period.
+
+    Returns:
+        nch: array of maximum mean-ERP for each channel during the given time periods
+
+    '''
+    mean_erp = np.mean(calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window), axis=0)
+
+    # Limit the search to the given window
+    start_idx = int(time_before*samplerate)
+    end_idx = start_idx + int(time_after*samplerate)
+    if max_search_window:
+        if len(max_search_window) < 2 or max_search_window[1] < max_search_window[0]:
+            raise ValueError("max_search_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
+        end_idx = start_idx + int(max_search_window[1]*samplerate)
+        start_idx += int(max_search_window[0]*samplerate)
+    mean_erp_window = mean_erp[start_idx:end_idx,:]
+
+    # Find the index that maximizes the absolute value, then use that index to get the actual signed value
+    idx_max_erp = start_idx + np.argmax(np.abs(mean_erp_window), axis=0)
+    max_erp = np.array([mean_erp[idx_max_erp[i],i] for i in range(mean_erp.shape[1])])
+
+    return max_erp
 
 '''
 MODEL FITTING
@@ -861,3 +1009,4 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
+
