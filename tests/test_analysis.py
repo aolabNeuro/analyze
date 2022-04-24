@@ -369,8 +369,37 @@ class ModelFitTests(unittest.TestCase):
 
 class AccLLRTests(unittest.TestCase):
 
-    def testAccLLR(self):
-        pass
+    def test_calc_activity_onset_accLLR(self):
+        # Spiking data
+        
+        cond1_train = np.array((0,0,0,0,0,0))
+        cond2_train = np.array((0,0,0,1,1,1))
+        cond2_test = np.array((0,0,0,1,1,1))
+        binwdith = 1
+
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond2_test, cond1_train, cond2_train, modality='lfp', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
+
+        print("Spikes AccLLR: ")
+        print(accLLR)
+
+        # LFP data 
+        cond1_train = np.array((0,0,0,0,0,0))
+        cond2_train = np.array((0,0,0,1,2,3))
+        cond2_test = np.array((0,0,0,1,2,3))
+        samplerate = 1
+
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond2_test, cond1_train, cond2_train, modality='lfp', bin_width=1./samplerate, thresh_proportion=0.15, trial_average=False)
+
+        print("LFP AccLLR: ")
+        print(accLLR)
+
+    def calc_accLLR_threshold(self):
+        # LFP data 
+        cond1_train = np.array((0,0,0,0,0,0))
+        cond2_train = np.array((0,0,0,1,2,3))
+        cond2_test = np.array((0,0,0,1,2,3))
+        samplerate = 1
+        thresh = aopy.analysis.calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality='lfp', bin_width=1./samplerate, step_size=0.01, false_alarm_prob=0.05)
 
     # def testAccLLR_real_data(self):
     #     data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
