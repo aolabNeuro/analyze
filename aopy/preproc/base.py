@@ -190,6 +190,8 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     if not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values))):
         nanmask_stamps = np.logical_not(np.isnan(timestamps))
         nanmask_values = np.logical_not(np.isnan(timestamp_values))
+        if timestamp_values.ndim > 1:
+            nanmask_values = nanmask_values[:,0] # assume if one is nan then the others are nan
         nanmask = np.logical_and(nanmask_stamps, nanmask_values)
         timestamps = timestamps[nanmask]
         timestamp_values = timestamp_values[nanmask]

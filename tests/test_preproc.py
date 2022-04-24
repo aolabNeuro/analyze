@@ -711,6 +711,15 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertGreater(eye['correlation_coeff'][3], 0.5)
         self.assertIn('samplerate', meta)
 
+        # This is a more recent dataset
+        result_filename = 'test_proc_eyetracking_220422.hdf'
+        files['ecube'] = '2022-04-22_BMI3D_te5062'
+        files['hdf'] = 'beig20220422_03_te5062.hdf'
+        if os.path.exists(os.path.join(write_dir, result_filename)):
+            os.remove(os.path.join(write_dir, result_filename))
+        exp_data, exp_metadata = proc_exp(data_dir, files, write_dir, result_filename)
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
+
         # Plot calibrated eye data to make sure everything is working properly
         raw_data = eye['raw_data']
         bounds = np.array(exp_metadata['cursor_bounds'])[[0,1,4,5]]

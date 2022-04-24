@@ -538,6 +538,7 @@ def _prepare_bmi3d_v1(data, metadata):
     valid_clock_cycles = len(corrected_clock)
 
     # 1. Digital clock from BMI3D via NI DIO card
+    sync_search_radius = 1.5/metadata['fps']
     if 'sync_clock' in data and len(data['sync_clock']) > 0:
         sync_clock = data['sync_clock']
         bmi3d_time_zero = sync_clock['timestamp'][0]
@@ -547,14 +548,13 @@ def _prepare_bmi3d_v1(data, metadata):
             print("Using internal clock timestamps")
         elif len(sync_clock) < len(internal_clock):
             print("Warning: length of clock timestamps on eCube ({}) doesn't match bmi3d record ({})".format(len(sync_clock), len(internal_clock)))
-            approx_clock[:len(sync_clock)] = sync_clock['timestamp']
-            valid_clock_cycles = len(sync_clock)
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
-        else:
-            # Same shape, just replace the approx clock with the sync clock
-            approx_clock = sync_clock['timestamp']
-        corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', approx_clock, dtypes='f8')
+        timestamp_sync = get_measured_clock_timestamps(
+            approx_clock, sync_clock['timestamp'], 0, sync_search_radius) # assume no latency between bmi3d and ecube via nidaq
+        nanmask = np.isnan(timestamp_sync)
+        timestamp_sync[nanmask] = approx_clock[nanmask] # if nothing, then use the approximated value
+        corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', timestamp_sync, dtypes='f8')
     else:
         print("Warning: no sync clock connected! This will usually result in problems.")
 
