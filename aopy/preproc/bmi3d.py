@@ -548,11 +548,14 @@ def _prepare_bmi3d_v1(data, metadata):
             print("Using internal clock timestamps")
         elif len(sync_clock) < len(internal_clock):
             print("Warning: length of clock timestamps on eCube ({}) doesn't match bmi3d record ({})".format(len(sync_clock), len(internal_clock)))
+            valid_clock_cycles = len(sync_clock)
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
         timestamp_sync = get_measured_clock_timestamps(
             approx_clock, sync_clock['timestamp'], 0, sync_search_radius) # assume no latency between bmi3d and ecube via nidaq
         nanmask = np.isnan(timestamp_sync)
+        print("DFJKDLSFJSKLDFJKLDFJSLDK")
+        print(f"this many are NaN: {np.count_nonzero(nanmask)} out of {len(timestamp_sync)}")
         timestamp_sync[nanmask] = approx_clock[nanmask] # if nothing, then use the approximated value
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', timestamp_sync, dtypes='f8')
     else:
