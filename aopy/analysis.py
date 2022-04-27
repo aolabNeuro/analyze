@@ -1130,3 +1130,20 @@ def get_psd_welch(data, fs,n_freq = None):
         f, psd = signal.welch(data, fs, average='median', axis=0)
     return f, psd
 
+def interp_multichannel(x):
+    """interp_multichannel
+
+    Args:
+        x (n_sample x n_ch): input data array containing nan-valued missing entries
+
+    Returns:
+        x_interp (n_sample x n_ch): interpolated data, uses `numpy.interp` method.
+    """
+    nan_idx = np.isnan(x)
+    ok_idx = ~nan_idx
+    xp = ok_idx.ravel().nonzero()[0]
+    fp = x[ok_idx]
+    idx = nan_idx.ravel().nonzero()[0]
+    x[nan_idx] = np.interp(idx,xp,fp)
+
+    return x
