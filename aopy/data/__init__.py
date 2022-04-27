@@ -15,6 +15,8 @@ import warnings
 import yaml
 from ..utils import get_pulse_edge_times, compute_pulse_duty_cycles
 
+from . import peslab
+
 def get_filenames_in_dir(base_dir, te):
     '''
     Gets the filenames for available systems in a given task entry. Requires that

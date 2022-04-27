@@ -461,30 +461,16 @@ class E3vFrameTests(unittest.TestCase):
         self.assertTrue(np.all(test_03_dc == pulse_dc))
 
 class PesaranLabTests(unittest.TestCase):
-
-    def test_parse_file_info(self):
-        pass
-
-    def test_load_experiment_data(self):
-        pass
-
-    def test_load_mask_data(self):
-        pass
-
+        
     def test_read_lfp(self):
         pass
 
     def test_load_ecog_clfp_data(self):
-        pass
+        # this only works if every other peslab function works, with the exception of the lfp function tested above (eventually)
+        test_ecog_ds250_data_file = os.path.join(data_dir,'peslab_test_data','recTEST.LM1_ECOG_3.clfp_ds250.dat')
+        test_data, test_exp, test_mask = peslab.load_ecog_clfp_data(test_ecog_ds250_data_file)
+        self.assertEqual(test_data.shape,(62,10000))
 
-    def test_read_from_start(self):
-        pass
-
-    def test_read_from_file(self):
-        pass
-
-    def test_get_exp_var(self):
-        pass
 
 if __name__ == "__main__":
     unittest.main()
