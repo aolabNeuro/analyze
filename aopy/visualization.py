@@ -11,6 +11,7 @@ from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 from scipy import signal
+from scipy.stats import zscore
 import numpy as np
 import os
 from PIL import Image
@@ -939,33 +940,50 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
             medianprops=dict(color=linecolor))
 
 
-def profile_data_channels(data, samplerate, figuredir):
+def profile_data_channels(data, samplerate, figuredir, figsize=(6,5), dpi=150):
+    """profile_data_channels
+
+    Runs `plot_channel_summary` and `combine_channel_figures` on all channels in a data array
+
+    Args:
+        data (n_sample x n_channel): numpy array of neural data
+        samplerate (int): sampling rate of data
+        figuredir (str): string indicating file path to desired save directory
+    """
     
     if not os.path.exists(figuredir):
         os.makedirs(figuredir)
-    nsample, nch = data.shape
+    _, nch = data.shape
     
     for chidx in tqdm(range(nch)):
         chname = f'ch. {chidx+1}'
-        fig = plot_channel_summary(data[:,chidx], samplerate, chname=f'ch. {chidx+1}')
+        fig = plot_channel_summary(data[:,chidx], samplerate, chname=chname, figsize=figsize, dpi=dpi)
         fig.savefig(os.path.join(figuredir,f'ch_{chidx}.png'))
         
-    combine_channel_figures(figuredir, nch = nch)
+    combine_channel_figures(figuredir, nch=nch, figsize=figsize, dpi=dpi)
 
     
-def combine_channel_figures(figuredir, nch=256):
+def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
+    """combine_channel_figures
+
+    Combines all channel figures in directory generated from plot_channel_summary
+
+    Args:
+        figuredir (str): path to directory of channel profile images
+        nch (int, optional): number of channels from data array. Determines combined image layout. Defaults to 256.
+    """
     
-    assert os.path.exist(figuredir), f"Directory not found: {figuredir}"
+    assert os.path.exists(figuredir), f"Directory not found: {figuredir}"
     
     ncol = int(np.ceil(np.sqrt(nch))) # make things as square as possible
     nrow = int(np.ceil(nch/ncol))
-    imgw = 900
-    imgh = 600
+    imgw = figsize[0] * dpi # I should get these from the individual files...
+    imgh = figsize[1] * dpi
     
-    grid = Image.open(mode='RGB', size=(ncol*imgw, nrow*imgh))
+    grid = Image.new(mode='RGB', size=(ncol*imgw, nrow*imgh))
     
     print(f'profiling all {nch} channels...')
-    for chidx in tdqm(range(nch)):
+    for chidx in tqdm(range(nch)):
         figurefile = os.path.join(figuredir,f'ch_{chidx}.png')
         rowidx = chidx // ncol
         colidx = chidx % ncol
