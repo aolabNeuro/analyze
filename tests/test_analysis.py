@@ -457,6 +457,10 @@ class SpectrumTests(unittest.TestCase):
         self.x2 = aopy.utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[0], self.a*0.5) + \
             aopy.utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[1], self.a*1.5)
         self.t2 = np.arange(self.T*self.fs)/self.fs
+
+        self.win_t = 0.01
+        self.step_t = 0.005
+        self.bw = 4.
     
     def test_multitaper(self):
         f, psd_filter, mu = aopy.analysis.get_psd_multitaper(self.x, self.fs)
@@ -489,9 +493,11 @@ class SpectrumTests(unittest.TestCase):
         self.assertEqual(lfp.shape[0], len(bands))
 
         #TODO: complete sgram test
-        # f_sg, t_sg, sgram = aopy.analysis.get_sgram_multitaper(
-        #     self.x, self.fs, self.win_t, self.step_t
-        # )
+        f_sg, t_sg, sgram = aopy.analysis.get_sgram_multitaper(
+            self.x2, self.fs, self.win_t, self.step_t, self.bw
+        )
+        self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
+        self.assertEqual(sgram.shape[-1],self.x2.shape[-1]) # correct channel output count
 
 if __name__ == "__main__":
     unittest.main()
