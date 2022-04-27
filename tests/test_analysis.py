@@ -497,7 +497,7 @@ class SpectrumTests(unittest.TestCase):
             self.x2, self.fs, self.win_t, self.step_t, self.bw
         )
         self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
-        self.assertEqual(sgram.shape[-1],self.x2.shape[-1]) # correct channel output count
+        self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
 
 if __name__ == "__main__":
     unittest.main()
