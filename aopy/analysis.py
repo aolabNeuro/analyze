@@ -1013,35 +1013,33 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
 ######### Spectral Estimation and Analysis ############
 
-def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=False, jackknife=False, sides='default'):
+def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
     """get_sgram_multitaper
 
     Compute multitaper estimate from multichannel signal input.
 
     Args:
-        data (_type_): _description_
-        fs (_type_): _description_
-        win_t (_type_): _description_
-        step_t (_type_): _description_
-        nw (_type_, optional): _description_. Defaults to None.
-        bw (_type_, optional): _description_. Defaults to None.
-        adaptive (bool, optional): _description_. Defaults to False.
-        jackknife (bool, optional): _description_. Defaults to False.
-        sides (str, optional): _description_. Defaults to 'default'.
+        data (nt, nch): nd array of input neural data (multichannel)
+        fs (int): sampling rate
+        win_t (float): spectrogram window length (in seconds)
+        step_t (_type_): step size between spectrogram windows (in seconds)
+        nw (float, optional): time-half-bandwidth product. Defaults to None.
+        bw (_type_, optional): spectrogram bandwidth. Defaults to None.
+        adaptive (bool, optional): adaptive taper weighting. Defaults to False.
 
     Returns:
-        fxx (np.array): spectrogram frequency array
-        txx (np.array): spectrogram time array
-        Sxx (np.array): multitaper spectrogram estimate
+        fxx (np.array): spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+        txx (np.array): spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+        Sxx (len(fxx) x len(txx)): multitaper spectrogram estimate
     """
-
+    jackknife = False
+    sides = 'default'
     (n_sample, n_ch) = data.shape()
     total_t = n_sample/fs
     n_window = (total_t-win_t)/step_t
     window_len = win_t*fs
     step_len = step_t*fs
-    n_fbin = None #TODO: figure this out
-    # n_fbin = (window_len+1)//2
+    n_fbin = window_len // 2 + 1
     txx = np.arange(n_fbin)*step_t # window start time
     Sxx = np.zeros((n_fbin,n_window,n_ch))
 
