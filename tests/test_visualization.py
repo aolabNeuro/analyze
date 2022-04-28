@@ -119,12 +119,12 @@ class NeuralDataPlottingTests(unittest.TestCase):
         test_data = test_data[::ds_factor,ch_list] * test_mdata['voltsperbit']
         samplerate = test_mdata['samplerate'] // ds_factor
 
-        profile_data_channels(test_data,samplerate,figure_dir)
-        # fig_out_path = os.path.join(docs_dir,'source','_images','channel_profile_example.png')
-        # os.replace(
-        #     os.path.join(figure_dir,'all_ch.png'),
-        #     fig_out_path
-        # )
+        profile_data_channels(test_data, samplerate, figure_dir, cmap_lim=(0,1))
+        fig_out_path = os.path.join(docs_dir,'source','_images','channel_profile_example.png')
+        os.replace(
+            os.path.join(figure_dir,'all_ch.png'),
+            fig_out_path
+        )
     
 class CurveFittingTests(unittest.TestCase):
     def test_plot_tuning_curves(self):

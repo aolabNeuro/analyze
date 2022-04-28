@@ -950,15 +950,19 @@ def advance_plot_color(ax, n):
     for _ in range(n):
         next(ax._get_lines.prop_cycler)
 
-def profile_data_channels(data, samplerate, figuredir, figsize=(6,5), dpi=150):
+def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """profile_data_channels
 
     Runs `plot_channel_summary` and `combine_channel_figures` on all channels in a data array
 
     Args:
-        data (n_sample x n_channel): numpy array of neural data
+        data (nt, nch): numpy array of neural data
         samplerate (int): sampling rate of data
         figuredir (str): string indicating file path to desired save directory
+        kwargs (**dict): keyword arguments to pass to plot_channel_summary()
+
+    .. image:: _images/channel_profile_example.png
+    
     """
     
     if not os.path.exists(figuredir):
@@ -967,10 +971,10 @@ def profile_data_channels(data, samplerate, figuredir, figsize=(6,5), dpi=150):
     
     for chidx in tqdm(range(nch)):
         chname = f'ch. {chidx+1}'
-        fig = plot_channel_summary(data[:,chidx], samplerate, chname=chname, figsize=figsize, dpi=dpi)
+        fig = plot_channel_summary(data[:,chidx], samplerate, title=chname, **kwargs)
         fig.savefig(os.path.join(figuredir,f'ch_{chidx}.png'))
         
-    combine_channel_figures(figuredir, nch=nch, figsize=figsize, dpi=dpi)
+    combine_channel_figures(figuredir, nch=nch, figsize=kwargs.pop('figsize', (6,5)), dpi=kwargs.pop('dpi', 150))
 
     
 def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
@@ -981,6 +985,8 @@ def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
     Args:
         figuredir (str): path to directory of channel profile images
         nch (int, optional): number of channels from data array. Determines combined image layout. Defaults to 256.
+        figsize (tuple, optional): (width, height) to pass to pyplot. Default (6, 5)
+        dpi (int, optional): resolution to pass to pyplot. Default 150
     """
     
     assert os.path.exists(figuredir), f"Directory not found: {figuredir}"
@@ -1006,7 +1012,7 @@ def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
     grid.save(os.path.join(figuredir,'all_ch.png'),'png')
 
 
-def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange=None, chname=None, figsize=(6, 5), dpi=150, frange=(0, 80), cmap_lim=(0, 40)):
+def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange=None, title=None, figsize=(6, 5), dpi=150, frange=(0, 80), cmap_lim=(0, 40)):
     """plot_channel_summary
     
     Plot time domain trace, spectrogram and normalized (z-scored) spectrogram. Computes spectrogram.
@@ -1020,11 +1026,17 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     ---------------
     
     Args:
-        chdata (n_sample,1): neural recording data from a given channel (lfp, ecog, broadband)
+        chdata (nt,1): neural recording data from a given channel (lfp, ecog, broadband)
         samplerate (int): data sampling rate
         nperseg (int): length of each spectrogram window (in samples)
         noverlap (int): number of samples shared between neighboring spectrogram windows (in samples)
-    
+        trange (tuple, optional): (min, max) time range to display. Default show the entire time series
+        title (str, optional): print a title above the timeseries data. Default None
+        figsize (tuple, optional): (width, height) to pass to pyplot. Default (6, 5)
+        dpi (int, optional): resolution to pass to pyplot. Default 150
+        frange (tuple, optional): range of frequencies to display in spectrogram. Default (0, 80)
+        cmap_lim (tuple, optional): clim to display in the spectrogram. Default (0, 40)
+
     Outputs:
         fig (Figure): Figure object
     """
@@ -1065,6 +1077,6 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     ax[1].set_ylabel('freq. (Hz)')
     ax[2].set_ylabel('freq. (Hz)')
     ax[2].set_xlabel('time (s)')
-    ax[0].set_title(chname)
+    ax[0].set_title(title)
     
     return fig
