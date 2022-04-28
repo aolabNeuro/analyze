@@ -7,6 +7,7 @@ import os
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(os.path.dirname(test_dir),'docs')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -107,6 +108,23 @@ class NeuralDataPlottingTests(unittest.TestCase):
         ax.set_title('Mean off')
         fig.tight_layout()
         savefig(write_dir, filename)
+
+    def test_profile_data_channels(self):
+        ch_list = [0,5]
+        ds_factor = 25
+        test_data_folder = 'fake ecube data'
+        figure_dir = os.path.join(write_dir,'fake_data_ch_profile_test')
+        
+        test_data, test_mdata = aopy.data.load_ecube_analog(data_dir,test_data_folder)
+        test_data = test_data[::ds_factor,ch_list] * test_mdata['voltsperbit']
+        samplerate = test_mdata['samplerate'] // ds_factor
+
+        profile_data_channels(test_data, samplerate, figure_dir, cmap_lim=(0,1))
+        fig_out_path = os.path.join(docs_dir,'source','_images','channel_profile_example.png')
+        os.replace(
+            os.path.join(figure_dir,'all_ch.png'),
+            fig_out_path
+        )
     
 class CurveFittingTests(unittest.TestCase):
     def test_plot_tuning_curves(self):

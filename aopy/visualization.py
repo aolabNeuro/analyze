@@ -10,10 +10,15 @@ import matplotlib.dates as mdates
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
+from scipy import signal
+from scipy.stats import zscore
 import numpy as np
 import os
+from PIL import Image
 import copy
 import pandas as pd
+from tqdm import tqdm
+
 
 from . import postproc
 from . import analysis
@@ -944,3 +949,134 @@ def advance_plot_color(ax, n):
     '''
     for _ in range(n):
         next(ax._get_lines.prop_cycler)
+
+def profile_data_channels(data, samplerate, figuredir, **kwargs):
+    """profile_data_channels
+
+    Runs `plot_channel_summary` and `combine_channel_figures` on all channels in a data array
+
+    Args:
+        data (nt, nch): numpy array of neural data
+        samplerate (int): sampling rate of data
+        figuredir (str): string indicating file path to desired save directory
+        kwargs (**dict): keyword arguments to pass to plot_channel_summary()
+
+    .. image:: _images/channel_profile_example.png
+    
+    """
+    
+    if not os.path.exists(figuredir):
+        os.makedirs(figuredir)
+    _, nch = data.shape
+    
+    for chidx in tqdm(range(nch)):
+        chname = f'ch. {chidx+1}'
+        fig = plot_channel_summary(data[:,chidx], samplerate, title=chname, **kwargs)
+        fig.savefig(os.path.join(figuredir,f'ch_{chidx}.png'))
+        
+    combine_channel_figures(figuredir, nch=nch, figsize=kwargs.pop('figsize', (6,5)), dpi=kwargs.pop('dpi', 150))
+
+    
+def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
+    """combine_channel_figures
+
+    Combines all channel figures in directory generated from plot_channel_summary
+
+    Args:
+        figuredir (str): path to directory of channel profile images
+        nch (int, optional): number of channels from data array. Determines combined image layout. Defaults to 256.
+        figsize (tuple, optional): (width, height) to pass to pyplot. Default (6, 5)
+        dpi (int, optional): resolution to pass to pyplot. Default 150
+    """
+    
+    assert os.path.exists(figuredir), f"Directory not found: {figuredir}"
+    
+    ncol = int(np.ceil(np.sqrt(nch))) # make things as square as possible
+    nrow = int(np.ceil(nch/ncol))
+    imgw = figsize[0] * dpi # I should get these from the individual files...
+    imgh = figsize[1] * dpi
+    
+    grid = Image.new(mode='RGB', size=(ncol*imgw, nrow*imgh))
+    
+    print(f'profiling all {nch} channels...')
+    for chidx in tqdm(range(nch)):
+        figurefile = os.path.join(figuredir,f'ch_{chidx}.png')
+        rowidx = chidx // ncol
+        colidx = chidx % ncol
+        if not os.path.exists(figurefile):
+            continue
+        else:
+            with Image.open(figurefile) as img:
+                grid.paste(img,box=(colidx*imgw, rowidx*imgh))
+    
+    grid.save(os.path.join(figuredir,'all_ch.png'),'png')
+
+
+def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange=None, title=None, figsize=(6, 5), dpi=150, frange=(0, 80), cmap_lim=(0, 40)):
+    """plot_channel_summary
+    
+    Plot time domain trace, spectrogram and normalized (z-scored) spectrogram. Computes spectrogram.
+    
+    ---------------
+    | time series |
+    |-------------|
+    | spectrogram |
+    |-------------|
+    | norm sgram  |
+    ---------------
+    
+    Args:
+        chdata (nt,1): neural recording data from a given channel (lfp, ecog, broadband)
+        samplerate (int): data sampling rate
+        nperseg (int): length of each spectrogram window (in samples)
+        noverlap (int): number of samples shared between neighboring spectrogram windows (in samples)
+        trange (tuple, optional): (min, max) time range to display. Default show the entire time series
+        title (str, optional): print a title above the timeseries data. Default None
+        figsize (tuple, optional): (width, height) to pass to pyplot. Default (6, 5)
+        dpi (int, optional): resolution to pass to pyplot. Default 150
+        frange (tuple, optional): range of frequencies to display in spectrogram. Default (0, 80)
+        cmap_lim (tuple, optional): clim to display in the spectrogram. Default (0, 40)
+
+    Outputs:
+        fig (Figure): Figure object
+    """
+    
+    assert len(chdata.shape) < 2, "Input data array must be 1d"
+    
+    time = np.arange(len(chdata))/samplerate
+    if trange is None:
+        trange = (time[0], time[-1])
+                                   
+    if nperseg is None:
+        nperseg = int(2*samplerate)
+                                
+    if noverlap is None:
+        noverlap = int(1.5*samplerate)
+    
+    f_sg, t_sg, sgram = signal.spectrogram(
+        chdata,
+        fs=samplerate,
+        nperseg=nperseg,
+        noverlap=noverlap,
+        detrend='linear'
+    )
+    log_sgram = np.log10(sgram)
+    
+    fig, ax = plt.subplots(3,1,figsize=figsize,dpi=dpi,constrained_layout=True,sharex=True)
+    ax[0].plot(time, chdata)
+    sg_pcm = ax[1].pcolormesh(t_sg,f_sg,10*log_sgram,vmin=cmap_lim[0],vmax=cmap_lim[1],shading='auto')
+    ax[1].set_ylim(*frange)
+    sg_cb = plt.colorbar(sg_pcm,ax=ax[1])
+    sg_cb.ax.set_ylabel('dB$\mu$')
+    sgn_pcm = ax[2].pcolormesh(t_sg,f_sg,zscore(log_sgram,axis=-1),vmin=-3,vmax=3,shading='auto',cmap='bwr')
+    ax[2].set_ylim(*frange)
+    sgn_cb = plt.colorbar(sgn_pcm,ax=ax[2])
+    sgn_cb.ax.set_ylabel('z-scored dB$\mu$')
+    ax[0].set_xlim(*trange)
+    ax[0].set_ylabel('amp. ($\mu V$)')
+    ax[1].set_ylabel('freq. (Hz)')
+    ax[2].set_ylabel('freq. (Hz)')
+    ax[2].set_xlabel('time (s)')
+    ax[0].set_title(title)
+    
+    return fig
