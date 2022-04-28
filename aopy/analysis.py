@@ -991,9 +991,42 @@ def calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality, bin_wi
     return fa_rates_above_desired[0]
 
 
-def accLLR_wrapper(data_cond1, data_cond2):
+def accLLR_wrapper(data_cond1, data_cond2, modality, bin_width, train_prop_input=0.7, step_size=0.01, false_alarm_prob=0.05):
     '''
     1. Separates data into 'model building' (training + test) and 'implementing' groups by trials 
+        Assumes model building dataset is split into a 60/40 split
     2. Calculates accLLR threshold on training and test data
     3. Implements accLLR on 'implementing' data
+    
+    Args:
+        data_cond1 (npts, ntrials):
+        data_cond2 (npts, ntrials):
+        modality (str): either 'spikes' or 'lfp'
+        train_prop (float): proportion of trials to build the model with
+        
     '''
+    # Split into model building and testing data sets (outputs (ntrial, npt) datasets)
+    test_data_cond1, build_data_cond1, test_data_cond2, build_data_cond2 = model_selection.train_test_split(data_cond1.T, data_cond2.T, test_size=train_prop_input)
+
+    # Separate model building data into valid/test sets
+    nbuild_trials = build_data_cond1.shape[0]
+    ntrain_trials = np.floor(nbuild_trials*0.6) # not sure if we should have the user input this
+    nvalid_trials = nbuild_trials-ntrain_trials
+
+    train_trialidxs = np.random.choice(np.arange(nbuild_trials), size=ntrain_trials)
+    train_trial_mask = np.zeros(nbuild_trials, dtype=bool)
+    train_trial_mask[train_trialidxs] = True
+
+    train_data_cond1 = build_data_cond1[train_trial_mask,:]
+    train_data_cond2 = build_data_cond2[train_trial_mask,:]
+    valid_data_cond1 = build_data_cond1[np.logical_not(train_trial_mask),:]
+    valid_data_cond2 = build_data_cond2[np.logical_not(train_trial_mask),:]
+
+    # Input train and validate data to calculate acclllr threshold (transpose data back to input into accllr functions)
+    accllr_thresh = calc_accLLR_threshold(train_data_cond1.T, train_data_cond2.T, valid_data_cond2.T, modality, bin_width, step_size=step_size, false_alarm_prob=false_alarm_prob)
+
+    # Use the calculated threshold to run accllr on the test datasets
+    accllr_cond1, selection_time_cond1 = calc_activity_onset_accLLR(test_data_cond1, cond1, cond2, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
+    accllr_cond2, selection_time_cond2 = calc_activity_onset_accLLR(test_data_cond2, cond1, cond2, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
+
+    return selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2
