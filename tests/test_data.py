@@ -469,12 +469,19 @@ class Backup(unittest.TestCase):
         dest_dir = 'tests/tmp/test_destination'
         if not os.path.exists(dest_dir):
             os.mkdir(dest_dir)
+        # remove previously moved test files
+        if os.path.exists('tests/tmp/test_destination/dir_1'):
+            os.rmdir('tests/tmp/test_destination/dir_1')
+        if os.path.exists('tests/tmp/test_destination/dir_2'):
+            os.rmdir('tests/tmp/test_destination/dir_2')
 
         move_files(source_dir,dest_dir)
         dest_dir_file_bool1 = os.path.exists('tests/tmp/test_destination/dir_1')
         dest_dir_file_bool2 = os.path.exists('tests/tmp/test_destination/dir_2')
         self.assertTrue(dest_dir_file_bool1)
         self.assertTrue(dest_dir_file_bool2)
+        self.assertTrue(os.path.exists('tests/tmp/test_destination/dir_1/load_ecube_data.png'))
+        self.assertTrue(os.path.exists('tests/tmp/test_destination/dir_2/load_ecube_data.png'))
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,12 +18,13 @@ import yaml
 from .utils import get_pulse_edge_times, compute_pulse_duty_cycles
 import shutil
 
-def move_files(files_list, dest_dir):
+def move_files(files_list, dest_dir, overwrite = True):
     '''
     This is a function that moves files/folders in files_list to dest_dir. This function is part of a backup script.
     Args:
         files_list (list): List of strings with filenames including full filepath
         dest_dir (str): Destination fullpath
+        overwrite (bool): bool to allow overwriting files in destination directory
 
     Returns: Nothing
 
@@ -38,7 +39,7 @@ def move_files(files_list, dest_dir):
                 if os.path.isfile(source):
                     shutil.copy2(source, dest)
                 else:
-                    shutil.copytree(source,dest)
+                    shutil.copytree(source,dest, dirs_exist_ok= overwrite)
                 print("")
             else:
                 print(f"File {source} already moved!")
