@@ -20,7 +20,8 @@ install_requires = [
     'matplotlib',
     'scipy',
     'seaborn',
-    'pyyaml'
+    'pyyaml',
+    'tqdm'
 ]
 
 setuptools.setup(

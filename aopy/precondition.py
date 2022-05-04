@@ -7,7 +7,6 @@ from scipy import signal
 from scipy.signal import butter, lfilter, filtfilt, decimate, windows
 import numpy as np
 import math
-import nitime.algorithms as tsa
 from . import analysis, utils
 '''
 Filter functions
@@ -87,82 +86,6 @@ def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, 
         # filtered_data = lfilter(b,a,data)
         filtered_data.append(filtfilt(b, a, data, axis=0))
     return filtered_data, Wn
-
-def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
-    '''
-     Computes power spectral density using Multitaper functions
-
-    Args:
-        data (nt, nch): time series data where time axis is assumed to be on the last axis
-        fs (float): sampling rate of the signal
-        NW (float): Normalized half bandwidth of the data tapers in Hz
-        BW (float): sampling bandwidth of the data tapers in Hz
-        adaptive (bool): Use an adaptive weighting routine to combine the PSD estimates of different tapers.
-        jackknife (bool): Use the jackknife method to make an estimate of the PSD variance at each point.
-        sides (str): This determines which sides of the spectrum to return.
-
-    Returns:
-        tuple: Tuple containing:
-            | **f (nfft):** Frequency points vector
-            | **psd_est (nfft, nch):** estimated power spectral density (PSD)
-            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
-    '''
-    data = data.T # move time to the last axis
-    
-    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides)
-    return f, psd_mt.T, nu.T
-
-def multitaper_lfp_bandpower(f, psd_est, bands, no_log):
-    '''
-    Estimate band power in specified frequency bands using multitaper power spectral density estimate
-
-    Args:
-        f (nfft) : Frequency points vector
-        psd_est (nfft, nch): power spectral density - output of bandpass_multitaper_filter_data
-        bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
-        no_log (bool): boolean to select whether lfp band power should be in log scale or not
-
-    Returns:
-        lfp_power (n_features, nch): lfp band power for each channel for each band specified
-    '''
-    if psd_est.ndim == 1:
-        psd_est = np.expand_dims(psd_est, 1)
-
-    lfp_power = np.zeros((len(bands), psd_est.shape[1]))
-    small_epsilon = 0 # TODO: what is this for? It does nothing now, should it be possible to make nonzero? -Leo
-    fft_inds = dict()
-
-    for band_idx, band in enumerate(bands):
-            fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
-
-    for idx, band in enumerate(bands):
-        if no_log:
-            lfp_power[idx, :] = np.mean(psd_est[fft_inds[idx],:], axis=0)
-        else:
-            lfp_power[idx, :] = np.mean(np.log10(psd_est[fft_inds[idx],:] + small_epsilon), axis=0)
-
-    return lfp_power
-
-def get_psd_welch(data, fs,n_freq = None):
-    '''
-    Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
-
-    Args:
-        data (nt, ...): time series data.
-        fs (float): sampling rate
-        n_freq (int): no. of frequency points expected
-
-    Returns:
-        tuple: Tuple containing:
-            | **f (nfft):** frequency points vector
-            | **psd_est (nfft, ...):** estimated power spectral density (PSD)
-    '''
-    if n_freq:
-        f, psd = signal.welch(data, fs, average='median', nperseg=2*n_freq, axis=0)
-    else:
-        f, psd = signal.welch(data, fs, average='median', axis=0)
-    return f, psd
-
 
 '''
 Filter functions related to multitaper method
@@ -279,23 +202,25 @@ def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
     Bandpass-filter a time series data using the multitaper method
 
     Example:
-        band = [-500, 500] # signals within band can pass
-        N = 0.005 # N*sampling_rate is time window you analyze
-        NW = (band[1]-band[0])/2
-        T = 0.05
-        fs = 25000
-        nch = 1
-        x_312hz = utils.generate_multichannel_test_signal(T, fs, nch, 312, self.a*1.5)
-        x_600hz = utils.generate_multichannel_test_signal(T, fs, nch, self.freq[0], self.a*0.5)
-        f0 = np.mean(band)
-        tapers = [N, NW]
-        x_mtfilter = precondition.mtfilter(x_312hz + x_600hz, tapers, fs=fs, f0=f0)
-        plt.figure()
-        plt.plot(x_312hz + x_600hz, label='Original signal (312 Hz + 600 Hz)')
-        plt.plot(x_312hz, label='Original signal (312 Hz)')
-        plt.plot(x_mtfilter, label='Multitaper-filtered signal')
-        plt.xlim([0,500])
-        plt.legend()
+        ::
+
+            band = [-500, 500] # signals within band can pass
+            N = 0.005 # N*sampling_rate is time window you analyze
+            NW = (band[1]-band[0])/2
+            T = 0.05
+            fs = 25000
+            nch = 1
+            x_312hz = utils.generate_multichannel_test_signal(T, fs, nch, 312, self.a*1.5)
+            x_600hz = utils.generate_multichannel_test_signal(T, fs, nch, self.freq[0], self.a*0.5)
+            f0 = np.mean(band)
+            tapers = [N, NW]
+            x_mtfilter = precondition.mtfilter(x_312hz + x_600hz, tapers, fs=fs, f0=f0)
+            plt.figure()
+            plt.plot(x_312hz + x_600hz, label='Original signal (312 Hz + 600 Hz)')
+            plt.plot(x_312hz, label='Original signal (312 Hz)')
+            plt.plot(x_mtfilter, label='Multitaper-filtered signal')
+            plt.xlim([0,500])
+            plt.legend()
 
         .. image:: _images/mtfilter.png
 
