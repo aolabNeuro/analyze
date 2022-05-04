@@ -1,5 +1,6 @@
 from aopy.preproc import *
 from aopy.preproc.bmi3d import *
+from aopy.preproc import quality
 from aopy.data import *
 import numpy as np
 import unittest
@@ -753,6 +754,17 @@ class ProcTests(unittest.TestCase):
 
         self.assertEqual(lfp_data.shape, (1000, 8))
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
+
+class QualityTests(unittest.TestCase):
+
+    def test_bad_channel_detection(self):
+        pass
+
+    def test_high_freq_data_detection(self):
+        pass
+
+    def test_saturated_data_detection(self):
+        pass
 
 if __name__ == "__main__":
     unittest.main()
