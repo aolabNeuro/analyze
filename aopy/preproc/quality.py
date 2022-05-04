@@ -1,3 +1,4 @@
+from aopy import analysis
 from ..utils import print_progress_bar
 import sys
 import numpy as np
@@ -22,13 +23,15 @@ def bad_channel_detection( data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg
         bad_ch_mask (channel x 1): logical array indicating bad channels
     """
     
+    sg_step_t = sg_win_t - sg_over_t
+    assert sg_step_t > 0, 'window length must be greater than window overlap'
     print("Running bad channel assessment:")
     (num_ch,num_samp) = np.shape(data)
 
     # compute low-freq PSD estimate
-    [fxx,txx,Sxx] = mt_sgram(data,srate,sg_win_t,sg_over_t,sg_bw)
+    fxx, txx, Sxx = analysis.get_sgram_multitaper(data.T,srate,sg_win_t,sg_step_t,bw=sg_bw)
     low_freq_mask = fxx < lf_c
-    Sxx_low = Sxx[:,low_freq_mask,:]
+    Sxx_low = Sxx[low_freq_mask,:,:]
     Sxx_low_psd = np.mean(Sxx_low,axis=2)
 
     psd_var = np.var(Sxx_low_psd,axis=1)
@@ -71,10 +74,12 @@ def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100.):
     # estimate hf influence, channel-wise
     for ch_i in np.arange(num_ch)[np.logical_not(bad_channels)]:
         print_progress_bar(ch_i,num_ch)
-        fxx,txx,Sxx = mt_sgram(data[ch_i,:],srate,sg_win_t,sg_over_t,sg_bw) # Sxx: [num_ch]x[num_freq]x[num_t]
+        sg_step_t = sg_win_t - sg_over_t
+        assert sg_step_t > 0, 'window length must be greater than window overlap'
+        fxx, txx, Sxx = analysis.get_sgram_multitaper(data[ch_i,],srate,sg_win_t,sg_step_t,bw=sg_bw)
         num_freq, = np.shape(fxx)
         num_t, = np.shape(txx)
-        Sxx_mean = np.mean(Sxx,axis=1) # average across all windows, i.e. numch x num_f periodogram
+        Sxx_mean = np.mean(Sxx,axis=1).T # average across all windows, i.e. numch x num_f periodogram
 
         # get low-freq, high-freq data
         low_f_mask = fxx < lf_c # Hz
@@ -130,71 +135,6 @@ def histogram_defined_noise_levels( data, nbin=20 ):
     noise_upper = high_edge if high_edge > data_CI_higher else max(data)
 
     return (noise_lower, noise_upper)
-
-
-# multitaper spectrogram estimator (handles missing data, i.e. NaN values
-def mt_sgram(x,srate,win_t,over_t,bw,interp=False,mask=None,detrend=False):
-    """mt_sgram
-
-    compute multitaper spectrogram from a time series data array
-
-    Args:
-        x (channel x samples): data array
-        srate (int): sample rate
-        win_t (float): spectrogram window length
-        over_t (float): spectrogram window overlap length
-        bw (float): time half-bandwidth product (determines number of tapers)
-        interp (bool, optional): interpolate np.nan values in x. Defaults to False.
-        mask (bool array, optional): boolean array masking time points in x. Defaults to None.
-        detrend (bool, optional): detrend data. Defaults to False.
-
-    Returns:
-        fxx (np.array): frequency values
-        txx (np.array): time values
-        Sxx (np.array): spectrogram estimate
-    """
-
-    # x - input data
-    # srate - sampling rate of x
-    # win_t - length of window (s)
-    # over_t - size of window overlap (s)
-    # bw - frequency resolution, i.e. bandwidth
-
-    n_t = np.shape(x)[-1]
-    t = srate*np.arange(n_t)
-
-    # find, interpolate nan-values (replace in the output with nan)
-#     nan_idx = np.any(np.isnan(x),axis=0)
-    if interp:
-        x = interp_multichannel(x)
-
-    # compute parameters
-    nw = bw*win_t/2 # time-half bandwidth product
-    n_taper = int(max((np.floor(nw*2-1),1)))
-    win_n = int(srate*win_t)
-    over_n = int(srate*over_t)
-    dpss_w = sps.windows.dpss(win_n,nw,Kmax=n_taper)
-
-    # estimate mt spectrogram
-    #TODO: replace with ..precondition.get_psd_multitaper()
-    Sxx_m = []
-    for k in range(n_taper):
-        fxx,txx,Sxx_ = sps.spectrogram(x,srate,window=dpss_w[k,:],noverlap=over_n,detrend=detrend)
-        Sxx_m.append(Sxx_)
-    Sxx = np.mean(Sxx_m,axis=0)
-
-    # align sgram time bins with bad times, overwrite values with NaN
-    if np.any(mask):
-        n_bin = np.shape(txx)[0]
-        txx_edge = np.append(txx - win_t/2,txx[-1]+win_t/2)
-        bad_txx = np.zeros(n_bin)
-        for k in range(n_bin):
-            t_in_bin = np.logical_and(t>txx_edge[k],t<txx_edge[k+1])
-            bad_txx[k] = np.any(np.logical_and(t_in_bin,mask))
-        bad_txx = bad_txx > 0
-        Sxx[...,bad_txx] = np.nan
-
-    return fxx, txx, Sxx
 
 
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
