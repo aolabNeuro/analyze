@@ -1022,9 +1022,9 @@ def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fa
         data (nt, nch): nd array of input neural data (multichannel)
         fs (int): sampling rate
         win_t (float): spectrogram window length (in seconds)
-        step_t (_type_): step size between spectrogram windows (in seconds)
+        step_t (float): step size between spectrogram windows (in seconds)
         nw (float, optional): time-half-bandwidth product. Defaults to None.
-        bw (_type_, optional): spectrogram bandwidth. Defaults to None.
+        bw (float, optional): spectrogram frequency bin bandwidth. Defaults to None.
         adaptive (bool, optional): adaptive taper weighting. Defaults to False.
 
     Returns:
