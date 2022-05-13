@@ -1013,7 +1013,7 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
 ######### Spectral Estimation and Analysis ############
 
-def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
+def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
     """get_sgram_multitaper
 
     Compute multitaper estimate from multichannel signal input.
@@ -1040,6 +1040,7 @@ def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fa
     (n_sample, n_ch) = data.shape
     total_t = n_sample/fs
     n_window = int((total_t-win_t)/step_t)
+    assert n_window > 0
     window_len = int(win_t*fs)
     step_len = int(step_t*fs)
     n_fbin = window_len // 2 + 1

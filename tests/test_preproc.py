@@ -757,14 +757,27 @@ class ProcTests(unittest.TestCase):
 
 class QualityTests(unittest.TestCase):
 
+    def setUp(self):
+        # Load some test data
+        test_filepath = os.path.join(data_dir, "short headstage test")
+        self.data = load_ecube_data(test_filepath, 'Headstages')
+        self.samplerate = 25000
+        print(f"Testing signal quality with {self.data.shape[0]/self.samplerate:.1f} seconds of {self.data.shape[1]} channel data.")
+
     def test_bad_channel_detection(self):
-        pass
+        bad_ch = quality.bad_channel_detection(self.data, self.samplerate)
+        self.assertEqual(bad_ch.shape, (64,))
+        self.assertEqual(np.count_nonzero(bad_ch), 64)
 
     def test_high_freq_data_detection(self):
-        pass
+        bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(self.data, self.samplerate)
+        self.assertEqual(bad_data_mask.shape, (64,))
+        self.assertEqual(np.count_nonzero(bad_data_mask), 64)
 
     def test_saturated_data_detection(self):
-        pass
+        sat_data_mask, sat_data_mask_all_ch = quality.saturated_data_detection(self.data, self.samplerate)
+        self.assertEqual(sat_data_mask.shape, (64,))
+        self.assertEqual(np.count_nonzero(sat_data_mask), 64)
 
 if __name__ == "__main__":
     unittest.main()

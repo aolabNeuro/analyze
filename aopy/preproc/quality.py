@@ -6,13 +6,13 @@ import numpy.linalg as npla
 import scipy.signal as sps
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
-def bad_channel_detection( data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5 ):
+def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5):
     """bad_channel_detection
 
-    Checks input [channel x sample] data array channel quality
+    Checks input [nt, nch] data array channel quality
 
     Args:
-        data (channel x sample): numpy array of data
+        data (nt, nch): numpy array of data
         srate (int): sample rate
         lf_c (int, optional): low frequency cutoff. Defaults to 100.
         sg_win_t (numeric, optional): spectrogram window length. Defaults to 8.
@@ -20,16 +20,15 @@ def bad_channel_detection( data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg
         sg_bw (float, optional): spectrogram time-half-bandwidth product. Defaults to 0.5.
 
     Returns:
-        bad_ch_mask (channel x 1): logical array indicating bad channels
+        bad_ch_mask (nch): logical array indicating bad channels
     """
     
     sg_step_t = sg_win_t - sg_over_t
     assert sg_step_t > 0, 'window length must be greater than window overlap'
     print("Running bad channel assessment:")
-    (num_ch,num_samp) = np.shape(data)
 
     # compute low-freq PSD estimate
-    fxx, txx, Sxx = analysis.get_sgram_multitaper(data.T,srate,sg_win_t,sg_step_t,bw=sg_bw)
+    fxx, txx, Sxx = analysis.get_sgram_multitaper(data, srate, sg_win_t, sg_step_t, bw=sg_bw)
     low_freq_mask = fxx < lf_c
     Sxx_low = Sxx[low_freq_mask,:,:]
     Sxx_low_psd = np.mean(Sxx_low,axis=2)
@@ -43,25 +42,25 @@ def bad_channel_detection( data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg
 
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
-def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100.):
+def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100.):
     """high_freq_data_detection
 
     Checks multichannel numpy array data for excess high frequency power. Returns a logical array of time locations in which any channel has excess high power (indicates noise)
 
     Args:
-        data (channel x sample): _description_
+        data (nt, nch): timerseries data across channels
         srate (numeric): data sampling rate
         bad_channels (boolean array, optional): Array-like of boolean values indicating bad channels. Defaults to None.
         lf_c (numeric, optional): low frequency cutoff. Defaults to 100.
 
     Returns:
-        bad_data_mask (channel x sample): boolean array indicating time, channel points with detected high-frequency noise
-        bad_data_mask_all_ch (np.array): boolean array indicating time points at which any channel had high-frequency noise
+        bad_data_mask (nt): boolean array indicating timepoints with detected high-frequency noise on any channel
+        bad_data_mask_all_ch (nt, nch): boolean array indicating time points at which any channel had high-frequency noise
     """
 
     print("Running high frequency noise detection: lfc @ {0}".format(lf_c))
-    [num_ch,num_samp] = np.shape(data)
-    bad_data_mask_all_ch = np.zeros((num_ch,num_samp))
+    [num_samp, num_ch] = np.shape(data)
+    bad_data_mask_all_ch = np.zeros((num_samp, num_ch))
     data_t = np.arange(num_samp)/srate
     if not bad_channels:
         bad_channels = np.zeros(num_ch)
@@ -76,10 +75,10 @@ def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100.):
         print_progress_bar(ch_i,num_ch)
         sg_step_t = sg_win_t - sg_over_t
         assert sg_step_t > 0, 'window length must be greater than window overlap'
-        fxx, txx, Sxx = analysis.get_sgram_multitaper(data[ch_i,],srate,sg_win_t,sg_step_t,bw=sg_bw)
+        fxx, txx, Sxx = analysis.get_sgram_multitaper(data[:, ch_i], srate, sg_win_t, sg_step_t, bw=sg_bw)
         num_freq, = np.shape(fxx)
         num_t, = np.shape(txx)
-        Sxx_mean = np.mean(Sxx,axis=1).T # average across all windows, i.e. numch x num_f periodogram
+        Sxx_mean = np.mean(Sxx, axis=1).T # average across all windows, i.e. numch x num_f periodogram
 
         # get low-freq, high-freq data
         low_f_mask = fxx < lf_c # Hz
@@ -99,17 +98,17 @@ def high_freq_data_detection( data, srate, bad_channels=None, lf_c=100.):
             if low_f_mean_ < low_θ or high_f_mean_ > high_θ:
                 # get indeces for the given sgram window and set them to "bad:True"
                 t_bad_mask = np.logical_and(data_t > t_center - sg_win_t/2, data_t < t_center + sg_win_t/2)
-                bad_data_mask_all_ch[ch_i,t_bad_mask] = True
+                bad_data_mask_all_ch[t_bad_mask, ch_i] = True
 
 #     bad_ch_θ = 0
 #     bad_data_mask = np.sum(bad_data_mask_all_ch,axis=0) > bad_ch_θ
-    bad_data_mask = np.any(bad_data_mask_all_ch,axis=0)
+    bad_data_mask = np.any(bad_data_mask_all_ch,axis=1)
 
     return bad_data_mask, bad_data_mask_all_ch
 
 
 # py version of noiseByHistogram.m - get upper and lower signal value bounds from a histogram
-def histogram_defined_noise_levels( data, nbin=20 ):
+def histogram_defined_noise_levels(data, nbin=20):
     """histogram_defined_noise_levels
 
     Automatically determine bandwidth in a signal
@@ -138,38 +137,39 @@ def histogram_defined_noise_levels( data, nbin=20 ):
 
 
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
-def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
-                              win_n=20 ):
+def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
+                            win_n=20):
 
     """saturated_data_detection
 
     Detects saturated data segments in input data array
 
     Args:
-        data (channel x sample): numpy array of multichannel data
+        data (nt, nch): numpy array of multichannel data
         srate (numeric): data sampling rate
         bad_channels (bool array, optional): boolean array indicating bad data channels. Default: None
         adapt_tol (float, optional): detection tolerance. Default: 1e-8
         win_n (int, optional): sample length of detection window. Default: 20
 
     Returns:
-        sat_data_mask (bool array): 1 x sample boolean array indicating saturated data detection
-        bad_all_ch_mask (bool array): channel x sample boolean array indicated separate channel saturation detected
+        sat_data_mask (nt): boolean array indicating saturated data detection
+        bad_all_ch_mask (nt, nch): boolean array indicated separate channel saturation detected
 
     """
     print("Running saturated data segment detection:")
-    num_ch, num_samp = np.shape(data)
+    num_samp, num_ch = np.shape(data)
     if not bad_channels:
         bad_channels = np.zeros(num_ch)
-    bad_all_ch_mask = np.zeros((num_ch,num_samp))
+    bad_all_ch_mask = np.zeros((num_samp, num_ch))
     data_rect = np.abs(data)
     mask = [bool(not x) for x in bad_channels]
+
     for ch_i in np.arange(num_ch)[mask]:
-        print_progress_bar(ch_i,num_ch)
-        ch_data = data_rect[ch_i,:]
+        print_progress_bar(ch_i, num_ch)
+        ch_data = data_rect[:, ch_i]
         θ1 = 50 # initialize threshold value
         θ0 = 0
-        h, valc = np.histogram(ch_data,int(np.max(ch_data)))
+        h, valc = np.histogram(ch_data, int(np.max(ch_data)))
         val = (valc[1:] + valc[:-1])/2 # computes the midpoints of each bin, valc are the edges
         val = np.floor(val)
         prob_val = h/np.shape(h)[0]
@@ -179,8 +179,8 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
             θ0 = θ1
             sub_θ_val_mask = val <= θ1
             sup_θ_val_mask = val > θ1
-            sub_θ_val_mean = np.sum(np.multiply(val[sub_θ_val_mask],prob_val[sub_θ_val_mask]))/np.sum(prob_val[sub_θ_val_mask])
-            sup_θ_val_mean = np.sum(np.multiply(val[np.logical_not(sup_θ_val_mask)],prob_val[np.logical_not(sup_θ_val_mask)]))/np.sum(prob_val[sup_θ_val_mask])
+            sub_θ_val_mean = np.sum(np.multiply(val[sub_θ_val_mask], prob_val[sub_θ_val_mask]))/np.sum(prob_val[sub_θ_val_mask])
+            sup_θ_val_mean = np.sum(np.multiply(val[np.logical_not(sup_θ_val_mask)], prob_val[np.logical_not(sup_θ_val_mask)]))/np.sum(prob_val[sup_θ_val_mask])
             θ1 = (sub_θ_val_mean + sup_θ_val_mean)/2
 
         # filter signal, boxcar window
@@ -193,9 +193,9 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
         n_low, n_high = histogram_defined_noise_levels(ch_data)
         ch_data_low_mask = ch_data < n_low
         ch_data_high_mask = ch_data > n_high
-        ch_data_filt_low_mask = np.logical_and(ch_data_filt_sup_θ_mask,ch_data_low_mask)
-        ch_data_filt_high_mask = np.logical_and(ch_data_filt_sup_θ_mask,ch_data_high_mask)
-        bad_all_ch_mask[ch_i,:] = np.logical_or(ch_data_filt_low_mask,ch_data_filt_high_mask)
+        ch_data_filt_low_mask = np.logical_and(ch_data_filt_sup_θ_mask, ch_data_low_mask)
+        ch_data_filt_high_mask = np.logical_and(ch_data_filt_sup_θ_mask, ch_data_high_mask)
+        bad_all_ch_mask[:, ch_i] = np.logical_or(ch_data_filt_low_mask, ch_data_filt_high_mask)
 
         # clear out straggler values
         # I will hold off on implementing this until
@@ -207,7 +207,7 @@ def saturated_data_detection( data, srate, bad_channels=None, adapt_tol=1e-8 ,
 
 #             else:
 
-    num_bad = np.sum(bad_all_ch_mask,axis=0)
+    num_bad = np.sum(bad_all_ch_mask,axis=1)
     sat_data_mask = num_bad > num_ch/2
 
     return sat_data_mask, bad_all_ch_mask

@@ -6,6 +6,7 @@ import numpy as np
 import re
 from datetime import datetime
 import os
+import sys
 
 '''
 Test signals
