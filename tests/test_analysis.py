@@ -1,3 +1,4 @@
+from matplotlib import pyplot as plt
 from aopy.analysis import calc_success_rate
 import aopy
 import numpy as np
@@ -390,20 +391,31 @@ class AccLLRTests(unittest.TestCase):
         print("LFP AccLLR: ")
         print(accLLR)
 
-    def calc_accLLR_threshold(self):
+    def test_calc_accLLR_threshold(self):
         # LFP data 
         cond1_train = np.array((0,0,0,0,0,0))
         cond2_train = np.array((0,0,0,1,2,3))
         cond2_test = np.array((0,0,0,1,2,3))
+        cond2_test = np.tile(cond2_test, (50, 1)).T
+
         samplerate = 1
-        thresh = aopy.analysis.calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality='lfp', bin_width=1./samplerate, step_size=0.01, false_alarm_prob=0.05)
+        print(cond2_test.shape)
+        best_tp, tp, fa = aopy.analysis.calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality='lfp', bin_width=1./samplerate, step_size=0.01, false_alarm_prob=0.05)
+        plt.plot(tp, fa)
+        filename = 'accllr_thresh_prop.png'
+        aopy.visualization.savefig(write_dir, filename)
 
-    def calc_accLLR_wrapper(self):
-        cond1 = np.arange(100)
-        cond1 = np.tile(data, (50, 1))
-        cond2 = np.zeros(cond1.shape)
+    def test_calc_accLLR_wrapper(self):
+        cond2 = np.arange(100)
+        cond2 = np.tile(cond2, (50, 1))
+        cond1 = np.zeros(cond2.shape)
+        selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2 = aopy.analysis.accLLR_wrapper(cond1, cond2, 'lfp', 1.)
+        print(selection_time_cond1)
+        print(selection_time_cond2)
+        print(accllr_cond1.shape)
+        print(accllr_cond2.shape)
 
-    # def testAccLLR_real_data(self):
+    # def test_accLLR_real_data(self):
     #     data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
     #     cond1 = data['cond1']
     #     cond2 = data['cond2']
