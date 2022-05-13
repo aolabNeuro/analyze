@@ -33,12 +33,12 @@ def parse_bmi3d(data_dir, files):
         sync_version = -1
 
     # Pass files onto the appropriate parser
-    if sync_version <= 0:
+    if sync_version < 7:
         data, metadata = _parse_bmi3d_v0(data_dir, files)
         metadata['bmi3d_parser'] = 0
         metadata['sync_protocol_version'] = sync_version
 
-    elif sync_version < 7:
+    elif sync_version < 11:
         data, metadata = _parse_bmi3d_v1(data_dir, files)
         metadata['bmi3d_parser'] = 1
     else:
@@ -236,7 +236,11 @@ def _parse_bmi3d_v1(data_dir, files):
 
 def _prepare_bmi3d_v0(data, metadata):
     '''
-    Organizes the bmi3d data and metadata and computes some automatic conversions
+    Organizes the bmi3d data and metadata and computes some automatic conversions. Works on sync protocol
+    versions 0 through 6. In these protocols there was a sync state at the beginning of each recording
+    that contained a single long-duration clock pulse and matching screen pulse for measuring display
+    latency. After this sync period, the digital clock arriving from BMI3D is reliable but often 
+    truncated at the end of the recording.
 
     Args:
         data (dict): bmi3d data
@@ -247,6 +251,9 @@ def _prepare_bmi3d_v0(data, metadata):
             | **data (dict):** prepared bmi3d data
             | **metadata (dict):** prepared bmi3d metadata
     '''
+    assert metadata['sync_protocol_version'] < 7, \
+        f"Sync protocol version {metadata['sync_protocol_version']} not supported"
+
     parser_version = metadata['bmi3d_parser']
     internal_clock = data['bmi3d_clock']
     internal_events = data['bmi3d_events']
@@ -490,7 +497,9 @@ def _prepare_bmi3d_v0(data, metadata):
 def _prepare_bmi3d_v1(data, metadata):
     '''
     Organizes the bmi3d data and metadata and computes some automatic conversions. Version 1 for 
-    bmi3d sync protocol 7 or higher.
+    bmi3d sync protocol 7 up to sync protocol 10. In these versions, the sync clock signal was 
+    very unreliable, thus we do extra error correction to approximate accurate clock and event
+    timestamps.
 
     Args:
         data (dict): bmi3d data
@@ -505,7 +514,8 @@ def _prepare_bmi3d_v1(data, metadata):
     internal_events = data['bmi3d_events']
     task = data['bmi3d_task']
 
-    assert metadata['sync_protocol_version'] >= 7
+    assert metadata['sync_protocol_version'] >= 7 and metadata['sync_protocol_version'] < 11, \
+        f"Sync protocol version {metadata['sync_protocol_version']} not supported"
 
     # Estimate display latency
     if 'sync_clock' in data and 'measure_clock_offline' in data and len(data['sync_clock']) > 0:
@@ -541,8 +551,6 @@ def _prepare_bmi3d_v1(data, metadata):
     sync_search_radius = 1.5/metadata['fps']
     if 'sync_clock' in data and len(data['sync_clock']) > 0:
         sync_clock = data['sync_clock']
-        bmi3d_time_zero = sync_clock['timestamp'][0]
-        approx_clock = corrected_clock['timestamp'] + bmi3d_time_zero
         if len(sync_clock) == 0:
             print("Warning: no clock timestamps on the eCube. Maybe something was unplugged?")
             print("Using internal clock timestamps")
@@ -551,11 +559,15 @@ def _prepare_bmi3d_v1(data, metadata):
             valid_clock_cycles = len(sync_clock)
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
+
+        # Adjust the internal clock so that it starts at the same time as the sync clock
+        approx_clock = corrected_clock['timestamp'] + sync_clock['timestamp'][0] - corrected_clock['timestamp'][0]
+
+        # Find sync clock pulses that match up to the expected internal clock timestamps within 1 radius
         timestamp_sync = get_measured_clock_timestamps(
             approx_clock, sync_clock['timestamp'], 0, sync_search_radius) # assume no latency between bmi3d and ecube via nidaq
         nanmask = np.isnan(timestamp_sync)
-        print("DFJKDLSFJSKLDFJKLDFJSLDK")
-        print(f"this many are NaN: {np.count_nonzero(nanmask)} out of {len(timestamp_sync)}")
+        # print(f"this many are NaN: {np.count_nonzero(nanmask)} out of {len(timestamp_sync)}")
         timestamp_sync[nanmask] = approx_clock[nanmask] # if nothing, then use the approximated value
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', timestamp_sync, dtypes='f8')
     else:

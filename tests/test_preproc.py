@@ -712,9 +712,15 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('samplerate', meta)
 
         # This is a more recent dataset
-        result_filename = 'test_proc_eyetracking_220422.hdf'
-        files['ecube'] = '2022-04-22_BMI3D_te5062'
-        files['hdf'] = 'beig20220422_03_te5062.hdf'
+        # result_filename = 'test_proc_eyetracking_220422.hdf'
+        # files['ecube'] = '2022-04-22_BMI3D_te5062'
+        # files['hdf'] = 'beig20220422_03_te5062.hdf'
+
+        # # Some code to remove unneeded analog channels to reduce the file size
+        # eye_data, metadata = aodata.load_ecube_analog(data_dir, files['ecube'])
+        # eye_data = eye_data[:,:12]
+        # filename = utils.save_test_signal_ecube(eye_data, data_dir, 1, datasource='AnalogPanel')
+
         if os.path.exists(os.path.join(write_dir, result_filename)):
             os.remove(os.path.join(write_dir, result_filename))
         exp_data, exp_metadata = proc_exp(data_dir, files, write_dir, result_filename)

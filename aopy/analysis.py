@@ -764,7 +764,7 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
         
         slope[i], intercept[i], corr_coeff[i],  *_ = scipy.stats.linregress(x, y)
 
-        if corr_coeff[i] <= coefficient_coeff_warning_level: 
+        if abs(corr_coeff[i]) <= coefficient_coeff_warning_level: 
             warnings.warn(f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
         
     return slope, intercept, corr_coeff
