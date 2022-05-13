@@ -555,7 +555,7 @@ class TestPrepareExperiment(unittest.TestCase):
         files['hdf'] = 'beig20210407_01_te1315.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
-        trials = data['trials']
+        trials = data['bmi3d_trials']
         self.assertEqual(len(trials), 3)        
         files['ecube'] = '2021-04-07_BMI3D_te1315'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
@@ -578,7 +578,7 @@ class TestPrepareExperiment(unittest.TestCase):
         files['hdf'] = 'beig20210614_07_te1825.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         check_required_fields(data, metadata)
-        trials = data['trials']
+        trials = data['bmi3d_trials']
         self.assertEqual(len(trials), 7)        
         files['ecube'] = '2021-06-14_BMI3D_te1825'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data

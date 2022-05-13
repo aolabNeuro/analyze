@@ -33,7 +33,7 @@ def parse_bmi3d(data_dir, files):
         sync_version = -1
 
     # Pass files onto the appropriate parser
-    if sync_version < 7:
+    if sync_version <= 0:
         data, metadata = _parse_bmi3d_v0(data_dir, files)
         metadata['bmi3d_parser'] = 0
         metadata['sync_protocol_version'] = sync_version
@@ -56,7 +56,7 @@ def parse_bmi3d(data_dir, files):
 
 def _parse_bmi3d_v0(data_dir, files):
     '''
-    Simple parser for BMI3D data which basically ignores timing from the eCube.
+    Simple parser for BMI3D data.
 
     Args:
         data_dir (str): where to look for the data
@@ -73,7 +73,6 @@ def _parse_bmi3d_v0(data_dir, files):
 
     # Load bmi3d data
     bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
-    bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
     bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
     bmi3d_root_metadata = aodata.load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
     if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
@@ -89,20 +88,41 @@ def _parse_bmi3d_v0(data_dir, files):
         'source_files': files,
     }) 
 
-    # Estimate timestamps
-    bmi3d_cycles = np.arange(len(bmi3d_task))
-    bmi3d_timestamps = bmi3d_cycles/bmi3d_task_metadata['fps']
-    bmi3d_clock = np.empty((len(bmi3d_task),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
-    bmi3d_clock['time'] = bmi3d_cycles
-    bmi3d_clock['timestamp'] = bmi3d_timestamps
-
     # Put data into dictionary
     bmi3d_data = dict(
-        bmi3d_clock=bmi3d_clock,
         bmi3d_task=bmi3d_task,
-        bmi3d_state=bmi3d_state,
         bmi3d_events=bmi3d_events,
     )
+
+    # Some data/metadata isn't always present
+    if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
+        bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
+        metadata.update(bmi3d_clda_meta)
+        bmi3d_data.update(
+            {'bmi3d_clda': bmi3d_clda}
+        )
+    if aodata.is_table_in_hdf('task_msgs', bmi3d_hdf_full_filename): 
+        bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
+        bmi3d_data.update(
+            {'bmi3d_state': bmi3d_state}
+        )
+    if aodata.is_table_in_hdf('trials', bmi3d_hdf_full_filename): 
+        bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials')
+        bmi3d_data.update(
+            {'bmi3d_trials': bmi3d_trials}
+        )
+    if aodata.is_table_in_hdf('sync_clock', bmi3d_hdf_full_filename): 
+        bmi3d_clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
+    else:
+        # Estimate timestamps
+        bmi3d_cycles = np.arange(len(bmi3d_task))
+        bmi3d_timestamps = bmi3d_cycles/bmi3d_task_metadata['fps']
+        bmi3d_clock = np.empty((len(bmi3d_task),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
+        bmi3d_clock['time'] = bmi3d_cycles
+        bmi3d_clock['timestamp'] = bmi3d_timestamps
+    bmi3d_data.update({
+        'bmi3d_clock': bmi3d_clock,
+    })
 
     if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): bmi3d_data.update(bmi3d_clda)
     return bmi3d_data, metadata
@@ -121,53 +141,8 @@ def _parse_bmi3d_v1(data_dir, files):
             | **metadata_dict (dict):** bmi3d metadata
     '''
 
-    data_dict = {}
-    metadata_dict = {}
-
-    # Load bmi3d data
-    bmi3d_hdf_filename = files['hdf']
-    bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
-    
-    bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
-    bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
-
-    sync_protocol_version = bmi3d_event_metadata['sync_protocol_version']
-    bmi3d_sync_clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
-    bmi3d_root_metadata = aodata.load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
-
-    # Copy metadata
-    metadata_dict.update(bmi3d_task_metadata)
-    metadata_dict.update(bmi3d_event_metadata)
-    metadata_dict.update(bmi3d_root_metadata)
-    metadata_dict.update({
-        'source_dir': data_dir,
-        'source_files': files,
-    }) 
-
-    # And data
-    data_dict.update({
-        'bmi3d_task': bmi3d_task,
-        'bmi3d_clock': bmi3d_sync_clock,
-        'bmi3d_events': bmi3d_events,
-    })  
-
-    # Some data/metadata isn't always present
-    if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
-        bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
-        metadata_dict.update(bmi3d_clda_meta)
-        data_dict.update(
-            {'bmi3d_clda': bmi3d_clda}
-        )
-    if aodata.is_table_in_hdf('task_msgs', bmi3d_hdf_full_filename): 
-        bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
-        data_dict.update(
-            {'bmi3d_state': bmi3d_state}
-        )
-    if aodata.is_table_in_hdf('trials', bmi3d_hdf_full_filename): 
-        bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials')
-        data_dict.update(
-            {'bmi3d_trials': bmi3d_trials}
-        )
+    # Start by loading bmi3d data using the v0 parser
+    data_dict, metadata_dict = _parse_bmi3d_v0(data_dir, files)
 
     if 'ecube' in files:
         ecube_filename = files['ecube']
@@ -177,30 +152,30 @@ def _parse_bmi3d_v1(data_dir, files):
         digital_samplerate = metadata['samplerate']
 
         # Load ecube analog data for the strobe and reward system
-        analog_channels = [bmi3d_event_metadata['screen_measure_ach'], bmi3d_event_metadata['reward_measure_ach']] # [5, 0]
+        analog_channels = [metadata_dict['screen_measure_ach'], metadata_dict['reward_measure_ach']] # [5, 0]
         ecube_analog, metadata = aodata.load_ecube_analog(data_dir, ecube_filename, channels=analog_channels)
         clock_measure_analog = ecube_analog[:,0]
         reward_system_analog = ecube_analog[:,1]
         analog_samplerate = metadata['samplerate']
 
         # Mask and detect BMI3D computer events from ecube
-        event_bit_mask = utils.convert_channels_to_mask(bmi3d_event_metadata['event_sync_dch']) # 0xff0000
+        event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
         ecube_sync_data = utils.mask_and_shift(digital_data, event_bit_mask)
         ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, rising=True, falling=False)
         sync_events = np.empty((len(ecube_sync_timestamps),), dtype=[('timestamp', 'f8'), ('code', 'u1')])
         sync_events['timestamp'] = ecube_sync_timestamps
         sync_events['code'] = ecube_sync_events
-        if sync_protocol_version < 3:
+        if metadata_dict['sync_protocol_version'] < 3:
             clock_sync_bit_mask = 0x1000000 # wrong in 1 and 2
         else:
-            clock_sync_bit_mask = utils.convert_channels_to_mask(bmi3d_event_metadata['screen_sync_dch']) 
+            clock_sync_bit_mask = utils.convert_channels_to_mask(metadata_dict['screen_sync_dch']) 
         clock_sync_data = utils.mask_and_shift(digital_data, clock_sync_bit_mask)
         clock_sync_timestamps, _ = utils.detect_edges(clock_sync_data, digital_samplerate, rising=True, falling=False)
         sync_clock = np.empty((len(clock_sync_timestamps),), dtype=[('timestamp', 'f8')])
         sync_clock['timestamp'] = clock_sync_timestamps
 
         # Mask and detect screen sensor events (A5 and D5)
-        clock_measure_bit_mask = utils.convert_channels_to_mask(bmi3d_event_metadata['screen_measure_dch']) # 1 << 5
+        clock_measure_bit_mask = utils.convert_channels_to_mask(metadata_dict['screen_measure_dch']) # 1 << 5
         clock_measure_data_online = utils.mask_and_shift(digital_data, clock_measure_bit_mask)
         clock_measure_timestamps_online, clock_measure_values_online = utils.detect_edges(clock_measure_data_online, digital_samplerate, rising=True, falling=True)
         measure_clock_online = np.empty((len(clock_measure_timestamps_online),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
