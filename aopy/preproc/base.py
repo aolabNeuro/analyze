@@ -555,6 +555,12 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
     sample_eye_enter_target  = (align_times * eye_samplerate).astype(int)
     eye_data_aligned = eye_data[sample_eye_enter_target,:]
     
+    # Find indexes with valid sample_eye_enter_target (not NaN)
+    valid_indexes = ~np.isnan(sample_eye_enter_target)
+    sample_eye_enter_target = sample_eye_enter_target[valid_indexes].astype(int)
+    eye_data_aligned = eye_data[sample_eye_enter_target,:]
+    cursor_data_aligned = cursor_data_aligned[valid_indexes, :]
+
     # Calibrate the eye data
     if eye_data_aligned.shape[1] == 4:
         cursor_data_aligned = np.tile(cursor_data_aligned, (1, 2)) # for two eyes
