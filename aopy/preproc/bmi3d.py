@@ -354,17 +354,6 @@ def _prepare_bmi3d_v1(data, metadata):
     elif 'timestamp_measure_online' in corrected_clock.dtype.names:
         corrected_clock['timestamp'] = corrected_clock['timestamp_measure_online']
 
-    # Update the event timestamps according to the corrected clock    
-    if metadata['has_measured_timestamps']:
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp_measure', corrected_clock['timestamp'][corrected_events['time']], dtypes='f8')
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_measure'], dtypes='f8')
-    elif 'timestamp_sync' in corrected_clock.dtype.names:
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp_sync', corrected_clock['timestamp_sync'][corrected_events['time']], dtypes='f8')
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_sync'], dtypes='f8')
-    else:
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp_approx', approx_clock[corrected_events['time']])
-        corrected_events = rfn.append_fields(corrected_events, 'timestamp', corrected_events['timestamp_approx'], dtypes='f8')
-
     # Also put some information about the reward system
     if 'reward_system' in data and 'reward_system' in metadata['features']:
         metadata['has_reward_system'] = True
