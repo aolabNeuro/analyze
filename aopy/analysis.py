@@ -882,7 +882,7 @@ def calc_sem(data, axis=None):
 
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
-    Calculates the mean (across trials) event-related potential (ERP) for the given timeseries data.
+    Calculates the event-related potential (ERP) for the given timeseries data.
 
     Args:
         data (nt, nch): timeseries data across channels
