@@ -1,5 +1,6 @@
 from matplotlib import pyplot as plt
 from aopy import visualization
+from aopy import preproc
 from aopy.preproc import *
 from aopy.preproc.bmi3d import *
 from aopy.data import *
@@ -521,45 +522,46 @@ class EventFilterTests(unittest.TestCase):
 
 class TestPrepareExperiment(unittest.TestCase):
 
-    def test_parse_bmi3d(self):
+    def check_required_fields(self, data, metadata):
+        self.assertIn('fps', metadata)
+        self.assertIn('sync_protocol_version', metadata)
+        self.assertIn('source_dir', metadata)
+        self.assertIn('source_files', metadata)
+        self.assertIn('clock', data)
+        self.assertIn('events', data)
+        self.assertIn('task', data)
 
-        # Test empty
+    def test_parse_bmi3d_empty(self):
+        files = {}
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
 
-        def check_required_fields(data, metadata):
-            self.assertIn('fps', metadata)
-            self.assertIn('sync_protocol_version', metadata)
-            self.assertIn('source_dir', metadata)
-            self.assertIn('source_files', metadata)
-            self.assertIn('clock', data)
-            self.assertIn('events', data)
-            self.assertIn('task', data)
-
+    def test_parse_bmi3d_v0(self):
         # Test sync version 0 (and -1)
         files = {}
         files['hdf'] = 'test20210310_08_te1039.hdf'
         data, metadata = parse_bmi3d(data_dir, files)
-        check_required_fields(data, metadata)
+        self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], -1)
         self.assertIn('fps', metadata)
         self.assertAlmostEqual(metadata['fps'], 120.)
         self.assertIn('timestamp', data['clock'].dtype.names)
-        self.assertIn('timestamp', data['events'].dtype.names)
         n_cycles = data['clock']['time'][-1] + 1
         self.assertEqual(len(data['clock']), n_cycles)
 
-        # Test sync version 1
+    def test_parse_bmi3d_v1(self):
+        pass
 
+    def test_parse_bmi3d_v2(self):
         # Test sync version 2 
         files = {}
         files['hdf'] = 'beig20210407_01_te1315.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
-        check_required_fields(data, metadata)
+        self.check_required_fields(data, metadata)
         trials = data['bmi3d_trials']
         self.assertEqual(len(trials), 3)        
         files['ecube'] = '2021-04-07_BMI3D_te1315'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
-        check_required_fields(data, metadata)
+        self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 2)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
@@ -571,18 +573,20 @@ class TestPrepareExperiment(unittest.TestCase):
         n_cycles = data['clock']['time'][-1] + 1
         # self.assertEqual(len(data['clock']), n_cycles)
 
-        # Test sync version 3
-        
+    def test_parse_bmi3d_v3(self):
+        pass
+
+    def test_parse_bmi3d_v4(self):        
         # Test sync version 4
         files = {}
         files['hdf'] = 'beig20210614_07_te1825.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
-        check_required_fields(data, metadata)
+        self.check_required_fields(data, metadata)
         trials = data['bmi3d_trials']
         self.assertEqual(len(trials), 7)        
         files['ecube'] = '2021-06-14_BMI3D_te1825'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
-        check_required_fields(data, metadata)
+        self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 4)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
@@ -593,16 +597,19 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('timestamp', data['events'].dtype.names)
         n_cycles = data['clock']['time'][-1] + 1
         self.assertEqual(len(data['clock']), n_cycles)
+  
+    def test_parse_bmi3d_v5(self):
+        pass
 
-        # Test sync version 5
+    def test_parse_bmi3d_v6(self):
+        pass
 
-        # Test sync version 6
-
+    def test_parse_bmi3d_v7(self):
         # Test sync version 7
         files = {}
         files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
-        check_required_fields(data, metadata)
+        self.check_required_fields(data, metadata)
         files['ecube'] = '2021-12-13_BMI3D_te3498'
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
         self.assertEqual(metadata['sync_protocol_version'], 7)
@@ -611,15 +618,69 @@ class TestPrepareExperiment(unittest.TestCase):
         print(metadata['n_missing_markers'])
         self.assertTrue(metadata['has_measured_timestamps'])
         evt = data['events'][27]
-        self.assertEqual(evt['event'], b'CURSOR_ENTER_TARGET')
-        self.assertEqual(evt['time'], 1742)
+        self.assertEqual(evt['code'], 87)
 
         # Run some trial alignment to make sure the number of trials makes sense
         events = data['events']
-        start_states = [b'TARGET_ON']
-        end_states = [b'TRIAL_END'] 
-        trial_states, trial_idx = get_trial_segments(events['event'], events['time'], start_states, end_states)
+        start_states = [16]
+        end_states = [239] 
+        trial_states, trial_idx = get_trial_segments(events['code'], events['timestamp'], start_states, end_states)
         self.assertEqual(len(trial_states), 10)
+    
+    def test_parse_bmi3d_v8(self):
+        pass
+
+    def test_parse_bmi3d_v9(self):
+        files = {}
+        files['hdf'] = 'test20220311_07_te4298.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.check_required_fields(data, metadata)
+        files['ecube'] = '2022-03-11_BMI3D_te4298'
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        self.assertEqual(metadata['sync_protocol_version'], 9)
+
+        # This file has analog voltage from photodiode recorded showing the screen turn on and off
+        lfp_data, metadata = aodata.load_ecube_analog(data_dir, files['ecube'], channels=[31])
+        n_channels = metadata['n_channels']
+        raw_samplerate = metadata['samplerate']
+        samplerate = 1000
+        lfp_data = precondition.downsample(lfp_data, raw_samplerate, samplerate)
+        time_before = 0.1
+        time_after = 0.4
+
+        # Plot aligned flash times based on events
+        event_timestamps = data['events']['timestamp']
+        flash_times = event_timestamps[np.logical_and(16 <= data['events']['code'], data['events']['code'] < 32)]
+        evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
+        time = np.arange(evoked_lfp.shape[1])/samplerate - time_before
+        visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        filename = 'parse_bmi3d_flash_events.png'
+        visualization.savefig(img_dir, filename)
+
+        # Plot aligned flash times based on sync clock
+        target_on_events = np.logical_and(16 <= data['bmi3d_events']['code'], data['bmi3d_events']['code'] < 32)
+        flash_times = data['clock']['timestamp_sync'][data['bmi3d_events']['time'][target_on_events]]
+        evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
+        plt.figure()
+        visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        filename = 'parse_bmi3d_flash_sync_clock.png'
+        visualization.savefig(img_dir, filename)
+
+        # Plot aligned flash times based on measure clock
+        target_on_events = np.logical_and(16 <= data['bmi3d_events']['code'], data['bmi3d_events']['code'] < 32)
+        flash_times = data['clock']['timestamp_measure_offline'][data['bmi3d_events']['time'][target_on_events]]
+        evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
+        plt.figure()
+        visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        filename = 'parse_bmi3d_flash_measure_clock.png'
+        visualization.savefig(img_dir, filename)
+
+    def test_parse_bmi3d_v10(self):
+        pass
+
+    def test_parse_bmi3d_v11(self):
+        pass
+
 
     def test_parse_oculomatic(self):
         files = {}
@@ -729,6 +790,7 @@ class TestPrepareExperiment(unittest.TestCase):
         # Plot calibrated eye data to make sure everything is working properly
         raw_data = eye['raw_data']
         bounds = np.array(exp_metadata['cursor_bounds'])[[0,1,4,5]]
+        plt.figure()
         visualization.plot_trajectories([raw_data], bounds=bounds)
         figname = 'eye_trajectories_raw.png'
         visualization.savefig(img_dir, figname) # should have uncalibrated eye data

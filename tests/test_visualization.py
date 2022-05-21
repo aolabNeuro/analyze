@@ -79,7 +79,16 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(data_map[0], 2.0)
         plt.figure()
         plot_spatial_map(data_map, x_pos, y_pos)
-        plt.show()
+        filename = 'posmap_single.png'
+        savefig(write_dir, filename)
+
+    def test_plot_image_by_time(self):
+        time = np.array([-2, -1, 0, 1, 2, 3])
+        data = np.array([[0, 0, 1, 1, 0, 0],
+                         [0, 0, 0, 1, 1, 0]])
+        plot_image_by_time(time, data)
+        filename = 'image_by_time.png'
+        savefig(docs_dir, filename)
 
     def test_plot_raster(self):
         filename = 'raster_plot_example.png'

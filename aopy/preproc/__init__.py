@@ -227,7 +227,7 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
     events = exp_data['events']
     event_codes = events['code']
-    event_times = clock[events['time']] # time points in the ecube time frame
+    event_times = events['timestamp'] # time points in the ecube time frame
     try:
         coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
             cursor_data_time, cursor_samplerate, eye_data, eye_metadata['samplerate'], 

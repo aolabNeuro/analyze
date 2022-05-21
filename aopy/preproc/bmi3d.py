@@ -1,6 +1,7 @@
 # bmi3d.py
 # Code for parsing and preparing data from BMI3D
 
+import warnings
 import numpy as np
 import numpy.lib.recfunctions as rfn
 from .base import get_measured_clock_timestamps, fill_missing_timestamps, get_trial_segments, get_unique_conditions
@@ -48,12 +49,7 @@ def parse_bmi3d(data_dir, files):
 
     # Standardize the parsed variable names and perform some error checking
     metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
-    
-    if sync_version < 11:
-        return _prepare_bmi3d_v1(data, metadata)
-    else:
-        pass
-        # return _prepare_bmi3d_v2(data, metadata)
+    return _prepare_bmi3d_v1(data, metadata)
 
 def _parse_bmi3d_v0(data_dir, files):
     '''
@@ -230,9 +226,6 @@ def _prepare_bmi3d_v1(data, metadata):
     internal_events = data['bmi3d_events']
     task = data['bmi3d_task']
 
-    assert metadata['sync_protocol_version'] < 11, \
-        f"Sync protocol version {metadata['sync_protocol_version']} not supported"
-
     # Estimate display latency
     if 'sync_clock' in data and 'measure_clock_offline' in data and len(data['sync_clock']) > 0:
 
@@ -241,7 +234,7 @@ def _prepare_bmi3d_v1(data, metadata):
         measure_impulse = get_measured_clock_timestamps(sync_impulse, data['measure_clock_offline']['timestamp'],
             latency_estimate=0.01, search_radius=0.1)
         if np.count_nonzero(np.isnan(measure_impulse)) > 0:
-            print("Warning: sync failed. Using latency estimate 0.01")
+            warnings.warn("Warning: sync failed. Using latency estimate 0.01")
             measure_latency_estimate = 0.01
         else:
             measure_latency_estimate = np.mean(measure_impulse - sync_impulse)
@@ -251,11 +244,6 @@ def _prepare_bmi3d_v1(data, metadata):
         # Guess 10 ms
         measure_latency_estimate = 0.01
     metadata['measure_latency_estimate'] = measure_latency_estimate
-
-    # By default use the internal clock and events.
-    event_cycles = internal_events['time']
-    event_timestamps = internal_clock['timestamp'][event_cycles]
-    corrected_events = rfn.append_fields(internal_events, 'timestamp_bmi3d', event_timestamps, dtypes='f8')
 
     # Correct the clock
     corrected_clock = internal_clock.copy()
@@ -268,10 +256,10 @@ def _prepare_bmi3d_v1(data, metadata):
     if 'sync_clock' in data and len(data['sync_clock']) > 0:
         sync_clock = data['sync_clock']
         if len(sync_clock) == 0:
-            print("Warning: no clock timestamps on the eCube. Maybe something was unplugged?")
+            warnings.warn("Warning: no clock timestamps on the eCube. Maybe something was unplugged?")
             print("Using internal clock timestamps")
         elif len(sync_clock) < len(internal_clock):
-            print("Warning: length of clock timestamps on eCube ({}) doesn't match bmi3d record ({})".format(len(sync_clock), len(internal_clock)))
+            warnings.warn("Warning: length of clock timestamps on eCube ({}) doesn't match bmi3d record ({})".format(len(sync_clock), len(internal_clock)))
             valid_clock_cycles = len(sync_clock)
         elif len(sync_clock) > len(internal_clock):
             raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
@@ -287,7 +275,7 @@ def _prepare_bmi3d_v1(data, metadata):
         timestamp_sync[nanmask] = approx_clock[nanmask] # if nothing, then use the approximated value
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_sync', timestamp_sync, dtypes='f8')
     else:
-        print("Warning: no sync clock connected! This will usually result in problems.")
+        warnings.warn("Warning: no sync clock connected! This will usually result in problems.")
 
     # 2. Screen photodiode measurements, digitized online by NXP microcontroller
     measure_search_radius = 1.5/metadata['fps']
@@ -309,7 +297,7 @@ def _prepare_bmi3d_v1(data, metadata):
             metadata['has_measured_timestamps'] = True
             corrected_clock['timestamp_measure_online'] = corrected_timestamps
         else:
-            print(f"Digital screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
+            warnings.warn(f"Digital screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
 
     # 3. Screen photodiode measurements, raw voltage digitized offline
     if 'measure_clock_offline' in data and len(data['measure_clock_offline']) > 0:
@@ -327,7 +315,7 @@ def _prepare_bmi3d_v1(data, metadata):
             corrected_clock['timestamp_measure_offline'] = corrected_timestamps
             metadata['has_measured_timestamps'] = True
         else:
-            print(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
+            warnings.warn(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
 
     # Trim / pad the clock
     n_cycles = int(corrected_clock['time'][-1]) + 1
@@ -344,15 +332,14 @@ def _prepare_bmi3d_v1(data, metadata):
         padded_clock['time'][:n_sync_cycles+1] = range(n_sync_cycles+1)
         corrected_clock = padded_clock
 
-    # Update the clock to have a default 'timestamps' field
-    if not metadata['has_measured_timestamps'] and 'timestamp_sync' in corrected_clock.dtype.names:
-        corrected_clock['timestamp'] = corrected_clock['timestamp_sync']
-    elif not metadata['has_measured_timestamps']:
-        corrected_clock['timestamp'] = corrected_clock['timestamp_bmi3d']
-    elif 'timestamp_measure_offline' in corrected_clock.dtype.names:
-        corrected_clock['timestamp'] = corrected_clock['timestamp_measure_offline']
-    elif 'timestamp_measure_online' in corrected_clock.dtype.names:
-        corrected_clock['timestamp'] = corrected_clock['timestamp_measure_online']
+    # By default use the internal clock and events.
+    corrected_events = internal_events
+
+    # But use the sync events if they exist and are valid
+    if 'sync_events' in data and len(data['sync_events']) > 0:
+        corrected_events = data['sync_events']
+    else:
+        warnings.warn("No sync events present, using bmi3d events instead")
 
     # Also put some information about the reward system
     if 'reward_system' in data and 'reward_system' in metadata['features']:
