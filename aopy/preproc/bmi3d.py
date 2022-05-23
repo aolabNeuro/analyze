@@ -9,6 +9,41 @@ from .. import data as aodata
 from .. import utils
 import os
 
+def decode_event(dictionary, value):
+    '''
+    Decode a integer event code into a event name and data
+
+    Args:
+        dictionary (dict): dictionary of (event_name, event_code) event definitions
+        value (int): number to decode
+
+    Returns:
+        tuple: 2-tuple containing (event_name, data) for the given value
+    '''
+    ordered_list = sorted(dictionary.items(), key=lambda x: x[1])
+    for i, event in enumerate(ordered_list[1:]):
+        if value < event[1]:
+            event_name = ordered_list[i][0]
+            event_data = value - ordered_list[i][1]
+            return event_name, event_data
+    if value == ordered_list[-1][1]: # check last value
+        return ordered_list[-1][0], 0
+    return None
+
+def decode_events(dictionary, values):
+    '''
+    Decode a list of integer event code into a event names and data
+
+    Args:
+        dictionary (dict): dictionary of (event_name, event_code) event definitions
+        values (n_values): list of integer numbers to decode
+
+    Returns:
+        tuple: 2-tuple containing (event_names, data) for the given values
+    '''
+    tuples = [decode_event(dictionary, value) for value in values]
+    return list(zip(*tuples))
+
 def parse_bmi3d(data_dir, files):
     '''
     Wrapper around version-specific bmi3d parsers
@@ -159,9 +194,12 @@ def _parse_bmi3d_v1(data_dir, files):
         event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
         ecube_sync_data = utils.mask_and_shift(digital_data, event_bit_mask)
         ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, rising=True, falling=False)
-        sync_events = np.empty((len(ecube_sync_timestamps),), dtype=[('timestamp', 'f8'), ('code', 'u1')])
+        sync_event_names, sync_event_data = decode_events(metadata_dict['event_sync_dict'], ecube_sync_events)
+        sync_events = np.empty((len(ecube_sync_timestamps),), dtype=[('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         sync_events['timestamp'] = ecube_sync_timestamps
         sync_events['code'] = ecube_sync_events
+        sync_events['event'] = sync_event_names
+        sync_events['data'] = sync_event_data
         if metadata_dict['sync_protocol_version'] < 3:
             clock_sync_bit_mask = 0x1000000 # wrong in 1 and 2
         else:
