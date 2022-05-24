@@ -921,7 +921,7 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
 
         # Subtract the baseline to calculate ERP
         n_samples = aligned_data.shape[1]
-        event_mean = np.tile(event_mean, (n_samples, 1, 1)).reshape((n_events, n_samples, -1))
+        event_mean = np.tile(event_mean, (n_samples, 1, 1)).swapaxes(0,1)
         erp = aligned_data - event_mean
     else:
 
