@@ -85,7 +85,7 @@ def parse_bmi3d(data_dir, files):
         metadata['bmi3d_parser'] = 0
         metadata['sync_protocol_version'] = sync_version
 
-    elif sync_version < 11:
+    elif sync_version < 12:
         data, metadata = _parse_bmi3d_v1(data_dir, files)
         metadata['bmi3d_parser'] = 1
     else:
