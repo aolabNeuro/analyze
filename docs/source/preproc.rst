@@ -36,7 +36,7 @@ Experimental data
 
 **clock**
 
-[shape: (13132,), type: [('time', '<u8'), ('prev_tick', '<f8'), ('timestamp', '<f8'), ('timestamp_bmi3d', '<f8'), ('timestamp_sync', '<f8'),  ('timestamp_measure_offline', '<f8'),  ('timestamp_measure_online', '<f8')]]
+[shape: (13132,), type: [('time', '<u8'), ('prev_tick', '<f8'), ('timestamp_bmi3d', '<f8'), ('timestamp_sync', '<f8'),  ('timestamp_measure_offline', '<f8'),  ('timestamp_measure_online', '<f8')]]
 
 A record of the time at which each cycle in the bmi state machine loop occurred.
 
@@ -50,8 +50,6 @@ A record of the time at which each cycle in the bmi state machine loop occurred.
      - Integer cycle number
    * - ``prev_tick`` (float)
      - How much time elapsed since the previous frame (measured by bmi3d in ms)
-   * - ``timestamp`` (float)
-     - Corrected measured timestamps from the screen sensor preprocessed to fill in missing values
    * - ``timestamp_bmi3d`` (float)
      - Uncorrected timestamps from bmi3d
    * - ``timestamp_sync`` (float)
@@ -68,18 +66,40 @@ The figure below shows what each timestamp information is captured by each varia
 From the experiment computer a clock is recorded in three ways:
 
 #. Directly into the HDF record -- this clock is inaccurate but nice to have as backup
-#. As a digital signal from a NIDAQ DIO card -- for accurate (with some latency) sync of BMI3D cycles
+#. As a digital signal from a NIDAQ DIO card -- for accurate sync of BMI3D cycles
 #. By measuring a flickering square on the screen with a photodiode -- for accurate measurement of displayed frame timestamps
 
-The preprocessed ``timestamp`` field should be used for aligning data to things that appear on the screen. However, in some cases
-there may not be anything appearing on the screen, such as when aligning to laser onset. In these cases, the ``timestamp_sync`` will be
-more accurate and should also be applied to events, described below.
+The preprocessed ``timestamp_measure_offline`` field should be used for aligning data to things that appear on the screen. However, in some cases
+there may not be anything appearing on the screen, such as when aligning to laser onset or movement kinematics. In these cases, the ``timestamp_sync`` will be
+more accurate.
 
 **events**
 
-[shape: (223,), type: [('time', '<u8'), ('event', 'S32'), ('data', '<u4'), ('code', 'u1'), ('timestamp', '<f8')]]
+[shape: (223,), type: [('code', 'u1'), ('timestamp', '<f8'), ('event', 'S32'), ('data', '<u4')]]
 
-Information needed to reconstruct the structure of the experiment.
+Information needed to reconstruct the structure of the experiment. This data comes from digital output via the ecube. It is sent as
+integer codes and then decoded into event names.
+
+.. list-table::
+   :widths: 25 75
+   :header-rows: 1
+   
+   * - Field
+     - Contents
+   * - ``code`` (unsigned int)
+     - Raw event code
+   * - ``event`` (string)
+     - Name of the event
+   * - ``data`` (unsigned int)
+     - The corresponding data, e.g. which target or which trial type
+   * - ``timestamp`` (float)
+     - Time at which the event was received by the neural data system.
+
+**bmi3d_events**
+
+[shape: (223,), type: [('time', '<u8'), ('event', 'S32'), ('data', '<u4'), ('code', 'u1')]]
+
+BMI3D's internal record of events, sometimes useful in case you want different timing on events, as described below.
 
 .. list-table::
    :widths: 25 75
@@ -95,15 +115,51 @@ Information needed to reconstruct the structure of the experiment.
      - The corresponding data, e.g. which target or which trial type
    * - ``code`` (unsigned int)
      - Raw event code
-   * - ``timestamp_bmi3d`` (float)
-     - Time at which the event was recorded as sent by bmi3d
-   * - ``timestamp_sync`` (float)
-     - Time at which the event was received in ecube  
-   * - ``timestamp_measure`` (float)
-     - Time at which the event was measured to have occurred on the screen
-   * - ``timestamp`` (float)
-     - Default timestamp to make analysis code neater. Preference ``timestamp_measure`` >> ``timestamp_sync`` >> ``timestamp_bmi3d``
 
+Events can be used in one of three ways:
+
+#. Directly use the ``events`` from the neural data system.
+#. Apply sync clock timestamps to the ``time`` field of ``bmi3d_events``
+#. Apply measured clock timestamps to the ``time`` field of ``bmi3d_events`` 
+
+The above each illustrated with an image of alignment between the events and target onset as measured by a photodiode:
+
+.. code-block:: python
+
+    event_timestamps = data['events']['timestamp']
+    flash_times = event_timestamps[np.logical_and(16 <= data['events']['code'], data['events']['code'] < 32)]
+
+.. image:: _images/parse_bmi3d_flash_events.png
+
+.. code-block:: python
+
+    cycles = data['bmi3d_events']['time'][target_on_events]
+    flash_times = data['clock']['timestamp_sync'][cycles]
+
+.. image:: _images/parse_bmi3d_flash_sync_clock.png
+
+.. code-block:: python    
+        
+    cycles = data['bmi3d_events']['time'][target_on_events]
+    flash_times = data['clock']['timestamp_measure_offline'][cycles]
+
+.. image:: _images/parse_bmi3d_flash_measure_clock.png
+
+These are the most reliable benchmark of timing from BMI3D.
+
+**cursor**
+
+[type: 'dict']
+
+Contains sampled cursor kinematics (usually 25kHz, see metadata) in three possible flavors:
+
+#. `cursor_analog_cm` analog voltage converted into screen coordinates
+#. `cursor_analog_cm_filt` lowpass filtered version of the above (to 120Hz)
+#. `cursor_interp` interpolated cursor from HDF data
+
+This can be used as if it were neural data from the eCube. It starts at t=0 and is sampled on the same
+clock as all the other neural data. For interpolated cursor data, the length won't match the length of other
+recorded neural data.
 
 **task**
 
