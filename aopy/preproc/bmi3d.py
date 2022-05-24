@@ -4,7 +4,7 @@
 import warnings
 import numpy as np
 import numpy.lib.recfunctions as rfn
-from .base import get_measured_clock_timestamps, fill_missing_timestamps, get_trial_segments, get_unique_conditions
+from .base import get_measured_clock_timestamps, fill_missing_timestamps, interp_timestamps2timeseries
 from .. import data as aodata
 from .. import utils
 import os
@@ -20,14 +20,22 @@ def decode_event(dictionary, value):
     Returns:
         tuple: 2-tuple containing (event_name, data) for the given value
     '''
+
+    # Sort the dictionary in order of value
     ordered_list = sorted(dictionary.items(), key=lambda x: x[1])
+
+    # Find a matching event (greatest value that is lower than the given value)
     for i, event in enumerate(ordered_list[1:]):
         if value < event[1]:
             event_name = ordered_list[i][0]
             event_data = value - ordered_list[i][1]
             return event_name, event_data
-    if value == ordered_list[-1][1]: # check last value
+
+     # Check last value
+    if value == ordered_list[-1][1]:
         return ordered_list[-1][0], 0
+
+    # Return none if no matching events
     return None
 
 def decode_events(dictionary, values):
@@ -183,11 +191,8 @@ def _parse_bmi3d_v1(data_dir, files):
         digital_data, metadata = aodata.load_ecube_digital(data_dir, ecube_filename)
         digital_samplerate = metadata['samplerate']
 
-        # Load ecube analog data for the strobe and reward system
-        analog_channels = [metadata_dict['screen_measure_ach'], metadata_dict['reward_measure_ach']] # [5, 0]
-        ecube_analog, metadata = aodata.load_ecube_analog(data_dir, ecube_filename, channels=analog_channels)
-        clock_measure_analog = ecube_analog[:,0]
-        reward_system_analog = ecube_analog[:,1]
+        # Load ecube analog data
+        ecube_analog, metadata = aodata.load_ecube_analog(data_dir, ecube_filename)
         analog_samplerate = metadata['samplerate']
 
         # Mask and detect BMI3D computer events from ecube
@@ -216,6 +221,7 @@ def _parse_bmi3d_v1(data_dir, files):
         measure_clock_online = np.empty((len(clock_measure_timestamps_online),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
         measure_clock_online['timestamp'] = clock_measure_timestamps_online
         measure_clock_online['value'] = clock_measure_values_online
+        clock_measure_analog = ecube_analog[:, metadata_dict['screen_measure_ach']] # 5
         clock_measure_digitized = utils.convert_analog_to_digital(clock_measure_analog, thresh=0.5)
         clock_measure_timestamps_offline, clock_measure_values_offline = utils.detect_edges(clock_measure_digitized, analog_samplerate, rising=True, falling=True)
         measure_clock_offline = np.empty((len(clock_measure_timestamps_offline),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
@@ -223,6 +229,7 @@ def _parse_bmi3d_v1(data_dir, files):
         measure_clock_offline['value'] = clock_measure_values_offline
 
         # And reward system (A0)
+        reward_system_analog = ecube_analog[:, metadata_dict['reward_measure_ach']] # 0
         reward_system_digitized = utils.convert_analog_to_digital(reward_system_analog)
         reward_system_timestamps, reward_system_values = utils.detect_edges(reward_system_digitized, analog_samplerate, rising=True, falling=True)
         reward_system = np.empty((len(reward_system_timestamps),), dtype=[('timestamp', 'f8'), ('state', '?')])
@@ -237,6 +244,17 @@ def _parse_bmi3d_v1(data_dir, files):
             'measure_clock_offline': measure_clock_offline,
             'reward_system': reward_system,
         })    
+
+        # Analog cursor out (A3, A4) since version 11
+        if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
+            cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'] - 1, metadata_dict['cursor_z_ach'] - 1]]
+            max_voltage = 3.33 # using teensy 3.6
+            cursor_analog_cm = ((cursor_analog * metadata['voltsperbit']) - max_voltage/2) / metadata_dict['cursor_out_gain']
+            data_dict.update({
+                'cursor_analog_volts': cursor_analog,
+                'cursor_analog_cm': cursor_analog_cm
+            })
+            metadata_dict['cursor_analog_samplerate'] = analog_samplerate
 
         metadata_dict.update({
             'digital_samplerate': digital_samplerate,
@@ -356,7 +374,7 @@ def _prepare_bmi3d_v1(data, metadata):
             warnings.warn(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
 
     # Trim / pad the clock
-    n_cycles = int(corrected_clock['time'][-1]) + 1
+    n_cycles = int(corrected_clock['time'][-1])
     if metadata['sync_protocol_version'] >= 3 and metadata['sync_protocol_version'] < 6:
 
         # Due to the "sync" state at the beginning of the experiment, we need 
@@ -366,8 +384,8 @@ def _prepare_bmi3d_v1(data, metadata):
         n_sync_clocks = np.count_nonzero(corrected_clock['time'] < n_sync_cycles)
 
         padded_clock = np.zeros((n_cycles,), dtype=corrected_clock.dtype)
-        padded_clock[n_sync_cycles+1:] = corrected_clock[n_sync_clocks:]
-        padded_clock['time'][:n_sync_cycles+1] = range(n_sync_cycles+1)
+        padded_clock[n_sync_cycles:] = corrected_clock[n_sync_clocks:]
+        padded_clock['time'][:n_sync_cycles] = range(n_sync_cycles)
         corrected_clock = padded_clock
 
     # By default use the internal clock and events.
@@ -384,6 +402,21 @@ def _prepare_bmi3d_v1(data, metadata):
         metadata['has_reward_system'] = True
     else:
         metadata['has_reward_system'] = False
+
+    # And interpolated cursor kinematics
+    if 'timestamp_sync' in corrected_clock.dtype.names:
+        cursor_data_cycles = task['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
+        clock = corrected_clock['timestamp_sync']
+        if cursor_data_cycles.shape[0] != len(clock):
+            print("Cannot continue.")
+            print(len(clock))
+            print(cursor_data_cycles.shape[0])
+            print(n_cycles)
+        cursor_samplerate = metadata['analog_samplerate']
+        time = np.arange(int((clock[-1] + 10)*metadata['analog_samplerate']))/cursor_samplerate
+        cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
+        data['cursor_interp'] = cursor_data_time
+        metadata['cursor_interp_samplerate'] = cursor_samplerate
 
     data.update({
         'task': task,
