@@ -286,7 +286,7 @@ def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
 
         time = np.array([-2, -1, 0, 1, 2, 3])
         data = np.array([[0, 0, 1, 1, 0, 0],
-                         [0, 0, 0, 1, 1, 0]])
+                         [0, 0, 0, 1, 1, 0]]).T
         plot_image_by_time(time, data)
         filename = 'image_by_time.png'
 

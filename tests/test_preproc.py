@@ -531,6 +531,24 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('events', data)
         self.assertIn('task', data)
 
+    def test_decode_events(self):
+        dictionary = {
+            'event1': 1,
+            'event2': 3,
+            'event3': 10
+        }
+        values = [1, 2, 3, 10]
+        event_names, event_data = decode_events(dictionary, values)
+        self.assertEqual(len(event_names), len(values))
+        self.assertEqual(event_names[0], 'event1')
+        self.assertEqual(event_names[1], 'event1')
+        self.assertEqual(event_names[2], 'event2')
+        self.assertEqual(event_names[3], 'event3')
+        self.assertEqual(event_data[0], 0)
+        self.assertEqual(event_data[1], 1)
+        self.assertEqual(event_data[2], 0)
+        self.assertEqual(event_data[3], 0)
+
     def test_parse_bmi3d_empty(self):
         files = {}
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
@@ -595,8 +613,9 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertTrue(metadata['has_measured_timestamps'])
         self.assertIn('timestamp', data['clock'].dtype.names)
         self.assertIn('timestamp', data['events'].dtype.names)
-        n_cycles = data['clock']['time'][-1] + 1
+        n_cycles = data['clock']['time'][-1]
         self.assertEqual(len(data['clock']), n_cycles)
+        self.assertIn('clock', data)
   
     def test_parse_bmi3d_v5(self):
         pass
@@ -648,12 +667,20 @@ class TestPrepareExperiment(unittest.TestCase):
         time_before = 0.1
         time_after = 0.4
 
+        plt.figure()
+        visualization.plot_timeseries(lfp_data, samplerate)
+        filename = 'parse_bmi3d_downsample.png'
+        visualization.savefig(write_dir, filename)
+
         # Plot aligned flash times based on events
         event_timestamps = data['events']['timestamp']
         flash_times = event_timestamps[np.logical_and(16 <= data['events']['code'], data['events']['code'] < 32)]
         evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
         time = np.arange(evoked_lfp.shape[1])/samplerate - time_before
-        visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        plt.figure()
+        im = visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im.set_clim(-300, 300)
+        plt.colorbar(im, label='uV')        
         filename = 'parse_bmi3d_flash_events.png'
         visualization.savefig(img_dir, filename)
 
@@ -662,7 +689,9 @@ class TestPrepareExperiment(unittest.TestCase):
         flash_times = data['clock']['timestamp_sync'][data['bmi3d_events']['time'][target_on_events]]
         evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
         plt.figure()
-        visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im = visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im.set_clim(-300, 300)
+        plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_sync_clock.png'
         visualization.savefig(img_dir, filename)
 
@@ -671,15 +700,73 @@ class TestPrepareExperiment(unittest.TestCase):
         flash_times = data['clock']['timestamp_measure_offline'][data['bmi3d_events']['time'][target_on_events]]
         evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
         plt.figure()
-        visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im = visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im.set_clim(-300, 300)
+        plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_measure_clock.png'
         visualization.savefig(img_dir, filename)
+
 
     def test_parse_bmi3d_v10(self):
         pass
 
     def test_parse_bmi3d_v11(self):
-        pass
+        files = {}
+        files['hdf'] = 'test20220524_11_te5351.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.check_required_fields(data, metadata)
+        files['ecube'] = '2022-05-24_BMI3D_te5351'
+
+        # Reduce the file size so we can upload it to github
+        # analog_data, metadata = aodata.load_ecube_analog(data_dir, files['ecube'])
+        # analog_data = analog_data[:,:16]
+        # filename = utils.save_test_signal_ecube(analog_data, data_dir, 1, datasource='AnalogPanel')
+
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        self.assertEqual(metadata['sync_protocol_version'], 11)
+        self.assertIn('cursor_analog_cm', data)
+        self.assertIn('cursor_interp', data)
+
+        # Plot the cursor data
+        bounds = np.array(metadata['cursor_bounds'])
+        bounds = bounds[[0,1,4,5,2,3]] # (-x, x, -z, z, -y, y) -> (-x, x, -y, y, -z, z)
+        plt.figure()
+        visualization.plot_trajectories([data['cursor_analog_cm']], bounds)
+        trials = data['bmi3d_trials']
+        trial_targets = postproc.get_trial_targets(trials['trial'], trials['target'][:,[0,2,1]]) # (x, z, y) -> (x, y, z)
+        unique_targets = np.unique(np.vstack(trial_targets), axis=0)
+        visualization.plot_targets(unique_targets, metadata['target_radius'])
+        filename = 'parse_bmi3d_cursor_v11.png'
+        visualization.savefig(write_dir, filename)
+
+        # Run some trial alignment to make sure the number of trials makes sense
+        events = data['events']
+        start_states = [32] # center target off
+        end_states = [239] # trial end
+        trial_states, trial_times = get_trial_segments(events['code'], events['timestamp'], start_states, end_states)
+        trajectories = get_data_segments(data['cursor_analog_cm'], trial_times, metadata['analog_samplerate'])
+        plt.figure()
+        visualization.plot_trajectories(trajectories, bounds)
+        trials = data['bmi3d_trials']
+        visualization.plot_targets(unique_targets, metadata['target_radius'])
+        filename = 'parse_bmi3d_cursor_trajectories_v11.png'
+        visualization.savefig(write_dir, filename)
+
+        trajectories = get_data_segments(data['cursor_interp'], trial_times, metadata['cursor_interp_samplerate'])
+        plt.figure()
+        visualization.plot_trajectories(trajectories, bounds)
+        trials = data['bmi3d_trials']
+        visualization.plot_targets(unique_targets, metadata['target_radius'])
+        filename = 'parse_bmi3d_cursor_trajectories_interp_v11.png'
+        visualization.savefig(write_dir, filename)
+
+        trajectories = get_data_segments(data['cursor_analog_cm_filt'], trial_times, metadata['cursor_interp_samplerate'])
+        plt.figure()
+        visualization.plot_trajectories(trajectories, bounds)
+        trials = data['bmi3d_trials']
+        visualization.plot_targets(unique_targets, metadata['target_radius'])
+        filename = 'parse_bmi3d_cursor_trajectories_filt_v11.png'
+        visualization.savefig(write_dir, filename)
 
 
     def test_parse_oculomatic(self):

@@ -4,6 +4,9 @@
 import warnings
 import numpy as np
 import numpy.lib.recfunctions as rfn
+
+from aopy import precondition
+
 from .base import get_measured_clock_timestamps, fill_missing_timestamps, interp_timestamps2timeseries
 from .. import data as aodata
 from .. import utils
@@ -247,12 +250,15 @@ def _parse_bmi3d_v1(data_dir, files):
 
         # Analog cursor out (A3, A4) since version 11
         if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
-            cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'] - 1, metadata_dict['cursor_z_ach'] - 1]]
-            max_voltage = 3.33 # using teensy 3.6
+            cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'], metadata_dict['cursor_z_ach']]]
+            max_voltage = 3.34 # using teensy 3.6
             cursor_analog_cm = ((cursor_analog * metadata['voltsperbit']) - max_voltage/2) / metadata_dict['cursor_out_gain']
+            filt_out, freq = precondition.butterworth_filter_data(cursor_analog_cm, analog_samplerate, [metadata_dict['fps']], filter_type='lowpass', order=3)
+            cursor_analog_cm_filt = filt_out[0]
             data_dict.update({
                 'cursor_analog_volts': cursor_analog,
-                'cursor_analog_cm': cursor_analog_cm
+                'cursor_analog_cm': cursor_analog_cm,
+                'cursor_analog_cm_filt': cursor_analog_cm_filt,
             })
             metadata_dict['cursor_analog_samplerate'] = analog_samplerate
 

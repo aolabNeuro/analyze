@@ -40,14 +40,14 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
     b,a = butter( order, Wn, btype=filter_type, fs =fs)
     return b,a
 
-def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, filter_type='bandpass'):
+def butterworth_filter_data(data, fs, cutoff_freqs=None, bands=None, order=None, filter_type='bandpass'):
     '''
     Apply a digital butterworth filter forward and backward to a timeseries signal.
 
     Args:
         data (nt, ...): neural data
         fs (int): sampling rate (in Hz)
-        cutoff_freq (float): cut-off frequency (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
+        cutoff_freqs (float): list of cut-off frequencies (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
         bands (list): frequency bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
         order (int): Order of the butterworth filter. If no order is specified, the function will find the minimum order of filter required to maintain +3dB gain in the bandpass range.
         filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
@@ -59,7 +59,7 @@ def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, 
     '''
 
     if filter_type in ['lowpass', 'highpass']:
-        Wn = cutoff_freq
+        Wn = cutoff_freqs
 
     if filter_type in ['bandpass', 'bandstop']:
         if not bands:
@@ -75,10 +75,10 @@ def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, 
         # Automatically select an order if none is specified
         if order is None:
             wp = w/(2 * fs)
-            if len(wp) == 2:
+            if type(wp) != int and type(wp) != float and len(wp) == 2:
                 ws = [wp[0] - 0.1 , wp[1] + 1]
             else:
-                ws = wp -0.1
+                ws = wp - 0.1
             order, _ = signal.buttord(wp, ws, 3, 40, False)
 
         # Filter this frequency or band
