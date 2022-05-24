@@ -167,7 +167,6 @@ def _parse_bmi3d_v0(data_dir, files):
         'bmi3d_clock': bmi3d_clock,
     })
 
-    if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): bmi3d_data.update(bmi3d_clda)
     return bmi3d_data, metadata
 
 def _parse_bmi3d_v1(data_dir, files):
