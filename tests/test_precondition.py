@@ -283,7 +283,6 @@ class SpikeDetectionTests(unittest.TestCase):
         expected_thresh_values = np.array((-4,-9,-3))
         np.testing.assert_allclose(threshold_values, expected_thresh_values)
 
-    @unittest.skip("takes too long!")
     def test_detect_spikes(self):
         # Test spike time detection
         data = np.array(((0,0,1),(4,0,-1),(0,9,-1), (4,9,1)))
@@ -354,7 +353,6 @@ class SpikeDetectionTests(unittest.TestCase):
         np.testing.assert_allclose(filtered_spike_times1, np.array((1,5)))
         np.testing.assert_allclose(filtered_spike_times2, np.array((1,5)))
 
-    @unittest.skip("takes too long!")
     def test_filter_spike_times_speed(self):
         test_speed_data = np.random.normal(size=(250000, 256))
         threshold = precondition.calc_spike_threshold(test_speed_data)
