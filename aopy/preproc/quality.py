@@ -31,9 +31,9 @@ def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_
     fxx, txx, Sxx = analysis.get_sgram_multitaper(data, srate, sg_win_t, sg_step_t, bw=sg_bw)
     low_freq_mask = fxx < lf_c
     Sxx_low = Sxx[low_freq_mask,:,:]
-    Sxx_low_psd = np.mean(Sxx_low,axis=2)
+    Sxx_low_psd = np.mean(Sxx_low,axis=1)
 
-    psd_var = np.var(Sxx_low_psd,axis=1)
+    psd_var = np.var(Sxx_low_psd,axis=0)
     norm_psd_var = psd_var/npla.norm(psd_var)
     low_var_θ = np.mean(norm_psd_var)/3
     bad_ch_mask = norm_psd_var <= low_var_θ
@@ -42,7 +42,7 @@ def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_
 
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
-def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100.):
+def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw=0.5):
     """high_freq_data_detection
 
     Checks multichannel numpy array data for excess high frequency power. Returns a logical array of time locations in which any channel has excess high power (indicates noise)
@@ -64,11 +64,6 @@ def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100.):
     data_t = np.arange(num_samp)/srate
     if not bad_channels:
         bad_channels = np.zeros(num_ch)
-
-    # mt sgram parameters
-    sg_win_t = 8 # (s)
-    sg_over_t = sg_win_t // 2 # (s)
-    sg_bw = 0.5 # (Hz)
 
     # estimate hf influence, channel-wise
     for ch_i in np.arange(num_ch)[np.logical_not(bad_channels)]:
@@ -161,7 +156,7 @@ def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
     if not bad_channels:
         bad_channels = np.zeros(num_ch)
     bad_all_ch_mask = np.zeros((num_samp, num_ch))
-    data_rect = np.abs(data)
+    data_rect = np.abs(np.float32(data))
     mask = [bool(not x) for x in bad_channels]
 
     for ch_i in np.arange(num_ch)[mask]:
