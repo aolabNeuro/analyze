@@ -231,6 +231,8 @@ def load_ecube_metadata(data_dir, data_source):
         if data_source in r[0]:
             n_samples += r[2]  
             n_channels = r[1]
+    if n_channels == 0:
+        raise Exception('No data found for data source: {}'.format(data_source))
     samplerate = dat.samplerate
     metadata = dict(
         samplerate = samplerate,
