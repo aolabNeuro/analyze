@@ -3,11 +3,8 @@ import os
 import warnings
 import pickle as pkl
 import re
-import sys
 import json
 import numpy as np
-import numpy.linalg as npla
-import scipy.signal as sps
 from pandas import DataFrame
 import xarray as xr
 
@@ -72,92 +69,92 @@ def load_mask_data(mask_file_name):
     """
 
     assert os.path.exists(mask_file_name), f'inferred mask file not found at {mask_file_name}'
-    with open(mask_file_name,'r') as f:
+    with open(mask_file_name,'rb') as f:
         return pkl.load(f)
 
-def read_lfp(file_path,t_range=(0,-1)):
-    """read_lfp
+# def read_lfp(file_path,t_range=(0,-1)):
+#     """read_lfp
 
-    reads data from a structured binary *lfp file in the goose wireless dataset.
+#     reads data from a structured binary *lfp file in the goose wireless dataset.
 
-    Args:
-        file_path (str): file path to data file
-        t_range (listlike, optional): Start and stop times to read data. (0, -1) reads the entire file. Defaults to (0,-1).
+#     Args:
+#         file_path (str): file path to data file
+#         t_range (listlike, optional): Start and stop times to read data. (0, -1) reads the entire file. Defaults to (0,-1).
 
-    Returns:
-        da (numpy.array): numpy array of multichannel recorded neural activity saved in file_path
-        mask (numpy.array): numpy array of binary mask values
-    """
+#     Returns:
+#         da (numpy.array): numpy array of multichannel recorded neural activity saved in file_path
+#         mask (numpy.array): numpy array of binary mask values
+#     """
 
-    # get local experiment, mask files
-    exp_file_name, mask_file_name, microdrive_name, rec_type = parse_file_info(file_path)
+#     # get local experiment, mask files
+#     exp_file_name, mask_file_name, microdrive_name, rec_type = parse_file_info(file_path)
 
-    # load experiment data
-    experiment, electrode_df = load_experiment_data(exp_file_name)
+#     # load experiment data
+#     experiment, electrode_df = load_experiment_data(exp_file_name)
 
-    # load mask data
-    mask = load_mask_data(mask_file_name)
+#     # load mask data
+#     mask = load_mask_data(mask_file_name)
 
-    # get parameters: srate
-    dsmatch = re.search(r'clfp_ds(\d+)',rec_type)
-    if rec_type == 'raw':
-        srate = experiment['hardware']['acquisition']['samplingrate']
-        data_type = np.ushort
-        reshape_order = 'F'
-    elif rec_type == 'lfp':
-        srate = 1000
-        data_type = np.float32
-        reshape_order = 'F'
-    elif rec_type == 'clfp':
-        srate = 1000
-        data_type = np.float32
-        reshape_order = 'F'
-    elif dsmatch:
-        # downsampled data - get srate from name
-        srate = int(dsmatch.group(1))
-        data_type = np.float32
-        reshape_order = 'C' # files created with np.tofile which forces C ordering.
+#     # get parameters: srate
+#     dsmatch = re.search(r'clfp_ds(\d+)',rec_type)
+#     if rec_type == 'raw':
+#         srate = experiment['hardware']['acquisition']['samplingrate']
+#         data_type = np.ushort
+#         reshape_order = 'F'
+#     elif rec_type == 'lfp':
+#         srate = 1000
+#         data_type = np.float32
+#         reshape_order = 'F'
+#     elif rec_type == 'clfp':
+#         srate = 1000
+#         data_type = np.float32
+#         reshape_order = 'F'
+#     elif dsmatch:
+#         # downsampled data - get srate from name
+#         srate = int(dsmatch.group(1))
+#         data_type = np.float32
+#         reshape_order = 'C' # files created with np.tofile which forces C ordering.
 
-    # get microdrive parameters
-    microdrive_name_list = [md['name'] for md in experiment['hardware']['microdrive']]
-    microdrive_idx = [md_idx for md_idx, md in enumerate(microdrive_name_list) if microdrive_name == md][0]
-    microdrive_dict = experiment['hardware']['microdrive'][microdrive_idx]
-    num_ch = len(microdrive_dict['electrodes'])
+#     # get microdrive parameters
+#     microdrive_name_list = [md['name'] for md in experiment['hardware']['microdrive']]
+#     microdrive_idx = [md_idx for md_idx, md in enumerate(microdrive_name_list) if microdrive_name == md][0]
+#     microdrive_dict = experiment['hardware']['microdrive'][microdrive_idx]
+#     num_ch = len(microdrive_dict['electrodes'])
 
-    # get file size information
-    data_type_size = data_type().nbytes
-    file_size = os.path.getsize(file_path)
-    n_offset_samples = np.round(t_range[0]*srate)
-    n_offset_bytes = n_offset_samples*data_type_size
-    n_all = int(np.floor(file_size/num_ch/data_type_size))
-    n_stop = n_all if t_range[1] == -1 else np.min((np.round(t_range[1]*srate),n_all))
-    n_read = n_stop-n_offset_samples
+#     # get file size information
+#     data_type_size = data_type().nbytes
+#     file_size = os.path.getsize(file_path)
+#     n_offset_samples = np.round(t_range[0]*srate)
+#     n_offset_bytes = n_offset_samples*data_type_size
+#     n_all = int(np.floor(file_size/num_ch/data_type_size))
+#     n_stop = n_all if t_range[1] == -1 else np.min((np.round(t_range[1]*srate),n_all))
+#     n_read = n_stop-n_offset_samples
 
-    # read signal data
-    data = read_from_file(
-        file_path,
-        data_type,
-        num_ch,
-        n_read,
-        n_offset_bytes,
-        reshape_order=reshape_order
-    )
+#     # read signal data
+#     data = read_from_file(
+#         file_path,
+#         data_type,
+#         num_ch,
+#         n_read,
+#         n_offset_bytes,
+#         reshape_order=reshape_order
+#     )
 
-    # create xarray from data and channel information
-    da = xr.DataArray(
-        data.T,
-        dime = ('sample','ch'),
-        coords = {
-            'ch': electrode_df.label,
-            'x_pos': ('ch', electrode_df.x),
-            'y_pos': ('ch', electrode_df.y),
-            'row': ('ch', electrode_df.row),
-            'col': ('ch', electrode_df.col),
-        },
-        attrs = {'srate': srate}
-    )
+#     # create xarray from data and channel information
+#     da = xr.DataArray(
+#         data.T,
+#         dime = ('sample','ch'),
+#         coords = {
+#             'ch': electrode_df.label,
+#             'x_pos': ('ch', electrode_df.x),
+#             'y_pos': ('ch', electrode_df.y),
+#             'row': ('ch', electrode_df.row),
+#             'col': ('ch', electrode_df.col),
+#         },
+#         attrs = {'srate': srate}
+#     )
 
-    return da, mask
+#     return da, mask
 
 # wrapper to read and handle clfp ECOG data
 def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_file_name=None,compute_mask=True):
@@ -177,7 +174,7 @@ def load_ecog_clfp_data(data_file_name,t_range=(0,-1),exp_file_name=None,mask_fi
         NameError: If mask file cannot be found, NameError is raised.
 
     Returns:
-        data (numpy.array): numpy array of multichannel ECoG data
+        data (nt x nch): numpy array of multichannel ECoG data
         mask (numpy.array): binary mask indicating bad data samples
         exp (dict): dictionary of experiment data
     """
@@ -284,6 +281,7 @@ def read_from_start(data_file_path,data_type,n_ch,n_read):
     data_file = open(data_file_path,"rb")
     data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch)
     data = np.reshape(data,(n_ch,n_read),order='F')
+    data = data.T
     data_file.close()
 
     return data
@@ -314,6 +312,7 @@ def read_from_file(data_file_path,data_type,n_ch,n_read,n_offset,reshape_order='
         data = np.fromfile(data_file,dtype=data_type,count=n_read*n_ch)
     data = np.reshape(data,(n_ch,n_read),order=reshape_order)
     data_file.close()
+    data = data.T
 
     return data
 
