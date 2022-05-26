@@ -349,14 +349,13 @@ def _prepare_bmi3d_v1(data, metadata):
                 measure_latency_estimate, measure_search_radius)
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_measure_online', timestamp_measure_online, dtypes='f8')
 
-        # If there are few missing measurements, include this as the default `timestamp`
-        corrected_timestamps = fill_missing_timestamps(timestamp_measure_online)
-        metadata['latency_measured'] = np.nanmean(corrected_timestamps - timestamp_measure_online) - measure_latency_estimate
+        # If there are few missing measurements, include this in the data
+        metadata['latency_measured'] = np.nanmean(timestamp_measure_online - approx_clock)
         metadata['n_missing_markers'] = np.count_nonzero(np.isnan(timestamp_measure_online[:valid_clock_cycles]))
         n_consecutive_missing_cycles = utils.max_repeated_nans(timestamp_measure_online[:valid_clock_cycles])
         if n_consecutive_missing_cycles < max_consecutive_missing_cycles:
             metadata['has_measured_timestamps'] = True
-            corrected_clock['timestamp_measure_online'] = corrected_timestamps
+            corrected_clock['timestamp_measure_online'] = timestamp_measure_online
         else:
             warnings.warn(f"Digital screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
 
@@ -368,12 +367,11 @@ def _prepare_bmi3d_v1(data, metadata):
         corrected_clock = rfn.append_fields(corrected_clock, 'timestamp_measure_offline', timestamp_measure_offline, dtypes='f8')
         
         # If there are few missing measurements, include this as the default `timestamp`
-        corrected_timestamps = fill_missing_timestamps(timestamp_measure_offline)
-        metadata['latency_measured'] = np.nanmean(corrected_timestamps - timestamp_measure_offline) - measure_latency_estimate
+        metadata['latency_measured'] = np.nanmean(timestamp_measure_offline - approx_clock)
         metadata['n_missing_markers'] = np.count_nonzero(np.isnan(timestamp_measure_offline[:valid_clock_cycles]))
         n_consecutive_missing_cycles = utils.max_repeated_nans(timestamp_measure_offline[:valid_clock_cycles])
         if n_consecutive_missing_cycles < max_consecutive_missing_cycles:
-            corrected_clock['timestamp_measure_offline'] = corrected_timestamps
+            corrected_clock['timestamp_measure_offline'] = timestamp_measure_offline
             metadata['has_measured_timestamps'] = True
         else:
             warnings.warn(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
@@ -409,7 +407,7 @@ def _prepare_bmi3d_v1(data, metadata):
         metadata['has_reward_system'] = False
 
     # And interpolated cursor kinematics
-    if 'timestamp_sync' in corrected_clock.dtype.names:
+    if 'timestamp_sync' in corrected_clock.dtype.names and 'cursor' in task.dtype.names:
         cursor_data_cycles = task['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
         clock = corrected_clock['timestamp_sync']
         if cursor_data_cycles.shape[0] != len(clock):

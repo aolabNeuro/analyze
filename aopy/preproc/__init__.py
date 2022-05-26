@@ -219,13 +219,13 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
     eye_data = eye_data['data']
 
-    # Calibrate the eye data
-    cursor_samplerate = exp_metadata['cursor_interp_samplerate']
-    cursor_data = exp_data['cursor_interp']
-    events = exp_data['events']
-    event_codes = events['code']
-    event_times = events['timestamp'] # time points in the ecube time frame
     try:
+        # Calibrate the eye data
+        cursor_samplerate = exp_metadata['cursor_interp_samplerate']
+        cursor_data = exp_data['cursor_interp']
+        events = exp_data['events']
+        event_codes = events['code']
+        event_times = events['timestamp'] # time points in the ecube time frame
         coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
             cursor_data, cursor_samplerate, eye_data, eye_metadata['samplerate'], 
             event_times, event_codes, return_datapoints=True, **kwargs)
