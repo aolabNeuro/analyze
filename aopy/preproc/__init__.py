@@ -240,9 +240,9 @@ def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, o
             'eye_calibration_data': eye_calibration_data
         }
 
-    except ValueError:
-        # If there aren't enough trials, this will fail. We should still save the eye data, just don't
-        # include the calibrated data
+    except (KeyError, ValueError):
+        # If there is no cursor data or there aren't enough trials, this will fail. 
+        # We should still save the eye data, just don't include the calibrated data
         eye_dict = {'raw_data': eye_data}
 
     # Save everything into the HDF file
