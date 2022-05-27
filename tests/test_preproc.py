@@ -726,6 +726,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(metadata['sync_protocol_version'], 11)
         self.assertIn('cursor_analog_cm', data)
         self.assertIn('cursor_interp', data)
+        self.assertIn('cursor_interp_samplerate', metadata)
 
         # Plot the cursor data
         bounds = np.array(metadata['cursor_bounds'])

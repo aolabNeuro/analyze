@@ -410,7 +410,7 @@ def _prepare_bmi3d_v1(data, metadata):
     if 'timestamp_sync' in corrected_clock.dtype.names and isinstance(task, np.ndarray) and 'cursor' in task.dtype.names:
         cursor_data_cycles = task['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
         clock = corrected_clock['timestamp_sync']
-        assert cursor_data_cycles.shape[0] != len(clock), "Cursor data and clock should have the same number of cycles"
+        assert cursor_data_cycles.shape[0] == len(clock), f"Cursor data and clock should have the same number of cycles ({cursor_data_cycles.shape[0]} vs {len(clock)})"
         cursor_samplerate = metadata['analog_samplerate']
         time = np.arange(int((clock[-1] + 10)*metadata['analog_samplerate']))/cursor_samplerate
         cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
