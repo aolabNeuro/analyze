@@ -820,12 +820,12 @@ class TestPrepareExperiment(unittest.TestCase):
         # Should fail because no preprocessed experimental data
         if os.path.exists(os.path.join(write_dir, result_filename)):
             os.remove(os.path.join(write_dir, result_filename))
-        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename))
+        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename, result_filename))
 
-        proc_exp(data_dir, files, write_dir, result_filename)
+        proc_exp(data_dir, files, write_dir, result_filename, result_filename)
 
         # Not enough trials in this session to calibrate, so only raw data should be processed
-        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, result_filename, save_res=False)
         self.assertIsNotNone(eye)
         self.assertIsNotNone(meta)
         self.assertIn('raw_data', eye)
@@ -840,14 +840,14 @@ class TestPrepareExperiment(unittest.TestCase):
         exp_data, exp_metadata = proc_exp(data_dir, files, write_dir, result_filename)
 
         # Test that eye calibration is returned, but results are not saved
-        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, result_filename, save_res=False)
         self.assertIsNotNone(eye)
         self.assertIsNotNone(meta)
         self.assertRaises(ValueError, lambda: load_hdf_group(write_dir, result_filename, 'eye_data'))
         self.assertRaises(ValueError, lambda: load_hdf_group(write_dir, result_filename, 'eye_metadata'))
 
         # Test that eye calibration is saved
-        proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=True)
+        proc_eyetracking(data_dir, files, write_dir, result_filename, result_filename, save_res=True)
         eye = load_hdf_group(write_dir, result_filename, 'eye_data')
         meta = load_hdf_group(write_dir, result_filename, 'eye_metadata')
         self.assertIsNotNone(eye)
@@ -873,7 +873,7 @@ class TestPrepareExperiment(unittest.TestCase):
         if os.path.exists(os.path.join(write_dir, result_filename)):
             os.remove(os.path.join(write_dir, result_filename))
         exp_data, exp_metadata = proc_exp(data_dir, files, write_dir, result_filename)
-        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, save_res=False)
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, result_filename, save_res=False)
 
         # Plot calibrated eye data to make sure everything is working properly
         raw_data = eye['raw_data']
@@ -888,6 +888,14 @@ class TestPrepareExperiment(unittest.TestCase):
         visualization.plot_trajectories([eye_data], bounds=bounds)
         figname = 'eye_trajectories_calibrated.png'
         visualization.savefig(img_dir, figname) # should have centered eye data
+
+        # Test putting eye data into a separate HDF file
+        eye_filename = 'test_proc_eyetracking_short_eye.hdf'
+        proc_eyetracking(data_dir, files, write_dir, result_filename, eye_filename)
+        eye = load_hdf_group(write_dir, eye_filename, 'eye_data')
+        meta = load_hdf_group(write_dir, eye_filename, 'eye_metadata')
+        self.assertIsNotNone(eye)
+        self.assertIsNotNone(meta)
 
     def preproc_multiple(self):
         result_filename = 'test_proc_multiple.hdf'
