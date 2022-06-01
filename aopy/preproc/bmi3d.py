@@ -99,7 +99,7 @@ def parse_bmi3d(data_dir, files):
 
 def _parse_bmi3d_v0(data_dir, files):
     '''
-    Simple parser for BMI3D data.
+    Simple parser for BMI3D data. Ignores eCube data.
 
     Args:
         data_dir (str): where to look for the data
@@ -116,15 +116,10 @@ def _parse_bmi3d_v0(data_dir, files):
 
     # Load bmi3d data
     bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
-    bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
     bmi3d_root_metadata = aodata.load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
-    if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
-        bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
-        metadata.update(bmi3d_clda_meta)
 
     # Copy metadata
     metadata.update(bmi3d_task_metadata)
-    metadata.update(bmi3d_event_metadata)
     metadata.update(bmi3d_root_metadata)
     metadata.update({
         'source_dir': data_dir,
@@ -134,26 +129,23 @@ def _parse_bmi3d_v0(data_dir, files):
     # Put data into dictionary
     bmi3d_data = dict(
         bmi3d_task=bmi3d_task,
-        bmi3d_events=bmi3d_events,
     )
 
     # Some data/metadata isn't always present
+    if aodata.is_table_in_hdf('sync_events', bmi3d_hdf_full_filename):
+        bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
+        metadata.update(bmi3d_event_metadata)
+        bmi3d_data['bmi3d_events'] = bmi3d_events
     if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
         bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
         metadata.update(bmi3d_clda_meta)
-        bmi3d_data.update(
-            {'bmi3d_clda': bmi3d_clda}
-        )
+        bmi3d_data['bmi3d_clda'] = bmi3d_clda
     if aodata.is_table_in_hdf('task_msgs', bmi3d_hdf_full_filename): 
         bmi3d_state, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task_msgs')
-        bmi3d_data.update(
-            {'bmi3d_state': bmi3d_state}
-        )
+        bmi3d_data['bmi3d_state'] = bmi3d_state
     if aodata.is_table_in_hdf('trials', bmi3d_hdf_full_filename): 
         bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials')
-        bmi3d_data.update(
-            {'bmi3d_trials': bmi3d_trials}
-        )
+        bmi3d_data['bmi3d_trials'] = bmi3d_trials
     if aodata.is_table_in_hdf('sync_clock', bmi3d_hdf_full_filename): 
         bmi3d_clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
     else:
@@ -163,9 +155,7 @@ def _parse_bmi3d_v0(data_dir, files):
         bmi3d_clock = np.empty((len(bmi3d_task),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
         bmi3d_clock['time'] = bmi3d_cycles
         bmi3d_clock['timestamp'] = bmi3d_timestamps
-    bmi3d_data.update({
-        'bmi3d_clock': bmi3d_clock,
-    })
+    bmi3d_data['bmi3d_clock'] = bmi3d_clock
 
     return bmi3d_data, metadata
 
@@ -269,10 +259,9 @@ def _parse_bmi3d_v1(data_dir, files):
 
 def _prepare_bmi3d_v1(data, metadata):
     '''
-    Organizes the bmi3d data and metadata and computes some automatic conversions. Version 1 for 
-    bmi3d sync protocol 7 up to sync protocol 10. In these versions, the sync clock signal was 
-    very unreliable, thus we do extra error correction to approximate accurate clock and event
-    timestamps.
+    Organizes the bmi3d data and metadata and computes some automatic conversions. Corrects for
+    unreliable sync clock signal, finds measured timestamps, and pads the clock for versions
+    with a sync period at the beginning of the experiment.
 
     Args:
         data (dict): bmi3d data
@@ -283,8 +272,8 @@ def _prepare_bmi3d_v1(data, metadata):
             | **data (dict):** prepared bmi3d data
             | **metadata (dict):** prepared bmi3d metadata
     '''
+    # Must be present: clock, task
     internal_clock = data['bmi3d_clock']
-    internal_events = data['bmi3d_events']
     task = data['bmi3d_task']
 
     # Estimate display latency
@@ -301,9 +290,7 @@ def _prepare_bmi3d_v1(data, metadata):
             measure_latency_estimate = np.mean(measure_impulse - sync_impulse)
             print("Sync latency estimate: {:.4f} s".format(measure_latency_estimate))
     else:
-
-        # Guess 10 ms
-        measure_latency_estimate = 0.01
+        measure_latency_estimate = 0.01 # Guess 10 ms
     metadata['measure_latency_estimate'] = measure_latency_estimate
 
     # Correct the clock
@@ -391,11 +378,15 @@ def _prepare_bmi3d_v1(data, metadata):
         padded_clock['time'][:n_sync_cycles] = range(n_sync_cycles)
         corrected_clock = padded_clock
 
-    # By default use the internal clock and events.
-    corrected_events = internal_events
+    # By default use the internal events if they exist
+    corrected_events = None
+    if 'bmi3d_events' in data:
+        corrected_events = data['bmi3d_events']
 
     # But use the sync events if they exist and are valid
     if 'sync_events' in data and len(data['sync_events']) > 0:
+        if not np.array_equal(data['sync_events'], corrected_events):
+            warnings.warn("sync events don't match bmi3d events. This will probably cause problems.")
         corrected_events = data['sync_events']
     else:
         warnings.warn("No sync events present, using bmi3d events instead")
