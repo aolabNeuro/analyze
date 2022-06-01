@@ -3,6 +3,7 @@
 from aopy.data import _process_channels
 from aopy.data import *
 from aopy.visualization import *
+from aopy import preproc
 import unittest
 import os
 import numpy as np
@@ -16,6 +17,38 @@ if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 test_filepath = os.path.join(data_dir, "short headstage test")
 sim_filepath = os.path.join(data_dir, "fake ecube data")
+
+class LoadPreprocTests(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        files = {}
+        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
+        files['ecube'] = 'fake ecube data'
+        cls.id = 3498
+        cls.subject = 'fake_subject'
+        cls.date = '2021-12-13'
+        preproc.proc_single(data_dir, files, write_dir, cls.subject, cls.id, cls.date, ['exp', 'eye', 'broadband', 'lfp'], overwrite=True) # without ecube data
+
+    def test_load_preproc_exp_data(self):
+        exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(exp_data, dict)
+        self.assertIsInstance(exp_metadata, dict)
+
+    def test_load_preproc_eye_data(self):
+        eye_data, eye_metadata = load_preproc_eye_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(eye_data, dict)
+        self.assertIsInstance(eye_metadata, dict)
+            
+    def test_load_preproc_broadband_data(self):
+        broadband_data, broadband_metadata = load_preproc_broadband_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(broadband_data, np.ndarray)
+        self.assertIsInstance(broadband_metadata, dict)
+
+    def test_load_preproc_lfp_data(self):
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
 
 class LoadDataTests(unittest.TestCase):
 

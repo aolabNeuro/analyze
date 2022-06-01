@@ -6,9 +6,15 @@ Preproc:
 Preprocessed data format
 ------------------------
 
-Preprocessed BMI3D data takes the form of an HDF file containing several datasets. Each dataset is labeled as 
+Preprocessed BMI3D data takes the form of HDF files containing several datasets. Each dataset is labeled as 
 either ``_data`` or ``_metadata`` depending on its source. Datasets with the ``data`` suffix typically contain numpy structured arrays while those denoted ``metadata`` 
 contain simple data types. 
+
+.. image:: _images/preproc_org.png
+
+On our lab server, preprocessed data is stored in ``/data/preprocessed/``. Use :func:`aopy.data.get_preprocessed_filename` to get the filename of any preprocessed file.
+Or use :func:`aopy.data.load_preproc_exp_data`, :func:`aopy.data.load_preproc_eye_data`, :func:`aopy.data.load_preproc_broadband_data`, :func:`aopy.data.load_preproc_lfp_data` to
+load the various preprocessed datasets directly.
 
 .. list-table::
    :widths: 25 75
@@ -20,15 +26,17 @@ contain simple data types.
      - The experimental data. It contains all the information about timing, position, state, events, etc. 
    * - ``exp_metadata``
      - Metadata explaining the experimental data, e.g. information about the subject, date, and experimental parameters
+   * - ``eye_data``
+     - The eye data. TODO: Please update!
    * - ``mocap_data``
      - Motion capture data
    * - ``mocap_metadata``
      - Metadata explaining the motion capture data
-   * - ``broadband``
+   * - ``broadband_data``
      - Unfiltered raw neural data
-   * - ``lfp``
-     - TBD
-   * - ``spike``
+   * - ``lfp_data``
+     - Neural data that has been low-pass filtered at 500 Hz and downsampled to 1000 Hz
+   * - ``spike_data``
      - TBD
 
 Experimental data

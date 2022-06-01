@@ -907,8 +907,7 @@ class ProcTests(unittest.TestCase):
         files = {}
         files['ecube'] = 'fake ecube data'
         files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        result_prefix='fake_data'
-        proc_single(data_dir, write_dir, result_prefix, files, overwrite=True)
+        proc_single(data_dir, files, write_dir, 'test', 3498, '2021-12-13', ['exp', 'eye', 'broadband', 'lfp'], overwrite=True)
 
     def test_proc_broadband(self):
         files = {'ecube': "short headstage test"}
