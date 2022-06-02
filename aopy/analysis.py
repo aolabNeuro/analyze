@@ -893,8 +893,8 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
 
     Returns: 
         If trial_average, a tuple containing:
-            | **accLLR (npts):** AccLLR time series
-            | **selection_time (float):** Time where AccLLR crosses the threshold
+            | **accLLR (npts, ntrials):** AccLLR time series
+            | **selection_time (ntrials):** Time where AccLLR crosses the threshold
 
         Otherwise, a tuple containing:
             | **accLLR (npts, ntr):** AccLLR time series on each trial
@@ -932,12 +932,12 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     
         # Calculate AccLLR parameters
         sigma_sq = np.var(data, axis=0)
-    
+        
         # Calculate AccLLR across all trials at each point
         for ipt in range(npts):
             temp_LLR = np.zeros(ntrials)*np.nan
             for itrial in range(ntrials):
-            
+                
                 temp_LLR[itrial] = ((data[ipt, itrial]-cond2[ipt])**2) - ((data[ipt, itrial]-cond1[ipt])**2)/2*sigma_sq[itrial]
             
             if trial_average:
@@ -959,7 +959,7 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
         selection_time = np.zeros(ntrials)
         for tr_idx in range(ntrials):
             if above_thresh[:,tr_idx].any():
-                selection_time = np.where(above_thresh[:,tr_idx])[0][0]*bin_width
+                selection_time[tr_idx] = np.where(above_thresh[:,tr_idx])[0][0]*bin_width
 
     return accLLR, selection_time
 
@@ -990,14 +990,16 @@ def calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality, bin_wi
             | **thresh_props (nsteps):** threshold proportions used for each false alarm rate calculation
             | **fa_rates (nsteps):** false alarm rates at each threshold proportion
     '''
+    npts = cond1_train.shape[0]
+    ntrials = cond2_test.shape[1]
 
     thresh_props = np.arange(0, 1, thresh_step_size)
     fa_rates = []    
     for tp in thresh_props:
-        accLLR, selection_time_idx = calc_activity_onset_accLLR(cond2_test, cond1_train, cond2_train, modality, bin_width, thresh_proportion=tp, trial_average=False)
-        accLLR_cond1_within_time = np.logical_and(accLLR > 0, selection_time_idx < cond1_train.shape[0])
+        accLLR, selection_time_idx = calc_activity_onset_accLLR(cond2_test, cond1_train, cond2_train, modality, bin_width, thresh_proportion=tp, trial_average=False) 
+        accLLR_cond1_within_time = np.sum(np.logical_and(accLLR > 0, selection_time_idx < npts), axis=0)
         n_accllr_cond1_within_time = np.count_nonzero(accLLR_cond1_within_time)
-        false_alarms = n_accllr_cond1_within_time / len(cond2_test)
+        false_alarms = n_accllr_cond1_within_time / ntrials
         fa_rates.append(false_alarms)
     fa_rates = np.array(fa_rates)
     fa_rates_above_desired = thresh_props[fa_rates > false_alarm_prob]

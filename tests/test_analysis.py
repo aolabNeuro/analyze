@@ -389,21 +389,27 @@ class AccLLRTests(unittest.TestCase):
 
         accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=1./samplerate, thresh_proportion=0.15, trial_average=False)
 
-        print("LFP AccLLR: ")
-        print(accLLR)
+        print("LFP AccLLR: ", accLLR)
+        print('Selection time: ', time)
 
     def test_calc_accLLR_threshold(self):
         # LFP data 
-        cond1_train = np.array((0,0,0,1,2,3))
-        cond2_train = np.array((0,0,0,0,0,0))
+        ntrials = 50
+        altcond_train = np.array((0,0,0,1,2,3))
+        nullcond_train = np.array((0,0,0,0,0,0))
         
-        cond1_test = np.array((0,0,0,1,2,3))
-        cond1_test = np.tile(cond1_test, (50, 1)).T
+        np.random.seed(0)
+        nullcond_test = np.random.normal(0, 0.0001, size=(len(nullcond_train), ntrials))
+        
+        # nullcond_test = np.array((0,0,0,0,0,0))
+        # nullcond_test = np.tile(nullcond_test, (50, 1)).T
 
         samplerate = 1
-        print(cond1_test.shape)
-        best_tp, tp, fa = aopy.analysis.calc_accLLR_threshold(cond1_train, cond2_train, cond1_test, modality='lfp', bin_width=1./samplerate, thresh_step_size=0.01, false_alarm_prob=0.05)
+        print(nullcond_test.shape)
+        best_tp, tp, fa = aopy.analysis.calc_accLLR_threshold(altcond_train, nullcond_train, nullcond_test, modality='lfp', bin_width=1./samplerate, thresh_step_size=0.01, false_alarm_prob=0.05)
         plt.plot(tp, fa)
+        plt.xlabel('Thresh proportion')
+        plt.ylabel('False Alarm Prop')
         filename = 'accllr_thresh_prop.png'
         aopy.visualization.savefig(write_dir, filename)
 
@@ -411,11 +417,11 @@ class AccLLRTests(unittest.TestCase):
         cond2 = np.arange(100)
         cond2 = np.tile(cond2, (50, 1))
         cond1 = np.zeros(cond2.shape)
-        selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2 = aopy.analysis.accLLR_wrapper(cond1, cond2, 'lfp', 1.)
-        print(selection_time_cond1)
-        print(selection_time_cond2)
-        print(accllr_cond1.shape)
-        print(accllr_cond2.shape)
+        # selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2 = aopy.analysis.accLLR_wrapper(cond1, cond2, 'lfp', 1.)
+        # print(selection_time_cond1)
+        # print(selection_time_cond2)
+        # print(accllr_cond1.shape)
+        # print(accllr_cond2.shape)
 
     # def test_accLLR_real_data(self):
     #     data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
