@@ -916,6 +916,9 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
         if np.sum(binary_spike_mask) > 0:
             warnings.warn('Input spiking activity is not binary (all 0s and 1s)')
 
+        # Smooth spike events by convolving with a 5ms Gaussian
+        
+
         # Calculate AccLLR across all trials at each point
         for ipt in range(npts):
             temp_LLR = np.zeros(ntrials)*np.nan
