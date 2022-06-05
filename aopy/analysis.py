@@ -855,7 +855,7 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
 
-def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_proportion=0.15, trial_average=True):
+def calc_activity_onset_accLLR(data, altcond, nullcond, modality, bin_width, thresh_proportion=0.15, max_accLLR=None, trial_average=True):
     '''
     This function calculates the accumulated log-likelihood ratio (AccLLR) that the input data matches the timeseries input as condition 1 or condition 2. 
     This approach was designed to work on a trial-by-trial basis and determine if the input data matches a condition and arrival time of the difference. Therefore, AccLLR can also be used to determine the arrival time of neural activity.
@@ -865,7 +865,7 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     but leads to longer delays in seletion time and more trials that are unclassfied. 
     If multiple trials are input, use the trial averaging approach outlined in the paper where the LLR is calculated and summed at each time point accross trials.
     
-    Since spikes assume Poisson firing statistics, input spiking data must be binary.
+    Since spikes assume Poisson firing statistics, input spiking data must be binary. However, the null and alternative condition must be float arrays. 
     
     Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
     https://pubmed.ncbi.nlm.nih.gov/20884767/
@@ -884,11 +884,12 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     
     Args:
         data (npts, ntrial): Input data to compare to each condition
-        cond1 (npts): neural activity series of interest (condition 1)
-        cond2 (npts): neural activity during a baseline period for comparison (condition 2)
+        altcond (npts): neural activity series of interest (condition 1)
+        nullcond (npts): neural activity during a baseline period for comparison (condition 2)
         modality (str): Either 'lfp' or 'spikes'. 'lfp' uses a Gaussian distribution assumption and 'spikes' uses a Poisson distribution assumption
         bin_width (float): Bin width of input activity
         thresh_proportion (float): Proportion of maximum AccLLR where the threshold is set to classify trials as condition 1 or condition 2. 
+        max_accLLR (float): 
         trial_average (bool, optional): Flag to do a trial average calculation (default) or just a single trial at a time
 
     Returns: 
@@ -916,15 +917,12 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
         if np.sum(binary_spike_mask) > 0:
             warnings.warn('Input spiking activity is not binary (all 0s and 1s)')
 
-        # Smooth spike events by convolving with a 5ms Gaussian
-        
-
         # Calculate AccLLR across all trials at each point
         for ipt in range(npts):
             temp_LLR = np.zeros(ntrials)*np.nan
             for itrial in range(ntrials):
-                temp_LLR[itrial] = (cond2[ipt] - cond1[ipt])*bin_width + data[ipt, itrial]*np.log(cond1[ipt]/cond2[ipt])
-            
+                temp_LLR[itrial] = (nullcond[ipt] - altcond[ipt])*bin_width + data[ipt, itrial]*np.log(altcond[ipt]/nullcond[ipt])
+
             if trial_average:
                 LLR[ipt] = np.nansum(temp_LLR)
             else:
@@ -935,13 +933,12 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     
         # Calculate AccLLR parameters
         sigma_sq = np.var(data, axis=0)
-        
+
         # Calculate AccLLR across all trials at each point
         for ipt in range(npts):
             temp_LLR = np.zeros(ntrials)*np.nan
-            for itrial in range(ntrials):
-                
-                temp_LLR[itrial] = ((data[ipt, itrial]-cond2[ipt])**2) - ((data[ipt, itrial]-cond1[ipt])**2)/2*sigma_sq[itrial]
+            for itrial in range(ntrials):                
+                temp_LLR[itrial] = (((data[ipt, itrial]-nullcond[ipt])**2) - ((data[ipt, itrial]-altcond[ipt])**2))/(2*sigma_sq[itrial])
             
             if trial_average:
                 LLR[ipt] = np.nansum(temp_LLR)
@@ -951,22 +948,30 @@ def calc_activity_onset_accLLR(data, cond1, cond2, modality, bin_width, thresh_p
     else:
         warnings.warn('Please input a valid modality')
     
-    accLLR = np.cumsum(LLR, axis=0)
-    thresh_val = thresh_proportion*np.max(np.abs(accLLR), axis=0)
+    
+    accLLR = np.nancumsum(LLR, axis=0)
+
+    if max_accLLR is None:
+        max_accLLR = np.max(np.abs(accLLR), axis=0)
+
+    thresh_val = thresh_proportion*max_accLLR
+
     above_thresh = np.abs(accLLR) > thresh_val
+
     if trial_average:
         selection_time = np.nan
         if above_thresh.any():
             selection_time = np.where(above_thresh)[0][0]*bin_width
+
     else:
-        selection_time = np.zeros(ntrials)
+        selection_time = np.zeros(ntrials)*np.nan
         for tr_idx in range(ntrials):
             if above_thresh[:,tr_idx].any():
                 selection_time[tr_idx] = np.where(above_thresh[:,tr_idx])[0][0]*bin_width
 
     return accLLR, selection_time
 
-def calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality, bin_width, thresh_step_size=0.01, false_alarm_prob=0.05):
+def calc_accLLR_threshold(altcond_train, nullcond_train, nullcond_test, modality, bin_width, thresh_step_size=0.01, false_alarm_prob=0.05):
     '''
     Sweeps the AccLLR method over the thresh_proportion parameter, estimates false alarm rates, 
     and then choose a value for thresh_proportion that gives us the desired false alarm rate.
@@ -979,9 +984,9 @@ def calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality, bin_wi
     https://pubmed.ncbi.nlm.nih.gov/20884767/
 
     Args:
-        cond1_train (npts): training timeseries from condition 1
-        cond2_train (npts): training timeseries from condition 2
-        cond2_test (npts, ntr): test trials from condition 2
+        altcond_train (npts): training timeseries from condition 1
+        nullcond_train (npts): training timeseries from condition 2
+        nullcond_test (npts, ntr): test trials from condition 2
         modality (str): Either 'lfp' or 'spikes'. 'lfp' uses a Gaussian distribution assumption and 'spikes' uses a Poisson distribution assumption
         bin_width (float): Bin width of input activity
         thresh_step_size (float, optional): Size of the steps in the sweep of the threshold proportion parameter. Defaults to 0.01.
@@ -993,16 +998,21 @@ def calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality, bin_wi
             | **thresh_props (nsteps):** threshold proportions used for each false alarm rate calculation
             | **fa_rates (nsteps):** false alarm rates at each threshold proportion
     '''
-    npts = cond1_train.shape[0]
-    ntrials = cond2_test.shape[1]
+    npts = altcond_train.shape[0]
+    ntrials = nullcond_test.shape[1]
 
+    # Get max accLLR value for threshold calculation by calculating the max accLLR with the training data
+    accLLR, _ = calc_activity_onset_accLLR(altcond_train, altcond_train, nullcond_train, modality=modality, bin_width=bin_width)
+    max_accLLR = np.max(accLLR)
+    
     thresh_props = np.arange(0, 1, thresh_step_size)
     fa_rates = []    
     for tp in thresh_props:
-        accLLR, selection_time_idx = calc_activity_onset_accLLR(cond2_test, cond1_train, cond2_train, modality, bin_width, thresh_proportion=tp, trial_average=False) 
-        accLLR_cond1_within_time = np.sum(np.logical_and(accLLR > 0, selection_time_idx < npts), axis=0)
-        n_accllr_cond1_within_time = np.count_nonzero(accLLR_cond1_within_time)
-        false_alarms = n_accllr_cond1_within_time / ntrials
+        accLLR, selection_time_idx = calc_activity_onset_accLLR(nullcond_test, altcond_train, nullcond_train, modality, bin_width, thresh_proportion=tp, max_accLLR=max_accLLR, trial_average=False) 
+        print('maxaccllr', accLLR)
+        accLLR_altcond_within_time = np.sum(np.logical_and(accLLR > 0, selection_time_idx < npts), axis=0)
+        n_accllr_altcond_within_time = np.count_nonzero(accLLR_altcond_within_time)
+        false_alarms = n_accllr_altcond_within_time / ntrials
         fa_rates.append(false_alarms)
     fa_rates = np.array(fa_rates)
     fa_rates_above_desired = thresh_props[fa_rates > false_alarm_prob]
@@ -1012,7 +1022,7 @@ def calc_accLLR_threshold(cond1_train, cond2_train, cond2_test, modality, bin_wi
     return best_tp, thresh_props, fa_rates
 
 
-def accLLR_wrapper(data_cond1, data_cond2, modality, bin_width, train_prop_input=0.7, thresh_step_size=0.01, false_alarm_prob=0.05, trial_average=True):
+def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_input=0.7, thresh_step_size=0.01, false_alarm_prob=0.05, trial_average=True):
     '''
     1. Separates data into 'model building' (training + test) and 'implementing' groups by trials 
         Assumes model building dataset is split into a 60/40 split
@@ -1020,23 +1030,23 @@ def accLLR_wrapper(data_cond1, data_cond2, modality, bin_width, train_prop_input
     3. Implements accLLR on 'implementing' data
     
     Args:
-        data_cond1 (npts, ntrials):
-        data_cond2 (npts, ntrials):
+        data_altcond (npts, ntrials):
+        data_nullcond (npts, ntrials):
         modality (str): either 'spikes' or 'lfp'
         train_prop (float): proportion of trials to build the model with
         
     Returns:
         (tuple): Tuple containing:
-            | **selection_time_cond1 (nt):**
-            | **selection_time_cond2 (nt):** 
-            | **accllr_cond1 (nt):**
-            | **accllr_cond2 (nt):**
+            | **selection_time_altcond (nt):**
+            | **selection_time_nullcond (nt):** 
+            | **accllr_altcond (nt):**
+            | **accllr_nullcond (nt):**
     '''
     # Split into model building and testing data sets (outputs (ntrial, npt) datasets)
-    test_data_cond1, build_data_cond1, test_data_cond2, build_data_cond2 = model_selection.train_test_split(data_cond1.T, data_cond2.T, test_size=train_prop_input)
+    test_data_altcond, build_data_altcond, test_data_nullcond, build_data_nullcond = model_selection.train_test_split(data_altcond.T, data_nullcond.T, test_size=train_prop_input)
 
     # Separate model building data into valid/test sets
-    nbuild_trials = build_data_cond1.shape[0]
+    nbuild_trials = build_data_altcond.shape[0]
     ntrain_trials = np.floor(nbuild_trials*0.6) # not sure if we should have the user input this
     nvalid_trials = nbuild_trials-ntrain_trials
 
@@ -1044,16 +1054,27 @@ def accLLR_wrapper(data_cond1, data_cond2, modality, bin_width, train_prop_input
     train_trial_mask = np.zeros(nbuild_trials, dtype=bool)
     train_trial_mask[train_trialidxs] = True
 
-    train_data_cond1 = np.mean(build_data_cond1[train_trial_mask,:], axis=0)
-    train_data_cond2 = np.mean(build_data_cond2[train_trial_mask,:], axis=0)
-    valid_data_cond1 = build_data_cond1[np.logical_not(train_trial_mask),:]
-    valid_data_cond2 = build_data_cond2[np.logical_not(train_trial_mask),:]
+    # Smooth spike events by convolving with a 5ms Gaussian
+    if modality == 'spikes':
+        gaus_sigma = 5
+        time_axis = np.arange(-3*gaus_sigma, 3*gaus_sigma+1) # Constrain filter to +/-3std
+        gaus_filter = (1/(gaus_sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*(time_axis**2)/(gaus_sigma**2))
+
+        tran_data_altcond_smooth = scipy.ndimage.convolve1d(build_data_altcond[train_trial_mask,:], gaus_filter, mode='reflect', axis=0)
+        tran_data_nullcond_smooth = scipy.ndimage.convolve1d(build_data_nullcond[train_trial_mask,:], gaus_filter, mode='reflect', axis=0)
+
+    train_data_altcond = np.mean(tran_data_altcond_smooth, axis=0)
+    train_data_nullcond = np.mean(tran_data_nullcond_smooth, axis=0)
+    valid_data_altcond = build_data_altcond[np.logical_not(train_trial_mask),:]
+    valid_data_nullcond = build_data_nullcond[np.logical_not(train_trial_mask),:]
+
+
 
     # Input train and validate data to calculate acclllr threshold (transpose data back to input into accllr functions)
-    accllr_thresh, thresh_props, fa_rates = calc_accLLR_threshold(train_data_cond1.T, train_data_cond2.T, valid_data_cond2.T, modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
+    accllr_thresh, thresh_props, fa_rates = calc_accLLR_threshold(train_data_altcond.T, train_data_nullcond.T, valid_data_nullcond.T, modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
 
     # Use the calculated threshold to run accllr on the test datasets
-    accllr_cond1, selection_time_cond1 = calc_activity_onset_accLLR(test_data_cond1.T, train_data_cond1, train_data_cond2, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
-    accllr_cond2, selection_time_cond2 = calc_activity_onset_accLLR(test_data_cond2.T, train_data_cond1, train_data_cond2, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
+    accllr_altcond, selection_time_altcond = calc_activity_onset_accLLR(test_data_altcond.T, train_data_altcond, train_data_nullcond, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
+    accllr_nullcond, selection_time_nullcond = calc_activity_onset_accLLR(test_data_nullcond.T, train_data_altcond, train_data_nullcond, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
 
-    return selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2
+    return selection_time_altcond, selection_time_nullcond, accllr_altcond, accllr_nullcond

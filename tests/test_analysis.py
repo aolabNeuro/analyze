@@ -369,16 +369,31 @@ class AccLLRTests(unittest.TestCase):
 
     def test_calc_activity_onset_accLLR(self):
         # Spiking data
-        cond1_train = np.array((0,0,0,1,1,1))
-        cond2_train = np.array((0,0,0,0,0,0))
+        eps = 0.0001
+        cond1_train = np.array((eps,eps,eps,1,1,1), dtype=float)
+        cond2_train = np.array((eps,eps,eps,eps,eps,eps), dtype=float)
         
         cond1_test = np.array((0,0,0,1,1,1))
         binwdith = 1
 
         accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
+        point_spike_LLR = (eps-1) + np.log(1/eps)
+        expected_LLR = np.array((0,0,0,point_spike_LLR, point_spike_LLR, point_spike_LLR))
+        
+        np.testing.assert_allclose(accLLR, np.cumsum(expected_LLR).reshape(-1,1))
+        self.assertAlmostEqual(time, 3)
 
-        print("Spikes AccLLR: ")
-        print(accLLR)
+        # Multitrial spiking data
+        cond1_test = np.tile(cond1_test, (50,1)).T
+        
+        tavg_accLLR, tavg_time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=True)
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
+        expected_accLLR_array = np.tile(np.cumsum(expected_LLR), (50,1)).T
+        
+        np.testing.assert_allclose(tavg_accLLR/50, np.cumsum(expected_LLR))
+        self.assertAlmostEqual(tavg_time, 3)
+        np.testing.assert_allclose(accLLR, expected_accLLR_array)
+        np.testing.assert_allclose(time, np.ones(50)*3)
 
         # LFP data 
         cond1_train = np.array((0,0,0,1,2,3))
@@ -388,9 +403,21 @@ class AccLLRTests(unittest.TestCase):
         samplerate = 1
 
         accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=1./samplerate, thresh_proportion=0.15, trial_average=False)
+        denom = 2*np.var(cond1_test)
+        np.testing.assert_allclose(accLLR, np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))).reshape(-1,1))
+        self.assertAlmostEqual(time, 4)
 
-        print("LFP AccLLR: ", accLLR)
-        print('Selection time: ', time)
+        # Multitrial LFP data
+        cond1_test = np.tile(cond1_test, (50,1)).T
+        
+        tavg_accLLR, tavg_time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=binwdith, thresh_proportion=0.15, trial_average=True)
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
+        expected_accLLR_array = np.tile(np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))), (50,1)).T
+        
+        np.testing.assert_allclose(tavg_accLLR/50, np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))))
+        self.assertAlmostEqual(tavg_time, 4)
+        np.testing.assert_allclose(accLLR, expected_accLLR_array)
+        np.testing.assert_allclose(time, np.ones(50)*4)
 
     def test_calc_accLLR_threshold(self):
         # LFP data 
@@ -399,13 +426,12 @@ class AccLLRTests(unittest.TestCase):
         nullcond_train = np.array((0,0,0,0,0,0))
         
         np.random.seed(0)
-        nullcond_test = np.random.normal(0, 0.0001, size=(len(nullcond_train), ntrials))
+        nullcond_test = np.random.normal(0, 1, size=(len(nullcond_train), ntrials))
         
         # nullcond_test = np.array((0,0,0,0,0,0))
         # nullcond_test = np.tile(nullcond_test, (50, 1)).T
 
         samplerate = 1
-        print(nullcond_test.shape)
         best_tp, tp, fa = aopy.analysis.calc_accLLR_threshold(altcond_train, nullcond_train, nullcond_test, modality='lfp', bin_width=1./samplerate, thresh_step_size=0.01, false_alarm_prob=0.05)
         plt.plot(tp, fa)
         plt.xlabel('Thresh proportion')
