@@ -277,6 +277,46 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
 
     return image
 
+def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
+    '''
+    Makes an nt x ntrial image colored by the timeseries values. 
+
+    Example:
+        ::
+
+        time = np.array([-2, -1, 0, 1, 2, 3])
+        data = np.array([[0, 0, 1, 1, 0, 0],
+                         [0, 0, 0, 1, 1, 0]]).T
+        plot_image_by_time(time, data)
+        filename = 'image_by_time.png'
+
+        .. image:: _images/image_by_time.png
+
+    Args:
+        time (nt): time vector to plot along the x axis
+        image_values (nt, [nch or ntr]): time-by-trial or time-by-channel data
+        ylabel (str, optional): description of the second axis of image_values. Defaults to 'trial'.
+        cmap (str, optional): colormap with which to display the image. Defaults to 'bwr'.
+        ax (pyplot.Axes, optional): Axes object on which to plot. Defaults to None.
+
+    Returns:
+        pyplot.AxesImage: the image object returned by pyplot
+    '''
+    
+    image_values = np.array(image_values)
+    extent = [np.min(time), np.max(time), 0, image_values.shape[1]]
+
+    # Plot
+    if ax is None:
+        ax = plt.gca()
+    im = ax.imshow(image_values.T, cmap=cmap, origin='lower', extent=extent, aspect='auto', \
+        resample=False, interpolation='none', filternorm=False)
+    ax.set_xlabel('time (s)')
+    ax.set_ylabel(ylabel)
+    
+    return im
+
+
 def plot_raster(data, cue_bin=None, ax=None):
     '''
     Create a raster plot for binary input data and show the relative timing of an event with a vertical red line
