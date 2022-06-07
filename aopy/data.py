@@ -17,9 +17,6 @@ import pickle
 import yaml
 from .utils import get_pulse_edge_times, compute_pulse_duty_cycles
 
-###############################################################################
-# Loading preprocessed data
-###############################################################################
 def get_filenames_in_dir(base_dir, te):
     '''
     Gets the filenames for available systems in a given task entry. Requires that
@@ -33,7 +30,6 @@ def get_filenames_in_dir(base_dir, te):
     Returns:
         dict: dictionary of files indexed by system
     '''
-    warnings.warn("This function is deprecated. Please use the database instead!", DeprecationWarning)
     contents = glob.glob(os.path.join(base_dir,'*/*'))
     relevant_contents = filter(lambda f: str(te) in f, contents)
     files = {}
@@ -43,106 +39,18 @@ def get_filenames_in_dir(base_dir, te):
         files[system] = filename
     return files
 
-def get_preprocessed_filename(subject, te_id, date, data_source):
+def get_exp_filename(te):
     '''
-    Generates preprocessed filenames as per our naming conventions. 
-    Format: preproc_<Date>_<MonkeyName>_<TaskEntry>_<DataSource>.hdf
+    Returns the experiment filename for a given task entry
 
     Args:
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-        data_source (str): Processed data type (exp, eye, broadband, lfp, etc.)
+        te (int): block number for the task entry
     
     Returns:
         str: filename
-    '''  
-    return f"preproc_{date}_{subject}_{te_id}_{data_source}.hdf"
-
-def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     '''
-    Loads experiment data from a preprocessed file.
+    return "preprocessed_te" + str(te) + ".hdf"
 
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-
-    Returns:
-        dict: Dictionary of exp data
-        dict: Dictionary of exp metadata
-    '''
-    filename = get_preprocessed_filename(subject, te_id, date, 'exp')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_group(preproc_dir, filename, 'exp_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata')
-    return data, metadata
-
-def load_preproc_eye_data(preproc_dir, subject, te_id, date):
-    '''
-    Loads eye data from a preprocessed file.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-
-    Returns:
-        dict: Dictionary of eye data
-        dict: Dictionary of eye metadata
-    '''
-    filename = get_preprocessed_filename(subject, te_id, date, 'eye')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_group(preproc_dir, filename, 'eye_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata')
-    return data, metadata
-
-def load_preproc_broadband_data(preproc_dir, subject, te_id, date):
-    '''
-    Loads broadband data from a preprocessed file.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-
-    Returns:
-        dict: broadband data
-        dict: Dictionary of broadband metadata
-    '''
-    filename = get_preprocessed_filename(subject, te_id, date, 'broadband')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_data(preproc_dir, filename, 'broadband_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'broadband_metadata')
-    return data, metadata
-
-def load_preproc_lfp_data(preproc_dir, subject, te_id, date):
-    '''
-    Loads LFP data from a preprocessed file.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-
-    Returns:
-        dict: lfp data
-        dict: Dictionary of lfp metadata
-    '''
-    filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_data(preproc_dir, filename, 'lfp_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata')
-    return data, metadata
-
-    
-###############################################################################
-# Loading raw data
-###############################################################################
 def load_optitrack_metadata(data_dir, filename, metadata_row=0):
     '''
     This function loads optitrack metadata from .csv file that has 1 rigid body
@@ -323,8 +231,6 @@ def load_ecube_metadata(data_dir, data_source):
         if data_source in r[0]:
             n_samples += r[2]  
             n_channels = r[1]
-    if n_channels == 0:
-        raise Exception('No data found for data source: {}'.format(data_source))
     samplerate = dat.samplerate
     metadata = dict(
         samplerate = samplerate,

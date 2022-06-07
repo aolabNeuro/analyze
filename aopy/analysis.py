@@ -764,7 +764,7 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
         
         slope[i], intercept[i], corr_coeff[i],  *_ = scipy.stats.linregress(x, y)
 
-        if abs(corr_coeff[i]) <= coefficient_coeff_warning_level: 
+        if corr_coeff[i] <= coefficient_coeff_warning_level: 
             warnings.warn(f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
         
     return slope, intercept, corr_coeff
@@ -882,7 +882,7 @@ def calc_sem(data, axis=None):
 
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
-    Calculates the event-related potential (ERP) for the given timeseries data.
+    Calculates the mean (across trials) event-related potential (ERP) for the given timeseries data.
 
     Args:
         data (nt, nch): timeseries data across channels
@@ -921,7 +921,7 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
 
         # Subtract the baseline to calculate ERP
         n_samples = aligned_data.shape[1]
-        event_mean = np.tile(event_mean, (n_samples, 1, 1)).swapaxes(0,1)
+        event_mean = np.tile(event_mean, (n_samples, 1, 1)).reshape((n_events, n_samples, -1))
         erp = aligned_data - event_mean
     else:
 

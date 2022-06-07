@@ -7,7 +7,7 @@ import os
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
-docs_dir = os.path.join(os.path.dirname(test_dir),'docs', 'source', '_images')
+docs_dir = os.path.join(os.path.dirname(test_dir),'docs')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -79,17 +79,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(data_map[0], 2.0)
         plt.figure()
         plot_spatial_map(data_map, x_pos, y_pos)
-        filename = 'posmap_single.png'
-        savefig(write_dir, filename)
-
-    def test_plot_image_by_time(self):
-        time = np.array([-2, -1, 0, 1, 2, 3])
-        data = np.array([[0, 0, 1, 1, 0, 0],
-                         [0, 0, 0, 1, 1, 0]]).T
-        plt.figure()
-        plot_image_by_time(time, data)
-        filename = 'image_by_time.png'
-        savefig(docs_dir, filename)
+        plt.show()
 
     def test_plot_raster(self):
         filename = 'raster_plot_example.png'
@@ -130,7 +120,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         samplerate = test_mdata['samplerate'] // ds_factor
 
         profile_data_channels(test_data, samplerate, figure_dir, cmap_lim=(0,1))
-        fig_out_path = os.path.join(docs_dir, 'channel_profile_example.png')
+        fig_out_path = os.path.join(docs_dir,'source','_images','channel_profile_example.png')
         os.replace(
             os.path.join(figure_dir,'all_ch.png'),
             fig_out_path

@@ -2,14 +2,7 @@ from .. import data as aodata
 
 def parse_oculomatic(data_dir, files, debug=True):
     """
-    Loads eye data from ecube and hdf data. 
-    Data includes:
-        data (nt, nch): eye data in volts
-    Metadata includes:
-        channels (nch): analog channels on which eye data was recorded
-        labels (nch): string labels for each eye channel
-        samplerate (float): sampling rate of the eye data
-        units (str): measurement unit of eye data
+    Loads eye data from ecube and hdf data
 
     Args:
         data_dir (str): folder containing the data you want to load
@@ -51,7 +44,7 @@ def parse_oculomatic(data_dir, files, debug=True):
         analog_voltsperbit = analog_metadata['voltsperbit']
     else:
         analog_voltsperbit = 3.0517578125e-4
-    eye_metadata['units'] = 'volts'
+        eye_metadata['voltsperbit'] = analog_voltsperbit
         
     eye_data = {
         'data': analog_data * analog_voltsperbit

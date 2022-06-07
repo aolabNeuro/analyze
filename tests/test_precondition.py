@@ -137,13 +137,6 @@ class FilterTests(unittest.TestCase):
         plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
         savefig(write_dir, fname) # Should only have 600 Hz
 
-        # This needs fixing:
-        # x_filter, f_band = precondition.butterworth_filter_data(self.x2, fs=self.fs, cutoff_freqs=[highcut], filter_type='highpass')
-        # fname = 'test_signal_highpass_filtered_multichannel.png'
-        # plt.figure()
-        # plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
-        # savefig(write_dir, fname) # Should only have 600 Hz
-
     def test_mtfilter(self):
         band = [-500, 500] # signals within band can pass
         N = 0.005 # N*sampling_rate is time window you analyze

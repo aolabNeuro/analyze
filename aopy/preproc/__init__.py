@@ -4,71 +4,70 @@ from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
-from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
+from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary
 import os
 import h5py
-
 
 '''
 proc_* wrappers
 '''
-def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs, overwrite=False, **kwargs):
+def proc_single(data_dir, result_dir, result_prefix, files, overwrite=False, save_res=True, **kwargs):
     '''
     Preprocess a single recording, given a list of raw data files, into a series of hdf records with the same prefix.
+
     Args:
         data_dir (str): File directory of collected session data
+        result_dir (str): Target directory for processed data
         files (dict): dict of file names to process in data_dir
-        preproc_dir (str): Target directory for processed data
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-        preproc_jobs (list): list of proc_types to generate
         overwrite (bool, optional): Overwrite files in result_dir. Defaults to False.
+        save_res (bool, optional): Save resulting computations. Defaults to True.
+        **kwargs (dict, optional): boolean parameters with any of the following keys: proc_exp, proc_eyetracking, proc_broadband, proc_lfp
     '''
-    if subject not in preproc_dir:
-        preproc_dir = os.path.join(preproc_dir, subject)
-    if not os.path.exists(preproc_dir):
-        os.mkdir(preproc_dir)
-    if 'exp' in preproc_jobs:
+    run_proc_exp = kwargs.pop('proc_exp', True)
+    run_proc_eyetracking = kwargs.pop('proc_eyetracking', True)
+    run_proc_broadband = kwargs.pop('proc_broadband', True)
+    run_proc_lfp = kwargs.pop('proc_lfp', True)
+
+    if run_proc_exp:
+        exp_result_filename = result_prefix + '.hdf'
         print('processing experiment data...')
-        exp_filename = get_preprocessed_filename(subject, te_id, date, 'exp')
         proc_exp(
             data_dir,
             files,
-            preproc_dir,
-            exp_filename,
+            result_dir,
+            result_filename=exp_result_filename,
             overwrite=overwrite,
+            save_res=save_res
         )
-    if 'eye' in preproc_jobs:
+    if run_proc_eyetracking:
+        eyetracking_result_filename = result_prefix + '.hdf'
         print('processing eyetracking data...')
-        exp_filename = get_preprocessed_filename(subject, te_id, date, 'exp')
-        eye_filename = get_preprocessed_filename(subject, te_id, date, 'eye')
         proc_eyetracking(
             data_dir,
             files,
-            preproc_dir,
-            exp_filename,
-            eye_filename,
+            result_dir,
+            result_filename=eyetracking_result_filename,
             overwrite=overwrite,
+            save_res=save_res,
         )
-    if 'broadband' in preproc_jobs:
+    if run_proc_broadband:
+        broadband_result_filename = result_prefix + '_broadband_data.hdf'
         print('processing broadband data...')
-        broadband_filename = get_preprocessed_filename(subject, te_id, date, 'broadband')
         proc_broadband(
             data_dir,
             files,
-            preproc_dir,
-            broadband_filename,
+            result_dir,
+            result_filename=broadband_result_filename,
             overwrite=overwrite
         )
-    if 'lfp' in preproc_jobs:
+    if run_proc_lfp:
+        lfp_result_filename = result_prefix + '_lfp_data.hdf'
         print('processing local field potential data...')
-        lfp_filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
         proc_lfp(
             data_dir,
             files,
-            preproc_dir,
-            lfp_filename,
+            result_dir,
+            result_filename=lfp_result_filename,
             overwrite=overwrite,
             filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
         )
@@ -160,22 +159,11 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
 
-def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename, debug=True, overwrite=False, save_res=True, **kwargs):
+def proc_eyetracking(data_dir, files, result_dir, result_filename, debug=True, overwrite=False, save_res=True, **kwargs):
     '''
     Loads eyedata from ecube analog signal and calculates calibration profile using least square fitting.
     Requires that experimental data has already been preprocessed in the same result hdf file.
-    The data is prepared into HDF datasets:
-    eye_data:
-        raw_data (nt, nch): raw eye data
-        calibrated_data (nt, nch): calibrated eye data
-        coefficients (nch, 2): linear regression coefficients
-        correlation_coeff (nch): best fit correlation coefficients from linear regression
-        cursor_calibration_data (ntr, 2): cursor coordinates used for calibration
-        eye_calibration_data (ntr, nch): eye coordinates used for calibration
-    eye_metadata:
-        samplerate (float): sampling rate of the calibrated eye data
-        see :func:`aopy.preproc.parse_oculomatic` for oculomatic metadata
-
+    
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
@@ -189,15 +177,6 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     Returns:
         eye_dict (dict): all the data pertaining to eye tracking, calibration
         eye_metadata (dict): metadata for eye tracking
-
-    Example:
-        Uncalibrated raw data:
-
-        .. image:: _images/eye_trajectories.png
-
-        After calibration:
-        
-        .. image:: _images/eye_trajectories_calibrated.png
     '''
     # Check if data already exists
     filepath = os.path.join(result_dir, result_filename)
@@ -211,46 +190,41 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     
     # Load the preprocessed experimental data
     try:
-        exp_data = load_hdf_group(result_dir, exp_filename, 'exp_data')
-        exp_metadata = load_hdf_group(result_dir, exp_filename, 'exp_metadata')
+        exp_data = load_hdf_group(result_dir, result_filename, 'exp_data')
+        exp_metadata = load_hdf_group(result_dir, result_filename, 'exp_metadata')
     except (FileNotFoundError, ValueError):
         raise ValueError(f"File {result_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
     
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
+    
+    # Calibrate the eye data
+    cursor_data = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
+    clock = exp_data['clock']
+    events = exp_data['events']
     eye_data = eye_data['data']
-
-    try:
-        # Calibrate the eye data
-        cursor_samplerate = exp_metadata['cursor_interp_samplerate']
-        cursor_data = exp_data['cursor_interp']
-        events = exp_data['events']
-        event_codes = events['code']
-        event_times = events['timestamp'] # time points in the ecube time frame
-        coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
-            cursor_data, cursor_samplerate, eye_data, eye_metadata['samplerate'], 
-            event_times, event_codes, return_datapoints=True, **kwargs)
-
-        calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
-        eye_dict = {
-            'raw_data': eye_data,
-            'calibrated_data': calibrated_eye_data,
-            'coefficients': coeff,
-            'correlation_coeff': correlation_coeff,
-            'cursor_calibration_data': cursor_calibration_data,
-            'eye_calibration_data': eye_calibration_data
-        }
-
-    except (KeyError, ValueError):
-        # If there is no cursor data or there aren't enough trials, this will fail. 
-        # We should still save the eye data, just don't include the calibrated data
-        eye_dict = {'raw_data': eye_data}
+    event_cycles = events['time'] # time points in bmi3d cycles
+    event_codes = events['code']
+    event_times = clock['timestamp_sync'][events['time']] # time points in the ecube time frame
+    coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
+        cursor_data, exp_metadata['fps'], eye_data, eye_metadata['samplerate'], 
+        event_cycles, event_times, event_codes, debug=debug, return_datapoints=True, **kwargs)
+    calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
 
     # Save everything into the HDF file
+    eye_dict = {
+        'raw_data': eye_data,
+        'calibrated_data': calibrated_eye_data,
+        'coefficients': coeff,
+        'correlation_coeff': correlation_coeff,
+        'cursor_calibration_data': cursor_calibration_data,
+        'eye_calibration_data': eye_calibration_data
+    }
     if save_res:
         save_hdf(result_dir, result_filename, eye_dict, "/eye_data", append=True)
         save_hdf(result_dir, result_filename, eye_metadata, "/eye_metadata", append=True)
     return eye_dict, eye_metadata
+
 
 def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1.):
     '''

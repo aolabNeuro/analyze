@@ -60,31 +60,34 @@ def generate_multichannel_test_signal(duration, samplerate, n_channels, frequenc
 
     return data
 
-def save_test_signal_ecube(data, save_dir, voltsperbit, datasource='Headstages'):
+def save_test_signal_ecube(data, save_dir, voltsperbit):
     '''
     Create a binary file with eCube formatting using the given data
 
     Args:
         data (nt, nch): test_signal to save
         save_dir (str): where to save the file
-        voltsperbit (float): gain of the data you are creating
-        datasource (str): eCube source from which you want the data to be 
-            labeled (i.e. Headstages, AnalogPanel, or DigitalPanel)
+        voltsperbit (float): gain of the headstage data you are creating
 
     Returns:
         str: filename of the new data
     '''
     intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
-    flatdata = intdata.reshape(-1)
-    timestamp = np.array([1, 2, 3, 4], dtype='<i2')
+    flatdata = data.reshape(-1)
+    timestamp = [1, 2, 3, 4]
+    flatdata = np.insert(flatdata, timestamp, 0)
 
     # Save it to the test file
     datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
-    filename = f"{datasource}_{data.shape[1]}_Channels_int16_{datestr}.bin"
+    filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
     filepath = os.path.join(save_dir, filename)
     with open(filepath, 'wb') as f:
-        f.write(timestamp)
-        f.write(flatdata.tobytes())
+        for _ in range(8):
+            f.write(np.byte(1)) # 8 byte timestamp
+        for t in range(intdata.shape[0]):
+            for ch in range(intdata.shape[1]):
+                f.write(np.byte(intdata[t,ch]))
+                f.write(np.byte(intdata[t,ch] >> 8))
 
     return filename
 
