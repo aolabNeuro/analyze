@@ -2,11 +2,11 @@
 # Code for cleaning and preparing neural data for users to interact with,
 # for example: down-sampling, outlier detection, and initial filtering
 
+from os import fsdecode, fspath, fstat
 from scipy import signal
-from scipy.signal import butter, lfilter, filtfilt, decimate
+from scipy.signal import butter, lfilter, filtfilt, decimate, windows
 import numpy as np
 import math
-import nitime.algorithms as tsa
 from . import analysis, utils
 '''
 Filter functions
@@ -40,14 +40,14 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
     b,a = butter( order, Wn, btype=filter_type, fs =fs)
     return b,a
 
-def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, filter_type='bandpass'):
+def butterworth_filter_data(data, fs, cutoff_freqs=None, bands=None, order=None, filter_type='bandpass'):
     '''
     Apply a digital butterworth filter forward and backward to a timeseries signal.
 
     Args:
         data (nt, ...): neural data
         fs (int): sampling rate (in Hz)
-        cutoff_freq (float): cut-off frequency (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
+        cutoff_freqs (float): list of cut-off frequencies (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
         bands (list): frequency bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
         order (int): Order of the butterworth filter. If no order is specified, the function will find the minimum order of filter required to maintain +3dB gain in the bandpass range.
         filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
@@ -59,7 +59,7 @@ def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, 
     '''
 
     if filter_type in ['lowpass', 'highpass']:
-        Wn = cutoff_freq
+        Wn = cutoff_freqs
 
     if filter_type in ['bandpass', 'bandstop']:
         if not bands:
@@ -75,10 +75,10 @@ def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, 
         # Automatically select an order if none is specified
         if order is None:
             wp = w/(2 * fs)
-            if len(wp) == 2:
+            if type(wp) != int and type(wp) != float and len(wp) == 2:
                 ws = [wp[0] - 0.1 , wp[1] + 1]
             else:
-                ws = wp -0.1
+                ws = wp - 0.1
             order, _ = signal.buttord(wp, ws, 3, 40, False)
 
         # Filter this frequency or band
@@ -87,80 +87,199 @@ def butterworth_filter_data(data, fs, cutoff_freq=None, bands=None, order=None, 
         filtered_data.append(filtfilt(b, a, data, axis=0))
     return filtered_data, Wn
 
-def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
+'''
+Filter functions related to multitaper method
+'''
+def dpsschk(tapers):
     '''
-     Computes power spectral density using Multitaper functions
+    Computes the Discrete Prolate Spheroidal Sequences (DPSS) array based on input TAPERS
 
     Args:
-        data (nt, nch): time series data where time axis is assumed to be on the last axis
-        fs (float): sampling rate of the signal
-        NW (float): Normalized half bandwidth of the data tapers in Hz
-        BW (float): sampling bandwidth of the data tapers in Hz
-        adaptive (bool): Use an adaptive weighting routine to combine the PSD estimates of different tapers.
-        jackknife (bool): Use the jackknife method to make an estimate of the PSD variance at each point.
-        sides (str): This determines which sides of the spectrum to return.
+        tapers (list): tapers in [N, NW, K] form. N is window length and NW is standardized half bandwidth. K is the number of DPSS you use.
 
     Returns:
-        tuple: Tuple containing:
-            | **f (nfft):** Frequency points vector
-            | **psd_est (nfft, nch):** estimated power spectral density (PSD)
-            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
+        e (N, K): K DPSS windows
+        v (K): The concentration ratios for K windows.
     '''
-    data = data.T # move time to the last axis
-    
-    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides)
-    return f, psd_mt.T, nu.T
 
-def multitaper_lfp_bandpower(f, psd_est, bands, no_log):
-    '''
-    Estimate band power in specified frequency bands using multitaper power spectral density estimate
+    length = len(tapers)
+    flag = 0
 
-    Args:
-        f (nfft) : Frequency points vector
-        psd_est (nfft, nch): power spectral density - output of bandpass_multitaper_filter_data
-        bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
-        no_log (bool): boolean to select whether lfp band power should be in log scale or not
+    if length == 3:
+        flag = 1
 
-    Returns:
-        lfp_power (n_features, nch): lfp band power for each channel for each band specified
-    '''
-    if psd_est.ndim == 1:
-        psd_est = np.expand_dims(psd_est, 1)
+    if flag:
+        N = tapers[0]
+        NW = tapers[1]
+        K = tapers[2]
 
-    lfp_power = np.zeros((len(bands), psd_est.shape[1]))
-    small_epsilon = 0 # TODO: what is this for? It does nothing now, should it be possible to make nonzero? -Leo
-    fft_inds = dict()
+        N = round(N)
 
-    for band_idx, band in enumerate(bands):
-            fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
+        if K < 1:
+            raise Exception('Error:  K must be greater than or equal to 1')
+        elif K > 2*NW-1:
+            raise Exception('Error:  K must be less than 2*P-1')
 
-    for idx, band in enumerate(bands):
-        if no_log:
-            lfp_power[idx, :] = np.mean(psd_est[fft_inds[idx],:], axis=0)
-        else:
-            lfp_power[idx, :] = np.mean(np.log10(psd_est[fft_inds[idx],:] + small_epsilon), axis=0)
+        e, v = windows.dpss(N, NW, K,return_ratios=True)
+        e = e.T
 
-    return lfp_power
-
-def get_psd_welch(data, fs,n_freq = None):
-    '''
-    Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
-
-    Args:
-        data (nt, ...): time series data.
-        fs (float): sampling rate
-        n_freq (int): no. of frequency points expected
-
-    Returns:
-        tuple: Tuple containing:
-            | **f (nfft):** frequency points vector
-            | **psd_est (nfft, ...):** estimated power spectral density (PSD)
-    '''
-    if n_freq:
-        f, psd = signal.welch(data, fs, average='median', nperseg=2*n_freq, axis=0)
     else:
-        f, psd = signal.welch(data, fs, average='median', axis=0)
-    return f, psd
+        print('Tapers already calculated')
+        e = tapers
+        v = 0
+    
+    return e, v
+
+def dp_proj(tapers, fs=1, f0=0):
+    '''
+    Generates a prolate projection operator
+
+    Args:
+        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
+                        P is computed by N*NW and K is given by math.floor(2*P-1)
+                        (N*smapling rate) represents duration of data. 
+                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
+                        K is the number of tapers you use.
+        fs (float): sampling rate
+        f0 (float): center frequency of filiter
+
+    Returns:
+        dp_proj (nt, K): projection operator in [time, K] form
+    '''
+
+    if len(tapers) == 2:
+        n = tapers[0]
+        w = tapers[1]
+        p = n*w
+        k = math.floor(2*p-1)
+        tapers = [n, p, k]
+
+    if len(tapers) == 3:
+        tapers[0] = round(tapers[0]*fs)
+        tapers, v = dpsschk(tapers)
+
+    # determine parameters and assign matrices
+    N = tapers.shape[0]
+    K = tapers.shape[1]
+    pr_op = np.zeros((N,K),dtype = 'complex')
+
+    f0 = 0
+    shifter = np.exp(-2.*np.pi*1j*f0*np.arange(1,N+1)/fs)
+    for k in range(K):
+        pr_op[:,k] = shifter*tapers[:,k]
+        
+    return pr_op
+
+def mtfilt(tapers, fs=1, f0=0):
+    '''
+    Generates a bandpass filter using the multitaper method
+
+    Args:
+        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
+                        P is computed by N*NW and K is given by math.floor(2*P-1)
+                        (N*smapling rate) represents duration of data. 
+                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
+                        K is the number of tapers you use.
+        fs (float): sampling rate
+        f0 (float): center frequency of filiter
+
+    Returns:
+        X (1, 2*N*fs): a bandpass filter
+    '''    
+    pr_op = dp_proj(tapers, fs, f0)
+    N = pr_op.shape[0]
+    X = np.zeros( (1,2*N), dtype = 'complex')
+    pr = pr_op@pr_op.T
+
+    for t in range(N):
+        X[0, t:t+N] = X[0, t:t+N] + pr[:,N-1-t].T
+    X = X/N 
+    
+    return X
+
+def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
+    '''
+    Bandpass-filter a time series data using the multitaper method
+
+    Example:
+        ::
+
+            band = [-500, 500] # signals within band can pass
+            N = 0.005 # N*sampling_rate is time window you analyze
+            NW = (band[1]-band[0])/2
+            T = 0.05
+            fs = 25000
+            nch = 1
+            x_312hz = utils.generate_multichannel_test_signal(T, fs, nch, 312, self.a*1.5)
+            x_600hz = utils.generate_multichannel_test_signal(T, fs, nch, self.freq[0], self.a*0.5)
+            f0 = np.mean(band)
+            tapers = [N, NW]
+            x_mtfilter = precondition.mtfilter(x_312hz + x_600hz, tapers, fs=fs, f0=f0)
+            plt.figure()
+            plt.plot(x_312hz + x_600hz, label='Original signal (312 Hz + 600 Hz)')
+            plt.plot(x_312hz, label='Original signal (312 Hz)')
+            plt.plot(x_mtfilter, label='Multitaper-filtered signal')
+            plt.xlim([0,500])
+            plt.legend()
+
+        .. image:: _images/mtfilter.png
+
+    Args:
+        X (nt, nch): time series array
+        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
+                        P is computed by N*NW and K is given by math.floor(2*P-1)
+                        (N*smapling rate) represents duration of data. 
+                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
+                        K is the number of tapers you use.
+        fs (float): sampling rate
+        f0 (float): center frequency of filiter
+        flag (bool): if flag == 0, output data is centered. Otherwise, output data is not centered.
+        complexflag: if complexflag == 0, output data becomes real. Otherwise, output data becomes complex.
+
+    Returns:
+        Y (nt, nch): filtered time-series data
+    '''   
+
+    if len(tapers) == 2:
+        n = tapers[0]
+        w = tapers[1]
+        p = n*w
+        k = math.floor(2*p-1)
+        tapers = [n, p, k]
+    elif len(tapers) == 3:
+        tapers[0] = tapers[0]*fs
+        tapers = dpsschk(tapers)
+
+    X = X.T
+    filt = mtfilt(tapers, fs, f0)
+    N = filt.shape[1]
+    szX = X.shape
+
+    if complexflag == 0:
+        filt = filt.real
+
+    if min(szX) > 1:
+        Y = np.zeros(szX) + 1j*np.zeros(szX)
+        for ii in range(szX[0]):
+            tmp = np.convolve(X[ii,:], filt[0,:])
+            if flag:
+                Y[ii,:] = tmp[N:szX[1]+N]
+            else:
+                Y[ii,:] = tmp[round(N/2):szX[1]+round(N/2)]
+
+    else:
+        Y = np.convolve(X, filt[0,:])
+        if flag:
+            Y[ii,:] = Y[N:szX[1]+N]
+        else:
+            Y[ii,:] = Y[round(N/2):szX[1]+round(N/2)]
+
+    if f0 > 0:
+        Y = 2*Y
+    
+    Y = Y.T
+    return Y
+
 
 '''
 Spike detection functions
@@ -359,6 +478,43 @@ def bin_spikes(data, fs, bin_width):
 
     binned_spikes = binned_spikes/bin_width # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes
+
+def bin_spike_times(spike_times, time_before, time_after, bin_width):
+    '''
+    Computes binned spikes (spike rate) [spikes/s]. The input data are 1D spike times in seconds.
+    Binned spikes are calculated at each bin whose width is determined by bin_width. 
+
+    Example:
+        >>> spike_times = np.array([0.0208, 0.0341, 0.0347, 0.0391, 0.0407])
+        >>> spike_times = spike_times.T
+        >>> time_before = 0
+        >>> time_after = 0.05
+        >>> bin_width = 0.01
+        >>> binned_unit_spikes, time_bins = precondition.bin_spike_times(spike_times, time_before, time_after, bin_width)
+        >>> print(binned_unit_spikes)
+            [  0.   0. 100. 300. 100.]
+        >>> print(time_bins)
+            [0.005 0.015 0.025 0.035 0.045]
+
+    Args:
+        spike_times (nspikes): 1D array of spike times [s]
+        time_before (float): start time to easimate spike rate [s]
+        time_after (float): end time to estimate spike rate (Estimation includes endpoint)[s]
+        bin_width (float): width of time-bin to use for estimating spike rate [s]
+
+    Returns:
+        binned_unit_spikes (nbin, nch): spike rate [spikes/s].
+        time_bins : the center of the time-bin over which firing rate is estimated. [s]
+    '''
+
+    time_bins = np.arange(time_before, time_after+bin_width, bin_width) # contain endpoint
+
+    binned_unit_spikes, _ = np.histogram(spike_times, bins=time_bins)
+    binned_unit_spikes = binned_unit_spikes/bin_width # convert [spikes] to [spikes/s]
+
+    time_bins = time_bins[0:-1] + np.diff(time_bins)/2 #change time_bins to be the center of the bin, not the edges.
+
+    return binned_unit_spikes, time_bins
 
 def downsample(data, old_samplerate, new_samplerate):
     '''

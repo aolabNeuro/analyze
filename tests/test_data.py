@@ -3,6 +3,7 @@
 from aopy.data import _process_channels
 from aopy.data import *
 from aopy.visualization import *
+from aopy import preproc
 import unittest
 import os
 import numpy as np
@@ -16,6 +17,38 @@ if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 test_filepath = os.path.join(data_dir, "short headstage test")
 sim_filepath = os.path.join(data_dir, "fake ecube data")
+
+class LoadPreprocTests(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        files = {}
+        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
+        files['ecube'] = 'fake ecube data'
+        cls.id = 3498
+        cls.subject = 'fake_subject'
+        cls.date = '2021-12-13'
+        preproc.proc_single(data_dir, files, write_dir, cls.subject, cls.id, cls.date, ['exp', 'eye', 'broadband', 'lfp'], overwrite=True) # without ecube data
+
+    def test_load_preproc_exp_data(self):
+        exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(exp_data, dict)
+        self.assertIsInstance(exp_metadata, dict)
+
+    def test_load_preproc_eye_data(self):
+        eye_data, eye_metadata = load_preproc_eye_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(eye_data, dict)
+        self.assertIsInstance(eye_metadata, dict)
+            
+    def test_load_preproc_broadband_data(self):
+        broadband_data, broadband_metadata = load_preproc_broadband_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(broadband_data, np.ndarray)
+        self.assertIsInstance(broadband_metadata, dict)
+
+    def test_load_preproc_lfp_data(self):
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
 
 class LoadDataTests(unittest.TestCase):
 
@@ -151,13 +184,13 @@ class LoadDataTests(unittest.TestCase):
         hdf_filepath = os.path.join(write_dir, "preprocessed_ecube_data.hdf")
         if os.path.exists(hdf_filepath):
             os.remove(hdf_filepath)
-        proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
+        dset, metadata = proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
         assert os.path.exists(hdf_filepath)
         hdf = h5py.File(hdf_filepath, 'r')
-        assert 'Headstages' in hdf
-        assert hdf['Headstages'].attrs['samplerate'] == 25000.
-        assert hdf['Headstages'].shape[1] == 64
-        assert hdf['Headstages'].shape[0] == 214032
+        assert 'broadband_data' in hdf
+        assert hdf['broadband_data'].shape[1] == 64
+        assert hdf['broadband_data'].shape[0] == 214032
+        assert metadata['samplerate'] == 25000
     
     def test_save_hdf(self):
         import os
@@ -445,8 +478,20 @@ class SignalPathTests(unittest.TestCase):
         acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
         np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
 
+class E3vFrameTests(unittest.TestCase):
+
+    def test_get_pulse_times(self):
+        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
+        test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
+        test_03_data    = np.stack((test_03,test_03_trigger)).T
+        test_03_times = np.array([2, 6, 10, 14])
+        test_03_dc = np.array([0.5, 0.5, 0.5, 0.5])
+        sync_ch_idx = 0
+        trig_ch_idx = 1
+        samplerate = 1
+        pulse_times, pulse_dc = get_e3v_video_frame_data(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
+        self.assertTrue(np.all(test_03_times == pulse_times))
+        self.assertTrue(np.all(test_03_dc == pulse_dc))
+
 if __name__ == "__main__":
     unittest.main()
-
-
-

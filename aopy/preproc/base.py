@@ -159,18 +159,18 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     To calculate the new points from 'samplerate' this function creates sample points with the same range as 'timestamps' (timestamps[0], timestamps[-1]).
     Either the 'samplerate' or 'sampling_points' optional argument must be used. If neither are filled, the function will display a warning and return nothing.
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
-    If the input timestamps are not monotonic, the function will display a warning and return nothing.
     The optional argument 'interp_kind' corresponds to 'kind' and 'extrap_values' corresponds to 'fill_values' in scipy.interpolate.interp1d.
     More information about 'extrap_values' can be found on the scipy.interpolate.interp1d documentation page. 
 
-    Example::
-    >>> timestamps = np.array([1,2,3,4])
-    >>> timestamp_values = np.array([100,200,100,300])
-    >>> timeseries, sampling_points = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
-    >>> print(timeseries)
-    np.array([100,150,200,150,100,200,300])
-    >>> print(sampling_points)
-    np.array([1,1.5,2,2.5,3,3.5,4])
+    Example:
+        ::
+            >>> timestamps = np.array([1,2,3,4])
+            >>> timestamp_values = np.array([100,200,100,300])
+            >>> timeseries, sampling_points = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+            >>> print(timeseries)
+            np.array([100,150,200,150,100,200,300])
+            >>> print(sampling_points)
+            np.array([1,1.5,2,2.5,3,3.5,4])
 
     Args:
         timestamps (nstamps): Timestamps of original data to be interpolated between.
@@ -190,6 +190,8 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     if not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values))):
         nanmask_stamps = np.logical_not(np.isnan(timestamps))
         nanmask_values = np.logical_not(np.isnan(timestamp_values))
+        if timestamp_values.ndim > 1:
+            nanmask_values = nanmask_values[:,0] # assume if one is nan then the others are nan
         nanmask = np.logical_and(nanmask_stamps, nanmask_values)
         timestamps = timestamps[nanmask]
         timestamp_values = timestamp_values[nanmask]
@@ -200,8 +202,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
 
     # Check for sampling points information
     if samplerate is None and sampling_points is None:
-        print("Warning: Not information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
-        return
+        raise ValueError("No information to determine new sampling points is included. Please input the samplerate to calculate the new points from or the new sample points.")
 
     # Calculate output sampling points if none are input
     if sampling_points is None:
@@ -520,19 +521,23 @@ def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
     
     return split_events, split_events_combined
 
-def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_cycles, event_times, event_codes,
-    align_events=range(81,89), trial_end_events=[239], offset=0., return_datapoints=False, debug=True):
+def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_times, event_codes,
+    align_events=range(81,89), trial_end_events=[239], offset=0., return_datapoints=False):
     """
     Extracts cursor data and eyedata and calibrates, aligning them and calculating the least square fitting coefficients
     
     Args:
-        
+        cursor_data (nt, 3): cursor data in time
+        cursor_samplerate (float): sampling rate of the cursor data
+        eye_data (nt, 2 or 4): eye data in time (optionally for both left and right eyes)
+        eye_samplerate (float): sampling rate of the eye data
+        event_times (nevent): times at which events occur
+        event_codes (nevent): codes for each event
         align_events (list, optional): list of event codes to use for alignment. By default, align to
             when the cursor enters 8 peripheral targets
         trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
         offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
         return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
-        debug (bool, optional): prints additional debug information
 
     Returns:
         tuple: tuple containing:
@@ -540,20 +545,22 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
             | **correlation_coeff (neyech):** correlation coefficients for each eye channel
     """
 
-    # Get cursor kinematics
-    _, trial_cycles = get_trial_segments(event_codes, event_cycles, align_events, trial_end_events)
-    if trial_cycles.size == 0:
-        raise ValueError("Not enough trials to calculate eye calibration")
-    align_cycles = trial_cycles[:,0] + int(offset * cursor_samplerate)
-    cursor_data_aligned = cursor_data[align_cycles, :]
-    if debug: print(f'Using {len(cursor_data_aligned)} cursor x,y positions to calibrate eye tracking data')
-
-    # Get the corresponding eye data
+    # Get the corresponding cursor and eye data
     _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    if len(trial_times) == 0:
+        raise ValueError("Not enough trials to calibrate")
     align_times = trial_times[:,0] + offset
+    sample_cursor_enter_target  = (align_times * cursor_samplerate).astype(int)
+    cursor_data_aligned = cursor_data[sample_cursor_enter_target,:]
     sample_eye_enter_target  = (align_times * eye_samplerate).astype(int)
     eye_data_aligned = eye_data[sample_eye_enter_target,:]
     
+    # Find indexes with valid sample_eye_enter_target (not NaN)
+    valid_indexes = ~np.isnan(sample_eye_enter_target)
+    sample_eye_enter_target = sample_eye_enter_target[valid_indexes].astype(int)
+    eye_data_aligned = eye_data[sample_eye_enter_target,:]
+    cursor_data_aligned = cursor_data_aligned[valid_indexes, :]
+
     # Calibrate the eye data
     if eye_data_aligned.shape[1] == 4:
         cursor_data_aligned = np.tile(cursor_data_aligned, (1, 2)) # for two eyes

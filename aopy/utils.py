@@ -60,34 +60,31 @@ def generate_multichannel_test_signal(duration, samplerate, n_channels, frequenc
 
     return data
 
-def save_test_signal_ecube(data, save_dir, voltsperbit):
+def save_test_signal_ecube(data, save_dir, voltsperbit, datasource='Headstages'):
     '''
     Create a binary file with eCube formatting using the given data
 
     Args:
         data (nt, nch): test_signal to save
         save_dir (str): where to save the file
-        voltsperbit (float): gain of the headstage data you are creating
+        voltsperbit (float): gain of the data you are creating
+        datasource (str): eCube source from which you want the data to be 
+            labeled (i.e. Headstages, AnalogPanel, or DigitalPanel)
 
     Returns:
         str: filename of the new data
     '''
     intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
-    flatdata = data.reshape(-1)
-    timestamp = [1, 2, 3, 4]
-    flatdata = np.insert(flatdata, timestamp, 0)
+    flatdata = intdata.reshape(-1)
+    timestamp = np.array([1, 2, 3, 4], dtype='<i2')
 
     # Save it to the test file
     datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
-    filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
+    filename = f"{datasource}_{data.shape[1]}_Channels_int16_{datestr}.bin"
     filepath = os.path.join(save_dir, filename)
     with open(filepath, 'wb') as f:
-        for _ in range(8):
-            f.write(np.byte(1)) # 8 byte timestamp
-        for t in range(intdata.shape[0]):
-            for ch in range(intdata.shape[1]):
-                f.write(np.byte(intdata[t,ch]))
-                f.write(np.byte(intdata[t,ch] >> 8))
+        f.write(timestamp)
+        f.write(flatdata.tobytes())
 
     return filename
 
@@ -299,6 +296,44 @@ def get_edges_from_onsets(onsets, pulse_width):
         timestamps[2+2*t] = onsets[t]+pulse_width
         values[2+2*t] = 0
     return timestamps, values
+
+def get_pulse_edge_times( digital_data, samplerate ):
+
+    """get_pulse_edge_times
+
+    Args:
+        digital_data (nt, 1): array of data from ecube digital panel
+        samplerate (numeric): data sampling rate (Hz)
+
+    Returns:
+        edge_times (npulse, 2): start and end times from each detected pulse
+    """
+
+    edge_times, edge_val = detect_edges(digital_data, samplerate)
+    start_idx = np.where(edge_val == 1)[0][0]
+    end_idx = np.where(edge_val == 0)[0][-1]
+    edge_times = edge_times[start_idx:(end_idx+1)]
+    edge_val = edge_val[start_idx:(end_idx+1)]
+    edge_pairs = edge_times.reshape(-1,2)
+
+    return edge_pairs
+
+def compute_pulse_duty_cycles( edge_pairs ):
+
+    """compute_pulse_duty_cycles
+
+    Args:
+        edge_pairs (npulse, 2): start, end times from a series of pulses
+
+    Returns:
+        duty_cycle (npulse): duty cycle of each pulse. Pulse period assumed to be constant.
+    """
+
+    pulse_times = edge_pairs[:,0]
+    pulse_period = np.diff(pulse_times,axis=0)
+    duty_cycle = np.squeeze(np.diff(edge_pairs,axis=-1))/pulse_period[0]
+
+    return duty_cycle
 
 def max_repeated_nans(a):
     '''
