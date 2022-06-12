@@ -1022,37 +1022,54 @@ def calc_accLLR_threshold(altcond_train, nullcond_train, nullcond_test, modality
     return best_tp, thresh_props, fa_rates
 
 
-def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_input=0.7, thresh_step_size=0.01, false_alarm_prob=0.05, trial_average=True):
+def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_input=0.7, thresh_step_size=0.01, false_alarm_prob=0.05, trial_average=True, match_selectivity=True):
     '''
     1. Separates data into 'model building' (training + test) and 'implementing' groups by trials 
         Assumes model building dataset is split into a 60/40 split
     2. Calculates accLLR threshold on training and test data
     3. Implements accLLR on 'implementing' data
     
+    Data allocation breakdown by trial (train_prop_input = 0.7)
+    40% is used to train threshold proportion (train)
+    30% is used to validate threshold proportion (test)
+    30% is used to calculate selection time (validate)
+
+
     Args:
-        data_altcond (npts, ntrials):
-        data_nullcond (npts, ntrials):
+        data_altcond (npts, nch, ntrials):
+        data_nullcond (npts, nch, ntrials):
         modality (str): either 'spikes' or 'lfp'
-        train_prop (float): proportion of trials to build the model with
+        train_prop_input (float): proportion of trials to build the model with
         
     Returns:
         (tuple): Tuple containing:
-            | **selection_time_altcond (nt):**
-            | **selection_time_nullcond (nt):** 
-            | **accllr_altcond (nt):**
-            | **accllr_nullcond (nt):**
+            | **accllr_altcond (nt, nch):**
+            | **accllr_nullcond (nt, nch):**
+            | **selection_time_altcond (nch):**
+            | **selection_time_nullcond (nch):** 
     '''
-    # Split into model building and testing data sets (outputs (ntrial, npt) datasets)
-    test_data_altcond, build_data_altcond, test_data_nullcond, build_data_nullcond = model_selection.train_test_split(data_altcond.T, data_nullcond.T, test_size=train_prop_input)
+    nt = data_altcond.shape[0]
+    nch = data_altcond.shape[1]
+    ntrials = data_altcond.shape[2]
 
-    # Separate model building data into valid/test sets
-    nbuild_trials = build_data_altcond.shape[0]
-    ntrain_trials = np.floor(nbuild_trials*0.6) # not sure if we should have the user input this
-    nvalid_trials = nbuild_trials-ntrain_trials
+    # Split into model building (train, validate) and testing data sets (outputs (ntrial, npt) datasets)
+    # test_data_altcond, build_data_altcond, test_data_nullcond, build_data_nullcond = model_selection.train_test_split(data_altcond.T, data_nullcond.T, test_size=train_prop_input)
+    ntrain_trials = int(np.ceil(ntrials*0.4))
+    nvalid_trials = int(np.ceil(ntrials*0.3))
+    ntest_trials = ntrials - ntrain_trials - nvalid_trials
 
-    train_trialidxs = np.random.choice(np.arange(nbuild_trials), size=int(ntrain_trials))
-    train_trial_mask = np.zeros(nbuild_trials, dtype=bool)
-    train_trial_mask[train_trialidxs] = True
+    trialidx = np.arange(ntrials)
+    train_trialidx = np.random.choice(trialidx, size=ntrain_trials, replace=False)
+    valid_trialidx = np.random.choice(trialidx[~np.in1d(trialidx, train_trialidx)], size=nvalid_trials, replace=False)
+    test_trialidx = trialidx[~np.in1d(trialidx, np.concatenate((train_trialidx, valid_trialidx)))]
+
+    # (nt, nch, ntrials)
+    train_data_altcond = data_altcond[:,:,train_trialidx]
+    train_data_nullcond = data_nullcond[:,:,train_trialidx]
+    valid_data_altcond = data_altcond[:,:,valid_trialidx]
+    valid_data_nullcond = data_nullcond[:,:,valid_trialidx]
+    test_data_altcond = data_altcond[:,:,test_trialidx]
+    test_data_nullcond = data_nullcond[:,:,test_trialidx]
 
     # Smooth spike events by convolving with a 5ms Gaussian
     if modality == 'spikes':
@@ -1060,21 +1077,59 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
         time_axis = np.arange(-3*gaus_sigma, 3*gaus_sigma+1) # Constrain filter to +/-3std
         gaus_filter = (1/(gaus_sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*(time_axis**2)/(gaus_sigma**2))
 
-        tran_data_altcond_smooth = scipy.ndimage.convolve1d(build_data_altcond[train_trial_mask,:], gaus_filter, mode='reflect', axis=0)
-        tran_data_nullcond_smooth = scipy.ndimage.convolve1d(build_data_nullcond[train_trial_mask,:], gaus_filter, mode='reflect', axis=0)
-
-    train_data_altcond = np.mean(tran_data_altcond_smooth, axis=0)
-    train_data_nullcond = np.mean(tran_data_nullcond_smooth, axis=0)
-    valid_data_altcond = build_data_altcond[np.logical_not(train_trial_mask),:]
-    valid_data_nullcond = build_data_nullcond[np.logical_not(train_trial_mask),:]
-
-
+        train_data_altcond_smooth = scipy.ndimage.convolve1d(train_data_altcond, gaus_filter, mode='reflect', axis=0)
+        train_data_nullcond_smooth = scipy.ndimage.convolve1d(train_data_nullcond, gaus_filter, mode='reflect', axis=0)
 
     # Input train and validate data to calculate acclllr threshold (transpose data back to input into accllr functions)
-    accllr_thresh, thresh_props, fa_rates = calc_accLLR_threshold(train_data_altcond.T, train_data_nullcond.T, valid_data_nullcond.T, modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
+    accllr_thresh = np.zeros(nch)*np.nan
+    for ich in range(nch):
+        accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond_smooth[:,ich,:], axis=0).T, np.mean(train_data_nullcond_smooth[:,ich,:], axis=0).T, valid_data_nullcond[:,ich,:].T, modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
+
+    # Match signal quality across channels using training data from alternative condition
+    if match_selectivity:
+        test_data_altcond = match_selectivity_accLLR(test_data_altcond.T, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
 
     # Use the calculated threshold to run accllr on the test datasets
-    accllr_altcond, selection_time_altcond = calc_activity_onset_accLLR(test_data_altcond.T, train_data_altcond, train_data_nullcond, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
-    accllr_nullcond, selection_time_nullcond = calc_activity_onset_accLLR(test_data_nullcond.T, train_data_altcond, train_data_nullcond, modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
+    accllr_altcond = np.zeros((nt,nch))*np.nan
+    accllr_nullcond = np.zeros((nt,nch))*np.nan
+    selection_time_altcond = np.zeros((nch))*np.nan
+    selection_time_nullcond = np.zeros((nch))*np.nan
+
+    for ich in range(nch):
+        accllr_altcond, selection_time_altcond = calc_activity_onset_accLLR(test_data_altcond.T, np.mean(train_data_altcond_smooth, axis=0), np.mean(train_data_nullcond_smooth, axis=0), modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
+        accllr_nullcond, selection_time_nullcond = calc_activity_onset_accLLR(test_data_nullcond.T, np.mean(train_data_altcond_smooth, axis=0), np.mean(train_data_nullcond_smooth, axis=0), modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
 
     return selection_time_altcond, selection_time_nullcond, accllr_altcond, accllr_nullcond
+
+
+def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, thresh_proportion):
+    '''
+    Calculates the ROC curve for each channel and adds noise to keep signal selectivity constant across all channel
+
+    Args:
+        data_altcond (npts, nch, ntrials):
+        data_nullcond (npts, nch, ntrials):
+        modality (str): either 'spikes' or 'lfp'
+        train_prop_input (float): proportion of trials to build the model with
+
+    '''
+    nt = test_data_altcond.shape[0]
+    nch = test_data_altcond.shape[1]
+    ntrials = test_data_altcond.shape[1]
+
+    # Calculate choice probability at each time point to determine selectivity 
+    choice_probability = np.zeros((nt, nch))*np.nan
+    for ich in range(nch):
+        temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
+            
+        for it in range(nt):
+            choice_probability[it, ich] = np.sum(temp_accllr[it,:] > thresh_proportion)/ntrials # This is probably incorrect. Not sure how they are performing this calculation
+
+    # Match selectivity of all channels to the channel with the lowest selectivity
+    if modality == 'spikes':
+        
+
+    if modality == 'lfp':
+
+
+    return
