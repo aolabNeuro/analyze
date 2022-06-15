@@ -326,6 +326,8 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
 
     # Don't look at trigger times that are after the end of the data
     max_trigger_time = (data.shape[0]/samplerate) - time_after
+    if max_trigger_time < trigger_times[0]:
+        return trial_aligned # no valid triggers to align to
     last_trigger_idx = np.where(trigger_times < max_trigger_time)[0][-1]
     for t in range(last_trigger_idx+1):
         t0 = trigger_times[t] - time_before

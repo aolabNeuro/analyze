@@ -220,6 +220,16 @@ class TestCalcFuncs(unittest.TestCase):
 
 class TestGetFuncs(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        files = {}
+        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
+        files['ecube'] = 'fake ecube data'
+        cls.subject = 'test'
+        cls.te_id = 3498
+        cls.date = '2021-12-13'
+        aopy.preproc.proc_single(data_dir, files, os.path.join(write_dir, cls.subject), cls.subject, cls.te_id, cls.date, ['exp', 'eye', 'lfp'], overwrite=True)
+
     def test_get_trial_targets(self):
         trials = [0, 1, 1, 2]
         targets = [[1,2,3],[2,3,4],[2,3,4],[5,6,7]]
@@ -233,38 +243,33 @@ class TestGetFuncs(unittest.TestCase):
         calibrated = get_calibrated_eye_data(eye_data, coefficients)
         np.testing.assert_array_equal(eye_data, calibrated)
 
-    def test_get_trial_trajectories(self):
-        files = {}
-        files['hdf'] = 'test20211213_01_te3498.hdf'
-        files['ecube'] = '2021-12-13_BMI3D_te3498'
-        preprocessed_filename = 'preprocessed_te3498.hdf'
-        aopy.preproc.proc_exp(data_dir, files, write_dir, preprocessed_filename, overwrite=True)
-        aopy.preproc.proc_eyetracking(data_dir, files, write_dir, preprocessed_filename)
+    def test_get_kinematic_segments(self):
 
         # Plot cursor trajectories - expect 9 trials
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
-        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes)
+        trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape, (32969, 3)) # x y z
+        self.assertEqual(trajs[1].shape, (32917, 2)) # x z
         bounds = [-10, 10, -10, 10]
+        plt.figure()
         aopy.visualization.plot_trajectories(trajs, bounds=bounds)
-        figname = 'get_trial_trajectories.png'
+        figname = 'get_trial_aligned_trajectories.png'
         aopy.visualization.savefig(write_dir, figname)
 
         # Plot eye trajectories - expect same 9 trials but no eye pos to plot
-        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, datatype='eye')
+        trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye')
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape, (32969, 4)) # two eyes x and y
+        self.assertEqual(trajs[1].shape, (32917, 4)) # two eyes x and y
         plt.figure()
-        aopy.visualization.plot_trajectories(trajs, bounds=bounds)
+        aopy.visualization.plot_trajectories(trajs[:2], bounds=bounds)
         figname = 'get_eye_trajectories.png'
         aopy.visualization.savefig(write_dir, figname) # expect a bunch of noise
 
         # Try cursor velocity
-        vel, _ = get_trial_velocity_estimates(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes)
+        vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape, (32969,))
+        self.assertEqual(vel[1].shape, (32917,))
         plt.figure()
         plt.plot(vel[1])
         figname = 'get_trial_velocities.png'
@@ -272,18 +277,28 @@ class TestGetFuncs(unittest.TestCase):
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
-        trajs, segs = get_trial_trajectories(write_dir, preprocessed_filename, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
+        trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
         self.assertEqual(len(trajs), 7)
 
-    def test_get_target_locations(self):
-        files = {}
-        files['hdf'] = 'test20211213_01_te3498.hdf'
-        files['ecube'] = '2021-12-13_BMI3D_te3498'
-        preprocessed_filename = 'preprocessed_te3498.hdf'
-        aopy.preproc.proc_exp(data_dir, files, write_dir, preprocessed_filename, overwrite=True)
+    def test_get_lfp_segments(self):
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [REWARD, TRIAL_END]
+        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
+        self.assertEqual(len(lfp_segs), 9)
+        self.assertEqual(lfp_segs[0].shape, (0, 8)) # fake lfp data has 8 channels and 0 samples
 
+    def test_get_lfp_aligned(self):
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [REWARD, TRIAL_END]
+        time_before = 0.1
+        time_after = 0.4
+        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, time_before, time_after)
+        self.assertEqual(lfp_aligned.shape, (9, (time_before+time_after)*1000, 8))
+
+    def test_get_target_locations(self):
         target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
-        locs = get_target_locations(write_dir, preprocessed_filename, target_indices)
-        
+        locs = get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices)
+        self.assertEqual(locs.shape, (9, 3))
+
 if __name__ == "__main__":
     unittest.main()

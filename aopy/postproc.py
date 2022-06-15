@@ -5,12 +5,10 @@
 import numpy as np
 import math
 import warnings
-import scipy
-from . import preproc
-from . import precondition, data
-from aopy.preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments
-from aopy.utils import derivative
-from aopy.data import load_hdf_group
+from . import precondition
+from .preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
+from .utils import derivative
+from .data import load_hdf_group, load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
@@ -316,24 +314,27 @@ def get_calibrated_eye_data(eye_data, coefficients):
     #caliberated_eye_data_segments = np.empty((num_time_points, num_dims))
     return eye_data * coefficients[:,0] + coefficients[:,1]
 
-def get_trial_velocity_estimates(*args, **kwargs):
+###############################################################################
+# Preprocessed data getters
+###############################################################################
+def get_velocity_segments(*args, **kwargs):
     '''
     Estimates velocity from cursor position, then finds the trial segments for velocity using 
-    :func:`~aopy.postproc.get_trial_trajectories()`.
+    :func:`~aopy.postproc.get_kinematic_segments()`.
     
     Args:
-        *args: arguments for :func:`~aopy.postproc.get_trial_trajectories`
-        **kwargs: parameters for :func:`~aopy.postproc.get_trial_trajectories`
+        *args: arguments for :func:`~aopy.postproc.get_kinematic_segments`
+        **kwargs: parameters for :func:`~aopy.postproc.get_kinematic_segments`
         
     Returns:
         tuple: tuple containing:
             | **velocities (ntrial):** array of velocity estimates for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
     '''
-    return get_trial_trajectories(*args, **kwargs, preproc=derivative)
+    return get_kinematic_segments(*args, **kwargs, preproc=derivative)
 
 
-def get_trial_trajectories(preproc_dir, preprocessed_filename, trial_start_codes, trial_end_codes, 
+def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor'):
     '''
     Loads x,y,z cursor (or eye) trajectories for each "trial" from a preprocessed HDF file. Trials can
@@ -367,26 +368,21 @@ def get_trial_trajectories(preproc_dir, preprocessed_filename, trial_start_codes
             | **trial_segments (ntrial):** array of numeric code segments for each trial
         
     '''
-    data = load_hdf_group(preproc_dir, preprocessed_filename, 'exp_data')
-    metadata = load_hdf_group(preproc_dir, preprocessed_filename, 'exp_metadata')
+    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     if datatype == 'cursor':
-        cursor = data['task']['cursor'][:,[0,2,1]] # cursor (x, z, y) position on each bmi3d cycle
-        time = data['clock']['timestamp']
-        raw_kinematics = preproc(time, cursor)
-        samplerate = metadata['analog_samplerate']
-        kinematics, _ = interp_timestamps2timeseries(time, raw_kinematics, samplerate, interp_kind='previous')
+        raw_kinematics = data['cursor_interp']
+        samplerate = metadata['cursor_interp_samplerate']
     elif datatype == 'eye':
-        eye_data = load_hdf_group(preproc_dir, preprocessed_filename, 'eye_data')
-        eye_metadata = load_hdf_group(preproc_dir, preprocessed_filename, 'eye_metadata')
+        eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         samplerate = eye_metadata['samplerate']
         raw_kinematics = eye_data['calibrated_data']
-        time = np.arange(len(raw_kinematics))/samplerate
-        kinematics = preproc(time, raw_kinematics)
     else:
         raise ValueError(f"Unknown datatype {datatype}")
 
+    time = np.arange(len(raw_kinematics))/samplerate
+    kinematics = preproc(time, raw_kinematics)
     assert kinematics is not None
-    
+
     event_codes = data['events']['code']
     event_times = data['events']['timestamp']
 
@@ -398,7 +394,48 @@ def get_trial_trajectories(preproc_dir, preprocessed_filename, trial_start_codes
     
     return trajectories[success_trials], trial_segments[success_trials]
 
-def get_target_locations(preproc_dir, preproc_filename, target_indices):
+def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
+                           trial_filter=lambda x:True):
+    '''
+    '''
+    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    samplerate = lfp_metadata['lfp_samplerate']
+
+    event_codes = data['events']['code']
+    event_times = data['events']['timestamp']
+
+    trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
+                                                                  trial_start_codes, trial_end_codes)
+    trajectories = np.array(get_data_segments(lfp_data, trial_times, samplerate), dtype='object')
+    trial_segments = np.array(trial_segments, dtype='object')
+    success_trials = [trial_filter(t) for t in trial_segments]
+    
+    return trajectories[success_trials], trial_segments[success_trials]
+
+
+def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
+                           time_before, time_after, trial_filter=lambda x:True):
+    '''
+    '''
+    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    samplerate = lfp_metadata['lfp_samplerate']
+
+    event_codes = data['events']['code']
+    event_times = data['events']['timestamp']
+
+    trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
+                                                     trial_start_codes, trial_end_codes)
+    trial_start_times = [t[0] for t in trial_times]
+    assert len(trial_start_times) > 0, "No trials found"
+    print(lfp_data.shape)
+    trial_aligned_data = trial_align_data(lfp_data, trial_start_times, time_before, time_after, samplerate) #(ntrial, nt, nch)
+    success_trials = [trial_filter(t) for t in trial_segments]
+    
+    return trial_aligned_data[success_trials]
+
+def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     '''
     Loads the x,y,z location of targets in a preprocessed HDF file given by their index. Requires
     that the preprocessed `exp_data` includes a `trials` structured array containing `index` and 
@@ -412,7 +449,7 @@ def get_target_locations(preproc_dir, preproc_filename, target_indices):
     Returns:
         ndarray: (ntarg x 3) array of coordinates of the given targets
     '''
-    data = load_hdf_group(preproc_dir, preproc_filename, 'exp_data')
+    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     try:
         trials = data['trials']
     except:
