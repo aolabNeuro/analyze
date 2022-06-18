@@ -1054,8 +1054,8 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
 
     # Split into model building (train, validate) and testing data sets (outputs (ntrial, npt) datasets)
     # test_data_altcond, build_data_altcond, test_data_nullcond, build_data_nullcond = model_selection.train_test_split(data_altcond.T, data_nullcond.T, test_size=train_prop_input)
-    ntrain_trials = int(np.ceil(ntrials*0.4))
-    nvalid_trials = int(np.ceil(ntrials*0.3))
+    ntrain_trials = int(np.ceil(ntrials*train_prop_input*0.4))
+    nvalid_trials = int(np.ceil(ntrials*train_prop_input*0.3))
     ntest_trials = ntrials - ntrain_trials - nvalid_trials
 
     trialidx = np.arange(ntrials)
@@ -1107,8 +1107,8 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
     Calculates the ROC curve for each channel and adds noise to keep signal selectivity constant across all channel
 
     Args:
-        data_altcond (npts, nch, ntrials):
-        data_nullcond (npts, nch, ntrials):
+        test_data_altcond (npts, nch, ntrials):
+        train_data_altcond (npts, nch, ntrials):
         modality (str): either 'spikes' or 'lfp'
         train_prop_input (float): proportion of trials to build the model with
 
@@ -1117,19 +1117,104 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
     nch = test_data_altcond.shape[1]
     ntrials = test_data_altcond.shape[1]
 
-    # Calculate choice probability at each time point to determine selectivity 
-    choice_probability = np.zeros((nt, nch))*np.nan
+    # Calculate choice probability at final time point to determine selectivity 
+    choice_probability = np.zeros((nch))*np.nan
     for ich in range(nch):
         temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
             
-        for it in range(nt):
-            choice_probability[it, ich] = np.sum(temp_accllr[it,:] > thresh_proportion)/ntrials # This is probably incorrect. Not sure how they are performing this calculation
+        choice_probability[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
+
+
+    # Find channel with the lowest choice probability to initialize
+    match_ch_idx = np.zeros(nch, dtype=bool)
+    match_ch_idx[np.argmin(choice_probability)] = True
+    match_ch_prob = np.min(choice_probability)
 
     # Match selectivity of all channels to the channel with the lowest selectivity
+    
     if modality == 'spikes':
-        
 
-    if modality == 'lfp':
+        timebin_size = 5 # Use a 5ms bin to manipulate spiking
+        ntimebin = nt//timebin_size 
+        noisy_test_data = test_data_altcond
+        while len(match_ch_idx) < nch:
+            spike_move_prob_step = 0.01
+            spike_move_prob = spike_move_prob_step
+
+            for ich in range(nch):
+                for ibin in range(ntimebin):
+                    tstartidx = ibin*timebin_size
+                    tstopidx = tstartidx + timebin_size
+                    new_spikes = test_data_altcond[tstartidx:tstopidx,ich,:] #(ntimebin, ntrials)
+                    spike_trials = np.sum(new_spikes, axis=0) > 0                
+
+                    # use spike_move_prob to get the trials to delete a spike from
+                    trials_to_delete_spikes = np.random.uniform(0,1,size=ntrials) < spike_move_prob # may not be necessary
+                    trialidx_to_delete_spikes = np.where(trials_to_delete_spikes)[0]
+
+                    # For each trial with a spike to delete, randomly select which spike to delete and add to a remaining trial
+                    #TODO - not sure if it is correct to randomly select a spike to delete
+                    #TODO - not sure if it is correct to remove all spikes and then add to the same array after
+                    #TODO - not sure what to do if there are more spikes removed than available places to put them
+                    if np.sum(trials_to_delete_spikes)>0:
+                        for trialidx in trialidx_to_delete_spikes:
+                            spike_bin_idx = np.where(new_spikes[:, trialidx] > 0)[0]
+                            spike_bin_idx_remove = np.random.choice(spike_bin_idx)
+                            new_spikes[spike_bin_idx_remove,trialidx] = 0 
+
+                        # Find a remaining spike with followed by a quiet period of 3ms and add a spike 2ms after it
+                        nspikes_placed = 0 # Counter for the number of spikes placed
+                        for itrial in enumerate(ntrials):
+                            if nspikes_placed < len(trialidx_to_delete_spikes):
+                                # determine if there is a spike followed by a quiet period of 3ms in this trial
+                                spike_idx = np.where(new_spikes[:,itrial])[0]
+                                valid_first_spike = len(spike_idx) > 0 and np.max(spike_idx) < 2
+                                if valid_first_spike:                            
+                                    quiet_after_spike = new_spikes[np.max(spike_idx)+1,itrial] == 0 and new_spikes[np.max(spike_idx)+2,itrial] == 0 and new_spikes[np.max(spike_idx)+3,itrial] == 0
+                                else:
+                                    quiet_after_spike = False
+                                
+                                # If spike has 3ms quiet after, place spike
+                                if valid_first_spike and quiet_after_spike:
+                                    new_spikes[np.max(spike_idx)+2, itrial] = 1
+
+                    noisy_test_data[tstartidx,tstopidx,ich,:] = new_spikes
+
+            # Calculate choice probability 
+            unmatch_choice_prob = np.zeros(len(unmatch_chs_idx))*np.nan
+            for ich in range(len(unmatch_chs_idx)):
+                temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond_noisy, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
+                unmatch_choice_prob[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
+
+            # Replace choice probabilities and get matched channels
+            choice_probability[unmatch_chs_idx] = unmatch_choice_prob
+
+            match_ch_idx = choice_probability <= match_ch_prob
+
+            spike_move_prob += spike_move_prob_step
+
+    elif modality == 'lfp':
+        noise_sd_step = 0.01 # Standard deviation of noise - may want to pull this out
+        noise_sd = noise_sd_step
+
+        while len(match_ch_idx) < nch:
+            # Add noise to non-matched channels
+            unmatch_chs_idx = np.arange(nch) #unmatched channel idx
+            unmatch_chs_idx = unmatch_chs_idx[~match_ch_idx]
+            test_data_altcond_noisy = test_data_altcond[:,unmatch_chs_idx,:] + np.random.normal(0,noise_sd, size=(nt, ntrials))
+
+            # Calculate choice probability 
+            unmatch_choice_prob = np.zeros(len(unmatch_chs_idx))*np.nan
+            for ich in range(len(unmatch_chs_idx)):
+                temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond_noisy, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
+                unmatch_choice_prob[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
+
+            # Replace choice probabilities and get matched channels
+            choice_probability[unmatch_chs_idx] = unmatch_choice_prob
+
+            match_ch_idx = choice_probability <= match_ch_prob
+
+            noise_sd += noise_sd_step
 
 
     return
