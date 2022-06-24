@@ -352,3 +352,21 @@ def max_repeated_nans(a):
         idx = np.nonzero(mask[1:] != mask[:-1])[0]
         return (idx[1::2] - idx[::2]).max()
 
+def derivative(x, y, norm=True):
+    '''
+    Computes the derivative of y along x.
+
+    Args:
+        x (nt): independent variable, e.g. time
+        y (nt, ...): dependent variable, e.g. position
+        norm (bool, optional): also compute the norm of y if it is multidimensional (default True)
+
+    Returns:
+        nt: derivative of y
+    '''
+    dy = np.gradient(y, axis=0, edge_order=2)
+    if norm and dy.ndim > 1:
+        dy = np.linalg.norm(dy, axis=1)
+    dx = np.gradient(x)
+    dydx = dy/dx
+    return dydx

@@ -157,6 +157,19 @@ class TestDigitalCalc(unittest.TestCase):
         assert unpacked[1,0] == 1
         assert unpacked[0,1] == 0
 
+    def test_derivative(self):
+        x = np.linspace(0, 10, 1000)
+        y = x**2
+        dydx = derivative(x, y, norm=False)
+        expected = x*2
+        np.testing.assert_allclose(dydx, expected)
+
+        x = np.linspace(0, 10, 1000)
+        y = np.array([x*2, x*2]).T
+        dydx = derivative(x, y, norm=True)
+        expected = np.ones(1000)*2*np.sqrt(2)
+        np.testing.assert_allclose(dydx, expected)
+
 
 if __name__ == "__main__":
     unittest.main()
