@@ -61,34 +61,31 @@ def generate_multichannel_test_signal(duration, samplerate, n_channels, frequenc
 
     return data
 
-def save_test_signal_ecube(data, save_dir, voltsperbit):
+def save_test_signal_ecube(data, save_dir, voltsperbit, datasource='Headstages'):
     '''
     Create a binary file with eCube formatting using the given data
 
     Args:
         data (nt, nch): test_signal to save
         save_dir (str): where to save the file
-        voltsperbit (float): gain of the headstage data you are creating
+        voltsperbit (float): gain of the data you are creating
+        datasource (str): eCube source from which you want the data to be 
+            labeled (i.e. Headstages, AnalogPanel, or DigitalPanel)
 
     Returns:
         str: filename of the new data
     '''
     intdata = np.array(data/voltsperbit, dtype='<i2') # turn into integer data
-    flatdata = data.reshape(-1)
-    timestamp = [1, 2, 3, 4]
-    flatdata = np.insert(flatdata, timestamp, 0)
+    flatdata = intdata.reshape(-1)
+    timestamp = np.array([1, 2, 3, 4], dtype='<i2')
 
     # Save it to the test file
     datestr = datetime.now().strftime("%Y-%m-%d_%H-%M-%S") # e.g. 2021-05-06_11-47-02
-    filename = f"Headstages_{data.shape[1]}_Channels_int16_{datestr}.bin"
+    filename = f"{datasource}_{data.shape[1]}_Channels_int16_{datestr}.bin"
     filepath = os.path.join(save_dir, filename)
     with open(filepath, 'wb') as f:
-        for _ in range(8):
-            f.write(np.byte(1)) # 8 byte timestamp
-        for t in range(intdata.shape[0]):
-            for ch in range(intdata.shape[1]):
-                f.write(np.byte(intdata[t,ch]))
-                f.write(np.byte(intdata[t,ch] >> 8))
+        f.write(timestamp)
+        f.write(flatdata.tobytes())
 
     return filename
 
@@ -373,3 +370,22 @@ def print_progress_bar(count, total, status=''):
 
     sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
     sys.stdout.flush()
+
+def derivative(x, y, norm=True):
+    '''
+    Computes the derivative of y along x.
+
+    Args:
+        x (nt): independent variable, e.g. time
+        y (nt, ...): dependent variable, e.g. position
+        norm (bool, optional): also compute the norm of y if it is multidimensional (default True)
+
+    Returns:
+        nt: derivative of y
+    '''
+    dy = np.gradient(y, axis=0, edge_order=2)
+    if norm and dy.ndim > 1:
+        dy = np.linalg.norm(dy, axis=1)
+    dx = np.gradient(x)
+    dydx = dy/dx
+    return dydx

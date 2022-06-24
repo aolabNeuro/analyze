@@ -190,6 +190,8 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     if not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values))):
         nanmask_stamps = np.logical_not(np.isnan(timestamps))
         nanmask_values = np.logical_not(np.isnan(timestamp_values))
+        if timestamp_values.ndim > 1:
+            nanmask_values = nanmask_values[:,0] # assume if one is nan then the others are nan
         nanmask = np.logical_and(nanmask_stamps, nanmask_values)
         timestamps = timestamps[nanmask]
         timestamp_values = timestamp_values[nanmask]
@@ -207,7 +209,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
         sampling_points = np.arange(timestamps[0], timestamps[-1]+(1/samplerate), 1/samplerate)
 
     # Interpolate
-    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values)
+    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values, axis=0)
     timeseries = f_interp(sampling_points)
 
     return timeseries, sampling_points
@@ -324,6 +326,8 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
 
     # Don't look at trigger times that are after the end of the data
     max_trigger_time = (data.shape[0]/samplerate) - time_after
+    if max_trigger_time < trigger_times[0]:
+        return trial_aligned # no valid triggers to align to
     last_trigger_idx = np.where(trigger_times < max_trigger_time)[0][-1]
     for t in range(last_trigger_idx+1):
         t0 = trigger_times[t] - time_before
@@ -519,19 +523,23 @@ def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
     
     return split_events, split_events_combined
 
-def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_cycles, event_times, event_codes,
-    align_events=range(81,89), trial_end_events=[239], offset=0., return_datapoints=False, debug=True):
+def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_times, event_codes,
+    align_events=range(81,89), trial_end_events=[239], offset=0., return_datapoints=False):
     """
     Extracts cursor data and eyedata and calibrates, aligning them and calculating the least square fitting coefficients
     
     Args:
-        
+        cursor_data (nt, 3): cursor data in time
+        cursor_samplerate (float): sampling rate of the cursor data
+        eye_data (nt, 2 or 4): eye data in time (optionally for both left and right eyes)
+        eye_samplerate (float): sampling rate of the eye data
+        event_times (nevent): times at which events occur
+        event_codes (nevent): codes for each event
         align_events (list, optional): list of event codes to use for alignment. By default, align to
             when the cursor enters 8 peripheral targets
         trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
         offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
         return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
-        debug (bool, optional): prints additional debug information
 
     Returns:
         tuple: tuple containing:
@@ -539,18 +547,15 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
             | **correlation_coeff (neyech):** correlation coefficients for each eye channel
     """
 
-    # Get cursor kinematics
-    _, trial_cycles = get_trial_segments(event_codes, event_cycles, align_events, trial_end_events)
-    if trial_cycles.size == 0:
-        raise ValueError("Not enough trials to calculate eye calibration")
-    align_cycles = trial_cycles[:,0] + int(offset * cursor_samplerate)
-    cursor_data_aligned = cursor_data[align_cycles, :]
-    if debug: print(f'Using {len(cursor_data_aligned)} cursor x,y positions to calibrate eye tracking data')
-
-    # Get the corresponding eye data
+    # Get the corresponding cursor and eye data
     _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    if len(trial_times) == 0:
+        raise ValueError("Not enough trials to calibrate")
     align_times = trial_times[:,0] + offset
-    sample_eye_enter_target = align_times * eye_samplerate
+    sample_cursor_enter_target  = (align_times * cursor_samplerate).astype(int)
+    cursor_data_aligned = cursor_data[sample_cursor_enter_target,:]
+    sample_eye_enter_target  = (align_times * eye_samplerate).astype(int)
+    eye_data_aligned = eye_data[sample_eye_enter_target,:]
     
     # Find indexes with valid sample_eye_enter_target (not NaN)
     valid_indexes = ~np.isnan(sample_eye_enter_target)
