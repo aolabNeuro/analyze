@@ -337,7 +337,7 @@ def get_velocity_segments(*args, **kwargs):
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor'):
     '''
-    Loads x,y,z cursor (or eye) trajectories for each "trial" from a preprocessed HDF file. Trials can
+    Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
     trials are included, for example. The filter is applied to numeric code segments for each trial. 
     Finally, the cursor data can be preprocessed by a supplied function to, for example, convert 
@@ -345,22 +345,27 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     cursor or eye data.
     
     Example:
+        subject = 'beignet'
+        te_id = 4301
+        date = '2021-01-01'
         trial_filter = lambda t: TRIAL_END not in t
-        trajectories, segments = get_trial_trajectories("/data/preprocessed", "preprocessed-example.hdf",
+        trajectories, segments = get_trial_trajectories(preproc_dir, subject, te_id, date,
                                                        [CURSOR_ENTER_CENTER_TARGET], 
                                                        [REWARD, TRIAL_END], 
                                                        trial_filter=trial_filter) 
     
     Args:
-        preproc_dir (str): path to the preprocessed directory
-        preproc_filename (str): filename of the preprocessed HDF file
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
         trial_start_codes (list): list of numeric codes representing the start of a trial
         trial_end_codes (list): list of numeric codes representing the end of a trial
         trial_filter (fn, optional): function mapping trial segments to boolean values. Any trials
             for which the filter returns False will not be included in the output
         preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
             a smoothing function or an estimate of velocity from position
-        data (str, optional): choice of 'cursor' or 'eye' kinematics to load
+        data (str, optional): choice of 'cursor', 'hand', or 'eye' kinematics to load
     
     Returns:
         tuple: tuple containing:
@@ -372,6 +377,12 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     if datatype == 'cursor':
         raw_kinematics = data['cursor_interp']
         samplerate = metadata['cursor_interp_samplerate']
+    elif datatype == 'hand':
+        hand_data_cycles = data['bmi3d_task']['manual_input']
+        clock = data['clock']['timestamp_sync']
+        samplerate = metadata['analog_samplerate']
+        time = np.arange(int((clock[-1] + 10)*samplerate))/samplerate
+        raw_kinematics, _ = interp_timestamps2timeseries(clock, hand_data_cycles, sampling_points=time, interp_kind='linear')
     elif datatype == 'eye':
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         samplerate = eye_metadata['samplerate']
@@ -397,6 +408,26 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
 def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True):
     '''
+    Loads lfp segments (different length for each trial) from a preprocessed HDF file. Trials can
+    be specified by numeric start and end codes. Trials can also be filtered so that only successful
+    trials are included, for example. The filter is applied to numeric code segments for each trial. 
+        
+    Args:
+        preproc_dir (str): path to the preprocessed directory
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        trial_start_codes (list): list of numeric codes representing the start of a trial
+        trial_end_codes (list): list of numeric codes representing the end of a trial
+        trial_filter (fn, optional): function mapping trial segments to boolean values. Any trials
+            for which the filter returns False will not be included in the output
+    
+    Returns:
+        tuple: tuple containing:
+            | **lfp_segments (ntrial):** array of filtered lfp segments for each trial
+            | **trial_segments (ntrial):** array of numeric code segments for each trial
+
     '''
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
@@ -407,16 +438,36 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
 
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
                                                                   trial_start_codes, trial_end_codes)
-    trajectories = np.array(get_data_segments(lfp_data, trial_times, samplerate), dtype='object')
+    lfp_segments = np.array(get_data_segments(lfp_data, trial_times, samplerate), dtype='object')
     trial_segments = np.array(trial_segments, dtype='object')
     success_trials = [trial_filter(t) for t in trial_segments]
     
-    return trajectories[success_trials], trial_segments[success_trials]
+    return lfp_segments[success_trials], trial_segments[success_trials]
 
 
 def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            time_before, time_after, trial_filter=lambda x:True):
     '''
+    Loads lfp segments (different length for each trial) from a preprocessed HDF file. Trials can
+    be specified by numeric start and end codes. Trials can also be filtered so that only successful
+    trials are included, for example. The filter is applied to numeric code segments for each trial. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        trial_start_codes (list): list of numeric codes representing the start of a trial
+        trial_end_codes (list): list of numeric codes representing the end of a trial
+        time_before (float): time before the trial start to include in the aligned lfp (in seconds)
+        time_after (float): time after the trial end to include in the aligned lfp (in seconds)
+        trial_filter (fn, optional): function mapping trial segments to boolean values. Any trials
+            for which the filter returns False will not be included in the output
+    
+    Returns:
+        (ntrials, nt, nch): aligned lfp data output from `func:aopy.preproc.trial_align_data`
+
+
     '''
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
@@ -442,8 +493,10 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     `target` fields (the default behavior of `:func:~aopy.preproc.proc_exp`)
     
     Args:
-        preproc_dir (str): path to the preprocessed directory
-        preproc_filename (str): filename of the preprocessed HDF file
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
         target_indices (ntarg): a list of which targets to fetch
         
     Returns:
