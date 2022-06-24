@@ -266,6 +266,15 @@ class TestGetFuncs(unittest.TestCase):
         figname = 'get_eye_trajectories.png'
         aopy.visualization.savefig(write_dir, figname) # expect a bunch of noise
 
+        # Plot hand trajectories - expect same 9 trials but hand kinematics.
+        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand')
+        self.assertEqual(len(hand_trajs), 9)
+        self.assertEqual(hand_trajs[1].shape, (32917, 3))
+        plt.figure()
+        aopy.visualization.plot_trajectories(hand_trajs, bounds=bounds)
+        figname = 'get_hand_trajectories.png' # since these were test data generated with a cursor, it should look the same as the cursor data.
+        aopy.visualization.savefig(write_dir, figname)
+
         # Try cursor velocity
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(vel), 9)
