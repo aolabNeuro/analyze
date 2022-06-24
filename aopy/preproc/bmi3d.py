@@ -385,7 +385,7 @@ def _prepare_bmi3d_v1(data, metadata):
 
     # But use the sync events if they exist and are valid
     if 'sync_events' in data and len(data['sync_events']) > 0:
-        if not np.array_equal(data['sync_events'], corrected_events):
+        if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
             warnings.warn("sync events don't match bmi3d events. This will probably cause problems.")
         corrected_events = data['sync_events']
     else:
