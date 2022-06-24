@@ -8,6 +8,7 @@ with open("README.md", "r") as f:
 
 install_requires = [
     'numpy',
+    'xarray',
     'pandas',
     'psutil',
     'h5py',

@@ -1013,7 +1013,7 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
 ######### Spectral Estimation and Analysis ############
 
-def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
+def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
     """get_sgram_multitaper
 
     Compute multitaper estimate from multichannel signal input.
@@ -1040,13 +1040,12 @@ def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fa
     (n_sample, n_ch) = data.shape
     total_t = n_sample/fs
     n_window = int((total_t-win_t)/step_t)
+    assert n_window > 0
     window_len = int(win_t*fs)
     step_len = int(step_t*fs)
     n_fbin = window_len // 2 + 1
-    txx = np.arange(n_fbin)*step_t # window start time
+    txx = np.arange(n_window)*step_t # window start time
     Sxx = np.zeros((n_fbin,n_window,n_ch))
-    if n_ch == 1:
-        Sxx = Sxx.squeeze(axis=-1)
 
     data = interp_multichannel(data)
 
@@ -1054,7 +1053,12 @@ def get_sgram_multitaper( data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fa
         window_sample_range = np.arange(window_len) + step_len*idx_window
         win_data = data[window_sample_range,:]
         _f, _win_psd, _ = tsa.multi_taper_psd(win_data.T, fs, nw, bw, adaptive, jackknife, sides)
-        Sxx[:,idx_window,:] = _win_psd.T
+        try:
+            Sxx[:,idx_window,...] = _win_psd.T
+        except:
+            breakpoint()
+    if n_ch == 1:
+        Sxx = Sxx.squeeze(axis=-1)
 
     fxx = _f
 

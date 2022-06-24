@@ -1,21 +1,21 @@
 # data.py
 # Code for directly loading and saving data (and results)
 
-from ctypes import util
-from random import sample
-import numpy as np
-
-from .whitematter import ChunkedStream, Dataset
+from ..whitematter import ChunkedStream, Dataset
 import h5py
 import tables
 import csv
-import pandas as pd
 import os
 import glob
 import warnings
-import pickle
+import pickle as pkl
+import numpy as np
+from pandas import read_csv, read_excel
+import warnings
 import yaml
-from .utils import get_pulse_edge_times, compute_pulse_duty_cycles
+from ..utils import get_pulse_edge_times, compute_pulse_duty_cycles
+
+from . import peslab
 
 ###############################################################################
 # Loading preprocessed data
@@ -246,8 +246,8 @@ def load_optitrack_data(data_dir, filename):
     filepath = os.path.join(data_dir, filename)
     # Load .csv file as a pandas data frame, convert to a numpy array, and remove
     # the 'Frame' and 'Time (Seconds)' columns.
-    mocap_data_rot = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_rot_column_idx]
-    mocap_data_pos = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_pos_column_idx]
+    mocap_data_rot = read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_rot_column_idx]
+    mocap_data_pos = read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,mocap_data_pos_column_idx]
 
     return mocap_data_pos, mocap_data_rot
 
@@ -270,7 +270,7 @@ def load_optitrack_time(data_dir, filename):
     filepath = os.path.join(data_dir, filename)
     # Load .csv file as a pandas data frame, convert to a numpy array, and only
     # return the 'Time (Seconds)' column
-    timestamps = pd.read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
+    timestamps = read_csv(filepath, header=column_names_idx_csvrow).to_numpy()[:,timestamp_column_idx]
     return timestamps
 
 
@@ -804,7 +804,7 @@ def lookup_excel_value(data_dir, excel_file, from_column, to_column, lookup_valu
     if fullfile in _cached_dataframes:
         dataframe = _cached_dataframes[fullfile]
     else:
-        dataframe = pd.read_excel(fullfile)
+        dataframe = read_excel(fullfile)
         _cached_dataframes[fullfile] = dataframe
     
     row = dataframe.loc[dataframe[from_column] == lookup_value]
@@ -860,7 +860,7 @@ def load_electrode_pos(data_dir, pos_file):
             | **y_pos (nch):** y position of each electrode
     '''
     fullfile = os.path.join(data_dir, pos_file)
-    electrode_pos = pd.read_excel(fullfile)
+    electrode_pos = read_excel(fullfile)
     x_pos = electrode_pos['topdown_x'].to_numpy()
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos
@@ -1120,7 +1120,7 @@ def pkl_write(file_to_write, values_to_dump, write_dir):
     '''
     file = os.path.join(write_dir, file_to_write)
     with open(file, 'wb') as pickle_file:
-        pickle.dump(values_to_dump, pickle_file)
+        pkl.dump(values_to_dump, pickle_file)
 
 
 def pkl_read(file_to_read, read_dir):
@@ -1137,9 +1137,11 @@ def pkl_read(file_to_read, read_dir):
     '''
     file = os.path.join(read_dir, file_to_read)
     with open(file, "rb") as f:
-        this_dat = pickle.load(f)
+        this_dat = pkl.load(f)
     return this_dat
 
+# - - -- --- ----- -------- ------------- -------- ----- --- -- - - #
+# - - -- --- ----- -------- ------------- -------- ----- --- -- - - #
 
 def yaml_write(filename, data):
     '''
@@ -1175,7 +1177,6 @@ def yaml_read(filename):
         task_codes = yaml.load(file, Loader=yaml.FullLoader)
 
     return task_codes
-
 
 def get_e3v_video_frame_data( digital_data, sync_channel_idx, trigger_channel_idx, samplerate ):
     
