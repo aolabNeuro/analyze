@@ -955,7 +955,6 @@ def calc_activity_onset_accLLR(data, altcond, nullcond, modality, bin_width, thr
         max_accLLR = np.max(np.abs(accLLR), axis=0)
 
     thresh_val = thresh_proportion*max_accLLR
-
     above_thresh = np.abs(accLLR) > thresh_val
 
     if trial_average:
@@ -1009,7 +1008,6 @@ def calc_accLLR_threshold(altcond_train, nullcond_train, nullcond_test, modality
     fa_rates = []    
     for tp in thresh_props:
         accLLR, selection_time_idx = calc_activity_onset_accLLR(nullcond_test, altcond_train, nullcond_train, modality, bin_width, thresh_proportion=tp, max_accLLR=max_accLLR, trial_average=False) 
-        print('maxaccllr', accLLR)
         accLLR_altcond_within_time = np.sum(np.logical_and(accLLR > 0, selection_time_idx < npts), axis=0)
         n_accllr_altcond_within_time = np.count_nonzero(accLLR_altcond_within_time)
         false_alarms = n_accllr_altcond_within_time / ntrials
@@ -1034,6 +1032,7 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
     30% is used to validate threshold proportion (test)
     30% is used to calculate selection time (validate)
 
+    Selection time is max time if alternative condition is not reached.
 
     Args:
         data_altcond (npts, nch, ntrials):
@@ -1044,7 +1043,7 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
     Returns:
         (tuple): Tuple containing:
             | **accllr_altcond (nt, nch):**
-            | **accllr_nullcond (nt, nch):**
+            | **accllr_nullcond (nt, nch):** 
             | **selection_time_altcond (nch):**
             | **selection_time_nullcond (nch):** 
     '''
@@ -1077,29 +1076,28 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
         time_axis = np.arange(-3*gaus_sigma, 3*gaus_sigma+1) # Constrain filter to +/-3std
         gaus_filter = (1/(gaus_sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*(time_axis**2)/(gaus_sigma**2))
 
-        train_data_altcond_smooth = scipy.ndimage.convolve1d(train_data_altcond, gaus_filter, mode='reflect', axis=0)
-        train_data_nullcond_smooth = scipy.ndimage.convolve1d(train_data_nullcond, gaus_filter, mode='reflect', axis=0)
+        train_data_altcond = scipy.ndimage.convolve1d(train_data_altcond, gaus_filter, mode='reflect', axis=0)
+        train_data_nullcond = scipy.ndimage.convolve1d(train_data_nullcond, gaus_filter, mode='reflect', axis=0)
 
     # Input train and validate data to calculate acclllr threshold (transpose data back to input into accllr functions)
     accllr_thresh = np.zeros(nch)*np.nan
     for ich in range(nch):
-        accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond_smooth[:,ich,:], axis=0).T, np.mean(train_data_nullcond_smooth[:,ich,:], axis=0).T, valid_data_nullcond[:,ich,:].T, modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
-
-    # Match signal quality across channels using training data from alternative condition
+        accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), valid_data_nullcond[:,ich,:], modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
+    print(accllr_thresh)
     if match_selectivity:
         test_data_altcond = match_selectivity_accLLR(test_data_altcond.T, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
 
     # Use the calculated threshold to run accllr on the test datasets
     accllr_altcond = np.zeros((nt,nch))*np.nan
-    accllr_nullcond = np.zeros((nt,nch))*np.nan
     selection_time_altcond = np.zeros((nch))*np.nan
-    selection_time_nullcond = np.zeros((nch))*np.nan
 
     for ich in range(nch):
-        accllr_altcond, selection_time_altcond = calc_activity_onset_accLLR(test_data_altcond.T, np.mean(train_data_altcond_smooth, axis=0), np.mean(train_data_nullcond_smooth, axis=0), modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
-        accllr_nullcond, selection_time_nullcond = calc_activity_onset_accLLR(test_data_nullcond.T, np.mean(train_data_altcond_smooth, axis=0), np.mean(train_data_nullcond_smooth, axis=0), modality, bin_width, thresh_proportion=accllr_thresh, trial_average=True)
-
-    return selection_time_altcond, selection_time_nullcond, accllr_altcond, accllr_nullcond
+        accllr_altcond_temp, selection_time_altcond_temp = calc_activity_onset_accLLR(test_data_altcond[:,ich,:], np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), modality, bin_width, thresh_proportion=accllr_thresh[ich], trial_average=trial_average)
+        accllr_altcond[:,ich] = accllr_altcond_temp
+        selection_time_altcond[ich] = selection_time_altcond_temp
+        
+    print('single', selection_time_altcond_temp)
+    return selection_time_altcond, accllr_altcond
 
 
 def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, thresh_proportion):

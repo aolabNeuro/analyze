@@ -1,3 +1,4 @@
+from cmath import exp
 from matplotlib import pyplot as plt
 from aopy.analysis import calc_success_rate
 import aopy
@@ -440,9 +441,26 @@ class AccLLRTests(unittest.TestCase):
         aopy.visualization.savefig(write_dir, filename)
 
     def test_calc_accLLR_wrapper(self):
-        cond2 = np.arange(100)
-        cond2 = np.tile(cond2, (50, 1))
-        cond1 = np.zeros(cond2.shape)
+        npts = 100
+        nch = 50
+        ntrials = 30
+        onset_idx = 80
+        altcond = np.zeros(npts)
+        altcond[onset_idx:] = np.arange(npts-onset_idx)
+        altcond = np.repeat(np.tile(altcond, (nch,1)).T[:,:,None], ntrials, axis=2)
+        np.random.seed(0)
+        nullcond = np.random.normal(0,5,size=altcond.shape)
+
+        # Test wrapper with LFP data and no selectivity matching
+        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, match_selectivity=False)
+        expected_sTime_alt = np.ones(nch)*onset_idx
+    
+        print('estn', sTime_alt)
+        np.testing.assert_allclose(sTime_alt, expected_sTime_alt)
+        
+        
+        # Test wrapper with spike data and selectivity matching
+
         # selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2 = aopy.analysis.accLLR_wrapper(cond1, cond2, 'lfp', 1.)
         # print(selection_time_cond1)
         # print(selection_time_cond2)
