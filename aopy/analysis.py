@@ -970,7 +970,7 @@ def calc_activity_onset_accLLR(data, altcond, nullcond, modality, bin_width, thr
 
     return accLLR, selection_time
 
-def calc_accLLR_threshold(altcond_train, nullcond_train, nullcond_test, modality, bin_width, thresh_step_size=0.01, false_alarm_prob=0.05):
+def calc_accLLR_threshold(altcond_train, nullcond_train, altcond_test, nullcond_test, modality, bin_width, thresh_step_size=0.01, false_alarm_prob=0.05):
     '''
     Sweeps the AccLLR method over the thresh_proportion parameter, estimates false alarm rates, 
     and then choose a value for thresh_proportion that gives us the desired false alarm rate.
@@ -1001,10 +1001,10 @@ def calc_accLLR_threshold(altcond_train, nullcond_train, nullcond_test, modality
     ntrials = nullcond_test.shape[1]
 
     # Get max accLLR value for threshold calculation by calculating the max accLLR with the training data
-    accLLR, _ = calc_activity_onset_accLLR(altcond_train, altcond_train, nullcond_train, modality=modality, bin_width=bin_width)
+    accLLR, _ = calc_activity_onset_accLLR(altcond_test, altcond_train, nullcond_train, modality=modality, bin_width=bin_width)
     max_accLLR = np.max(accLLR)
     
-    thresh_props = np.arange(0, 1, thresh_step_size)
+    thresh_props = np.arange(thresh_step_size, 1, thresh_step_size)
     fa_rates = []    
     for tp in thresh_props:
         accLLR, selection_time_idx = calc_activity_onset_accLLR(nullcond_test, altcond_train, nullcond_train, modality, bin_width, thresh_proportion=tp, max_accLLR=max_accLLR, trial_average=False) 
@@ -1053,7 +1053,7 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
 
     # Split into model building (train, validate) and testing data sets (outputs (ntrial, npt) datasets)
     # test_data_altcond, build_data_altcond, test_data_nullcond, build_data_nullcond = model_selection.train_test_split(data_altcond.T, data_nullcond.T, test_size=train_prop_input)
-    ntrain_trials = int(np.ceil(ntrials*train_prop_input*0.4))
+    ntrain_trials = int(np.ceil(ntrials*train_prop_input*0.7))
     nvalid_trials = int(np.ceil(ntrials*train_prop_input*0.3))
     ntest_trials = ntrials - ntrain_trials - nvalid_trials
 
@@ -1076,27 +1076,36 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
         time_axis = np.arange(-3*gaus_sigma, 3*gaus_sigma+1) # Constrain filter to +/-3std
         gaus_filter = (1/(gaus_sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*(time_axis**2)/(gaus_sigma**2))
 
-        train_data_altcond = scipy.ndimage.convolve1d(train_data_altcond, gaus_filter, mode='reflect', axis=0)
-        train_data_nullcond = scipy.ndimage.convolve1d(train_data_nullcond, gaus_filter, mode='reflect', axis=0)
+        train_data_altcond = scipy.ndimage.convolve1d(train_data_altcond, gaus_filter, output=float, mode='reflect', axis=0)
+        train_data_nullcond = scipy.ndimage.convolve1d(train_data_nullcond, gaus_filter, output=float, mode='reflect', axis=0)
 
     # Input train and validate data to calculate acclllr threshold (transpose data back to input into accllr functions)
     accllr_thresh = np.zeros(nch)*np.nan
     for ich in range(nch):
-        accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), valid_data_nullcond[:,ich,:], modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
-    print(accllr_thresh)
+        accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), valid_data_altcond[:,ich,:], valid_data_nullcond[:,ich,:], modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
+
     if match_selectivity:
-        test_data_altcond = match_selectivity_accLLR(test_data_altcond.T, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
+        test_data_altcond = match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
 
     # Use the calculated threshold to run accllr on the test datasets
-    accllr_altcond = np.zeros((nt,nch))*np.nan
-    selection_time_altcond = np.zeros((nch))*np.nan
+    
+    if trial_average:
+        selection_time_altcond = np.zeros((nch))*np.nan
+        accllr_altcond = np.zeros((nt,nch))*np.nan
+    else:
+        selection_time_altcond = np.zeros((nch, ntest_trials))*np.nan
+        accllr_altcond = np.zeros((nt,nch, ntest_trials))*np.nan
+
 
     for ich in range(nch):
         accllr_altcond_temp, selection_time_altcond_temp = calc_activity_onset_accLLR(test_data_altcond[:,ich,:], np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), modality, bin_width, thresh_proportion=accllr_thresh[ich], trial_average=trial_average)
-        accllr_altcond[:,ich] = accllr_altcond_temp
-        selection_time_altcond[ich] = selection_time_altcond_temp
+        if trial_average:
+            accllr_altcond[:,ich] = accllr_altcond_temp
+            selection_time_altcond[ich] = selection_time_altcond_temp
+        else:
+            accllr_altcond[:,ich,:] = accllr_altcond_temp
+            selection_time_altcond[ich,:] = selection_time_altcond_temp
         
-    print('single', selection_time_altcond_temp)
     return selection_time_altcond, accllr_altcond
 
 
