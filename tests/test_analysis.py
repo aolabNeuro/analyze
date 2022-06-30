@@ -463,6 +463,13 @@ class AccLLRTests(unittest.TestCase):
         mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
         self.assertTrue(np.sum(mask) == sTime_alt.shape[0]*sTime_alt.shape[1])
         
+        # Test wrapper with LFP data and yes selectivity matching and trial_average=True
+        diff_selective_signal_len = 20
+        altcond[:,2,1:3] = 0 # Make the signal less selective by making some trials 0
+        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, match_selectivity=True)
+        print(sTime_alt)
+        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
+
         # Test wrapper with spike data and selectivity matching trial_average=False
         np.random.seed(0)
         altcond = np.random.binomial(1,0.05,size=(npts,nch, ntrials))
@@ -475,10 +482,9 @@ class AccLLRTests(unittest.TestCase):
         mask = np.logical_and(sTime_alt > 45, sTime_alt < 55)
         self.assertTrue(np.sum(mask) == nch)
 
-         # Test wrapper with spike data and no selectivity matching and trial_average=False
+        # Test wrapper with spike data and no selectivity matching and trial_average=False
         sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'spikes', 1, trial_average=False, match_selectivity=False)
         mask = np.logical_and(sTime_alt > 45, sTime_alt < 55)
-        print(mask)
         self.assertTrue(np.sum(mask) > nch*sTime_alt.shape[1]*0.66) # Since this is noisy data on a trial by trial basis the selection time will be noisy
 
         # selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2 = aopy.analysis.accLLR_wrapper(cond1, cond2, 'lfp', 1.)

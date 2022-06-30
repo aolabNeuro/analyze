@@ -1085,17 +1085,17 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
         accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), valid_data_altcond[:,ich,:], valid_data_nullcond[:,ich,:], modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
 
     if match_selectivity:
+        print(test_data_altcond.shape)
         test_data_altcond = match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
+        print(test_data_altcond.shape)
 
     # Use the calculated threshold to run accllr on the test datasets
-    
     if trial_average:
         selection_time_altcond = np.zeros((nch))*np.nan
         accllr_altcond = np.zeros((nt,nch))*np.nan
     else:
         selection_time_altcond = np.zeros((nch, ntest_trials))*np.nan
         accllr_altcond = np.zeros((nt,nch, ntest_trials))*np.nan
-
 
     for ich in range(nch):
         accllr_altcond_temp, selection_time_altcond_temp = calc_activity_onset_accLLR(test_data_altcond[:,ich,:], np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), modality, bin_width, thresh_proportion=accllr_thresh[ich], trial_average=trial_average)
@@ -1122,29 +1122,32 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
     '''
     nt = test_data_altcond.shape[0]
     nch = test_data_altcond.shape[1]
-    ntrials = test_data_altcond.shape[1]
+    ntrials = test_data_altcond.shape[2]
 
     # Calculate choice probability at final time point to determine selectivity 
     choice_probability = np.zeros((nch))*np.nan
     for ich in range(nch):
-        temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
-            
+        temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond[:,ich,:], np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:],axis=1), modality, bin_width, trial_average=False) #[nt, ntrial]
         choice_probability[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
 
 
     # Find channel with the lowest choice probability to initialize
     match_ch_idx = np.zeros(nch, dtype=bool)
-    match_ch_idx[np.argmin(choice_probability)] = True
+    match_ch_idx[choice_probability == np.min(choice_probability)] = True
     match_ch_prob = np.min(choice_probability)
 
+    # If all signals are similarly selective, return input array
+    if np.sum(match_ch_idx) == nch:
+        return test_data_altcond
+
     # Match selectivity of all channels to the channel with the lowest selectivity
-    
     if modality == 'spikes':
 
         timebin_size = 5 # Use a 5ms bin to manipulate spiking
         ntimebin = nt//timebin_size 
         noisy_test_data = test_data_altcond
-        while len(match_ch_idx) < nch:
+
+        while np.sum(match_ch_idx) < nch:
             spike_move_prob_step = 0.01
             spike_move_prob = spike_move_prob_step
 
@@ -1190,7 +1193,7 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
             # Calculate choice probability 
             unmatch_choice_prob = np.zeros(len(unmatch_chs_idx))*np.nan
             for ich in range(len(unmatch_chs_idx)):
-                temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond_noisy, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
+                temp_accllr, _ = calc_activity_onset_accLLR(noisy_test_data, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
                 unmatch_choice_prob[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
 
             # Replace choice probabilities and get matched channels
@@ -1200,20 +1203,23 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
 
             spike_move_prob += spike_move_prob_step
 
-    elif modality == 'lfp':
-        noise_sd_step = 0.01 # Standard deviation of noise - may want to pull this out
-        noise_sd = noise_sd_step
+        return noisy_test_data
 
-        while len(match_ch_idx) < nch:
+    elif modality == 'lfp':
+        noise_sd_step = 1 # Standard deviation of noise - may want to pull this out
+        noise_sd = noise_sd_step
+        noisy_test_data = test_data_altcond
+        while np.sum(match_ch_idx) < nch:
             # Add noise to non-matched channels
             unmatch_chs_idx = np.arange(nch) #unmatched channel idx
             unmatch_chs_idx = unmatch_chs_idx[~match_ch_idx]
-            test_data_altcond_noisy = test_data_altcond[:,unmatch_chs_idx,:] + np.random.normal(0,noise_sd, size=(nt, ntrials))
+            # print('unmatch_ch_idx', unmatch_chs_idx, noise_sd)
+            noisy_test_data[:,unmatch_chs_idx,:] = test_data_altcond[:,unmatch_chs_idx,:] + np.random.normal(0,noise_sd, size=(nt,len(unmatch_chs_idx), ntrials))
 
             # Calculate choice probability 
             unmatch_choice_prob = np.zeros(len(unmatch_chs_idx))*np.nan
             for ich in range(len(unmatch_chs_idx)):
-                temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond_noisy, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
+                temp_accllr, _ = calc_activity_onset_accLLR(noisy_test_data[:,ich,:], np.mean(train_data_altcond[:,ich,:],axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), modality, bin_width, trial_average=False) #[nt, ntrial]
                 unmatch_choice_prob[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
 
             # Replace choice probabilities and get matched channels
@@ -1223,5 +1229,5 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
 
             noise_sd += noise_sd_step
 
-
-    return
+        return noisy_test_data
+    
