@@ -1156,3 +1156,59 @@ def interp_multichannel(x):
     x[nan_idx] = np.interp(idx,xp,fp)
 
     return x
+
+def plot_window_around_event(i_events, which_event, quality_name, quality_segments, quality, num_samples_before, num_samples_after, result):
+    '''
+    Plot a trace of cursor and eye directional error around a specified event, averaged across trials with a specified quality.
+    
+    Args:
+        i_events (ntrials): list of indices of event occurrence, for each trial
+        which_event (int): index of event in trial (e.g., 1 selects the second event in a trial)
+        quality_name (str): name of quality by which to select trials
+        quality_segments (ntrials): quality of each trial
+        quality (list): selected quality
+        num_samples_before (int): number of samples to plot before event
+        num_samples_after (int): number of samples to plot after event
+        result (str): desired result by which to select trials
+    
+    Returns:
+        None 
+    '''
+    segment_nums = [i for i, x in enumerate(quality_segments) if (x in quality) and (i in trial_result['reachsurround'][result])]
+    # inspect average directional error for all segments with one event where window is within bounds
+    segments_one_event = [i for i, x in enumerate(i_events) if i in segment_nums and len(x) > 0 and 
+                        x[which_event] + num_samples_after < len(cursor_dir_error_angle['reachsurround'][i]) and
+                        x[which_event] >= num_samples_before]
+    # extract interval around saccade start
+    window_length = num_samples_before + num_samples_after + 1
+
+    cursor_errors = np.zeros((len(segments_one_event), window_length))
+    eye_errors = np.zeros((len(segments_one_event), window_length))
+
+    for j in range(len(segments_one_event)):
+        segment = segments_one_event[j]
+        i_event = i_events[segment][which_event]
+        cursor_errors[j] = cursor_dir_error_angle['reachsurround'][segment][(i_event-num_samples_before):(i_event+num_samples_after+1)]
+        eye_errors[j] = eye_dir_error_angle['reachsurround'][segment][(i_event-num_samples_before):(i_event+num_samples_after+1)]
+
+    mean_cursor_error = np.mean(cursor_errors, axis=0)
+    mean_eye_error = np.mean(eye_errors, axis=0)
+    sd_cursor_error = np.std(cursor_errors, axis=0)
+    sd_eye_error = np.std(eye_errors, axis=0)
+
+    i_window = np.arange(-num_samples_before, num_samples_after+1) 
+    fig, ax = plt.subplots(1,1,figsize=(4,4))
+    ax.plot(i_window, mean_cursor_error, label='cursor')
+    ax.fill_between(i_window, mean_cursor_error-sd_cursor_error, mean_cursor_error+sd_cursor_error, alpha=0.1)
+#     for j in range(len(segments_one_event)):
+#         ax.plot(i_window, cursor_errors[j], c='b', alpha=0.025)
+    ax.plot(i_window, mean_eye_error, label='eye')
+    ax.fill_between(i_window, mean_eye_error-sd_eye_error, mean_eye_error+sd_eye_error, alpha=0.1)
+#     for j in range(len(segments_one_event)):
+#         ax.plot(i_window, eye_errors[j], c='g', alpha=0.025)
+    ax.vlines(0, ymin=0, ymax=180, linestyles='dashed')
+    ax.set_xlabel('Relative time (samples)')
+    ax.set_ylabel('Directional error (deg)')
+    ax.set_title(f'{quality_name} {quality}, Trial result: {result}, Number of trials: {len(segments_one_event)}')
+    ax.legend()
+    plt.show()
