@@ -440,6 +440,44 @@ class AccLLRTests(unittest.TestCase):
         filename = 'accllr_thresh_prop.png'
         aopy.visualization.savefig(write_dir, filename)
 
+    def test_match_selectivity_accLLR(self):
+        # LFP data 
+        ntrials = 50
+        nch = 2
+        train_data_altcond = np.array([((0,0,0,1,2,3),), ((0,0,0,0.5,1,1.5),)])
+        train_data_nullcond = np.array([((0,0,0,0,0,0),), ((0,0,0,0,0,0),)])
+        train_data_altcond = np.swapaxes(train_data_altcond, 0, 2)
+        train_data_nullcond = np.swapaxes(train_data_nullcond, 0, 2)
+        train_data_altcond = np.swapaxes(train_data_altcond, 1, 2)
+        train_data_nullcond = np.swapaxes(train_data_nullcond, 1, 2)
+
+        print(train_data_altcond.shape)
+        print(train_data_nullcond.shape)
+
+        np.random.seed(0)
+        test_data_altcond = np.random.normal(0, 1, size=(len(train_data_altcond), nch, ntrials))
+
+        test_data_altcond_ = test_data_altcond.copy()
+
+        print(test_data_altcond.shape)
+        
+        # nullcond_test = np.array((0,0,0,0,0,0))
+        # nullcond_test = np.tile(nullcond_test, (50, 1)).T
+
+        samplerate = 1
+        noisy_data_altcond = aopy.analysis.match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, 'lfp', bin_width=1./samplerate, thresh_proportion=0.15)
+        
+        # One channel should remain the same pre- and post- selectivity matching,
+        # while the other channel should have added noise.
+        plt.figure()
+        plt.plot(test_data_altcond_[:,0,0], 'r', label='before matching ch 1')
+        plt.plot(test_data_altcond_[:,1,0], 'b', label='before matching ch 2')
+        plt.plot(noisy_data_altcond[:,0,0], 'g--', label='after matching ch 1')
+        plt.plot(noisy_data_altcond[:,1,0], 'c--', label='after matching ch 2')
+        plt.legend()
+        filename = 'match_selectivity_accllr.png'
+        aopy.visualization.savefig(write_dir, filename)
+
     def test_calc_accLLR_wrapper(self):
         npts = 100
         nch = 50

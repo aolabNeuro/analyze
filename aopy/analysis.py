@@ -1119,6 +1119,9 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
         modality (str): either 'spikes' or 'lfp'
         train_prop_input (float): proportion of trials to build the model with
 
+    Returns:
+        (npts, nch, ntrials): test_data_altcond with added noise to match selectivity across channels
+
     '''
     nt = test_data_altcond.shape[0]
     nch = test_data_altcond.shape[1]
