@@ -349,7 +349,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         te_id = 4301
         date = '2021-01-01'
         trial_filter = lambda t: TRIAL_END not in t
-        trajectories, segments = get_trial_trajectories(preproc_dir, subject, te_id, date,
+        trajectories, segments = get_kinematic_segments(preproc_dir, subject, te_id, date,
                                                        [CURSOR_ENTER_CENTER_TARGET], 
                                                        [REWARD, TRIAL_END], 
                                                        trial_filter=trial_filter) 
@@ -365,7 +365,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
             for which the filter returns False will not be included in the output
         preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
             a smoothing function or an estimate of velocity from position
-        data (str, optional): choice of 'cursor', 'hand', or 'eye' kinematics to load
+        datatype (str): required. choice of 'cursor', 'hand', or 'eye' kinematics to load
     
     Returns:
         tuple: tuple containing:
