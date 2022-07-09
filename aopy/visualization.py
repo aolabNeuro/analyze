@@ -10,10 +10,15 @@ import matplotlib.dates as mdates
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
+from scipy import signal
+from scipy.stats import zscore
 import numpy as np
 import os
+from PIL import Image
 import copy
 import pandas as pd
+from tqdm import tqdm
+
 
 from . import postproc
 from . import analysis
@@ -151,6 +156,22 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
+    Example:
+        Make a plot of a 10 x 10 grid of increasing values with some missing data.
+        
+        ::
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+
+            interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
+            plot_spatial_map(interp_map, xy[0], xy[1])
+
+        .. image:: _images/posmap_calcmap.png
+
     Args:
         data (nch): list of values
         x_pos (nch): list of x positions
@@ -160,21 +181,31 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         threshold_dist (float): distance to neighbors before disregarding a point on the image
 
     Returns:
-        2,n array: map of the data on the given grid
+        tuple: tuple containing:
+        | *data_map (2,n array):* map of the data on the given grid
+        | *xy (2,n array):* new grid positions to use with this map
+
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
     xy = np.vstack((x_pos, y_pos)).T
-    xq, yq = np.meshgrid(np.arange(extent[0], x_spacing * grid_size[0], x_spacing),
-                         np.arange(extent[2], y_spacing * grid_size[1], y_spacing))
-    X = griddata(xy, data, (np.reshape(xq, -1), np.reshape(yq, -1)), method=interp_method, rescale=False)
+    xq, yq = np.meshgrid(np.arange(extent[0], extent[0] + x_spacing * grid_size[0], x_spacing),
+                         np.arange(extent[2], extent[2] + y_spacing * grid_size[1], y_spacing))
+    
+    # Remove nan values
+    non_nan = np.logical_not(np.isnan(data))
+    data = data[non_nan]
+    xy = xy[non_nan]
+    
+    # Interpolate
+    new_xy = (np.reshape(xq, -1), np.reshape(yq, -1))
+    X = griddata(xy, data, new_xy, method=interp_method, rescale=False)
 
     # Construct kd-tree, functionality copied from scipy.interpolate
     tree = cKDTree(xy)
     xi = _ndim_coords_from_arrays((np.reshape(xq, -1), np.reshape(yq, -1)))
-
     dists, indexes = tree.query(xi)
 
     # Mask values with distances over the threshold with NaNs
@@ -182,10 +213,10 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         X[dists > threshold_dist] = np.nan
 
     data_map = np.reshape(X, grid_size)
-    return data_map
+    return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
     '''
     Wrapper around plt.imshow for spatial data
 
@@ -209,6 +240,7 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
         data_map (2,n array): map of x,y data
         x (list): list of x positions
         y (list): list of y positions
+        alpha_map (2,n array): map of alpha values (optional, default alpha=1 everywhere)
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
 
@@ -227,15 +259,63 @@ def plot_spatial_map(data_map, x, y, ax=None, cmap='bwr'):
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
     cmap.set_bad(color='black')
+    
+    # Make an alpha map scaled between 0 and 1
+    if alpha_map is None:
+        alpha_map = 1
+    else:
+        alpha_range = np.nanmax(alpha_map) - np.nanmin(alpha_map)
+        alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
+        alpha_map[np.isnan(alpha_map)] = 0
 
     # Plot
     if ax is None:
         ax = plt.gca()
-    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
     return image
+
+def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
+    '''
+    Makes an nt x ntrial image colored by the timeseries values. 
+
+    Example:
+        ::
+
+        time = np.array([-2, -1, 0, 1, 2, 3])
+        data = np.array([[0, 0, 1, 1, 0, 0],
+                         [0, 0, 0, 1, 1, 0]]).T
+        plot_image_by_time(time, data)
+        filename = 'image_by_time.png'
+
+        .. image:: _images/image_by_time.png
+
+    Args:
+        time (nt): time vector to plot along the x axis
+        image_values (nt, [nch or ntr]): time-by-trial or time-by-channel data
+        ylabel (str, optional): description of the second axis of image_values. Defaults to 'trial'.
+        cmap (str, optional): colormap with which to display the image. Defaults to 'bwr'.
+        ax (pyplot.Axes, optional): Axes object on which to plot. Defaults to None.
+
+    Returns:
+        pyplot.AxesImage: the image object returned by pyplot
+    '''
+    
+    image_values = np.array(image_values)
+    extent = [np.min(time), np.max(time), 0, image_values.shape[1]]
+
+    # Plot
+    if ax is None:
+        ax = plt.gca()
+    im = ax.imshow(image_values.T, cmap=cmap, origin='lower', extent=extent, aspect='auto', \
+        resample=False, interpolation='none', filternorm=False)
+    ax.set_xlabel('time (s)')
+    ax.set_ylabel(ylabel)
+    
+    return im
+
 
 def plot_raster(data, cue_bin=None, ax=None):
     '''
@@ -391,7 +471,7 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
 
     # Initial plot
     fig, ax = plt.subplots()
-    im = plot_spatial_map(data_map[0], x, y, ax, cmap)
+    im = plot_spatial_map(data_map[0], x, y, ax=ax, cmap=cmap)
 
     # Change the color limits
     min_c = np.min(np.array(data_map))
@@ -464,6 +544,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
 
     if ax is None:
         ax = plt.gca()
+
+    if unique_only:
+        target_positions = np.unique(target_positions,axis=0)
 
     for i in range(0, target_positions.shape[0]):
 
@@ -836,11 +919,13 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
 
     '''
     nunits = mean_fr.shape[0]
-    print(nunits)
     n_subplot_rows = ((nunits-1)//n_subplot_cols)+1
-  
+    axinput = True
+
     if ax is None:
         fig, ax = plt.subplots(n_subplot_rows, n_subplot_cols)
+        axinput = False
+        
     nplots = n_subplot_rows*n_subplot_cols
     for iunit in range(nplots):
         if nunits > n_subplot_cols and n_subplot_cols!=1:
@@ -863,7 +948,8 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
             ax[iunit].plot(targets, analysis.curve_fitting_func(targets, fit_params[iunit, 0], fit_params[iunit, 1], fit_params[iunit,2]), 'b--', label='fit')
             ax[iunit].set_title('Unit ' +str(iunit))
 
-    fig.tight_layout()
+    if not axinput:
+        fig.tight_layout()
         
 def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], linecolor=[0,0,0], box_width = 0.5, ax=None):
     '''
@@ -892,3 +978,145 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], li
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
+
+def advance_plot_color(ax, n):
+    '''
+    Utility to skip colors for the given axis.
+    
+    Args:
+        ax (pyplot.Axes): specify which axis to advance the color
+        n (int): how many colors to skip in the cycle
+    '''
+    for _ in range(n):
+        next(ax._get_lines.prop_cycler)
+
+def profile_data_channels(data, samplerate, figuredir, **kwargs):
+    """profile_data_channels
+
+    Runs `plot_channel_summary` and `combine_channel_figures` on all channels in a data array
+
+    Args:
+        data (nt, nch): numpy array of neural data
+        samplerate (int): sampling rate of data
+        figuredir (str): string indicating file path to desired save directory
+        kwargs (**dict): keyword arguments to pass to plot_channel_summary()
+
+    .. image:: _images/channel_profile_example.png
+    
+    """
+    
+    if not os.path.exists(figuredir):
+        os.makedirs(figuredir)
+    _, nch = data.shape
+    
+    for chidx in tqdm(range(nch)):
+        chname = f'ch. {chidx+1}'
+        fig = plot_channel_summary(data[:,chidx], samplerate, title=chname, **kwargs)
+        fig.savefig(os.path.join(figuredir,f'ch_{chidx}.png'))
+        
+    combine_channel_figures(figuredir, nch=nch, figsize=kwargs.pop('figsize', (6,5)), dpi=kwargs.pop('dpi', 150))
+
+    
+def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
+    """combine_channel_figures
+
+    Combines all channel figures in directory generated from plot_channel_summary
+
+    Args:
+        figuredir (str): path to directory of channel profile images
+        nch (int, optional): number of channels from data array. Determines combined image layout. Defaults to 256.
+        figsize (tuple, optional): (width, height) to pass to pyplot. Default (6, 5)
+        dpi (int, optional): resolution to pass to pyplot. Default 150
+    """
+    
+    assert os.path.exists(figuredir), f"Directory not found: {figuredir}"
+    
+    ncol = int(np.ceil(np.sqrt(nch))) # make things as square as possible
+    nrow = int(np.ceil(nch/ncol))
+    imgw = figsize[0] * dpi # I should get these from the individual files...
+    imgh = figsize[1] * dpi
+    
+    grid = Image.new(mode='RGB', size=(ncol*imgw, nrow*imgh))
+    
+    print(f'profiling all {nch} channels...')
+    for chidx in tqdm(range(nch)):
+        figurefile = os.path.join(figuredir,f'ch_{chidx}.png')
+        rowidx = chidx // ncol
+        colidx = chidx % ncol
+        if not os.path.exists(figurefile):
+            continue
+        else:
+            with Image.open(figurefile) as img:
+                grid.paste(img,box=(colidx*imgw, rowidx*imgh))
+    
+    grid.save(os.path.join(figuredir,'all_ch.png'),'png')
+
+
+def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange=None, title=None, figsize=(6, 5), dpi=150, frange=(0, 80), cmap_lim=(0, 40)):
+    """plot_channel_summary
+    
+    Plot time domain trace, spectrogram and normalized (z-scored) spectrogram. Computes spectrogram.
+    
+    ---------------
+    | time series |
+    |-------------|
+    | spectrogram |
+    |-------------|
+    | norm sgram  |
+    ---------------
+    
+    Args:
+        chdata (nt,1): neural recording data from a given channel (lfp, ecog, broadband)
+        samplerate (int): data sampling rate
+        nperseg (int): length of each spectrogram window (in samples)
+        noverlap (int): number of samples shared between neighboring spectrogram windows (in samples)
+        trange (tuple, optional): (min, max) time range to display. Default show the entire time series
+        title (str, optional): print a title above the timeseries data. Default None
+        figsize (tuple, optional): (width, height) to pass to pyplot. Default (6, 5)
+        dpi (int, optional): resolution to pass to pyplot. Default 150
+        frange (tuple, optional): range of frequencies to display in spectrogram. Default (0, 80)
+        cmap_lim (tuple, optional): clim to display in the spectrogram. Default (0, 40)
+
+    Outputs:
+        fig (Figure): Figure object
+    """
+    
+    assert len(chdata.shape) < 2, "Input data array must be 1d"
+    
+    time = np.arange(len(chdata))/samplerate
+    if trange is None:
+        trange = (time[0], time[-1])
+                                   
+    if nperseg is None:
+        nperseg = int(2*samplerate)
+                                
+    if noverlap is None:
+        noverlap = int(1.5*samplerate)
+    
+    f_sg, t_sg, sgram = signal.spectrogram(
+        chdata,
+        fs=samplerate,
+        nperseg=nperseg,
+        noverlap=noverlap,
+        detrend='linear'
+    )
+    log_sgram = np.log10(sgram)
+    
+    fig, ax = plt.subplots(3,1,figsize=figsize,dpi=dpi,constrained_layout=True,sharex=True)
+    ax[0].plot(time, chdata)
+    sg_pcm = ax[1].pcolormesh(t_sg,f_sg,10*log_sgram,vmin=cmap_lim[0],vmax=cmap_lim[1],shading='auto')
+    ax[1].set_ylim(*frange)
+    sg_cb = plt.colorbar(sg_pcm,ax=ax[1])
+    sg_cb.ax.set_ylabel('dB$\mu$')
+    sgn_pcm = ax[2].pcolormesh(t_sg,f_sg,zscore(log_sgram,axis=-1),vmin=-3,vmax=3,shading='auto',cmap='bwr')
+    ax[2].set_ylim(*frange)
+    sgn_cb = plt.colorbar(sgn_pcm,ax=ax[2])
+    sgn_cb.ax.set_ylabel('z-scored dB$\mu$')
+    ax[0].set_xlim(*trange)
+    ax[0].set_ylabel('amp. ($\mu V$)')
+    ax[1].set_ylabel('freq. (Hz)')
+    ax[2].set_ylabel('freq. (Hz)')
+    ax[2].set_xlabel('time (s)')
+    ax[0].set_title(title)
+    
+    return fig

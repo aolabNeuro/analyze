@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<SETTINGS>
+	<INFO>
+		<VERSION>v0.4.0</VERSION>
+		<DATE>2021-12-13T09:47:37-0800</DATE>
+		<MACHINE>ecube</MACHINE>
+		<FILE_HEADER>
+			<TIMESTAMP datatype="uint64" unit="nanoseconds" />
+		</FILE_HEADER>
+		<FILE_FORMAT>flat binary</FILE_FORMAT>
+	</INFO>
+	<SIGNALCHAIN>
+		<PROCESSOR>
+			<DATA_INFO>
+				<SOURCE>AnalogPanel</SOURCE>
+				<SAMPLERATE>25000.000000</SAMPLERATE>
+				<DATA_TYPE>int16</DATA_TYPE>
+				<DATA_CHANNELS>32</DATA_CHANNELS>
+			</DATA_INFO>
+			<CHANNEL_INFO>
+				<CHANNEL name="AIN1" input="1" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN2" input="2" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN3" input="3" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN4" input="4" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN5" input="5" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN6" input="6" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN7" input="7" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN8" input="8" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN9" input="9" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN10" input="10" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN11" input="11" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN12" input="12" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN13" input="13" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN14" input="14" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN15" input="15" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN16" input="16" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN17" input="17" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN18" input="18" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN19" input="19" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN20" input="20" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN21" input="21" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN22" input="22" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN23" input="23" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN24" input="24" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN25" input="25" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN26" input="26" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN27" input="27" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN28" input="28" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN29" input="29" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN30" input="30" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN31" input="31" voltsperbit="3.0517578125e-4" />
+				<CHANNEL name="AIN32" input="32" voltsperbit="3.0517578125e-4" />
+			</CHANNEL_INFO>
+		</PROCESSOR>
+	</SIGNALCHAIN>
+</SETTINGS>

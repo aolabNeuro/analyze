@@ -8,6 +8,7 @@ with open("README.md", "r") as f:
 
 install_requires = [
     'numpy',
+    'xarray',
     'pandas',
     'psutil',
     'h5py',
@@ -19,7 +20,8 @@ install_requires = [
     'matplotlib',
     'scipy',
     'seaborn',
-    'pyyaml'
+    'pyyaml',
+    'tqdm'
 ]
 
 setuptools.setup(

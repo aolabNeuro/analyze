@@ -1,15 +1,19 @@
 from cmath import exp
-from matplotlib import pyplot as plt
 from aopy.analysis import calc_success_rate
+from aopy.visualization import savefig
 import aopy
+import os
 import numpy as np
 import warnings
 import unittest
+
 import os
+import matplotlib.pyplot as plt
 
 test_dir = os.path.dirname(__file__)
-data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+if not os.path.exists(write_dir):
+    os.mkdir(write_dir)
 
 class FactorAnalysisTests(unittest.TestCase):
 
@@ -207,6 +211,13 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_allclose(mds_true, md)
         np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
+
+        # Test that code runs with too many nans
+        data[0,:] = np.nan
+        _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets, fit_with_nans=True)
+        np.testing.assert_allclose(mds_true, md)
+        np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
+
 class CalcTests(unittest.TestCase):
 
     def test_calc_rms(self):
@@ -307,6 +318,17 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(ampls[freqs==50., 0][0], 1.)
         self.assertAlmostEqual(ampls[freqs==100., 1][0], 1.)
 
+    def test_calc_ISI(self):
+        data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        data_T = data.T
+        fs = 100
+        bin_width = 0.01
+        hist_width = 0.1
+        ISI_hist, hist_bins = aopy.analysis.calc_ISI(data_T, fs, bin_width, hist_width)
+        self.assertEqual(ISI_hist[1, 0], 2)
+        self.assertEqual(ISI_hist[2, 0], 2)
+        self.assertEqual(ISI_hist[1, 1], 3)
+
     def test_calc_sem(self):
         data = np.arange(10, dtype=float)
         SEM = aopy.analysis.calc_sem(data)
@@ -321,6 +343,63 @@ class CalcTests(unittest.TestCase):
         data = np.tile(data, (2,2, 1))
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
+
+    def test_calc_erp(self):
+        nevents = 3
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 1000
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+
+        # Make the data zero everywhere except for one sample after each event time
+        print([int(t)+1 for t in event_times*samplerate])
+        data[[int(t)+1 for t in event_times*samplerate],0] = 1
+        data[[int(t)+1 for t in event_times*samplerate],1] = 2
+
+        self.assertEqual(np.sum(data[:,0]), nevents)
+        self.assertEqual(np.sum(data[:,1]), nevents*2)
+
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, subtract_baseline=False)
+        self.assertEqual(erp.shape[0], 3)
+
+        mean_erp = np.mean(erp, axis=0)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+        # Subtract baseline
+        data += 1
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate)
+        mean_erp = np.mean(erp, axis=0)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+        # Specify baseline window
+        data[0] = 100
+        erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, baseline_window=())
+        mean_erp = np.mean(erp, axis=0)
+        self.assertEqual(np.sum(mean_erp[:,0]), 1)
+        self.assertEqual(np.sum(mean_erp[:,1]), 2)
+
+    def test_calc_max_erp(self):
+        nevents = 3
+        event_times = 0.2 + np.arange(nevents)
+        samplerate = 1000
+        nch = 2
+        data = np.zeros(((1+nevents)*samplerate, nch))
+
+        # Make the data zero everywhere except for one sample after each event time
+        data[[int(t)+1 for t in event_times*samplerate],0] = 1
+        data[[int(t)+1 for t in event_times*samplerate],1] = 2
+
+        max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate)
+        self.assertEqual(max_erp[0], 1) 
+        self.assertEqual(max_erp[1], 2)
+
+        # Specify search window
+        search_window = (0.05, 0.06)
+        max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate, max_search_window=search_window)
+        self.assertTrue(max_erp[0] == 0) 
+        self.assertTrue(max_erp[1] == 0)
 
 class CurveFittingTests(unittest.TestCase):
 
@@ -536,6 +615,64 @@ class AccLLRTests(unittest.TestCase):
     #     cond1 = data['cond1']
     #     cond2 = data['cond2']
     #     samplerate = data['samplerate']
+
+
+class SpectrumTests(unittest.TestCase):
+
+    def setUp(self):
+        self.T = 0.05
+        self.fs = 25000
+        self.freq = [600, 312, 2000]
+        self.a = 0.02
+        # testing generate test_signal
+        self.f0 = self.freq[0]
+        self.x, self.t = aopy.utils.generate_test_signal(self.T, self.fs, self.freq, [self.a * 2, self.a*0.5, self.a*1.5, self.a*20 ])
+
+        self.n_ch = 8
+        self.x2 = aopy.utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[0], self.a*0.5) + \
+            aopy.utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[1], self.a*1.5)
+        self.t2 = np.arange(self.T*self.fs)/self.fs
+
+        self.win_t = 0.01
+        self.step_t = 0.005
+        self.bw = 4.
+    
+    def test_multitaper(self):
+        f, psd_filter, mu = aopy.analysis.get_psd_multitaper(self.x, self.fs)
+        psd = aopy.analysis.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
+
+        fname = 'multitaper_powerspectrum.png'
+        plt.figure()
+        plt.plot(f, psd, label='Welch')
+        plt.plot(f, psd_filter, label='Multitaper')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('PSD')
+        plt.legend()
+        savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
+
+        bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
+        lfp = aopy.analysis.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        plt.figure()
+        plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
+        plt.xticks(np.arange(len(bands)), bands)
+        plt.xlabel('Frequency band (Hz)')
+        plt.ylabel('Band Power')
+        fname = 'lfp_bandpower.png'
+        savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+
+        f, psd_filter, mu = aopy.analysis.get_psd_multitaper(self.x2, self.fs)
+        self.assertEqual(psd_filter.shape[1], self.n_ch)
+        print(mu.shape)
+        lfp = aopy.analysis.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        self.assertEqual(lfp.shape[1], self.x2.shape[1])
+        self.assertEqual(lfp.shape[0], len(bands))
+
+        #TODO: complete sgram test
+        f_sg, t_sg, sgram = aopy.analysis.get_sgram_multitaper(
+            self.x2, self.fs, self.win_t, self.step_t, self.bw
+        )
+        self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
+        self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
 
 
 if __name__ == "__main__":

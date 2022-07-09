@@ -1,4 +1,5 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
+from platform import python_branch
 import unittest
 from aopy.visualization import *
 import matplotlib.pyplot as plt
@@ -59,8 +60,8 @@ def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
 
 def plot_psd(x, x_filter, fs):
     # Plot power spectral density of the signal
-    f, psd = precondition.get_psd_welch(x, fs)
-    f_filtered, psd_filtered = precondition.get_psd_welch(x_filter, fs)
+    f, psd = analysis.get_psd_welch(x, fs)
+    f_filtered, psd_filtered = analysis.get_psd_welch(x_filter, fs)
     plt.semilogy(f, psd, label='test signal')
     plt.semilogy(f_filtered, psd_filtered, label='filtered output')
     plt.xlabel('frequency [Hz]')
@@ -107,25 +108,21 @@ class FilterTests(unittest.TestCase):
 
         fname = 'test_signal_filtered_Signal.png'
         plot_filtered_signal(self.t, self.x, x_filter[0], lowcut, highcut)
-        plt.show()
         savefig(write_dir, fname) # Should eliminate low and high frequency noise, only 600 Hz
 
         fname = 'test_phase_locking.png'
         plt.figure()
         plot_phase_locking(self.t, self.a, self.f0, x_filter[0])
-        plt.show()
         savefig(write_dir, fname) # Green and red should overlap
 
         fname = 'freq_response_vs_filter_order.png'
         plt.figure()
         plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
-        plt.show()
         savefig(write_dir, fname) # freq response should improve with higher order
 
         fname = 'plot_psd.png'
         plt.figure()
         plot_psd(self.x, x_filter[0], self.fs)
-        plt.show()
         savefig(write_dir, fname) # 312Hz and 2000Hz power should be much reduced after filtering
 
         tic = time.perf_counter()
@@ -140,37 +137,112 @@ class FilterTests(unittest.TestCase):
         plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
         savefig(write_dir, fname) # Should only have 600 Hz
 
-    def test_multitaper(self):
-        f, psd_filter, mu = precondition.get_psd_multitaper(self.x, self.fs)
-        psd = precondition.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
+        # This needs fixing:
+        # x_filter, f_band = precondition.butterworth_filter_data(self.x2, fs=self.fs, cutoff_freqs=[highcut], filter_type='highpass')
+        # fname = 'test_signal_highpass_filtered_multichannel.png'
+        # plt.figure()
+        # plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
+        # savefig(write_dir, fname) # Should only have 600 Hz
 
-        fname = 'multitaper_powerspectrum.png'
+    def test_mtfilter(self):
+        band = [-500, 500] # signals within band can pass
+        N = 0.005 # N*sampling_rate is time window you analyze
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_mtfilter = precondition.mtfilter(self.x2, tapers, fs = self.fs, f0 = f0)
+        x_312hz = utils.generate_multichannel_test_signal(self.T, self.fs, 1, 312, self.a*1.5)
         plt.figure()
-        plt.plot(f, psd, label='Welch')
-        plt.plot(f, psd_filter, label='Multitaper')
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('PSD')
+        plt.plot(self.x, label='Original signal (312 Hz + 600 Hz)')
+        plt.plot(x_312hz, label='Original signal (312 Hz)')
+        plt.plot(x_mtfilter[:,0], label='Multitaper-filtered signal')
+        plt.xlim([0,500])
         plt.legend()
-        plt.show()
-        savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
-
-        bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
-        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
-        plt.figure()
-        plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
-        plt.xticks(np.arange(len(bands)), bands)
-        plt.xlabel('Frequency band (Hz)')
-        plt.ylabel('Band Power')
-        plt.show()
-        fname = 'lfp_bandpower.png'
+        fname = 'mtfilter.png'
         savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
 
-        f, psd_filter, mu = precondition.get_psd_multitaper(self.x2, self.fs)
-        self.assertEqual(psd_filter.shape[1], self.n_ch)
-        print(mu.shape)
-        lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
-        self.assertEqual(lfp.shape[1], self.x2.shape[1])
-        self.assertEqual(lfp.shape[0], len(bands))
+        band = [-50, 50]
+        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz = utils.generate_multichannel_test_signal(2, self.fs, self.n_ch, 30, self.a)
+        noise = np.random.normal(0,1,x_30hz.shape)*self.a
+        x_30hz_noise = x_30hz + noise
+        x_30hz_mtfilter = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [-50, 50], N = 0.1')
+        plt.legend()
+        fname = 'mtfilter_narrow.png'
+        savefig(write_dir, fname) # Should have power in 30 Hz
+
+        band = [0, 100]
+        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz_mtfilter2 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter2[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [0, 100], N = 0.1')
+        plt.legend()
+        fname = 'mtfilter_narrow_2.png'
+        savefig(write_dir, fname) # Should have power in 30 Hz
+
+        band = [0, 50]
+        N = 0.5 # In case where you narrow band, you should increase temporal resoultion N
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        tapers = [N, NW]
+        x_30hz_mtfilter3 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
+        plt.figure()
+        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
+        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
+        plt.plot(x_30hz_mtfilter3[:,0], label='filtered signal (Multitaper-filtered signal)')
+        plt.xlim((0, 1500))
+        plt.title('band = [0, 50], N = 0.5')
+        plt.legend()
+        plt.show()
+
+        self.assertEqual(x_mtfilter.shape, self.x2.shape)
+
+
+    # def test_multitaper(self):
+    #     f, psd_filter, mu = precondition.get_psd_multitaper(self.x, self.fs)
+    #     psd = precondition.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
+
+    #     fname = 'multitaper_powerspectrum.png'
+    #     plt.figure()
+    #     plt.plot(f, psd, label='Welch')
+    #     plt.plot(f, psd_filter, label='Multitaper')
+    #     plt.xlabel('Frequency (Hz)')
+    #     plt.ylabel('PSD')
+    #     plt.legend()
+    #     savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
+
+    #     bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
+    #     lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+    #     plt.figure()
+    #     plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
+    #     plt.xticks(np.arange(len(bands)), bands)
+    #     plt.xlabel('Frequency band (Hz)')
+    #     plt.ylabel('Band Power')
+    #     fname = 'lfp_bandpower.png'
+    #     savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+
+    #     f, psd_filter, mu = precondition.get_psd_multitaper(self.x2, self.fs)
+    #     self.assertEqual(psd_filter.shape[1], self.n_ch)
+    #     print(mu.shape)
+    #     lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+    #     self.assertEqual(lfp.shape[1], self.x2.shape[1])
+    #     self.assertEqual(lfp.shape[0], len(bands))
 
 
     def test_downsample(self):
@@ -308,6 +380,19 @@ class SpikeDetectionTests(unittest.TestCase):
         self.assertEqual(binned_spikes.shape[0], 4)
         self.assertEqual(binned_spikes.shape[1], 2)
         self.assertEqual(binned_spikes[0,0], 4) # Sum first 5 points and * 2
+
+    def test_bin_spike_times(self):
+        spike_times = np.array([0.0208, 0.0341, 0.0347, 0.0391, 0.0407])
+        spike_times = spike_times.T
+        time_before = 0
+        time_after = 0.05
+        bin_width = 0.01
+        binned_unit_spikes, time_bins = precondition.bin_spike_times(spike_times, time_before, time_after, bin_width)
+        
+        self.assertEqual(binned_unit_spikes[2], 100)
+        self.assertEqual(binned_unit_spikes[3], 300)
+        self.assertEqual(time_bins[2], 0.025)
+        self.assertEqual(time_bins[3], 0.035)
 
 if __name__ == "__main__":
     unittest.main()

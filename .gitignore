@@ -9,4 +9,5 @@ docs/source/_build
 docs/_build
 build/
 htmlcov
+docs/source/examples/.ipynb_checkpoints
 .idea/

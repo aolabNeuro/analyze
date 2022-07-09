@@ -18,6 +18,7 @@ from scipy.optimize import curve_fit
 from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
+import nitime.algorithms as tsa
 from . import preproc
 
 '''
@@ -189,7 +190,7 @@ def get_mean_fr_per_direction(data, target_dir):
 
     return means_d, stds_d
 
-def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
+def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''
     This function calculates the tuning parameters from center out task neural data.
     It fits a sinusoidal tuning curve to the mean firing rates for each unit.
@@ -200,7 +201,8 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
     Args:
         mean_fr (nunits, ntargets): The average firing rate for each unit for each target.
         targets (ntargets): Targets locations to fit to [Degrees]. Corresponds to order of targets in 'mean_fr' (Xaxis in the fit). Targets should be monotonically increasing.
-        fit_with_nans (bool): Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be run on non-nan values. If false, any unit that contains a nan will have the corresponding outputs set to nan.
+        fit_with_nans (bool): Optional. Control if the curve fitting should be performed for a unit in the presence of nans. If true curve fitting will be run on non-nan values but will return nan is less than 3 non-nan values. If false, any unit that contains a nan will have the corresponding outputs set to nan.
+        min_data_pts (int): Optional. 
 
     Returns:
         tuple: Tuple containing:
@@ -227,11 +229,15 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False):
         # If this doesn't work, check if fit_with_nans is true. It it is remove nans and fit
         elif fit_with_nans:
             nonnanidx = ~np.isnan(mean_fr[iunit,:])
-            params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit,nonnanidx])
-            fit_params[iunit,:] = params
+            if np.sum(nonnanidx) >= min_data_pts: # If there are enough data points run curve fitting, else return nan
+                params, _ = curve_fit(curve_fitting_func, targets[nonnanidx], mean_fr[iunit,nonnanidx])
+                fit_params[iunit,:] = params
 
-            md[iunit] = get_modulation_depth(params[0], params[1])
-            pd[iunit] = get_preferred_direction(params[0], params[1])
+                md[iunit] = get_modulation_depth(params[0], params[1])
+                pd[iunit] = get_preferred_direction(params[0], params[1])
+            else:
+                md[iunit] = np.nan
+                pd[iunit] = np.nan
 
     return fit_params, md, pd
 
@@ -756,7 +762,7 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
         
         slope[i], intercept[i], corr_coeff[i],  *_ = scipy.stats.linregress(x, y)
 
-        if corr_coeff[i] <= coefficient_coeff_warning_level: 
+        if abs(corr_coeff[i]) <= coefficient_coeff_warning_level: 
             warnings.warn(f'when fitting column number {i}, the correlation coefficient is {corr_coeff[i]}, less than {coefficient_coeff_warning_level} ')
         
     return slope, intercept, corr_coeff
@@ -791,6 +797,62 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
 
+
+def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
+    '''
+    Computes inter-spike interval histogram. The input data is the sampled thresholded data (0 or 1 data).
+
+    Example:
+        >>> data = np.array([[0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1],[1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0]])
+        >>> data_T = data.T
+        >>> fs = 100
+        >>> bin_width = 0.01
+        >>> hist_width = 0.1
+        >>> ISI_hist, hist_bins = analysis.calc_ISI(data_T, fs, bin_width, hist_width)
+        >>> print(ISI_hist) 
+            [[0. 0.]
+            [2. 3.]
+            [2. 1.]
+            [2. 1.]
+            [1. 2.]
+            [0. 0.]
+            [0. 0.]
+            [0. 0.]
+            [0. 0.]]
+
+    Args:
+        data (nt, n_unit): time series spike data with multiple units.
+        fs (float): sampling rate of data [Hz]
+        bin_width (float): bin_width to compute histogram [s]
+        hist_width (float): determines bin edge (0 < t < histo_width) [s]
+        plot_flag (bool, optional): display histogram. In plotting, number of intervals is summed across units.
+
+    Returns:
+        ISI_hist (n_bins, n_unit) : number of intervals
+        hist_bins (n_bins): bin edge to compute histogram
+    '''
+
+    n_unit = data.shape[1]
+    dT = 1/fs
+    hist_bins = np.arange(0, hist_width, bin_width)
+
+    ISI_hist = np.zeros((len(hist_bins)-1, n_unit))
+    for iU in range(n_unit):
+        spike_idx = np.where( data[:,iU] )
+        ISI = np.diff(spike_idx)*dT
+        ISI_hist[:,iU], _ = np.histogram(ISI, hist_bins)
+    
+    hist_bins = hist_bins[:-1] + np.diff(hist_bins)/2 # change hist_bins to be the center of the bin, not the edges
+
+    # for plot
+    if plot_flag:
+        plt.bar(hist_bins*1000, np.sum(ISI_hist,axis=1), width = bin_width*1000, edgecolor="black") #multiplied 1000 to rescale to [ms]
+        plt.xlabel('Interspike interval (ms)')
+        plt.ylabel('Number of intervals')
+        plt.show()
+
+    return ISI_hist, hist_bins
+
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
@@ -814,6 +876,98 @@ def calc_sem(data, axis=None):
     SEM = np.nanstd(data, axis=axis)/np.sqrt(n)
 
     return SEM
+
+
+def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
+    '''
+    Calculates the event-related potential (ERP) for the given timeseries data.
+
+    Args:
+        data (nt, nch): timeseries data across channels
+        event_times (ntrial): list of event times
+        time_before (float): number of seconds to include before each event
+        time_after (float): number of seconds to include after each event
+        samplerate (float): sampling rate of the data
+        subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
+            the time_before period preceding each event. Must supply a positive time_before. Default True
+        baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
+            Default is the entire time_before period.
+
+    Returns:
+        (ntr, nt, nch): array of event-aligned responses for each channel during the given time periods
+
+    '''
+    if subtract_baseline and time_before <= 0:
+        raise ValueError("Input time_before must be positive in order to calculate baseline")
+        
+    # Align the data to the given event times (shape is [trials x time x channels])
+    n_events = len(event_times)
+    aligned_data = preproc.trial_align_data(data, event_times, time_before, time_after, samplerate)
+
+    if subtract_baseline:
+        
+        # Take a mean across the data before the events as a baseline
+        if not baseline_window:
+            baseline_window = (0, time_before)
+        elif len(baseline_window) < 2 or baseline_window[1] < baseline_window[0]:
+            raise ValueError("baseline_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
+        before_samples = int(time_before*samplerate)
+        s0 = before_samples - int(baseline_window[1]*samplerate)
+        s1 = before_samples - int(baseline_window[0]*samplerate)
+        event_mean = np.mean(aligned_data[:,s0:s1,:], axis=1)
+
+        # Subtract the baseline to calculate ERP
+        n_samples = aligned_data.shape[1]
+        event_mean = np.tile(event_mean, (n_samples, 1, 1)).swapaxes(0,1)
+        erp = aligned_data - event_mean
+    else:
+
+        # Just use the aligned data as-is
+        erp = aligned_data
+
+    return erp
+
+def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None):
+    '''
+    Calculates the maximum (across time) mean (across trials) event-related potential (ERP) 
+    for the given timeseries data.
+
+    Args:
+        data (nt, nch): timeseries data across channels
+        event_times (ntrial): list of event times
+        time_before (float): number of seconds to include before each event
+        time_after (float): number of seconds to include after each event
+        samplerate (float): sampling rate of the data
+        subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
+            the time_before period preceding each event. Must supply a positive time_before. Default True
+        baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
+            Default is the entire time_before period.
+        max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
+            after event). Default is the entire time_after period.
+
+    Returns:
+        nch: array of maximum mean-ERP for each channel during the given time periods
+
+    '''
+    mean_erp = np.mean(calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window), axis=0)
+
+    # Limit the search to the given window
+    start_idx = int(time_before*samplerate)
+    end_idx = start_idx + int(time_after*samplerate)
+    if max_search_window:
+        if len(max_search_window) < 2 or max_search_window[1] < max_search_window[0]:
+            raise ValueError("max_search_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
+        end_idx = start_idx + int(max_search_window[1]*samplerate)
+        start_idx += int(max_search_window[0]*samplerate)
+    mean_erp_window = mean_erp[start_idx:end_idx,:]
+
+    # Find the index that maximizes the absolute value, then use that index to get the actual signed value
+    idx_max_erp = start_idx + np.argmax(np.abs(mean_erp_window), axis=0)
+    max_erp = np.array([mean_erp[idx_max_erp[i],i] for i in range(mean_erp.shape[1])])
+
+    return max_erp
 
 '''
 MODEL FITTING
@@ -854,6 +1008,7 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
+
 
 def calc_activity_onset_accLLR(data, altcond, nullcond, modality, bin_width, thresh_proportion=0.15, max_accLLR=None, trial_average=True):
     '''
@@ -1242,4 +1397,149 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
             noise_sd += noise_sd_step
 
         return noisy_test_data
+
+######### Spectral Estimation and Analysis ############
+
+def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
+    """get_sgram_multitaper
+
+    Compute multitaper estimate from multichannel signal input.
+
+    Args:
+        data (nt, nch): nd array of input neural data (multichannel)
+        fs (int): sampling rate
+        win_t (float): spectrogram window length (in seconds)
+        step_t (float): step size between spectrogram windows (in seconds)
+        nw (float, optional): time-half-bandwidth product. Defaults to None.
+        bw (float, optional): spectrogram frequency bin bandwidth. Defaults to None.
+        adaptive (bool, optional): adaptive taper weighting. Defaults to False.
+
+    Returns:
+        fxx (np.array): spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+        txx (np.array): spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+        Sxx (len(fxx) x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+    """
+    jackknife = False
+    sides = 'onesided'
+    if len(data.shape) < 2:
+        data = data[:,None]
+    assert len(data.shape) < 3, f"only 1- or 2-dim data arrays accepted - {data.shape}-dim input given"
+    (n_sample, n_ch) = data.shape
+    total_t = n_sample/fs
+    n_window = int((total_t-win_t)/step_t)
+    assert n_window > 0
+    window_len = int(win_t*fs)
+    step_len = int(step_t*fs)
+    n_fbin = window_len // 2 + 1
+    txx = np.arange(n_window)*step_t # window start time
+    Sxx = np.zeros((n_fbin,n_window,n_ch))
+
+    data = interp_multichannel(data)
+
+    for idx_window in range(n_window):
+        window_sample_range = np.arange(window_len) + step_len*idx_window
+        win_data = data[window_sample_range,:]
+        _f, _win_psd, _ = tsa.multi_taper_psd(win_data.T, fs, nw, bw, adaptive, jackknife, sides)
+        try:
+            Sxx[:,idx_window,...] = _win_psd.T
+        except:
+            breakpoint()
+    if n_ch == 1:
+        Sxx = Sxx.squeeze(axis=-1)
+
+    fxx = _f
+
+    return fxx, txx, Sxx
+
+def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
+    '''
+     Computes power spectral density using Multitaper functions
+
+    Args:
+        data (nt, nch): time series data where time axis is assumed to be on the last axis
+        fs (float): sampling rate of the signal
+        NW (float): Normalized half bandwidth of the data tapers in Hz
+        BW (float): sampling bandwidth of the data tapers in Hz
+        adaptive (bool): Use an adaptive weighting routine to combine the PSD estimates of different tapers.
+        jackknife (bool): Use the jackknife method to make an estimate of the PSD variance at each point.
+        sides (str): This determines which sides of the spectrum to return.
+
+    Returns:
+        tuple: Tuple containing:
+            | **f (nfft):** Frequency points vector
+            | **psd_est (nfft, nch):** estimated power spectral density (PSD)
+            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
+    '''
+    data = data.T # move time to the last axis
     
+    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides)
+    return f, psd_mt.T, nu.T
+
+def multitaper_lfp_bandpower(f, psd_est, bands, no_log):
+    '''
+    Estimate band power in specified frequency bands using multitaper power spectral density estimate
+
+    Args:
+        f (nfft) : Frequency points vector
+        psd_est (nfft, nch): power spectral density - output of bandpass_multitaper_filter_data
+        bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
+        no_log (bool): boolean to select whether lfp band power should be in log scale or not
+
+    Returns:
+        lfp_power (n_features, nch): lfp band power for each channel for each band specified
+    '''
+    if psd_est.ndim == 1:
+        psd_est = np.expand_dims(psd_est, 1)
+
+    lfp_power = np.zeros((len(bands), psd_est.shape[1]))
+    small_epsilon = 0 # TODO: what is this for? It does nothing now, should it be possible to make nonzero? -Leo
+    fft_inds = dict()
+
+    for band_idx, band in enumerate(bands):
+            fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
+
+    for idx, band in enumerate(bands):
+        if no_log:
+            lfp_power[idx, :] = np.mean(psd_est[fft_inds[idx],:], axis=0)
+        else:
+            lfp_power[idx, :] = np.mean(np.log10(psd_est[fft_inds[idx],:] + small_epsilon), axis=0)
+
+    return lfp_power
+
+def get_psd_welch(data, fs,n_freq = None):
+    '''
+    Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
+
+    Args:
+        data (nt, ...): time series data.
+        fs (float): sampling rate
+        n_freq (int): no. of frequency points expected
+
+    Returns:
+        tuple: Tuple containing:
+            | **f (nfft):** frequency points vector
+            | **psd_est (nfft, ...):** estimated power spectral density (PSD)
+    '''
+    if n_freq:
+        f, psd = signal.welch(data, fs, average='median', nperseg=2*n_freq, axis=0)
+    else:
+        f, psd = signal.welch(data, fs, average='median', axis=0)
+    return f, psd
+
+def interp_multichannel(x):
+    """interp_multichannel
+
+    Args:
+        x (n_sample x n_ch): input data array containing nan-valued missing entries
+
+    Returns:
+        x_interp (n_sample x n_ch): interpolated data, uses `numpy.interp` method.
+    """
+    nan_idx = np.isnan(x)
+    ok_idx = ~nan_idx
+    xp = ok_idx.ravel().nonzero()[0]
+    fp = x[ok_idx]
+    idx = nan_idx.ravel().nonzero()[0]
+    x[nan_idx] = np.interp(idx,xp,fp)
+
+    return x

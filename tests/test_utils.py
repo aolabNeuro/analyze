@@ -77,6 +77,7 @@ class TestDigitalCalc(unittest.TestCase):
     def test_detect_edges(self):
         test_bool = [True, False, False, True, True, False, True, True, False, False, False, True]
         test_01 = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
+        test_01_trigger = [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0]
         test_02 = [0b11, 0, 0, 0, 0, 0, 0, 0b01, 0b10, 0b01, 0b11, 0b01, 0b00, 0b10, 0b00, 0b01, 0, 0b01, 0, 0b01, 0, 0b01, 0]
         test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
 
@@ -114,6 +115,14 @@ class TestDigitalCalc(unittest.TestCase):
         self.assertTrue(np.array_equal(ts, [2, 3, 4, 7, 9, 13]))
         self.assertTrue(np.array_equal(values, [3, 0, 3, 0, 7, 0]))
 
+    def test_get_pulse_edge_times(self):
+        # see test_data:E3vFrameTests
+        pass
+
+    def test_compute_pulse_duty_cycles(self):
+        # see test_data:E3vFrameTests
+        pass
+
     def test_find_first_significant_bit(self):
         data = 0b0100
         ffs = find_first_significant_bit(data)
@@ -147,6 +156,19 @@ class TestDigitalCalc(unittest.TestCase):
         assert unpacked[0,0] == 0
         assert unpacked[1,0] == 1
         assert unpacked[0,1] == 0
+
+    def test_derivative(self):
+        x = np.linspace(0, 10, 1000)
+        y = x**2
+        dydx = derivative(x, y, norm=False)
+        expected = x*2
+        np.testing.assert_allclose(dydx, expected)
+
+        x = np.linspace(0, 10, 1000)
+        y = np.array([x*2, x*2]).T
+        dydx = derivative(x, y, norm=True)
+        expected = np.ones(1000)*2*np.sqrt(2)
+        np.testing.assert_allclose(dydx, expected)
 
 
 if __name__ == "__main__":
