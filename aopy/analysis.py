@@ -1022,30 +1022,38 @@ def calc_accLLR_threshold(altcond_train, nullcond_train, altcond_test, nullcond_
 
 def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_input=0.7, thresh_step_size=0.01, false_alarm_prob=0.05, trial_average=True, match_selectivity=True):
     '''
-    1. Separates data into 'model building' (training + test) and 'implementing' groups by trials 
-        Assumes model building dataset is split into a 60/40 split
-    2. Calculates accLLR threshold on training and test data
-    3. Implements accLLR on 'implementing' data
+    See the function analysis.calc_activity_onset_accLLR for specifics about the computation performed in this wrapper. This function is intended to compare a time-series of alternative and null conditions
+    to determine when the alternative condition deviates from the null condition. This function assumes it is known that the alternative condition deviates from the null condition. It is recommended that 
+    other methods are implemented to determine if a candidate alternative condition dataset is significantly different from the null condition dataset (i.e. t-test).
+
+    Computations performed in this wrapper:
+    1. Separates data into 'model building' (training + validate) and testing groups by trials 
+        Assumes model building dataset is split into a 70/30 split
+    2. Calculates accLLR threshold on training and test data (analysis.calc_accLLR_threshold)
+    3. (optional) Match signal selectivity. Has only been implemented for lfp data. (analysis.match_selectivity_accLLR)
+    4. Implements accLLR on test data. (analysis.calc_activity_onset_accLLR)
     
-    Data allocation breakdown by trial (train_prop_input = 0.7)
+    Example data allocation breakdown by trial (train_prop_input = 0.7)
     40% is used to train threshold proportion (train)
     30% is used to validate threshold proportion (test)
     30% is used to calculate selection time (validate)
 
     Selection time is max time if alternative condition is not reached.
 
+
+    Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
+    https://pubmed.ncbi.nlm.nih.gov/20884767/
+
     Args:
-        data_altcond (npts, nch, ntrials):
-        data_nullcond (npts, nch, ntrials):
+        data_altcond (npts, nch, ntrials): Data from alternative condition.
+        data_nullcond (npts, nch, ntrials): Data from null condition to compare the alternative condition to.
         modality (str): either 'spikes' or 'lfp'
         train_prop_input (float): proportion of trials to build the model with
         
     Returns:
         (tuple): Tuple containing:
-            | **accllr_altcond (nt, nch):**
-            | **accllr_nullcond (nt, nch):** 
-            | **selection_time_altcond (nch):**
-            | **selection_time_nullcond (nch):** 
+            | **accllr_altcond (nt, nch, ntrials):** Time series of accllr for each channel. If trial_average=True the output will have the shape (nt, nch)
+            | **selection_time_altcond (nch, ntrials):** Selection time of the alternative condition.  If trial_average=True the output will have the shape (nt, nch)
     '''
     nt = data_altcond.shape[0]
     nch = data_altcond.shape[1]
@@ -1085,9 +1093,10 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
         accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), valid_data_altcond[:,ich,:], valid_data_nullcond[:,ich,:], modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
 
     if match_selectivity:
-        print(test_data_altcond.shape)
-        test_data_altcond = match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
-        print(test_data_altcond.shape)
+        if modality == 'lfp':
+            test_data_altcond = match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
+        else:
+            print('Sorry! Matching signal selectivity for spiking data has not been implemented. Results will be without matching.')
 
     # Use the calculated threshold to run accllr on the test datasets
     if trial_average:
