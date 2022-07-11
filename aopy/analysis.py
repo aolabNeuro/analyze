@@ -1207,8 +1207,8 @@ def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_
         
     Returns:
         (tuple): Tuple containing:
-            | **accllr_altcond (nt, nch, ntrials):** Time series of accllr for each channel. If trial_average=True the output will have the shape (nt, nch)
             | **selection_time_altcond (nch, ntrials):** Selection time of the alternative condition.  If trial_average=True the output will have the shape (nt, nch)
+            | **accllr_altcond (nt, nch, ntrials):** Time series of accllr for each channel. If trial_average=True the output will have the shape (nt, nch)
     '''
     nt = data_altcond.shape[0]
     nch = data_altcond.shape[1]
