@@ -4,6 +4,7 @@
 
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 import warnings
 from . import precondition
 from .preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
@@ -371,6 +372,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         tuple: tuple containing:
             | **trajectories (ntrial):** array of filtered cursor trajectories for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
+            | **trial_times_all (ntrial):** array of all event timestamps for each trial
         
     '''
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
@@ -401,9 +403,15 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
                                                                   trial_start_codes, trial_end_codes)
     trajectories = np.array(get_data_segments(kinematics, trial_times, samplerate), dtype='object')
     trial_segments = np.array(trial_segments, dtype='object')
+
+    trial_times_all = np.empty(trial_times.shape)
+    for idx_trial in range(len(trial_times)):
+        idx_first_event = list(event_times).index(trial_times[idx_trial][0])
+        trial_times_all[idx_trial] = event_times[idx_first_event:(idx_first_event+len(trial_segments[idx_trial]))]
+
     success_trials = [trial_filter(t) for t in trial_segments]
     
-    return trajectories[success_trials], trial_segments[success_trials]
+    return trajectories[success_trials], trial_segments[success_trials], trial_times_all[success_trials]
 
 def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True):
@@ -512,3 +520,145 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
         trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
         locations.append(trials['target'][trial_idx][[0,2,1]])
     return np.array(locations)
+
+def estimate_velocity(pos, dt):
+    '''
+    Estimates magnitude of velocity from position data using the central differences derivative method
+
+    Args:
+        pos (nt, nch): array of position data
+        dt (float): sampling period of position data
+        
+    Returns:
+        vel (nt): array of velocity magnitudes
+    '''
+
+    dxyz = np.gradient(pos, axis=0)
+    dist = np.linalg.norm(dxyz, axis=1)
+    vel = dist/dt
+    return vel
+
+def estimate_acceleration(pos, dt):
+    '''
+    Estimates magnitude of acceleration from position data using the central differences derivative method
+    
+    Args:
+        pos (nt, nch): array of position data
+        dt (float): sampling period of position data
+        
+    Returns:
+        acc (nt): array of acceleration magnitudes
+    '''
+    
+    ddxyz = np.gradient(np.gradient(pos, axis=0), axis=0)
+    dist = np.linalg.norm(ddxyz, axis=1)
+    acc = dist/(dt**2)
+    return acc
+
+def get_distance_to_target(pos, target_pos, target_radius):
+    '''
+    Computes distance from position data to boundary of specified target
+    
+    Args:
+        pos (nt, nch): array of position data
+        target_pos (nch): position of center of target
+        target_radius (float): target radius (from metadata)
+        
+    Returns:
+        dist (nt): array of magnitudes of distance from target
+    '''
+    
+    dist_xy = pos-np.tile(target_pos, (pos.shape[0],1))
+    dist = np.linalg.norm(dist_xy, axis=1) - target_radius
+    return dist
+
+def get_average_eye_position(eye_pos):
+    '''
+    Get the average x,y position data between left and right eyes
+    
+    Args:
+        eye_pos (nt, 4): array of eye position data for one trial, as output by exp_data
+    
+    Returns:
+        (nt, 2): array of x,y position data averaged between both eyes
+    '''
+    
+    return np.stack([(eye_pos[:,0]+eye_pos[:,2])/2, (eye_pos[:,1]+eye_pos[:,3])/2], axis=1)
+
+def plot_hist_and_get_threshold(data, num_sd = 0, xlabel=''):
+    '''
+    Plots histogram of 1D dataset and mark a specified number of standard deviations above the mean as a threshold
+    
+    Args:
+        data (nt): 1D dataset
+        num_sd (int): number of standard deviations above the mean (can be negative)
+        xlabel (str): label for plot x-axis
+    
+    Returns:
+        threshold (float): mean of data plus number of standard deviations above
+    '''
+    
+    fig, ax = plt.subplots(1, 1, figsize=(12,3))
+    n = ax.hist(data, bins=50, density=False)
+    
+    threshold = np.mean(data)+num_sd*np.std(data)
+    ymax = max(n[0])/2
+    ax.vlines(x=threshold, ymin=0, ymax=ymax, linestyles='dashed')
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel('Count')
+    ax.annotate(f'mean + ({num_sd})*sd', (threshold, ymax))
+    
+    return threshold
+
+def downsample_timestamps(old_event_timestamps, new_samplerate, in_samples = True):
+    '''
+    Convert absolute timestamps of event occurrences to relative timestamps at new sampling rate
+    
+    Args:
+        old_event_timestamps (nevents): array of event timestamps of one trial with old sampling rate, in seconds
+        new_samplerate (float): new sampling rate
+        in_samples (bool, optional): whether to return the timestamps in samples or in seconds
+    
+    Returns:
+        new_event_timestamps (nevents): array of event timestamps of one trial with new sampling rate
+    '''
+    
+    relative_timestamps = old_event_timestamps - old_event_timestamps[0]
+    segment_duration = relative_timestamps[-1]  # in seconds
+    time_new = np.arange(np.ceil(segment_duration*new_samplerate))/new_samplerate
+    new_event_timestamps = [np.argmin(np.abs(time_new - x)) for x in relative_timestamps]  # in samples
+    if in_samples:
+        return new_event_timestamps
+    else:
+        return new_event_timestamps / new_samplerate  # in seconds
+
+def assign_zone(pos, target, target_radius):
+    '''
+    Assign positions to predefined zones on screen to downsample eye/cursor location in space
+    Zone locations depend on specified target
+    
+    Args:
+        pos (nt, nch): array of position data
+        target (nch): position of target
+        target_radius (float): radius of target
+        
+    Returns:
+        (int): arbitrary number corresponding to zone of position
+    '''
+    
+    target_distance = np.linalg.norm(target)
+    if np.linalg.norm(pos) <= target_radius:  # in center target
+        return 0
+    if np.linalg.norm(pos - target) <= target_radius:  # in surround target
+        return 2
+    pos_r = rotate_spatial_data(pos, new_axis=np.array([0,1]), current_axis=target)[0,:2]  # rotate pos to the position of Target 1
+    if (np.abs(pos_r[0]) <= target_radius) and (0 <= pos_r[1] <= target_distance):  # in channel between center and surround target
+        return 1
+    if (np.linalg.norm(pos) <= target_radius*1.5):  # near center target (and not in channel between center and surround)
+        return 3
+    if (np.linalg.norm(pos - target) <= target_radius*1.5):  # near surround target (and not in channel between center and surround)
+        return 4
+    target = np.array([0,1])
+    if (np.linalg.norm(pos_r - target) <= target_distance) and (0 <= pos_r[1] <= target_distance):  # roughly between center and surround targets
+        return 5
+    return 6  # elsewhere on screen

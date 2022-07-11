@@ -22,6 +22,7 @@ import nitime.algorithms as tsa
 
 import warnings
 from . import preproc
+from . import utils
 
 '''
 Correlation / dimensionality analysis
@@ -315,6 +316,7 @@ def calc_success_rate(events, event_times, start_events, end_events, success_eve
     success_rate = nsuccess / acq_time
 
     return success_rate
+
 '''
 Cell type classification analysis
 '''
@@ -510,7 +512,303 @@ def get_unit_spiking_mean_variance(spiking_data):
 
     return unit_mean, unit_variance
 
+def detect_saccades(eye_vel, eye_acc, vel_threshold=0, acc_threshold=0, dur_threshold=0):
+    '''
+    Detect timepoints of saccade occurrences from eye tracking data.
+    
+    Args:
+        eye_vel (nt): eye velocity (magnitude) time series
+        eye_acc (nt): eye acceleration (magnitude) time series
+        vel_threshold (float): minimum allowable velocity during a saccade, in cm/s
+        acc_threshold (float): minimum allowable acceleration during a saccade, in cm/s^2
+        dur_threshold (int): minimum allowable duration of a saccade, in samples
+    
+    Returns:
+        tuple: tuple containing:
+            | **sac_times (1D Array):** timepoints during which a saccade is occurring, in samples
+            | **sac_start_times (1D Array):** timepoints at the start of each saccade, in samples
+            | **sac_end_times (1D Array):** timepoints at the end of each saccade, in samples
+            | **sac_durations (1D Array):** length of each saccade (including start and end timepoints), in samples
+            | **sac_vel_amplitudes (1D Array):** max velocity during each saccade 
+                                            (including start and end timepoints), in cm/s
+            | **sac_acc_amplitudes (1D Array):** max acceleration during each saccade 
+                                            (including start and end timepoints), in cm/s^2
+            | **num_saccades (int):** number of saccades detected
+    '''
+    
+    sac_times = np.nonzero((eye_acc > acc_threshold) | (eye_vel > vel_threshold))[0]  # use acceleration and velocity thresholds
+    idx_sac_ends = np.nonzero(np.diff(sac_times) > 1)[0]
+    sac_end_times = sac_times[idx_sac_ends]  # start and end are inclusive of saccade
+    sac_start_times = sac_times[idx_sac_ends+1]
+    
+    if len(sac_times) > 0:  # if any saccades are detected
+        sac_end_times = np.append(sac_end_times, sac_times[-1])
+        sac_start_times = np.append(sac_times[0], sac_start_times)
+        
+    sac_durations = sac_end_times - sac_start_times + 1
+    idx_too_short = np.nonzero(sac_durations < dur_threshold)[0]  # reject "saccades" that are too short
+    sac_start_times = np.array([x for i, x in enumerate(sac_start_times) if i not in idx_too_short])
+    sac_end_times = np.array([x for i, x in enumerate(sac_end_times) if i not in idx_too_short])
+    sac_times = [list(range(start, end+1)) for start, end in zip(sac_start_times, sac_end_times)]
+    
+    sac_times = np.array([i for sac in sac_times for i in sac]) # flatten the list of lists
+    sac_durations = sac_end_times - sac_start_times + 1
+    sac_vel_amplitudes = np.array([np.max(eye_vel[start:(end+1)]) for start, end in zip(sac_start_times, sac_end_times)])
+    sac_acc_amplitudes = np.array([np.max(eye_acc[start:(end+1)]) for start, end in zip(sac_start_times, sac_end_times)])
+    num_saccades = len(sac_start_times)
+    
+    return sac_times, sac_start_times, sac_end_times, sac_durations, sac_vel_amplitudes, sac_acc_amplitudes, num_saccades
   
+def detect_cursor_initiation(cursor_vel, cursor_acc, cursor_dist, vel_threshold=0, acc_threshold=0):
+    '''
+    Detect timepoints of hand reach initiations from cursor data.
+    
+    Args:
+        cursor_vel (nt): cursor velocity (magnitude) time series for one segment
+        cursor_acc (nt): cursor acceleration (magnitude) time series for one segment
+        cursor_dist (nt): cursor distance to target time series for one segment
+        vel_threshold (float): minimum velocity to be considered a reach initiation, in cm/s
+        acc_threshold (float): minimum acceleration to be considered a reach initiation, in cm/s^2
+    
+    Returns:
+        cursor_init_time (int): timepoint at which hand initiates a reach, in samples
+    '''
+
+    init_time = np.nonzero(((cursor_vel[:-1] > vel_threshold) 
+                            | (cursor_acc[:-1] > acc_threshold)) 
+                            & (np.diff(cursor_dist) < 0))[0][:1]
+    return init_time
+
+def get_init_latencies(cursor_init_times, saccade_start_times, segment_conditions, selected_condition, result_segments, selected_result):
+    '''
+    Gets latencies of hand reach initiation and first saccade for each segment
+    
+    Args:
+        cursor_init_times (ntrial): list of timepoints (in samples) at which hand initiates a reach, for each segment
+        saccade_start_times (ntrial): list of timepoints (in samples) at which saccade starts occur, for each segment
+        segment_conditions (ntrial): list with indices corresponding to segment condition
+        selected_condition (list): list containing conditions which segment must satisfy to be plotted
+        result_segments (dict): key is trial result, value is segment indices which have the corresponding result
+        selected_result (str): trial result by which to select segments for plotting
+        
+    Returns:
+        tuple: tuple containing:
+            |**cursor_init_latencies (list):** list of timepoints (in samples) at which hand initiates a reach, from segments which satisfy condition
+            |**first_saccade_latencies (list):** list of timepoints (in samples) at which first saccade occurs, from segments which satisfy condition
+            |**num_cursor_fail (int):** number of segments satisfying condition which lack a hand reach initiation
+            |**num_eye_fail (list):** number of segments satisfying condition which lack a first saccade
+    '''
+    
+    segment_nums = [i for i, x in enumerate(segment_conditions) 
+                    if (x in selected_condition) 
+                    and (i in result_segments[selected_result])]
+    cursor_init_latencies = [x[:1] for i, x in enumerate(cursor_init_times) if i in segment_nums]
+    first_saccade_latencies = [x[:1] for i, x in enumerate(saccade_start_times) if i in segment_nums]
+
+    # remove trials where saccade/initiation doesn't occur or with latency 0:
+    cursor_remove = [i for i, x in enumerate(cursor_init_latencies) if (len(x) == 0) or (x[0] == 0)]
+    eye_remove = [i for i, x in enumerate(first_saccade_latencies) if (len(x) == 0) or (x[0] == 0)]
+    all_remove = set(cursor_remove).union(set(eye_remove))
+    cursor_init_latencies = [x for i, x in enumerate(cursor_init_latencies) if i not in all_remove]
+    first_saccade_latencies = [x for i, x in enumerate(first_saccade_latencies) if i not in all_remove]
+    
+    num_cursor_fail = len(cursor_remove)
+    num_eye_fail = len(eye_remove)
+    
+    return cursor_init_latencies, first_saccade_latencies, num_cursor_fail, num_eye_fail
+
+def get_cursor_kinematics_around_saccades(sac_start_times, sac_end_times, dist, vel, num_samples_before, num_samples_after):
+    '''
+    Extracts cursor kinematics (position/velocity) in windows around saccades
+    
+    Args:
+        sac_start_times (list): list of indices for saccade start timepoints in one segment
+        sac_end_times (list): list of indices for saccade end timepoints in one segment
+        dist (nt): time series for distance from cursor to target
+        vel (nt): time series for cursor velocity (magnitude)
+        num_samples_before (int): number of samples to extract before each saccade
+        num_samples_after (int): number of samples to extract after each saccade
+        
+    Returns:
+        tuple: tuple containing:
+                | **cursor_dists (dict):** value is list of timeseries (one per saccade) for distance of cursor from target
+                | **cursor_vels (dict):** value is list of timeseries (one per saccade) for velocity of cursor
+                | **dist_slope (dict):** value is change in distance of cursor from target in period, normalized by length of period
+                | **dist_avg (dict):** value is average distance of cursor from target in period
+                | **vel_slope (dict):** value is change in velocity of cursor in period, normalized by length of period
+                | **vel_avg (dict):** value is average velocity of cursor in period
+    
+    Note: All dictionary keys are ['before', 'during', 'after']
+    '''
+    
+    periods = ['before', 'during', 'after']  # relative to saccade
+    
+    cursor_dists = {}
+    cursor_vels = {}
+    dist_slope = {}
+    dist_avg = {}
+    vel_slope = {}
+    vel_avg = {}
+    
+    for p in periods:
+        cursor_dists[p] = []
+        cursor_vels[p] = []
+        dist_slope[p] = []
+        dist_avg[p] = []
+        vel_slope[p] = []
+        vel_avg[p] = []
+        
+    win_start = {}; win_end = {}
+    for idx_sac in range(len(sac_start_times)):
+        win_start['before'] = sac_start_times[idx_sac]-num_samples_before
+        win_end['before'] = sac_start_times[idx_sac]+1  # last sample includes saccade
+
+        win_start['after'] = sac_end_times[idx_sac]  # first sample includes saccade
+        win_end['after'] = sac_end_times[idx_sac]+num_samples_after 
+
+        win_start['during'] = sac_start_times[idx_sac]  # first and last samples include saccade
+        win_end['during'] = sac_end_times[idx_sac]+1
+
+        for p in periods:
+            cursor_dists[p].append(dist[win_start[p]:win_end[p]])  # slicing captures correct window even if start/end are out of bounds
+            cursor_vels[p].append(vel[win_start[p]:win_end[p]])
+
+            dist_avg[p].append(np.mean(dist[win_start[p]:win_end[p]]))
+            vel_avg[p].append(np.mean(vel[win_start[p]:win_end[p]]))
+
+            win_start[p] = np.max([0, win_start[p]])  # shrink windows to within bounds
+            win_end[p] = np.min([len(dist)-1, win_end[p]])
+            
+            if win_start[p] != win_end[p]:
+                dist_slope[p].append((dist[win_end[p]]-dist[win_start[p]])/(win_end[p]-win_start[p]))
+                vel_slope[p].append((vel[win_end[p]]-vel[win_start[p]])/(win_end[p]-win_start[p]))
+                
+    return cursor_dists, cursor_vels, dist_slope, dist_avg, vel_slope, vel_avg
+
+def compute_directional_error(pos, target, use_initial_direction = False):
+    '''
+    Computes the instantaneous directional error between the cursor velocity and a direct path to target
+    
+    Args:
+        pos (nt, nch): time series for position of cursor or eye 
+        target (nch): position of target
+        use_initial_direction (bool): whether to use the path to target at the first timepoint (True), 
+                                      or an updated path to target at each timepoint (False)
+                                      
+    Returns:
+        directional_error_angle (nt-1): time series for directional error, in degrees
+        
+    Note:
+        directional_error_angle at timepoint 0 is the instantaneous error angle at position timepoint 1
+    '''
+    
+    directions_actual = np.diff(pos, axis=0)
+    
+    if use_initial_direction:
+        directions_to_target = np.tile(target - pos[0], (len(pos),1))[:-1] # fixes reference as the initial direction to target
+    else:
+        directions_to_target = (np.tile(target, (len(pos),1)) - pos)[:-1] # continuous cursor-to-target direction
+    
+    directional_error_angle = np.array([utils.compute_angle(directions_actual[i], directions_to_target[i]) 
+                               for i in range(directions_actual.shape[0])])
+    
+    return directional_error_angle
+
+def get_error_angles(cursor_angle, eye_angle, cursor_init_times, saccade_start_times, segment_conditions, selected_condition,
+                     result_segments, selected_result, window_size=1):
+    '''
+    Gets directional error of cursor and eye at timepoint of first saccade start and hand reach initiation
+    
+    Args:
+        cursor_angle (list): list of time series (one per segment) of cursor directional error angle
+        eye_angle (list): list of time series (one per segment) of eye directional error angle
+        cursor_init_times (list): list of timepoints of hand reach initiation, in samples
+        saccade_start_times (list): list of timepoints of saccade start times, in samples
+        segment_conditions (ntrials): list with indices corresponding to segment condition
+        selected_condition (list): list containing conditions which segment must satisfy
+        result_segments (dict): key is trial result, value is segment indices which have the corresponding result
+        selected_result (str): trial result by which to select segments
+        window_size (int): size of window around event timepoint for averaging directional error
+    
+    Returns:
+        tuple: tuple containing:
+            |**cursor_error_at_cur_init (list):** list of cursor directional error angles (in degrees) at hand reach initation, from segments which satisfy condition
+            |**eye_error_at_cur_init (list):** list of eye directional error angles (in degrees) at hand reach initation, from segments which satisfy condition
+            |**cursor_error_at_sac_start (list):** list of cursor directional error angles (in degrees) at start of first saccade, from segments which satisfy condition
+            |**eye_error_at_sac_start (list):** list of eye directional error angles (in degrees) at start of first saccade, from segments which satisfy condition
+            |**num_cursor_fail (int):** number of segments satisfying condition which lack a hand reach initiation
+            |**num_eye_fail (list):** number of segments satisfying condition which lack a first saccade
+    '''
+    
+    segment_nums = [i for i, x in enumerate(segment_conditions) 
+                    if (x in selected_condition) 
+                    and (i in result_segments[selected_result])]
+    
+    # remove segments where saccade/initiation doesn't occur
+    cursor_remove = [i for i, x in enumerate(cursor_init_times) if (len(x) == 0)]
+    eye_remove = [i for i, x in enumerate(saccade_start_times) if (len(x) == 0)]
+    all_remove = set(cursor_remove).union(set(eye_remove))
+    segment_nums = set(segment_nums) - all_remove
+    num_cursor_fail = len(cursor_remove)
+    num_eye_fail = len(eye_remove)
+    
+    w = window_size//2
+    
+    # look at average error in window around event
+    cursor_error_at_cur_init = [np.mean(cursor_angle[i][(cursor_init_times[i][0]-w):(cursor_init_times[i][0]+w+1)]) 
+                                for i in segment_nums]
+    eye_error_at_cur_init = [np.mean(eye_angle[i][(cursor_init_times[i][0]-w):(cursor_init_times[i][0]+w+1)])
+                                          for i in segment_nums]
+    cursor_error_at_sac_start = [np.mean(cursor_angle[i][(saccade_start_times[i][0]-w):(saccade_start_times[i][0]+w+1)])
+                                 for i in segment_nums]
+    eye_error_at_sac_start = [np.mean(eye_angle[i][(saccade_start_times[i][0]-w):(saccade_start_times[i][0]+w+1)]) 
+                                for i in segment_nums]
+    
+    return cursor_error_at_cur_init, eye_error_at_cur_init, cursor_error_at_sac_start, \
+           eye_error_at_sac_start, num_cursor_fail, num_eye_fail
+
+def get_reach_latencies(cursor_dist_to_target, eye_dist_to_target, segment_conditions, selected_condition, result_segments, selected_result):
+    '''
+    Get time latencies of cursor and eye to reach target
+    
+    Args:
+        cursor_dist_to_target ()
+        eye_dist_to_target
+        segment_conditions (ntrials): list with indices corresponding to segment condition
+        selected_condition (list): list containing conditions which segment must satisfy
+        result_segments (dict): key is trial result, value is segment indices which have the corresponding result
+        selected_result (str): trial result by which to select segments
+    
+    Returns:
+        tuple: tuple containing:
+            |**cursor_reach_latencies (list):** list of timepoints (in samples) at which cursor reaches target, from segments which satisfy condition
+            |**eye_reach_latencies (list):** list of timepoints (in samples) at which eye reaches target, from segments which satisfy condition
+            |**num_cursor_fail (int):** number of segments satisfying condition where cursor fails to reach target
+            |**num_eye_fail (list):** number of segments satisfying condition where eye fails to reach target
+    '''
+    segment_nums = [i for i, x in enumerate(segment_conditions) 
+                    if (x in selected_condition) 
+                    and (i in result_segments[selected_result])]
+    
+    cursor_reach_latencies = []
+    eye_reach_latencies = []
+    for dist in [x for i, x in enumerate(cursor_dist_to_target) if i in segment_nums]:
+        cursor_reach_latencies.append(np.nonzero(dist < 0)[0][:1])
+    for dist in [x for i, x in enumerate(eye_dist_to_target) if i in segment_nums]:
+        eye_reach_latencies.append(np.nonzero(dist < 0)[0][:1])
+
+    # remove trials where eye/hand fails to reach target, or with latency 0:
+    cursor_remove = [i for i, x in enumerate(cursor_reach_latencies) if (len(x) == 0) or (x[0] == 0)]
+    eye_remove = [i for i, x in enumerate(eye_reach_latencies) if (len(x) == 0) or (x[0] == 0)]
+    all_remove = set(cursor_remove).union(set(eye_remove))
+    num_cursor_fail = len(cursor_remove)
+    num_eye_fail = len(eye_remove)
+    
+    cursor_reach_latencies = [x for i, x in enumerate(cursor_reach_latencies) if i not in all_remove]
+    eye_reach_latencies = [x for i, x in enumerate(eye_reach_latencies) if i not in all_remove]
+    
+    return cursor_reach_latencies, eye_reach_latencies, num_cursor_fail, num_eye_fail
+
 '''
 KALMAN FILTER 
 '''
@@ -1156,59 +1454,3 @@ def interp_multichannel(x):
     x[nan_idx] = np.interp(idx,xp,fp)
 
     return x
-
-def plot_window_around_event(i_events, which_event, quality_name, quality_segments, quality, num_samples_before, num_samples_after, result):
-    '''
-    Plot a trace of cursor and eye directional error around a specified event, averaged across trials with a specified quality.
-    
-    Args:
-        i_events (ntrials): list of indices of event occurrence, for each trial
-        which_event (int): index of event in trial (e.g., 1 selects the second event in a trial)
-        quality_name (str): name of quality by which to select trials
-        quality_segments (ntrials): quality of each trial
-        quality (list): selected quality
-        num_samples_before (int): number of samples to plot before event
-        num_samples_after (int): number of samples to plot after event
-        result (str): desired result by which to select trials
-    
-    Returns:
-        None 
-    '''
-    segment_nums = [i for i, x in enumerate(quality_segments) if (x in quality) and (i in trial_result['reachsurround'][result])]
-    # inspect average directional error for all segments with one event where window is within bounds
-    segments_one_event = [i for i, x in enumerate(i_events) if i in segment_nums and len(x) > 0 and 
-                        x[which_event] + num_samples_after < len(cursor_dir_error_angle['reachsurround'][i]) and
-                        x[which_event] >= num_samples_before]
-    # extract interval around saccade start
-    window_length = num_samples_before + num_samples_after + 1
-
-    cursor_errors = np.zeros((len(segments_one_event), window_length))
-    eye_errors = np.zeros((len(segments_one_event), window_length))
-
-    for j in range(len(segments_one_event)):
-        segment = segments_one_event[j]
-        i_event = i_events[segment][which_event]
-        cursor_errors[j] = cursor_dir_error_angle['reachsurround'][segment][(i_event-num_samples_before):(i_event+num_samples_after+1)]
-        eye_errors[j] = eye_dir_error_angle['reachsurround'][segment][(i_event-num_samples_before):(i_event+num_samples_after+1)]
-
-    mean_cursor_error = np.mean(cursor_errors, axis=0)
-    mean_eye_error = np.mean(eye_errors, axis=0)
-    sd_cursor_error = np.std(cursor_errors, axis=0)
-    sd_eye_error = np.std(eye_errors, axis=0)
-
-    i_window = np.arange(-num_samples_before, num_samples_after+1) 
-    fig, ax = plt.subplots(1,1,figsize=(4,4))
-    ax.plot(i_window, mean_cursor_error, label='cursor')
-    ax.fill_between(i_window, mean_cursor_error-sd_cursor_error, mean_cursor_error+sd_cursor_error, alpha=0.1)
-#     for j in range(len(segments_one_event)):
-#         ax.plot(i_window, cursor_errors[j], c='b', alpha=0.025)
-    ax.plot(i_window, mean_eye_error, label='eye')
-    ax.fill_between(i_window, mean_eye_error-sd_eye_error, mean_eye_error+sd_eye_error, alpha=0.1)
-#     for j in range(len(segments_one_event)):
-#         ax.plot(i_window, eye_errors[j], c='g', alpha=0.025)
-    ax.vlines(0, ymin=0, ymax=180, linestyles='dashed')
-    ax.set_xlabel('Relative time (samples)')
-    ax.set_ylabel('Directional error (deg)')
-    ax.set_title(f'{quality_name} {quality}, Trial result: {result}, Number of trials: {len(segments_one_event)}')
-    ax.legend()
-    plt.show()

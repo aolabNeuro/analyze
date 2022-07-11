@@ -6,6 +6,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import matplotlib.dates as mdates
+from matplotlib.collections import LineCollection
+from matplotlib.colors import ListedColormap, BoundaryNorm
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -1120,3 +1122,451 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     ax[0].set_title(title)
     
     return fig
+
+def plot_random_segments(distances, sac_start_times, sac_end_times = np.array([]), sac_times = np.array([]), 
+                         sac_durs=np.array([]), sac_vel_amps=np.array([]), sac_acc_amps=np.array([]), 
+                         samplerate=1, num_plots=3, print_info=False):
+    '''
+    Plots distances from target and saccade start and end times for randomly selected segments.
+    Useful as feedback when tuning saccade or hand reach initiation detection.
+    Also can print saccade properties (duration, velocity, acceleration). 
+    
+    Args:
+        distances (ntrial): list of time series of distance of eye from target for each segment
+        sac_times (ntrial): list of lists containing indices where saccade is occurring for each segment
+        sac_start_times (ntrial): list of lists containing indices of saccade start times for each segment
+        sac_end_times (ntrial): list of lists, containing indices of saccade end times for each segment
+        sac_durs (ntrial): list of lists containing saccade durations for each segment
+        sac_vel_amps (ntrial): list of lists containing saccade velocity amplitudes for each segment
+        sac_acc_amps (ntrial): list of lists containing saccade acceleration amplitudes for each segment
+        samplerate (float): sampling rate of distance time series
+        num_plots (int): number of plots
+        print_info (bool): whether to print saccade metrics (durations, velocity, acceleration)
+        
+    Returns:
+        None: plots distance to target with saccade starts/ends indicated, and optionally prints saccade metrics
+    
+    '''
+    idx_segments = np.random.randint(0, len(distances), size=num_plots)
+    fig, ax = plt.subplots(num_plots, 1, figsize=(14,10))
+    for p in range(len(idx_segments)):
+        idx_segment = idx_segments[p]
+        
+        # plot distance to target:
+        ax[p].plot(distances[idx_segment])
+        ax[p].vlines(sac_start_times[idx_segment], ymin=np.min(distances[idx_segment]), 
+                     ymax=np.max(distances[idx_segment]), linestyles='solid', linewidths = 0.5, color='k')
+        if len(sac_end_times) > 0:
+            ax[p].vlines(sac_end_times[idx_segment], ymin=np.min(distances[idx_segment]), 
+                         ymax=np.max(distances[idx_segment]), linestyles='solid', linewidths = 0.5, color='b')
+        ax[p].set_title(f"Trial {idx_segment}/{len(distances)}")
+        
+        if print_info:
+            print(f"Num saccades: {len(sac_start_times[idx_segment])}")
+            print(f"Saccade times (samples): {sac_times[idx_segment]}")
+            print(f"Saccade durations (ms): {sac_durs[idx_segment]/samplerate*1e3}")
+            print(f"Saccade velocity amplitudes (cm/s): {sac_vel_amps[idx_segment]}")
+            print(f"Saccade acceleration amplitudes (cm/s^2): {sac_acc_amps[idx_segment]}")
+            print()
+        
+    ax[-1].set_xlabel('Time (sample)')
+    ax[num_plots//2].set_ylabel('Distance to target (cm)')
+    plt.show()
+
+def plot_boxplot_by_label(data, segment_nums, which_saccade, ax):
+    '''
+    Arrays subset of trial data for boxplotting in groups, and plots the boxplot
+    
+    Args:
+        data (dict): keys is label, value is list of lists of entries
+        segment_nums (list): list of indices of segments whose data should be plotted
+        ax (plt.Axis): axis to plot boxplot
+        
+    Returns:
+        None: boxplot plotted in appropriate axis
+    '''
+    
+    groups = list(data.keys())
+    boxplot_array = np.zeros((len(segment_nums), 3))
+    for q in range(len(groups)):
+        for i, idx_segment in enumerate(segment_nums):
+            boxplot_array[i, q] = data[groups[q]][idx_segment][which_saccade]
+    ax.boxplot(boxplot_array, labels = groups)
+
+
+def plot_cursor_kinematics_around_saccade(cursor_dists, cursor_vels, dist_slope, dist_avg, 
+                                          vel_slope, vel_avg, result_segments, selected_result, which_saccade,
+                                          num_saccades, segment_conditions, selected_condition, condition_name):
+    '''
+    Plots cursor position/velocity before/during/after the first saccade of each segment specified
+    (Does not plot cursor kinematics from segments without saccades)
+    
+    Args:
+        cursor_dists (dict): value is list of timeseries (one per saccade) for distance of cursor from target
+        cursor_vels (dict): value is list of timeseries (one per saccade) for velocity of cursor
+        dist_slope (dict): value is change in distance of cursor from target in period, normalized by length of period
+        dist_avg (dict): value is average distance of cursor from target in period
+        vel_slope (dict): value is change in velocity of cursor in period, normalized by length of period
+        vel_avg (dict): value is average velocity of cursor in period
+        result_segments (dict): key is trial result, value is segment indices which have the corresponding result
+        selected_result (str): trial result by which to select segments for plotting
+        which_saccade (int): which saccade out of all saccades in segment to plot cursor kinematics around (0 selects first saccade)
+        num_saccades (ntrials): list of number of saccades per segment
+        segment_conditions (ntrials): list with indices corresponding to segment condition
+        selected_condition (list): list containing conditions which segment must satisfy to be plotted
+        condition_name (str): name of condition used to select segments (for title)
+        
+    Returns:
+        None: plots cursor kinematics and boxplots in a new figure
+    '''
+    
+    periods = ['before', 'during', 'after']
+    
+    # will only plot segments which have specified "selected_condition" stored in "segment_conditions",
+    # and have specified "result", and have at least one saccade
+    segment_nums = [i for i, x in enumerate(segment_conditions) 
+                    if (x in selected_condition) 
+                    and (i in result_segments[selected_result])
+                    and num_saccades[i] > which_saccade]
+    fig, ax = plt.subplots(2,5,figsize=(16,10))
+    for idx_segment in segment_nums:
+        num_sac = num_saccades[idx_segment]
+        for q in range(len(periods)):
+            ax[0,q].plot(cursor_dists[periods[q]][idx_segment][which_saccade], '-o', markersize=3)
+            ax[1,q].plot(cursor_vels[periods[q]][idx_segment][which_saccade], '-o', markersize=3)
+    
+    plot_boxplot_by_label(dist_avg, segment_nums, which_saccade, ax[0,3])
+    plot_boxplot_by_label(dist_slope, segment_nums, which_saccade, ax[0,4])
+    plot_boxplot_by_label(vel_avg, segment_nums, which_saccade, ax[1,3])
+    plot_boxplot_by_label(vel_slope, segment_nums, which_saccade, ax[1,4])
+    
+    ymin = min([ax[0,i].get_ylim()[0] for i in range(3)]); ymax = max([ax[0,i].get_ylim()[1] for i in range(3)])
+    for i in range(3):
+        ax[0,i].set_ylim(ymin,ymax)
+    ax[1,0].set_title('Before saccades')
+    ax[1,1].set_title('During saccades')
+    ax[0,1].set_xlim(0, 10)
+    ax[0,1].set_title(f'{condition_name} {selected_condition}')
+    ax[1,2].set_title('After saccades')
+    ax[0,0].set_ylabel('Cursor distance to target (cm)')
+    ax[0,3].set_title('Avg distance to target (cm)')
+    ax[0,3].set_ylim(ymin,ymax)
+    ax[0,4].set_title('Avg slope (cm/sample)')
+    
+    ymin = min([ax[1,i].get_ylim()[0] for i in range(3)]); ymax = max([ax[1,i].get_ylim()[1] for i in range(3)])
+    for i in range(3):
+        ax[1,i].set_ylim(ymin,ymax)
+        ax[1,i].set_xlabel('Time (sample)')
+    ax[1,0].set_ylabel('Cursor velocity (cm/s)')
+    ax[1,1].set_xlim(0, num_samples_before)
+    ax[1,3].set_title('Avg velocity (cm/s)')
+    ax[1,3].set_ylim(ymin,ymax)
+    ax[1,4].set_title('Avg slope (cm/s/sample)')
+
+def plot_eye_vs_cursor_scatter(eye_data, cursor_data, eye_samplerate=1e3, cursor_samplerate=1e3, ax=None, xlabel='', ylabel='', title=''):
+    '''
+    Plot scatterplot of eye versus cursor data
+    
+    Args:
+        eye_data (1D array): array of data values for eye
+        cursor_data (1D array): array of data values for cursor
+        eye_samplerate (float): sampling rate for eye data, in Hz (default 1e3, if no unit conversion desired)
+        cursor_samplerate (float): sampling rate for cursor data, in Hz (default 1e3, if no unit conversion desired)
+        ax (plt.Axis): axis to plot scatterplot
+        xlabel (str): label for scatterplot x-axis
+        ylabel (str): label for scatterplot y-axis
+        title (str): label for plot title
+        
+    Returns:
+        sc (matplotlib.cm.ScalarMappable): mappable for adding colorbar to plot
+    '''
+    t = np.reshape(np.arange(len(eye_data)), eye_data.shape)
+    sc = ax.scatter(eye_data/eye_samplerate*1e3, cursor_data/cursor_samplerate*1e3, c=t, cmap='Greys') # color points by trial index (darker is later)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    if len(eye_data) >= 2:
+        fit_cursor_data, fit_score, pcc, pcc_pvalue, reg_fit = analysis.linear_fit_analysis2D(eye_data, cursor_data)
+        ax.plot(eye_data/eye_samplerate*1e3, fit_cursor_data/cursor_samplerate*1e3)
+        ax.annotate('CC = %.3f'%pcc, (min(eye_data/cursor_samplerate*1e3),max(cursor_data/cursor_samplerate*1e3)))
+    return sc
+
+def plot_event_lines(cur_init_time, sac_start_times, sac_end_times, event_times, event_codes, ymin, ymax, ax):
+    '''
+    Plots vertical lines at event timepoints
+    
+    Args:
+        cur_init_time (float): timepoint of hand reach initiation, in seconds
+        sac_start_times (1D Array): timepoints of saccade starts, in seconds
+        sac_end_times (1D Array): timepoints of saccade ends, in seconds
+        event_times (1D Array): timepoints of trial events, in seconds
+        event_codes (1D Array): codes corresponding to trial events
+        ymin (float): lower bound of y axis
+        ymax (float): upper bound of y axis
+        ax (plt.Axis): axis for vertical lines
+        
+    Returns:
+        None: plots vertical lines on appropriate axis
+    '''
+    
+    ax.vlines(cur_init_time, ymin=ymin, ymax=ymax, linestyles='dashed', linewidths = 0.5, color='k')
+    ax.vlines(sac_start_times, ymin=ymin, ymax=ymax, linestyles='solid', linewidths = 0.5, color='r')
+    ax.vlines(sac_end_times, ymin=ymin, ymax=ymax, linestyles='solid', linewidths = 0.5, color='b')
+    for i in range(len(event_codes)):
+        event_code = event_codes[i]
+        ax.vlines(event_times[i], ymin=ymin, ymax=ymax, linestyles='solid', 
+                     color='k', linewidths = 3, label = f'{event_code}')
+
+def plot_error_angle(cursor_angle, eye_angle, cursor_init_time, saccade_start_times, saccade_end_times, 
+                     event_times, event_codes, cursor_samplerate, eye_samplerate, ax):
+    '''
+    Plots directional error angle of eye and cursor from target for one segment
+    
+    Args:
+        cursor_angle (nt-1): time series of cursor directional error angle
+        eye_angle (nt-1): time series of eye directional error angle
+        cursor_init_time (int): timepoint of hand reach initiation, in samples
+        saccade_start_times (list): timepoints of saccade start times, in samples
+        saccade_end_times (list): timepoints of saccade end times, in samples
+        event_timestamps (list): timepoints of trial events, in samples
+        event_codes (1D Array): codes corresponding to trial events
+        cursor_samplerate (float): sampling rate of cursor data, in Hz
+        eye_samplerate (float): sampling rate of eye data, in Hz
+        ax (plt.Axis): axis for plot
+        
+    Returns:
+        None: plots error angle on appropriate axis
+    '''
+    
+    time_cursor = np.arange(len(cursor_angle)+1)/cursor_samplerate*1e3
+    time_eye = np.arange(len(eye_angle)+1)/eye_samplerate*1e3
+    
+    ax.plot(time_cursor[1:], cursor_angle, label='cursor')
+    ax.plot(time_eye[1:], eye_angle, label='eye', linewidth = 0.5)
+    
+    ymin = min([np.min(cursor_angle), np.min(eye_angle)]); ymax = max([np.max(cursor_angle), np.max(eye_angle)])
+    plot_event_lines(cursor_init_time, saccade_start_times, saccade_end_times, event_times, event_codes, ymin, ymax, ax)
+    
+    ax.set_xlim((time_cursor[0], time_cursor[-1]))
+    # ax.set_title(f'Trial result: {get_segment_result(idx_segment)}')
+    ax.legend(loc = 'best')
+    ax.set_ylabel('Angle bet vel and direction of target (deg)')    
+
+def create_zone_line(zone, samplerate, colors, height, ax):
+    '''
+    Creates line collection object colored according to zone
+    
+    Args:
+        zone (nt): time series of zone location
+        samplerate (float): sampling rate of data, in Hz
+        colors (list): list of colors corresponding to zone location
+        ax (plt.Axis): axis to plot zone line
+        
+    Returns:
+        tuple: tuple containing:
+            |**time (nt):** timepoints of time series
+            |**line (matplotlib.collections.Collection):** line collection object (mappable for colorbar)
+    '''
+    
+    time = np.arange(len(zone))/samplerate*1e3
+    
+    points = np.array([time, height*np.ones(len(zone))]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    cmap = ListedColormap(colors)
+    norm = BoundaryNorm(list(range(len(colors)+1)), cmap.N)
+    lc = LineCollection(segments, cmap=cmap, norm=norm)
+    lc.set_array(zone)
+    lc.set_linewidth(15)
+    lc.set_alpha(0.4)
+    line = ax.add_collection(lc)
+    
+    return time, line    
+
+def plot_zone_lines(cursor_zone, eye_zone, colors, cursor_samplerate, eye_samplerate, ax):
+    '''
+    Plots cursor and eye lines colored according to zone
+    
+    Args:
+        cursor_zone (nt): time series of zone location of cursor
+        eye_zone (nt): time series of zone location of eye
+        colors (list): list of colors, equal in length to number of zones
+        cursor_samplerate (float): sampling rate of cursor data, in Hz
+        eye_samplerate (float): sampling rate of eye data, in Hz
+        ax (plt.Axis): axis for zone lines
+    
+    Returns:
+        line (matplotlib.collections.Collection): line collection object (mappable for colorbar)
+    '''
+
+    time, line = create_zone_line(cursor_zone, cursor_samplerate, colors, 0, ax)
+    _ = create_zone_line(eye_zone, eye_samplerate, colors, 1, ax)
+    ax.annotate('Cursor Zone', (0, 0))
+    ax.annotate('Eye Zone', (0, 1))
+    ax.set_xlim((time[0], time[-1]))
+    ax.set_ylim((-0.5, 1.5))
+    ax.set_yticks([])
+    
+    return line
+
+def plot_distance_from_target(cursor_dist, eye_dist, cursor_init_time, saccade_start_times, saccade_end_times, 
+                              event_times, event_codes, cursor_samplerate, eye_samplerate, ax):
+    '''
+    Plots distance of eye and cursor from target for one segment
+    
+    Args:
+        cursor_dist (nt): time series of cursor distance from target
+        eye_dist (nt): time series of eye distance from target
+        cursor_init_times (int): timepoint of hand reach initiation, in samples
+        saccade_start_times (list): timepoints of saccade start times, in samples
+        saccade_end_times (list): timepoints of saccade end times, in samples
+        event_timestamps (list): timepoints of trial events, in samples
+        event_codes (1D Array): codes corresponding to trial events
+        cursor_samplerate (float): sampling rate of cursor data, in Hz
+        eye_samplerate (float): sampling rate of eye data, in Hz
+        ax (plt.Axis): axis for plot
+        
+    Returns:
+        None: plots error angle on appropriate axis
+    '''
+    
+    time_cursor = np.arange(len(cursor_dist))/cursor_samplerate*1e3
+    time_eye = np.arange(len(eye_dist))/eye_samplerate*1e3
+    
+    ax.plot(time_cursor, cursor_dist, label='cursor')
+    ax.plot(time_eye, eye_dist, label='eye')
+    
+    ymin = min([np.min(cursor_dist), np.min(eye_dist)]); ymax = max([np.max(cursor_dist), np.max(eye_dist)])
+    plot_event_lines(cursor_init_time, saccade_start_times, saccade_end_times, event_times, event_codes, ymin, ymax, ax)
+    
+    ax.set_xlim((time_cursor[0], time_cursor[-1]))
+    ax.set_xlabel('Time (ms)')
+    ax.set_ylabel('Dist to target (cm)')
+    ax.legend(loc = 'best')
+
+def plot_window_around_event(cursor_angle, eye_angle, event_times, which_event, num_samples_before, num_samples_after, 
+                             segment_conditions, selected_condition, condition_name, result_segments, selected_result):
+    '''
+    Plot cursor and eye directional error in window around a specified event, averaged across selected segments
+    
+    Args:
+        cursor_angle (nt-1): time series of cursor directional error angle
+        eye_angle (nt-1): time series of eye directional error angle
+        event_times (ntrials): list of indices of event occurrence, for each segment
+        which_event (int): index of event in segment (e.g., 1 selects the second event in a segment)
+        num_samples_before (int): number of samples to plot before event
+        num_samples_after (int): number of samples to plot after event
+        segment_conditions (ntrials): list with indices corresponding to segment condition
+        selected_condition (list): list containing conditions which segment must satisfy to be plotted
+        condition_name (str): name of condition used to select segments (for title)
+        result_segments (dict): key is trial result, value is segment indices which have the corresponding result
+        selected_result (str): trial result by which to select segments for plotting
+    
+    Returns:
+        None: plots average cursor and eye error in a new figure
+    '''
+    segment_nums = [i for i, x in enumerate(segment_conditions) 
+                    if (x in selected_condition) and (i in result_segments[selected_result])]
+
+    # inspect average directional error for all segments with at least one event where window is within bounds
+    segment_nums = [i for i, x in enumerate(event_times) if i in segment_nums and len(x) > 0 
+                          and x[which_event] + num_samples_after < len(cursor_angle[i]) 
+                          and x[which_event] >= num_samples_before]
+    
+    # extract interval around saccade start
+    window_length = num_samples_before + num_samples_after + 1
+    cursor_errors = np.zeros((len(segment_nums), window_length))
+    eye_errors = np.zeros((len(segment_nums), window_length))
+    for j, idx_segment in enumerate(segment_nums):
+        event_time = event_times[idx_segment][which_event]
+        cursor_errors[j] = cursor_angle[idx_segment][(event_time-num_samples_before):(event_time+num_samples_after+1)]
+        eye_errors[j] = eye_angle[idx_segment][(event_time-num_samples_before):(event_time+num_samples_after+1)]
+
+    mean_cursor_error = np.mean(cursor_errors, axis=0)
+    mean_eye_error = np.mean(eye_errors, axis=0)
+    sd_cursor_error = np.std(cursor_errors, axis=0)
+    sd_eye_error = np.std(eye_errors, axis=0)
+
+    window = np.arange(-num_samples_before, num_samples_after+1) 
+    fig, ax = plt.subplots(1,1,figsize=(4,4))
+    ax.plot(window, mean_cursor_error, label='cursor')
+    ax.fill_between(window, mean_cursor_error-sd_cursor_error, mean_cursor_error+sd_cursor_error, alpha=0.1)
+    ax.plot(window, mean_eye_error, label='eye')
+    ax.fill_between(window, mean_eye_error-sd_eye_error, mean_eye_error+sd_eye_error, alpha=0.1)
+    ax.vlines(0, ymin=0, ymax=180, linestyles='dashed')
+    ax.set_xlabel('Relative time (samples)')
+    ax.set_ylabel('Directional error (deg)')
+    ax.set_title(f'{condition_name} {selected_condition}, Trial result: {selected_result}, Number of trials: {len(segment_nums)}')
+    ax.legend()
+    plt.show()
+
+def plot_zone_heatmap(data, event_times, which_event, segment_conditions, selected_condition, condition_name, 
+                      result_segments, selected_result, samplerate, order='', segment_order=[], 
+                      plot_cbar=True, with_title=True, fig=None, ax=None):
+    '''
+    Plots heatmap of colored zone locations for all segments stacked
+    
+    Args:
+        data (nseg): list of time series (one per segment) of zone locations
+        event_times (ntrials): list of indices of event occurrence, for each segment
+        which_event (int): index of event in segment (e.g., 1 selects the second event in a segment)
+        segment_conditions (ntrials): list with indices corresponding to segment condition
+        selected_condition (list): list containing conditions which segment must satisfy to be plotted
+        condition_name (str): name of condition used to select segments (for title)
+        result_segments (dict): key is trial result, value is segment indices which have the corresponding result
+        selected_result (str): trial result by which to select segments for plotting
+        samplerate (float): sampling rate of data, in Hz
+        order (str): method by which to sort or cluster zone data across segments (options: 'duration', 'foveation')
+        segment_order (list): order of segment indices (from previous sorting/clustering) by which to stack segments
+        plot_cbar (bool): whether to plot with a colorbar
+        with_title (bool): whether to plot with a title
+        fig (plt.figure): figure for title
+        ax (plt.Axis): axis for heatmap
+        
+    Returns:
+        segment_nums (list): order of segment indices by which segments were stacked
+    '''
+    
+    if len(segment_order) == 0:
+        segment_nums = np.array([i for i, x in enumerate(segment_conditions) 
+                        if (x in selected_condition) 
+                        and (i in result_segments[selected_result])
+                        and len(event_times[i]) > which_event])
+        if order == 'duration': # order segments by duration
+            segment_durations = [len(x) for i, x in enumerate(data) if i in segment_nums]
+            segment_nums = segment_nums[np.argsort(segment_durations)]
+        if order == 'foveation': # cluster segments by foveation or no foveation
+            segments_without_foveation = np.array([i for i in segment_nums if 2 not in data[i]])
+            segments_with_foveation = np.array([i for i in segment_nums if 2 in data[i]])
+            segment_nums = np.concatenate((segments_without_foveation, segments_with_foveation))
+    else:
+        segment_nums = segment_order
+    
+    max_time_before_event = max([x[which_event] for i, x in enumerate(event_times) if i in segment_nums])
+    max_time_after_event = max([len(data[i]) - x[which_event] for i, x in enumerate(event_times) if i in segment_nums])
+    max_length = max([len(x) for i, x in enumerate(data) if i in segment_nums])
+    heatmap_array = np.empty((len(segment_nums), max_time_before_event+max_time_after_event))
+    heatmap_array[:] = np.nan
+    for j, idx_segment in enumerate(segment_nums):
+        event_time = event_times[idx_segment][which_event]
+        data_segment = data[idx_segment]
+        data_start = max_time_before_event - event_time
+        data_end = len(data_segment) + data_start
+        heatmap_array[j, data_start:data_end] = data_segment
+        
+    xgrid = (np.arange(heatmap_array.shape[1]) - max_time_before_event)/samplerate*1e3
+    ygrid = np.arange(len(segment_nums))
+    cmap = ListedColormap(color_list)
+    cmap.set_bad(color='black')
+    norm = BoundaryNorm(list(range(len(zone_str)+1)), cmap.N)
+    pcm = ax.pcolormesh(xgrid, ygrid, heatmap_array, cmap=cmap, norm=norm)
+    if plot_cbar:
+        cbar = plt.colorbar(pcm, orientation = 'vertical', label='Zone')
+        cbar.set_ticks(np.arange(len(zone_str))+0.5)
+        cbar.set_ticklabels(zone_str)
+    ax.vlines(0, ymin=0, ymax=len(segment_nums)-1, linestyles='dashed')
+    ax.set_xlabel('Time (ms)')
+    ax.set_ylabel('Trial')
+    if with_title:
+        fig.suptitle(f'{condition_name} {selected_condition}, Trial selected_result: {selected_result}, Number of trials: {len(segment_nums)}', y=0.93)
+    
+    return segment_nums

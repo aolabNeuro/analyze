@@ -389,3 +389,21 @@ def derivative(x, y, norm=True):
     dx = np.gradient(x)
     dydx = dy/dx
     return dydx
+
+def compute_angle(v1, v2):
+    '''
+    Computes the angle (in degrees) between two vectors with the same number of dimensions
+    
+    Args:
+        v1 (ndim): vector in ndim-dimensional space
+        v2 (ndim): vector in ndim-dimensional space
+        
+    Returns:
+        theta (float): angle between vectors v1 and v2, in degrees  
+    '''
+    
+    v1 = v1 / np.linalg.norm(v1) # normalize
+    v2 = v2 / np.linalg.norm(v2)
+    cos = np.clip(v1 @ v2, -1, 1)
+    theta = np.arccos(cos)*180/np.pi
+    return theta
