@@ -22,10 +22,7 @@ import pandas as pd
 
 from . import postproc
 from . import analysis
-from .data import map_acq2pos
-
-import os
-config_dir = os.path.join(os.path.dirname(__file__), 'config')
+from .data import load_chmap
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''
@@ -300,12 +297,7 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         ax = plt.gca()
     
     # Load the signal path files
-    signal_path_filepath = os.path.join(config_dir, '210910_ecog_signal_path.xlsx')
-    elec_to_pos_filepath = os.path.join(config_dir, '244ch_viventi_ecog_elec_to_pos.xlsx')
-    signal_path = pd.read_excel(signal_path_filepath)
-    layout = pd.read_excel(elec_to_pos_filepath)
-    elec_channels = np.array(list(range(1,257)), dtype='int')
-    elec_pos, acq_ch, elecs = map_acq2pos(signal_path, layout, elec_channels)
+    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244')
 
     # Remove bad electrodes
     bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
@@ -316,7 +308,7 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
     else:
         data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
-        xy = elec_pos
+        xy = [elec_pos[:,0], elec_pos[:,1]]
 
     # Plot
     im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax)
