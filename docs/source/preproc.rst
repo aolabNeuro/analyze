@@ -520,6 +520,13 @@ API - Base
     :members:
 
 
+API - Quality
+----------
+
+.. automodule:: aopy.preproc.quality
+    :members:
+
+
 API - BMI3D
 -----------
 
