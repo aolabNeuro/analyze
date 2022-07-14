@@ -218,7 +218,7 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', norm=None):
     '''
     Wrapper around plt.imshow for spatial data
 
@@ -245,6 +245,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
         alpha_map (2,n array): map of alpha values (optional, default alpha=1 everywhere)
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image
+        norm (matplotlib.colors.Normalize, optional): color normalization to use in the image
 
     Returns:
         mappable: image object which you can use to add colorbar, etc.
@@ -273,7 +274,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
     # Plot
     if ax is None:
         ax = plt.gca()
-    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent, norm=norm)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
