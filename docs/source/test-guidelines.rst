@@ -239,6 +239,8 @@ datasets here as they become available.
    
    * - Filename
      - Description
+   * - `beignet/preproc_*.hdf`
+     - preprocessed data from a short manual control experiment with Beignet in July, 2022
    * - `test20210310_08_te1039.hdf`
      - hdf data for testing sync version 0
    * - `2021-04-07_BMI3D_te1315`
