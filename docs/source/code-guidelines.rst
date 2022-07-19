@@ -20,10 +20,10 @@ guidelines to decide whether to include a piece of code in the repository.
   In these cases it is also a good idea to include the package in these
   documentation pages so that others can find it. Feel free to add sections 
   to `preproc`, `analysis`, `visualization`, `utils`, etc. if you have
-  links useful code that is not included in this repository. One exception
+  links to useful code not included in this repository. One exception
   to this rule is if you regularly use a package that needs some 
-  customization, for instance transposing the input data, including a 
-  wrapper function here that does this customization is acceptable.
+  customization, for instance transposing the input data, then including 
+  a wrapper function here that does this customization is acceptable.
 
 Modules
 -------
@@ -121,9 +121,9 @@ Keeping track of files:
 
 Plotting functions:
 
--  take an axis as input your function can be used on a subplot
+-  take an axis as input so your function can be used on a subplot
 -  don't create new figures in a function (in general), plot onto existing ones
--  allow for user-defined settings (e.g. color, line width, etc.)
+-  allow for user-defined settings (e.g. don't fix color, line width, etc.)
 
 Some commonly used variables:
 +---------------+-------------+----------------------------------+
