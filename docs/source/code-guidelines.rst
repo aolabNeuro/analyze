@@ -76,7 +76,7 @@ Let's say I have a dictionary `trials` that contains my experimental
 data, broken down by trial. I want to calculate the average firing rate
 for each trial.
 
-..code-block:: python
+.. code-block:: python
    
    def calc_avg_firing_rate(trials):
        avg_firing_rate = []
@@ -89,7 +89,7 @@ data being in a specific format. Instead, I want to write a function
 that takes in just the spiking data from each trial instead of the entire
 dictionary.
 
-..code-block:: python
+.. code-block:: python
    
    def calc_avg_firing_rate(spikes):
        avg_firing_rate = []
@@ -126,6 +126,7 @@ Plotting functions:
 -  allow for user-defined settings (e.g. don't fix color, line width, etc.)
 
 Some commonly used variables:
+
 +---------------+-------------+----------------------------------+
 | variable name | type        | description                      |
 +===============+=============+==================================+
