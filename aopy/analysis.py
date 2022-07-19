@@ -532,19 +532,28 @@ class KFDecoder(object):
     def fit(self, X_kf_train, y_train):
         """
         Train Kalman Filter Decoder
-        Parameters
-        ----------
-        X_kf_train (2D numpy array): [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-            See example file for an example of how to format the neural data correctly
-        y_train (2D numpy array): [n_samples(i.e. timebins), n_outputs]
-            This is the outputs that are being predicted
+        
+        Args:
+            X_kf_train (ntime , nfeatures): This is the neural data in Kalman filter format. See example file for an example of how to format the neural data correctly.
+            y_train (ntime , noutputs): These are the outputs that are being predicted
 
-        Calculations for A,W,H,Q are as follows:
-        .. math:: A = X2*X1' (X1*X1')^{-1}
-        .. math:: W = \frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
-        .. math:: H = Y*X'(X*X')^{-1}
-        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
+        Calculations for :math:`A`, :math:`W`, :math:`H`, :math:`Q` are as follows:
+
+        .. math:: 
+            
+            A = X2*X1' (X1*X1')^{-1}
+
+        .. math:: 
+            
+            W = \\frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
+        
+        .. math:: 
+        
+            H = Y*X'(X*X')^{-1}
+        
+        .. math:: 
+            
+            Q = \\frac{(Y-HX)(Y-HX)' }{time points}
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -581,17 +590,20 @@ class KFDecoder(object):
         """
         Train Kalman Filter Decoder with A and W fixed. A is the state transition model and W is the associated covariance
 
-        Parameters
-        ----------
-        X_kf_train (2D numpy array): [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-            See example file for an example of how to format the neural data correctly
-        y_train (2D numpy array): [n_samples(i.e. timebins), n_outputs]
-            This is the outputs that are being predicted
+        
+        Args:
+            X_kf_train (ntime , nfeatures): This is the neural data in Kalman filter format. See example file for an example of how to format the neural data correctly
+            y_train (ntime , noutputs): These are the outputs that are being predicted
 
         Calculations as follows:
-        .. math:: H = Y*X'(X*X')^{-1}
-        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
+
+        .. math::
+            
+            H = Y*X'(X*X')^{-1}
+
+        .. math:: 
+        
+            Q = \\frac{(Y-HX)(Y-HX)' }{time points}
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -626,18 +638,13 @@ class KFDecoder(object):
     def predict(self, X_kf_test, y_test):
         """
         Predict outcomes using trained Kalman Filter Decoder
-        Parameters
-        ----------
-        X_kf_test (2D numpy array):  [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-        y_test (2D numpy array): [n_samples(i.e. timebins),n_outputs]
-            The actual outputs
-            This parameter is necesary for the Kalman filter (unlike other decoders)
-            because the first value is nececessary for initialization
-        Returns
-        -------
-        y_test_predicted (2D numpy array):  [n_samples(i.e. timebins),n_outputs]
-            The predicted outputs
+
+        Args:
+        X_kf_test (ntime, nfeatures): This is the neural data in Kalman filter format.
+        y_test (ntime , noutputs): The actual outputs. This parameter is necesary for the Kalman filter (unlike other decoders) because the first value is nececessary for initialization
+        
+        Returns:
+            y_test_predicted (ntime, noutputs): The predicted outputs
         """
 
         # Extract parameters
