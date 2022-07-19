@@ -691,8 +691,7 @@ def calc_rms(signal, remove_offset=True):
         remove_offset (bool): if true, subtract the mean before calculating RMS
 
     Returns:
-        float array: rms of the signal along the first axis. output dimensions will 
-            be the same non-time dimensions as the input signal
+        float array: rms of the signal along the first axis. output dimensions will be the same non-time dimensions as the input signal
     '''
     if remove_offset:
         m = np.mean(signal, axis=0)
@@ -786,8 +785,8 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-        | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-        | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -999,11 +998,11 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
     Returns:
         tuple: Tuple containing:
-        | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
-        | **linear_fit_score (float):** Coefficient of determination for linear fit
-        | **pcc (float):** Pearson's correlation coefficient
-        | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
-        | **reg_fit (sklearn.linear_model._base.LinearRegression)
+            | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
+            | **linear_fit_score (float):** Coefficient of determination for linear fit
+            | **pcc (float):** Pearson's correlation coefficient
+            | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
+            | **reg_fit (sklearn.linear_model._base.LinearRegression)
     '''
     xdata = xdata.reshape(-1, 1)
     ydata = ydata.reshape(-1,1)
@@ -1422,9 +1421,10 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
         adaptive (bool, optional): adaptive taper weighting. Defaults to False.
 
     Returns:
-        fxx (np.array): spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
-        txx (np.array): spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
-        Sxx (len(fxx) x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+        tuple: Tuple containing:
+            | **fxx (np.array):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+            | **txx (np.array):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+            | **Sxx (len(fxx):** x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
     """
     jackknife = False
     sides = 'onesided'
@@ -1537,10 +1537,10 @@ def interp_multichannel(x):
     """interp_multichannel
 
     Args:
-        x (n_sample x n_ch): input data array containing nan-valued missing entries
+        x (n_sample, n_ch): input data array containing nan-valued missing entries
 
     Returns:
-        x_interp (n_sample x n_ch): interpolated data, uses `numpy.interp` method.
+        x_interp (n_sample, n_ch): interpolated data, uses `numpy.interp` method.
     """
     nan_idx = np.isnan(x)
     ok_idx = ~nan_idx
