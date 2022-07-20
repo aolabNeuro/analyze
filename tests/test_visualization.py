@@ -82,6 +82,20 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'posmap_single.png'
         savefig(write_dir, filename)
 
+    def test_plot_ECoG244_data_map(self):
+        data = np.linspace(-1, 1, 256)
+        missing = [0, 5, 25]
+        plt.figure()
+        plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None)
+        filename = 'posmap_244ch_no_interp.png'
+        savefig(write_dir, filename) # Here the missing electrodes (in addition to the ones
+        # undefined by the channel mapping) should be visible in the map.
+
+        plt.figure()
+        plot_ECoG244_data_map(data, bad_elec=missing, interp=True, cmap='bwr', ax=None)
+        filename = 'posmap_244ch.png'
+        savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
+
     def test_plot_image_by_time(self):
         time = np.array([-2, -1, 0, 1, 2, 3])
         data = np.array([[0, 0, 1, 1, 0, 0],
