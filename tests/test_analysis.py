@@ -671,8 +671,8 @@ class SpectrumTests(unittest.TestCase):
         f_sg, t_sg, sgram = aopy.analysis.get_sgram_multitaper(
             self.x2, self.fs, self.win_t, self.step_t, self.bw
         )
-        self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
-        self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
+        self.assertSequenceEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
+        self.assertSequenceEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
 
 class BehaviorMetricsTests(unittest.TestCase):
 
@@ -693,9 +693,9 @@ class BehaviorMetricsTests(unittest.TestCase):
                  [135.21964, 135.3316, 135.34012, 139.52308, 139.65272],
                  [144.41804, 144.53228, 144.54104, 149.33288, 149.4624 ]]
         rt, rt_pertarget = aopy.analysis.time_to_target(events, times, True)
-        self.assertEqual(rt, [1.30796, 6.79456, 2.403  , 4.18296, 4.79184])
-        self.assertEqual(np.squeeze(rt_pertarget[0]), [1.30796, 4.18296, 2.403  , 4.79184, 6.79456])
-        self.assertEqual(np.squeeze(rt_pertarget[1]), [0, 3, 2, 4, 1])
+        self.assertCountEqual(np.round(rt,2), [1.31, 6.79, 2.4  , 4.18, 4.79])
+        self.assertCountEqual(np.round(np.squeeze(rt_pertarget[0]),2), [1.31, 4.18, 2.4, 4.79, 6.79])
+        self.assertCountEqual(np.squeeze(rt_pertarget[1]), [0, 3, 2, 4, 1])
 
 if __name__ == "__main__":
     unittest.main()
