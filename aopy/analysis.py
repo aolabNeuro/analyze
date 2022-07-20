@@ -1563,28 +1563,41 @@ def compute_path_length_per_trial(trajectory):
     path_length = np.sum(lengths)
     return path_length
 
-def time_to_target(event_codes, event_times, get_stats_per_target= False):
+
+def time_to_target(event_codes, event_times, per_target_stats=False):
     '''
-    This function calculates
+    This function calculates reach time to target only on rewarded trials given event codes and event times.
+
     Args:
-        event_codes (list) :
-        event_times (list):
-        target_direction (list):
-        get_stats_per_target (bool):
+        event_codes (list) : event codes
+        event_times (list) : event times corresponding to the event codes. These event codes and event times could be the output of preproc.base.get_trial_segments_and_times().
+         get_stats_per_target (bool): optional, use if you want to calculate reach time per target
 
     Returns:
-
+        reach_times (list):
+        reach_times_per_target(list of lists) : optional if per_target_stats == True
     '''
     CURSOR_ENTER_PERIPHERAL_TARGET = list(range(81, 89))
     CENTER_TARGET_OFF = 32
     REWARD = 48
     tr_e = np.array([event_codes[iTr] for iTr in range(len(event_times)) if REWARD in event_codes[iTr]])
-    tr_t = np.array([event_times[iTr] for iTr in range(len(event_times)) if  REWARD in event_codes[iTr]])
-    leave_center_idx = np.argwhere(tr_e == CENTER_TARGET_OFF)[0]
-    reach_target_idx = np.argwhere(tr_e == CURSOR_ENTER_PERIPHERAL_TARGET)[0]
+    tr_t = np.array([event_times[iTr] for iTr in range(len(event_times)) if REWARD in event_codes[iTr]])
+    leave_center_idx = np.argwhere(tr_e == CENTER_TARGET_OFF)[0, 1]
+
+    reach_target_idx = np.argwhere(np.isin(tr_e[0], CURSOR_ENTER_PERIPHERAL_TARGET))[0][0]
+
     rt = tr_t[:, reach_target_idx] - tr_t[:, leave_center_idx]
 
     # mean reach time per target
-    target_dir = tr_e[reach_target_idx] - 80
-    for iT in np.unique(target_dir):
+    if per_target_stats:
+        rt_pertarget = []
+        trial_id = []
+        target_dir = tr_e[:, reach_target_idx]
 
+        for iT in np.unique(target_dir):
+            dir_idx = np.where(target_dir == iT)[0]
+            rt_pertarget.append(rt[dir_idx])
+            trial_id.append(dir_idx)
+        return rt, (rt_pertarget, trial_id)
+    else:
+        return rt

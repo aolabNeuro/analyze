@@ -674,6 +674,30 @@ class SpectrumTests(unittest.TestCase):
         self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
         self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
 
+class BehaviorMetricsTests(unittest.TestCase):
+
+    def test_compute_path_length_per_trial(self):
+        pts = [(0,0), (0,1), (3,1), (3,0)]
+        path_length = aopy.analysis.compute_path_length_per_trial(pts)
+        self.assertEqual(path_length, 5.0)
+
+    def test_time_to_target(self):
+        events =  [[80, 17, 32, 81, 48],
+                   [80, 23, 32, 87, 48] ,
+                   [80, 19, 32, 83, 48] ,
+                   [80, 18, 32, 82, 48],
+                   [80, 22, 32, 86, 48]]
+        times = [[ 74.24136, 74.34564, 74.35452, 75.66248, 75.79012],
+                 [ 97.60504, 97.71632, 97.7248, 104.51936, 104.64524],
+                 [115.58016, 115.69028, 115.69876, 118.10176, 118.23136],
+                 [135.21964, 135.3316, 135.34012, 139.52308, 139.65272],
+                 [144.41804, 144.53228, 144.54104, 149.33288, 149.4624 ]]
+        rt, rt_pertarget = aopy.analysis.time_to_target(events, times, True)
+        self.assertEqual(rt, [1.30796, 6.79456, 2.403  , 4.18296, 4.79184])
+        self.assertEqual(np.squeeze(rt_pertarget[0]), [1.30796, 4.18296, 2.403  , 4.79184, 6.79456])
+        self.assertEqual(np.squeeze(rt_pertarget[1]), [0, 3, 2, 4, 1])
 
 if __name__ == "__main__":
     unittest.main()
+
+
