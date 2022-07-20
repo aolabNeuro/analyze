@@ -1543,3 +1543,48 @@ def interp_multichannel(x):
     x[nan_idx] = np.interp(idx,xp,fp)
 
     return x
+
+
+'''
+Behavioral metrics 
+'''
+
+def compute_path_length_per_trial(trajectory):
+    '''
+    This function calculates the path length by computing the distance from all points in the trajectory. It returns a single value for path length.
+
+    Args:
+        trajectory (nt x 2): Input trajectory, could be a corsor trajectory or eye trajectory
+
+    Returns:
+        path_length (float): length of the trajectory
+    '''
+    lengths = np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)) # compute the distance from all points in trajectory
+    path_length = np.sum(lengths)
+    return path_length
+
+def time_to_target(event_codes, event_times, get_stats_per_target= False):
+    '''
+    This function calculates
+    Args:
+        event_codes (list) :
+        event_times (list):
+        target_direction (list):
+        get_stats_per_target (bool):
+
+    Returns:
+
+    '''
+    CURSOR_ENTER_PERIPHERAL_TARGET = list(range(81, 89))
+    CENTER_TARGET_OFF = 32
+    REWARD = 48
+    tr_e = np.array([event_codes[iTr] for iTr in range(len(event_times)) if REWARD in event_codes[iTr]])
+    tr_t = np.array([event_times[iTr] for iTr in range(len(event_times)) if  REWARD in event_codes[iTr]])
+    leave_center_idx = np.argwhere(tr_e == CENTER_TARGET_OFF)[0]
+    reach_target_idx = np.argwhere(tr_e == CURSOR_ENTER_PERIPHERAL_TARGET)[0]
+    rt = tr_t[:, reach_target_idx] - tr_t[:, leave_center_idx]
+
+    # mean reach time per target
+    target_dir = tr_e[reach_target_idx] - 80
+    for iT in np.unique(target_dir):
+
