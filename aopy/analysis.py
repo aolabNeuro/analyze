@@ -9,6 +9,8 @@ from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 from sklearn import model_selection
+
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
 
@@ -1397,6 +1399,43 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
             noise_sd += noise_sd_step
 
         return noisy_test_data
+
+def classify_by_lda(X_train_lda, y_class_train, 
+                                 n_splits=5,
+                                 n_repeats=3, 
+                                 random_state=1):
+    """
+    train an linear discriminant model on the training data (X_train_lda) and their labels (y_class_train) with data spliting and
+    k-fold validation. 
+
+    Args:
+        X_train_lda (n_classes, n_features)
+        y_class_train (n_classes)
+        n_splits (int, optional): number of paritions to split data Defaults to 5.
+        n_repeats (int, optional): number of repeated fitting Defaults to 3.
+        random_state (int, optional): random state for data spliting Defaults to 1.
+
+    Returns:
+        accuracy(float): mean accuracy of the repeated lda runs.
+        std (float): standard deviation of the repeated lda runs.
+    """
+
+    assert X_train_lda.shape[0] == len(y_class_train)
+
+    # get the model
+    model = LinearDiscriminantAnalysis()
+    
+    # define model evaluation method
+    cv = model_selection.RepeatedStratifiedKFold(n_splits=n_splits,
+                                 n_repeats=n_repeats, 
+                                 random_state=random_state)
+    # evaluate model
+    scores = model_selection.cross_val_score(model, X_train_lda, y_class_train, 
+                                            scoring='accuracy', cv=cv, n_jobs=-1)
+
+    mean_accuracy,  std = np.mean(scores), np.std(scores)
+
+    return mean_accuracy, std
 
 ######### Spectral Estimation and Analysis ############
 
