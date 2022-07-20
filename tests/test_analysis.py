@@ -398,6 +398,29 @@ class CalcTests(unittest.TestCase):
         self.assertTrue(max_erp[0] == 0) 
         self.assertTrue(max_erp[1] == 0)
 
+    def test_calc_time_domain_error(self):
+
+        # Simple 1D Test: X = 0, Y = +/- 1
+        X = np.zeros((5, 1))
+        Y = np.asarray([[1], [-1], [1], [-1], [-1]])
+
+        # The distance between these coordinates should all be equal to 1
+        self.assertTrue(np.allclose(aopy.analysis.calc_time_domain_error(X, Y), np.ones((5, 1))))
+        
+        # try this in the 2D case: X = [0, 0]; Y = [+/- 1, +/- 1]
+        X = np.zeros((5, 2))
+        Y = np.asarray([[1, 1], [1, -1], [-1, 1], [-1, -1], [1, 1]])
+
+        # The distance between all these coordinates should be equal to the sqrt(2)
+        self.assertTrue(np.allclose(aopy.analysis.calc_time_domain_error(X, Y), np.ones((5))*np.sqrt(2)))
+
+        # Also confirm that this calculation = sqrt( (X[0]-Y[0]^2) + (X[1]-Y[1]^2) )
+        XY = np.sqrt((X[:, 0] - Y[:, 0])**2 + (X[:, 1] - Y[:, 1])**2) 
+
+        # confirms that this scales with Y = [+/- 2, +/- 2]
+        Y = Y*2
+        self.assertTrue(np.allclose(aopy.analysis.calc_time_domain_error(X, Y), np.ones((5))*np.sqrt(8)))
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):

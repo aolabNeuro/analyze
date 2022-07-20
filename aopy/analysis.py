@@ -1156,3 +1156,20 @@ def interp_multichannel(x):
     x[nan_idx] = np.interp(idx,xp,fp)
 
     return x
+
+def calc_time_domain_error(X, Y):
+    """calc_time_domain_error
+
+    Args:
+        X (n_time x n_dim): time-series data of position, e.g. reference position (time x dimensions)
+        Y (n_time x n_dim): time-series data of another position, e.g. cursor position (time x dimensions)
+
+    Returns:
+        td_error (n_time x 1): time-series data of the Euclidean distance between X position and Y position
+    """
+    # make sure that the shapes are the same
+    assert(X.shape == Y.shape)
+
+    td_error = np.linalg.norm(X - Y, axis=1)
+
+    return td_error
