@@ -20,10 +20,11 @@ from PIL import Image
 import copy
 import pandas as pd
 from tqdm import tqdm
-
+import pandas as pd
 
 from . import postproc
 from . import analysis
+from .data import load_chmap
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''
@@ -279,6 +280,42 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', norm=N
     ax.set_ylabel('y position')
 
     return image
+
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, **interp_kwargs):
+    '''
+    Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
+
+    Args:
+        data ((256,) array): values from the ECoG array to plot in 2D
+        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+
+    Returns:
+        pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+    '''
+    
+    if ax is None:
+        ax = plt.gca()
+    
+    # Load the signal path files
+    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244')
+
+    # Remove bad electrodes
+    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
+    data[bad_ch] = np.nan
+        
+    # Interpolate or directly compute the map
+    if interp:
+        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
+    else:
+        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
+        xy = [elec_pos[:,0], elec_pos[:,1]]
+
+    # Plot
+    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax)
+    return im
 
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
     '''

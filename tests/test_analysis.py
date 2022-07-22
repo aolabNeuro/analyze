@@ -1,3 +1,4 @@
+from cmath import exp
 from aopy.analysis import calc_success_rate
 from aopy.visualization import savefig
 import aopy
@@ -5,6 +6,8 @@ import os
 import numpy as np
 import warnings
 import unittest
+
+import os
 import matplotlib.pyplot as plt
 
 test_dir = os.path.dirname(__file__)
@@ -208,12 +211,12 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_allclose(mds_true, md)
         np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
+
         # Test that code runs with too many nans
         data[0,:] = np.nan
         _, md, pd = aopy.analysis.run_tuningcurve_fit(data, targets, fit_with_nans=True)
         np.testing.assert_allclose(mds_true, md)
         np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
-
 
 class CalcTests(unittest.TestCase):
 
@@ -442,6 +445,178 @@ class ModelFitTests(unittest.TestCase):
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
 
+class AccLLRTests(unittest.TestCase):
+
+    def test_calc_activity_onset_accLLR(self):
+        # Spiking data
+        eps = 0.0001
+        cond1_train = np.array((eps,eps,eps,1,1,1), dtype=float)
+        cond2_train = np.array((eps,eps,eps,eps,eps,eps), dtype=float)
+        
+        cond1_test = np.array((0,0,0,1,1,1))
+        binwdith = 1
+
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
+        point_spike_LLR = (eps-1) + np.log(1/eps)
+        expected_LLR = np.array((0,0,0,point_spike_LLR, point_spike_LLR, point_spike_LLR))
+        
+        np.testing.assert_allclose(accLLR, np.cumsum(expected_LLR).reshape(-1,1))
+        self.assertAlmostEqual(time, 3)
+
+        # Multitrial spiking data
+        cond1_test = np.tile(cond1_test, (50,1)).T
+        
+        tavg_accLLR, tavg_time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=True)
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
+        expected_accLLR_array = np.tile(np.cumsum(expected_LLR), (50,1)).T
+        
+        np.testing.assert_allclose(tavg_accLLR/50, np.cumsum(expected_LLR))
+        self.assertAlmostEqual(tavg_time, 3)
+        np.testing.assert_allclose(accLLR, expected_accLLR_array)
+        np.testing.assert_allclose(time, np.ones(50)*3)
+
+        # LFP data 
+        cond1_train = np.array((0,0,0,1,2,3))
+        cond2_train = np.array((0,0,0,0,0,0))
+        
+        cond1_test = np.array((0,0,0,1,2,3))
+        samplerate = 1
+
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=1./samplerate, thresh_proportion=0.15, trial_average=False)
+        denom = 2*np.var(cond1_test)
+        np.testing.assert_allclose(accLLR, np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))).reshape(-1,1))
+        self.assertAlmostEqual(time, 4)
+
+        # Multitrial LFP data
+        cond1_test = np.tile(cond1_test, (50,1)).T
+        
+        tavg_accLLR, tavg_time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=binwdith, thresh_proportion=0.15, trial_average=True)
+        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
+        expected_accLLR_array = np.tile(np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))), (50,1)).T
+        
+        np.testing.assert_allclose(tavg_accLLR/50, np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))))
+        self.assertAlmostEqual(tavg_time, 4)
+        np.testing.assert_allclose(accLLR, expected_accLLR_array)
+        np.testing.assert_allclose(time, np.ones(50)*4)
+
+    def test_calc_accLLR_threshold(self):
+        # LFP data 
+        ntrials = 50
+        altcond_train = np.array((0,0,0,1,2,3))
+        nullcond_train = np.array((0,0,0,0,0,0))
+        
+        np.random.seed(0)
+        nullcond_test = np.random.normal(0, 1, size=(len(nullcond_train), ntrials))
+        
+        # nullcond_test = np.array((0,0,0,0,0,0))
+        # nullcond_test = np.tile(nullcond_test, (50, 1)).T
+
+        samplerate = 1
+        best_tp, tp, fa = aopy.analysis.calc_accLLR_threshold(altcond_train, nullcond_train, altcond_train, nullcond_test, modality='lfp', bin_width=1./samplerate, thresh_step_size=0.01, false_alarm_prob=0.05)
+        plt.plot(tp, fa)
+        plt.xlabel('Thresh proportion')
+        plt.ylabel('False Alarm Prop')
+        filename = 'accllr_thresh_prop.png'
+        aopy.visualization.savefig(write_dir, filename)
+
+    def test_match_selectivity_accLLR(self):
+        # LFP data 
+        ntrials = 50
+        nch = 2
+        train_data_altcond = np.array([((0,0,0,1,2,3),), ((0,0,0,0.5,1,1.5),)])
+        train_data_nullcond = np.array([((0,0,0,0,0,0),), ((0,0,0,0,0,0),)])
+        train_data_altcond = np.swapaxes(train_data_altcond, 0, 2)
+        train_data_nullcond = np.swapaxes(train_data_nullcond, 0, 2)
+        train_data_altcond = np.swapaxes(train_data_altcond, 1, 2)
+        train_data_nullcond = np.swapaxes(train_data_nullcond, 1, 2)
+
+        print(train_data_altcond.shape)
+        print(train_data_nullcond.shape)
+
+        np.random.seed(0)
+        test_data_altcond = np.random.normal(0, 1, size=(len(train_data_altcond), nch, ntrials))
+
+        test_data_altcond_ = test_data_altcond.copy()
+
+        print(test_data_altcond.shape)
+        
+        # nullcond_test = np.array((0,0,0,0,0,0))
+        # nullcond_test = np.tile(nullcond_test, (50, 1)).T
+
+        samplerate = 1
+        noisy_data_altcond = aopy.analysis.match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, 'lfp', bin_width=1./samplerate, thresh_proportion=0.15)
+        
+        # One channel should remain the same pre- and post- selectivity matching,
+        # while the other channel should have added noise.
+        plt.figure()
+        plt.plot(test_data_altcond_[:,0,0], 'r', label='before matching ch 1')
+        plt.plot(test_data_altcond_[:,1,0], 'b', label='before matching ch 2')
+        plt.plot(noisy_data_altcond[:,0,0], 'g--', label='after matching ch 1')
+        plt.plot(noisy_data_altcond[:,1,0], 'c--', label='after matching ch 2')
+        plt.legend()
+        filename = 'match_selectivity_accllr.png'
+        aopy.visualization.savefig(write_dir, filename)
+
+    def test_calc_accLLR_wrapper(self):
+        npts = 100
+        nch = 50
+        ntrials = 30
+        onset_idx = 50
+        altcond = np.zeros(npts)
+        altcond[onset_idx:] = np.arange(npts-onset_idx)
+        altcond = np.repeat(np.tile(altcond, (nch,1)).T[:,:,None], ntrials, axis=2)
+        np.random.seed(0)
+        nullcond = np.random.normal(0,5,size=altcond.shape)
+
+        # Test wrapper with LFP data and no selectivity matching and trial_average=True
+        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, match_selectivity=False)
+    
+        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
+        self.assertTrue(np.sum(mask) == nch)
+
+        # Test wrapper with LFP data and no selectivity matching and trial_average=False
+        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, trial_average=False, match_selectivity=False)
+
+        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
+        self.assertTrue(np.sum(mask) == sTime_alt.shape[0]*sTime_alt.shape[1])
+        
+        # Test wrapper with LFP data and yes selectivity matching and trial_average=True
+        diff_selective_signal_len = 20
+        altcond[:,2,1:3] = 0 # Make the signal less selective by making some trials 0
+        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, match_selectivity=True)
+        print(sTime_alt)
+        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
+
+        # Test wrapper with spike data and selectivity matching trial_average=False
+        np.random.seed(0)
+        altcond = np.random.binomial(1,0.05,size=(npts,nch, ntrials))
+        start_idx = npts//2
+        altcond[start_idx:,:,:] = 1
+        np.random.seed(1)
+        nullcond = np.random.binomial(1,0.05,size=altcond.shape)
+
+        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'spikes', 1, match_selectivity=False)
+        mask = np.logical_and(sTime_alt > 45, sTime_alt < 55)
+        self.assertTrue(np.sum(mask) == nch)
+
+        # Test wrapper with spike data and no selectivity matching and trial_average=False
+        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'spikes', 1, trial_average=False, match_selectivity=False)
+        mask = np.logical_and(sTime_alt > 45, sTime_alt < 55)
+        self.assertTrue(np.sum(mask) > nch*sTime_alt.shape[1]*0.66) # Since this is noisy data on a trial by trial basis the selection time will be noisy
+
+        # selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2 = aopy.analysis.accLLR_wrapper(cond1, cond2, 'lfp', 1.)
+        # print(selection_time_cond1)
+        # print(selection_time_cond2)
+        # print(accllr_cond1.shape)
+        # print(accllr_cond2.shape)
+
+    # def test_accLLR_real_data(self):
+    #     data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
+    #     cond1 = data['cond1']
+    #     cond2 = data['cond2']
+    #     samplerate = data['samplerate']
+
+
 class SpectrumTests(unittest.TestCase):
 
     def setUp(self):
@@ -498,6 +673,7 @@ class SpectrumTests(unittest.TestCase):
         )
         self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
         self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
+
 
 if __name__ == "__main__":
     unittest.main()

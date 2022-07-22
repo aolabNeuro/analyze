@@ -19,8 +19,6 @@ from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 import nitime.algorithms as tsa
-
-import warnings
 from . import preproc
 from . import utils
 
@@ -1308,6 +1306,395 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
     linear_fit = reg_fit.coef_[0][0]*xdata.flatten() + reg_fit.intercept_
 
     return linear_fit, linear_fit_score, pcc_all[0], pcc_all[1], reg_fit
+
+
+def calc_activity_onset_accLLR(data, altcond, nullcond, modality, bin_width, thresh_proportion=0.15, max_accLLR=None, trial_average=True):
+    '''
+    This function calculates the accumulated log-likelihood ratio (AccLLR) that the input data matches the timeseries input as condition 1 or condition 2. 
+    This approach was designed to work on a trial-by-trial basis and determine if the input data matches a condition and arrival time of the difference. Therefore, AccLLR can also be used to determine the arrival time of neural activity.
+    Positive values of AccLLR correspond to the data better matching condition 1. Negative values of AccLLR correspond to the data better matching condition 2.
+    AccLLR for spikes assumes Poisson firing statistics, and AccLLR for LFP assumes Gaussian activity. Based on Banerjee et al. 2010, more paper informtion listed below.
+    Increasing the proportion of AccLLR maximum used for classification results in more conservative and accurate classification results
+    but leads to longer delays in seletion time and more trials that are unclassfied. 
+    If multiple trials are input, use the trial averaging approach outlined in the paper where the LLR is calculated and summed at each time point accross trials.
+    
+    Since spikes assume Poisson firing statistics, input spiking data must be binary. However, the null and alternative condition must be float arrays. 
+    
+    Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
+    https://pubmed.ncbi.nlm.nih.gov/20884767/
+
+    If modality is 'lfp' use the following log-likelihood ratio equation. (Equation (3) in the paper):
+    
+    .. math::
+    
+        LL(t)=log \\frac{P[x(t)-\mu_1(t)|\sigma^2]}{P[x(t)-\mu_2(t)|\sigma^2]}
+        
+    If modality is 'spikes' use the following log-likelihood ratio equation. (Equation (5) in the paper):
+    
+    .. math::
+    
+        LL(t)=log \\frac{P[dN(t))|\lambda_1(t)]}{P[dN(t))|\lambda_2(t)]}
+    
+    Args:
+        data (npts, ntrial): Input data to compare to each condition
+        altcond (npts): neural activity series of interest (condition 1)
+        nullcond (npts): neural activity during a baseline period for comparison (condition 2)
+        modality (str): Either 'lfp' or 'spikes'. 'lfp' uses a Gaussian distribution assumption and 'spikes' uses a Poisson distribution assumption
+        bin_width (float): Bin width of input activity
+        thresh_proportion (float): Proportion of maximum AccLLR where the threshold is set to classify trials as condition 1 or condition 2. 
+        max_accLLR (float): 
+        trial_average (bool, optional): Flag to do a trial average calculation (default) or just a single trial at a time
+
+    Returns: 
+        If trial_average, a tuple containing:
+            | **accLLR (npts, ntrials):** AccLLR time series
+            | **selection_time (ntrials):** Time where AccLLR crosses the threshold
+
+        Otherwise, a tuple containing:
+            | **accLLR (npts, ntr):** AccLLR time series on each trial
+            | **selection_time (ntr):** Time where AccLLR crosses the threshold on each trial
+    '''
+    # Ensure data is 2D
+    if len(data.shape) == 1:
+        data = data[:,None]
+    npts = data.shape[0]
+    ntrials = data.shape[1]
+    if trial_average:
+        LLR = np.zeros(npts)*np.nan # LLR at exact time points
+    else:
+        LLR = np.zeros((npts, ntrials))*np.nan
+    
+    if modality == 'spikes':
+        # If modality is spikes, ensure data is binary (all 0's and 1's)
+        binary_spike_mask = np.logical_and(~np.isclose(data, 0), ~np.isclose(data,1))
+        if np.sum(binary_spike_mask) > 0:
+            warnings.warn('Input spiking activity is not binary (all 0s and 1s)')
+
+        # Calculate AccLLR across all trials at each point
+        for ipt in range(npts):
+            temp_LLR = np.zeros(ntrials)*np.nan
+            for itrial in range(ntrials):
+                temp_LLR[itrial] = (nullcond[ipt] - altcond[ipt])*bin_width + data[ipt, itrial]*np.log(altcond[ipt]/nullcond[ipt])
+
+            if trial_average:
+                LLR[ipt] = np.nansum(temp_LLR)
+            else:
+                LLR[ipt,:] = temp_LLR
+        
+    
+    elif modality == 'lfp':
+    
+        # Calculate AccLLR parameters
+        sigma_sq = np.var(data, axis=0)
+
+        # Calculate AccLLR across all trials at each point
+        for ipt in range(npts):
+            temp_LLR = np.zeros(ntrials)*np.nan
+            for itrial in range(ntrials):                
+                temp_LLR[itrial] = (((data[ipt, itrial]-nullcond[ipt])**2) - ((data[ipt, itrial]-altcond[ipt])**2))/(2*sigma_sq[itrial])
+            
+            if trial_average:
+                LLR[ipt] = np.nansum(temp_LLR)
+            else:
+                LLR[ipt,:] = temp_LLR
+
+    else:
+        warnings.warn('Please input a valid modality')
+    
+    
+    accLLR = np.nancumsum(LLR, axis=0)
+
+    if max_accLLR is None:
+        max_accLLR = np.max(np.abs(accLLR), axis=0)
+
+    thresh_val = thresh_proportion*max_accLLR
+    above_thresh = np.abs(accLLR) > thresh_val
+
+    if trial_average:
+        selection_time = np.nan
+        if above_thresh.any():
+            selection_time = np.where(above_thresh)[0][0]*bin_width
+
+    else:
+        selection_time = np.zeros(ntrials)*np.nan
+        for tr_idx in range(ntrials):
+            if above_thresh[:,tr_idx].any():
+                selection_time[tr_idx] = np.where(above_thresh[:,tr_idx])[0][0]*bin_width
+
+    return accLLR, selection_time
+
+def calc_accLLR_threshold(altcond_train, nullcond_train, altcond_test, nullcond_test, modality, bin_width, thresh_step_size=0.01, false_alarm_prob=0.05):
+    '''
+    Sweeps the AccLLR method over the thresh_proportion parameter, estimates false alarm rates, 
+    and then choose a value for thresh_proportion that gives us the desired false alarm rate.
+    
+    Estimate the false alarm probability in the accLLR method by the proportion of 
+    trials from condition 2 whose AccLLR hit the upper detection threshold within the maximum 
+    accumulation time. 
+
+    Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
+    https://pubmed.ncbi.nlm.nih.gov/20884767/
+
+    Args:
+        altcond_train (npts): training timeseries from condition 1
+        nullcond_train (npts): training timeseries from condition 2
+        nullcond_test (npts, ntr): test trials from condition 2
+        modality (str): Either 'lfp' or 'spikes'. 'lfp' uses a Gaussian distribution assumption and 'spikes' uses a Poisson distribution assumption
+        bin_width (float): Bin width of input activity
+        thresh_step_size (float, optional): Size of the steps in the sweep of the threshold proportion parameter. Defaults to 0.01.
+        false_alarm_prob (float, optional): Desired false alarm probability. Defaults to 0.05.
+
+    Returns:
+        (tuple): Tuple containing:
+            | **best_tp (float):** threshold proportion that yields the desired false alarm probability, or np.nan
+            | **thresh_props (nsteps):** threshold proportions used for each false alarm rate calculation
+            | **fa_rates (nsteps):** false alarm rates at each threshold proportion
+    '''
+    npts = altcond_train.shape[0]
+    ntrials = nullcond_test.shape[1]
+
+    # Get max accLLR value for threshold calculation by calculating the max accLLR with the training data
+    accLLR, _ = calc_activity_onset_accLLR(altcond_test, altcond_train, nullcond_train, modality=modality, bin_width=bin_width)
+    max_accLLR = np.max(accLLR)
+    
+    thresh_props = np.arange(thresh_step_size, 1, thresh_step_size)
+    fa_rates = []    
+    for tp in thresh_props:
+        accLLR, selection_time_idx = calc_activity_onset_accLLR(nullcond_test, altcond_train, nullcond_train, modality, bin_width, thresh_proportion=tp, max_accLLR=max_accLLR, trial_average=False) 
+        accLLR_altcond_within_time = np.sum(np.logical_and(accLLR > 0, selection_time_idx < npts), axis=0)
+        n_accllr_altcond_within_time = np.count_nonzero(accLLR_altcond_within_time)
+        false_alarms = n_accllr_altcond_within_time / ntrials
+        fa_rates.append(false_alarms)
+    fa_rates = np.array(fa_rates)
+    fa_rates_above_desired = thresh_props[fa_rates > false_alarm_prob]
+    best_tp = np.nan
+    if any(fa_rates_above_desired):
+        best_tp = fa_rates_above_desired[0]
+    return best_tp, thresh_props, fa_rates
+
+
+def accLLR_wrapper(data_altcond, data_nullcond, modality, bin_width, train_prop_input=0.7, thresh_step_size=0.01, false_alarm_prob=0.05, trial_average=True, match_selectivity=True):
+    '''
+    See the function analysis.calc_activity_onset_accLLR for specifics about the computation performed in this wrapper. This function is intended to compare a time-series of alternative and null conditions
+    to determine when the alternative condition deviates from the null condition. This function assumes it is known that the alternative condition deviates from the null condition. It is recommended that 
+    other methods are implemented to determine if a candidate alternative condition dataset is significantly different from the null condition dataset (i.e. t-test).
+
+    Computations performed in this wrapper:
+    1. Separates data into 'model building' (training + validate) and testing groups by trials 
+        Assumes model building dataset is split into a 70/30 split
+    2. Calculates accLLR threshold on training and test data (analysis.calc_accLLR_threshold)
+    3. (optional) Match signal selectivity. Has only been implemented for lfp data. (analysis.match_selectivity_accLLR)
+    4. Implements accLLR on test data. (analysis.calc_activity_onset_accLLR)
+    
+    Example data allocation breakdown by trial (train_prop_input = 0.7)
+    40% is used to train threshold proportion (train)
+    30% is used to validate threshold proportion (test)
+    30% is used to calculate selection time (validate)
+
+    Selection time is max time if alternative condition is not reached.
+
+
+    Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8.
+    https://pubmed.ncbi.nlm.nih.gov/20884767/
+
+    Args:
+        data_altcond (npts, nch, ntrials): Data from alternative condition.
+        data_nullcond (npts, nch, ntrials): Data from null condition to compare the alternative condition to.
+        modality (str): either 'spikes' or 'lfp'
+        train_prop_input (float): proportion of trials to build the model with
+        
+    Returns:
+        (tuple): Tuple containing:
+            | **accllr_altcond (nt, nch, ntrials):** Time series of accllr for each channel. If trial_average=True the output will have the shape (nt, nch)
+            | **selection_time_altcond (nch, ntrials):** Selection time of the alternative condition.  If trial_average=True the output will have the shape (nt, nch)
+    '''
+    nt = data_altcond.shape[0]
+    nch = data_altcond.shape[1]
+    ntrials = data_altcond.shape[2]
+
+    # Split into model building (train, validate) and testing data sets (outputs (ntrial, npt) datasets)
+    # test_data_altcond, build_data_altcond, test_data_nullcond, build_data_nullcond = model_selection.train_test_split(data_altcond.T, data_nullcond.T, test_size=train_prop_input)
+    ntrain_trials = int(np.ceil(ntrials*train_prop_input*0.7))
+    nvalid_trials = int(np.ceil(ntrials*train_prop_input*0.3))
+    ntest_trials = ntrials - ntrain_trials - nvalid_trials
+
+    trialidx = np.arange(ntrials)
+    train_trialidx = np.random.choice(trialidx, size=ntrain_trials, replace=False)
+    valid_trialidx = np.random.choice(trialidx[~np.in1d(trialidx, train_trialidx)], size=nvalid_trials, replace=False)
+    test_trialidx = trialidx[~np.in1d(trialidx, np.concatenate((train_trialidx, valid_trialidx)))]
+
+    # (nt, nch, ntrials)
+    train_data_altcond = data_altcond[:,:,train_trialidx]
+    train_data_nullcond = data_nullcond[:,:,train_trialidx]
+    valid_data_altcond = data_altcond[:,:,valid_trialidx]
+    valid_data_nullcond = data_nullcond[:,:,valid_trialidx]
+    test_data_altcond = data_altcond[:,:,test_trialidx]
+    test_data_nullcond = data_nullcond[:,:,test_trialidx]
+
+    # Smooth spike events by convolving with a 5ms Gaussian
+    if modality == 'spikes':
+        gaus_sigma = 5
+        time_axis = np.arange(-3*gaus_sigma, 3*gaus_sigma+1) # Constrain filter to +/-3std
+        gaus_filter = (1/(gaus_sigma*np.sqrt(2*np.pi)))*np.exp(-0.5*(time_axis**2)/(gaus_sigma**2))
+
+        train_data_altcond = scipy.ndimage.convolve1d(train_data_altcond, gaus_filter, output=float, mode='reflect', axis=0)
+        train_data_nullcond = scipy.ndimage.convolve1d(train_data_nullcond, gaus_filter, output=float, mode='reflect', axis=0)
+
+    # Input train and validate data to calculate acclllr threshold (transpose data back to input into accllr functions)
+    accllr_thresh = np.zeros(nch)*np.nan
+    for ich in range(nch):
+        accllr_thresh[ich], thresh_props, fa_rates = calc_accLLR_threshold(np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), valid_data_altcond[:,ich,:], valid_data_nullcond[:,ich,:], modality, bin_width, thresh_step_size=thresh_step_size, false_alarm_prob=false_alarm_prob)
+
+    if match_selectivity:
+        if modality == 'lfp':
+            test_data_altcond = match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, accllr_thresh)
+        else:
+            print('Sorry! Matching signal selectivity for spiking data has not been implemented. Results will be without matching.')
+
+    # Use the calculated threshold to run accllr on the test datasets
+    if trial_average:
+        selection_time_altcond = np.zeros((nch))*np.nan
+        accllr_altcond = np.zeros((nt,nch))*np.nan
+    else:
+        selection_time_altcond = np.zeros((nch, ntest_trials))*np.nan
+        accllr_altcond = np.zeros((nt,nch, ntest_trials))*np.nan
+
+    for ich in range(nch):
+        accllr_altcond_temp, selection_time_altcond_temp = calc_activity_onset_accLLR(test_data_altcond[:,ich,:], np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), modality, bin_width, thresh_proportion=accllr_thresh[ich], trial_average=trial_average)
+        if trial_average:
+            accllr_altcond[:,ich] = accllr_altcond_temp
+            selection_time_altcond[ich] = selection_time_altcond_temp
+        else:
+            accllr_altcond[:,ich,:] = accllr_altcond_temp
+            selection_time_altcond[ich,:] = selection_time_altcond_temp
+        
+    return selection_time_altcond, accllr_altcond
+
+
+def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, modality, bin_width, thresh_proportion):
+    '''
+    Calculates the ROC curve for each channel and adds noise to keep signal selectivity constant across all channel
+
+    Args:
+        test_data_altcond (npts, nch, ntrials):
+        train_data_altcond (npts, nch, ntrials):
+        modality (str): either 'spikes' or 'lfp'
+        train_prop_input (float): proportion of trials to build the model with
+
+    Returns:
+        (npts, nch, ntrials): test_data_altcond with added noise to match selectivity across channels
+
+    '''
+    nt = test_data_altcond.shape[0]
+    nch = test_data_altcond.shape[1]
+    ntrials = test_data_altcond.shape[2]
+
+    # Calculate choice probability at final time point to determine selectivity 
+    choice_probability = np.zeros((nch))*np.nan
+    for ich in range(nch):
+        temp_accllr, _ = calc_activity_onset_accLLR(test_data_altcond[:,ich,:], np.mean(train_data_altcond[:,ich,:], axis=1), np.mean(train_data_nullcond[:,ich,:],axis=1), modality, bin_width, trial_average=False) #[nt, ntrial]
+        choice_probability[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
+
+
+    # Find channel with the lowest choice probability to initialize
+    match_ch_idx = np.zeros(nch, dtype=bool)
+    match_ch_idx[choice_probability == np.min(choice_probability)] = True
+    match_ch_prob = np.min(choice_probability)
+
+    # If all signals are similarly selective, return input array
+    if np.sum(match_ch_idx) == nch:
+        return test_data_altcond
+
+    # Match selectivity of all channels to the channel with the lowest selectivity
+    if modality == 'spikes':
+
+        timebin_size = 5 # Use a 5ms bin to manipulate spiking
+        ntimebin = nt//timebin_size 
+        noisy_test_data = test_data_altcond
+
+        while np.sum(match_ch_idx) < nch:
+            spike_move_prob_step = 0.01
+            spike_move_prob = spike_move_prob_step
+
+            for ich in range(nch):
+                for ibin in range(ntimebin):
+                    tstartidx = ibin*timebin_size
+                    tstopidx = tstartidx + timebin_size
+                    new_spikes = test_data_altcond[tstartidx:tstopidx,ich,:] #(ntimebin, ntrials)
+                    spike_trials = np.sum(new_spikes, axis=0) > 0                
+
+                    # use spike_move_prob to get the trials to delete a spike from
+                    trials_to_delete_spikes = np.random.uniform(0,1,size=ntrials) < spike_move_prob # may not be necessary
+                    trialidx_to_delete_spikes = np.where(trials_to_delete_spikes)[0]
+
+                    # For each trial with a spike to delete, randomly select which spike to delete and add to a remaining trial
+                    #TODO - not sure if it is correct to randomly select a spike to delete
+                    #TODO - not sure if it is correct to remove all spikes and then add to the same array after
+                    #TODO - not sure what to do if there are more spikes removed than available places to put them
+                    if np.sum(trials_to_delete_spikes)>0:
+                        for trialidx in trialidx_to_delete_spikes:
+                            spike_bin_idx = np.where(new_spikes[:, trialidx] > 0)[0]
+                            spike_bin_idx_remove = np.random.choice(spike_bin_idx)
+                            new_spikes[spike_bin_idx_remove,trialidx] = 0 
+
+                        # Find a remaining spike with followed by a quiet period of 3ms and add a spike 2ms after it
+                        nspikes_placed = 0 # Counter for the number of spikes placed
+                        for itrial in enumerate(ntrials):
+                            if nspikes_placed < len(trialidx_to_delete_spikes):
+                                # determine if there is a spike followed by a quiet period of 3ms in this trial
+                                spike_idx = np.where(new_spikes[:,itrial])[0]
+                                valid_first_spike = len(spike_idx) > 0 and np.max(spike_idx) < 2
+                                if valid_first_spike:                            
+                                    quiet_after_spike = new_spikes[np.max(spike_idx)+1,itrial] == 0 and new_spikes[np.max(spike_idx)+2,itrial] == 0 and new_spikes[np.max(spike_idx)+3,itrial] == 0
+                                else:
+                                    quiet_after_spike = False
+                                
+                                # If spike has 3ms quiet after, place spike
+                                if valid_first_spike and quiet_after_spike:
+                                    new_spikes[np.max(spike_idx)+2, itrial] = 1
+
+                    noisy_test_data[tstartidx,tstopidx,ich,:] = new_spikes
+
+            # Calculate choice probability 
+            unmatch_choice_prob = np.zeros(len(unmatch_chs_idx))*np.nan
+            for ich in range(len(unmatch_chs_idx)):
+                temp_accllr, _ = calc_activity_onset_accLLR(noisy_test_data, train_data_altcond, train_data_nullcond, modality, bin_width, trial_average=False) #[nt, ntrial]
+                unmatch_choice_prob[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
+
+            # Replace choice probabilities and get matched channels
+            choice_probability[unmatch_chs_idx] = unmatch_choice_prob
+
+            match_ch_idx = choice_probability <= match_ch_prob
+
+            spike_move_prob += spike_move_prob_step
+
+        return noisy_test_data
+
+    elif modality == 'lfp':
+        noise_sd_step = 1 # Standard deviation of noise - may want to pull this out
+        noise_sd = noise_sd_step
+        noisy_test_data = test_data_altcond
+        while np.sum(match_ch_idx) < nch:
+            # Add noise to non-matched channels
+            unmatch_chs_idx = np.arange(nch) #unmatched channel idx
+            unmatch_chs_idx = unmatch_chs_idx[~match_ch_idx]
+            # print('unmatch_ch_idx', unmatch_chs_idx, noise_sd)
+            noisy_test_data[:,unmatch_chs_idx,:] = test_data_altcond[:,unmatch_chs_idx,:] + np.random.normal(0,noise_sd, size=(nt,len(unmatch_chs_idx), ntrials))
+
+            # Calculate choice probability 
+            unmatch_choice_prob = np.zeros(len(unmatch_chs_idx))*np.nan
+            for ich in range(len(unmatch_chs_idx)):
+                temp_accllr, _ = calc_activity_onset_accLLR(noisy_test_data[:,ich,:], np.mean(train_data_altcond[:,ich,:],axis=1), np.mean(train_data_nullcond[:,ich,:], axis=1), modality, bin_width, trial_average=False) #[nt, ntrial]
+                unmatch_choice_prob[ich] = np.sum(temp_accllr[-1,:] > 0)/ntrials # Find proportion of trials more selective for the alternative condition.
+
+            # Replace choice probabilities and get matched channels
+            choice_probability[unmatch_chs_idx] = unmatch_choice_prob
+
+            match_ch_idx = choice_probability <= match_ch_prob
+
+            noise_sd += noise_sd_step
+
+        return noisy_test_data
 
 ######### Spectral Estimation and Analysis ############
 
