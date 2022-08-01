@@ -401,6 +401,11 @@ class CalcTests(unittest.TestCase):
         self.assertTrue(max_erp[0] == 0) 
         self.assertTrue(max_erp[1] == 0)
 
+        # Test without trial averaging
+        max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate, trial_average=False)
+        self.assertEqual(max_erp.shape[0], len(event_times)) 
+        self.assertEqual(max_erp.shape[1], nch) 
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):
