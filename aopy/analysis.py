@@ -1566,11 +1566,11 @@ def compute_path_length_per_trial(trajectory):
 
 def time_to_target(event_codes, event_times, target_codes = list(range(81, 89)) , go_cue_code= 32 , reward_code = 48, per_target_stats=False):
     '''
-    This function calculates reach time to target only on rewarded trials given event codes and event times.
+    This function calculates reach time to target only on rewarded trials given trial aligned event codes and event times See: :func:`aopy.preproc.base.get_trial_segments_and_times` .
 
     Args:
-        event_codes (list) : event codes
-        event_times (list) : event times corresponding to the event codes. These event codes and event times could be the output of preproc.base.get_trial_segments_and_times()
+        event_codes (list) : trial aligned event codes
+        event_times (list) : trial aligned event times corresponding to the event codes. These event codes and event times could be the output of preproc.base.get_trial_segments_and_times()
         target_codes (list) : list of event codes for cursor entering peripheral target 
         go_cue_code (int) : event code for go cue 
         reward_code (int) : event code for reward 
