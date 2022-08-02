@@ -1571,7 +1571,7 @@ def time_to_target(event_codes, event_times, per_target_stats=False):
     Args:
         event_codes (list) : event codes
         event_times (list) : event times corresponding to the event codes. These event codes and event times could be the output of preproc.base.get_trial_segments_and_times().
-         get_stats_per_target (bool): optional, use if you want to calculate reach time per target
+        per_target_stats (bool): optional, use if you want to calculate reach time per target
 
     Returns:
         reach_times (list):
@@ -1580,24 +1580,24 @@ def time_to_target(event_codes, event_times, per_target_stats=False):
     CURSOR_ENTER_PERIPHERAL_TARGET = list(range(81, 89))
     CENTER_TARGET_OFF = 32
     REWARD = 48
-    tr_e = np.array([event_codes[iTr] for iTr in range(len(event_times)) if REWARD in event_codes[iTr]])
-    tr_t = np.array([event_times[iTr] for iTr in range(len(event_times)) if REWARD in event_codes[iTr]])
-    leave_center_idx = np.argwhere(tr_e == CENTER_TARGET_OFF)[0, 1]
+    tr_events = np.array([event_codes[iTr] for iTr in range(len(event_times)) if REWARD in event_codes[iTr]])
+    tr_eventtimes = np.array([event_times[iTr] for iTr in range(len(event_times)) if REWARD in event_codes[iTr]])
+    leave_center_idx = np.argwhere(tr_events == CENTER_TARGET_OFF)[0, 1]
 
-    reach_target_idx = np.argwhere(np.isin(tr_e[0], CURSOR_ENTER_PERIPHERAL_TARGET))[0][0]
+    reach_target_idx = np.argwhere(np.isin(tr_events[0], CURSOR_ENTER_PERIPHERAL_TARGET))[0][0]
 
-    rt = tr_t[:, reach_target_idx] - tr_t[:, leave_center_idx]
+    reachtime = tr_eventtimes[:, reach_target_idx] - tr_eventtimes[:, leave_center_idx]
 
     # mean reach time per target
     if per_target_stats:
-        rt_pertarget = []
+        reachtime_pertarget = []
         trial_id = []
-        target_dir = tr_e[:, reach_target_idx]
+        target_dir = tr_events[:, reach_target_idx]
 
         for iT in np.unique(target_dir):
             dir_idx = np.where(target_dir == iT)[0]
-            rt_pertarget.append(rt[dir_idx])
+            reachtime_pertarget.append(reachtime[dir_idx])
             trial_id.append(dir_idx)
-        return rt, (rt_pertarget, trial_id)
+        return reachtime, (reachtime_pertarget, trial_id)
     else:
-        return rt
+        return reachtime
