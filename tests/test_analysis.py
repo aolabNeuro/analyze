@@ -671,8 +671,8 @@ class SpectrumTests(unittest.TestCase):
         f_sg, t_sg, sgram = aopy.analysis.get_sgram_multitaper(
             self.x2, self.fs, self.win_t, self.step_t, self.bw
         )
-        self.assertSequenceEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
-        self.assertSequenceEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
+        self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
+        self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
 
 class BehaviorMetricsTests(unittest.TestCase):
 
@@ -686,16 +686,23 @@ class BehaviorMetricsTests(unittest.TestCase):
                    [80, 23, 32, 87, 48] ,
                    [80, 19, 32, 83, 48] ,
                    [80, 18, 32, 82, 48],
-                   [80, 22, 32, 86, 48]]
+                   [80, 22, 32, 86, 128]]
         times = [[ 74.24136, 74.34564, 74.35452, 75.66248, 75.79012],
                  [ 97.60504, 97.71632, 97.7248, 104.51936, 104.64524],
                  [115.58016, 115.69028, 115.69876, 118.10176, 118.23136],
                  [135.21964, 135.3316, 135.34012, 139.52308, 139.65272],
                  [144.41804, 144.53228, 144.54104, 149.33288, 149.4624 ]]
-        rt, rt_pertarget = aopy.analysis.time_to_target(events, times, True)
+        rt, rt_pertarget = aopy.analysis.time_to_target(events, times, per_target_stats=True)
+        self.assertCountEqual(np.round(rt,2), [1.31, 6.79, 2.4  , 4.18])
+        self.assertCountEqual(np.round(np.squeeze(rt_pertarget[0]),2), [1.31, 4.18, 2.4, 6.79])
+        self.assertCountEqual(np.squeeze(rt_pertarget[1]), [0, 3, 2, 1])
+
+        # Check without filtering rewarded trials
+        rt, rt_pertarget = aopy.analysis.time_to_target(events, times, only_rewarded_trials=False, per_target_stats=True)
         self.assertCountEqual(np.round(rt,2), [1.31, 6.79, 2.4  , 4.18, 4.79])
         self.assertCountEqual(np.round(np.squeeze(rt_pertarget[0]),2), [1.31, 4.18, 2.4, 4.79, 6.79])
         self.assertCountEqual(np.squeeze(rt_pertarget[1]), [0, 3, 2, 4, 1])
+
 
 if __name__ == "__main__":
     unittest.main()

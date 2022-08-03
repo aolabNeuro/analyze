@@ -1564,7 +1564,7 @@ def compute_path_length_per_trial(trajectory):
     return path_length
 
 
-def time_to_target(event_codes, event_times, target_codes = list(range(81, 89)) , go_cue_code= 32 , reward_code = 48, per_target_stats=False):
+def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , go_cue_code=32 , reward_code=48, only_rewarded_trials=True, per_target_stats=False):
     '''
     This function calculates reach time to target only on rewarded trials given trial aligned event codes and event times See: :func:`aopy.preproc.base.get_trial_segments_and_times` .
 
@@ -1574,25 +1574,27 @@ def time_to_target(event_codes, event_times, target_codes = list(range(81, 89)) 
         target_codes (list) : list of event codes for cursor entering peripheral target 
         go_cue_code (int) : event code for go cue 
         reward_code (int) : event code for reward 
-        per_target_stats (bool): optional, use if you want to calculate reach time per target
+        only_rewarded_trials (bool, optional): only include trials with a reward code
+        per_target_stats (bool, optional): use if you want to calculate reach time per target
 
     Returns:
         reach_times (list):
         reach_times_per_target(list of lists) : optional if per_target_stats == True
     '''
-    tr_events = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
-    tr_eventtimes = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
-    leave_center_idx = np.argwhere(tr_events == go_cue_code)[0, 1]
-
-    reach_target_idx = np.argwhere(np.isin(tr_events[0], target_codes))[0][0]
-
-    reachtime = tr_eventtimes[:, reach_target_idx] - tr_eventtimes[:, leave_center_idx]
+    event_times = np.array(event_times)
+    event_codes = np.array(event_codes)
+    if only_rewarded_trials:
+        event_times = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+        event_codes = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+    leave_center_idx = np.argwhere(event_codes == go_cue_code)[0, 1]
+    reach_target_idx = np.argwhere(np.isin(event_codes[0], target_codes))[0][0]
+    reachtime = event_times[:, reach_target_idx] - event_times[:, leave_center_idx]
 
     # mean reach time per target
     if per_target_stats:
         reachtime_pertarget = []
         trial_id = []
-        target_dir = tr_events[:, reach_target_idx]
+        target_dir = event_codes[:, reach_target_idx]
 
         for iT in np.unique(target_dir):
             dir_idx = np.where(target_dir == iT)[0]
