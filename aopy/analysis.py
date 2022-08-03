@@ -1551,10 +1551,10 @@ Behavioral metrics
 
 def compute_path_length_per_trial(trajectory):
     '''
-    This function calculates the path length by computing the distance from all points in the trajectory. It returns a single value for path length.
+    This function calculates the path length by computing the distance from all points for a single trajectory. The input trajectry could be cursor or eye trajectory from a single trial. It returns a single value for path length.
 
     Args:
-        trajectory (nt x 2): Input trajectory, could be a corsor trajectory or eye trajectory
+        trajectory (nt x 2): single trial trajectory, could be a cursor trajectory or eye trajectory
 
     Returns:
         path_length (float): length of the trajectory
