@@ -676,9 +676,9 @@ class SpectrumTests(unittest.TestCase):
 
 class BehaviorMetricsTests(unittest.TestCase):
 
-    def test_compute_path_length_per_trial(self):
+    def test_compute_path_length_per_trajectory(self):
         pts = [(0,0), (0,1), (3,1), (3,0)]
-        path_length = aopy.analysis.compute_path_length_per_trial(pts)
+        path_length = aopy.analysis.compute_path_length_per_trajectory(pts)
         self.assertEqual(path_length, 5.0)
 
     def test_time_to_target(self):

@@ -1549,7 +1549,7 @@ def interp_multichannel(x):
 Behavioral metrics 
 '''
 
-def compute_path_length_per_trial(trajectory):
+def compute_path_length_per_trajectory(trajectory):
     '''
     This function calculates the path length by computing the distance from all points for a single trajectory. The input trajectry could be cursor or eye trajectory from a single trial. It returns a single value for path length.
 
