@@ -1636,7 +1636,7 @@ def calc_segment_duration(events, event_times, start_events, end_events, per_tar
         target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)])
 
         for target_idx, iT in enumerate(np.unique(target_codes)):
-            per_target_duration.append(np.mean(segment_duration[target_codes == iT]))
+            per_target_duration.append(segment_duration[target_codes == iT])
             per_target_idx.append(target_idx)
         return segment_duration, (per_target_duration, per_target_idx)
     else:
