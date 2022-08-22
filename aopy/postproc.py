@@ -512,3 +512,21 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
         trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
         locations.append(trials['target'][trial_idx][[0,2,1]])
     return np.array(locations)
+
+def get_source_files(preproc_dir, subject, te_id, date):
+    '''
+    Retrieves the dictionary of source files from a preprocessed file
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+
+    Returns:
+        tuple: tuple containing:
+            |** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
+            |** data_dir (str):** directory where the source files were located
+    '''
+    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    return exp_metadata['source_files'], exp_metadata['source_dir']

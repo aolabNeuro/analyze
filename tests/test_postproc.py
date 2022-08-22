@@ -309,5 +309,16 @@ class TestGetFuncs(unittest.TestCase):
         locs = get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices)
         self.assertEqual(locs.shape, (9, 3))
 
+    def test_get_source_files(self):
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        preproc_dir = data_dir
+
+        files, raw_data_dir = get_source_files(preproc_dir, subject, te_id, date)
+        self.assertEqual(files['hdf'], 'hdf/beig20220701_04_te5974.hdf')
+        self.assertEqual(files['ecube'], 'ecube/2022-07-01_BMI3D_te5974')
+        self.assertEqual(raw_data_dir, '/data/raw')
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,13 +4,14 @@
 import warnings
 import numpy as np
 import numpy.lib.recfunctions as rfn
+import os
 
-from aopy import precondition
-
-from .base import get_measured_clock_timestamps, fill_missing_timestamps, interp_timestamps2timeseries
+from .. import precondition
 from .. import data as aodata
 from .. import utils
-import os
+from ..postproc import get_source_files
+from ..utils import detect_edges
+from .base import get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries
 
 def decode_event(dictionary, value):
     '''
@@ -254,7 +255,15 @@ def _parse_bmi3d_v1(data_dir, files):
         metadata_dict.update({
             'digital_samplerate': digital_samplerate,
             'analog_samplerate': analog_samplerate,
+            'analog_voltsperbit': metadata['voltsperbit']
         })
+
+        # Laser sensor (A2)
+        if 'qwalor_sensor_ach' in metadata_dict:
+            data_path = os.path.join(data_dir, files['ecube'])
+            laser_sensor_data = ecube_analog[:, metadata_dict['qwalor_sensor_ach']]
+            data_dict['laser_sensor'] = laser_sensor_data
+
     return data_dict, metadata_dict
 
 def _prepare_bmi3d_v1(data, metadata):
@@ -414,3 +423,92 @@ def _prepare_bmi3d_v1(data, metadata):
         'events': corrected_events,
     })
     return data, metadata
+
+def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_powers, sensor_data, samplerate, sensor_voltsperbit, 
+                          thr_volts=0.01, ds_fs=5000, search_radius=0.015, thr_width=0.001, thr_power=0.05):
+    '''_summary_
+
+    Args:
+        laser_event_times (_type_): _description_
+        laser_event_widths (_type_): _description_
+        laser_event_powers (_type_): _description_
+        sensor_data (_type_): _description_
+        samplerate (_type_): _description_
+        sensor_voltsperbit (_type_): _description_
+        thr_volts (float, optional): _description_. Defaults to 0.01.
+        ds_fs (int, optional): _description_. Defaults to 5000.
+        search_radius (float, optional): _description_. Defaults to 0.015.
+        thr_width (float, optional): _description_. Defaults to 0.001.
+        thr_power (float, optional): _description_. Defaults to 0.05.
+
+    Returns:
+        _type_: _description_
+    '''
+    
+    # Calculate timing using the laser sensor
+    ds_data = precondition.downsample(sensor_data, samplerate, ds_fs)
+    ds_data = ds_data - np.mean(ds_data)
+    threshold = thr_volts/sensor_voltsperbit
+    digital_data = ds_data > threshold
+    times, values = detect_edges(digital_data, ds_fs)
+    rising = times[values == 1]
+    falling = times[values == 0]
+    laser_sensor_times = rising
+    laser_sensor_widths = falling - rising
+    laser_on_times = np.mean([rising, falling], axis=0)
+    laser_on_samples = (laser_on_times * ds_fs).astype(int)
+    laser_sensor_powers = (ds_data[laser_on_samples])*sensor_voltsperbit
+    
+    # Normalize sensor power to the highest power, then multiply by the highest trial power
+    laser_sensor_powers /= np.max(laser_sensor_powers)
+    laser_sensor_powers *= np.max(laser_event_powers)
+
+    # Check that the sensor measurements make sense, otherwise return the sync event versions
+    corrected_times, corrected_idx = find_measured_event_times(laser_event_times, laser_sensor_times, search_radius, return_idx=True)
+    missing_times = np.isnan(corrected_times)
+    if np.any(missing_times):
+        warnings.warn(f"{np.count_nonzero(missing_times)} unmeasured laser timestamps")
+        corrected_times[missing_times] = laser_event_times[missing_times]
+                
+    corrected_widths = validate_measurements(laser_event_widths, laser_sensor_widths[corrected_idx], thr_width)
+    corrected_powers = validate_measurements(laser_event_powers, laser_sensor_powers[corrected_idx], thr_power)
+    return corrected_times, corrected_widths, corrected_powers
+
+def get_laser_trial_times(preproc_dir, subject, te_id, date):
+    '''_summary_
+
+    Args:
+        preproc_dir (_type_): _description_
+        subject (_type_): _description_
+        te_id (_type_): _description_
+        date (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    '''
+    
+    exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    
+    # Get the laser event timing from BMI3D's sync events
+    events = exp_data['sync_events']['event'] 
+    event_times = exp_data['sync_events']['timestamp']
+    times = event_times[events == b'TRIAL_START']
+
+    # Get width and power from the 'trials' data
+    trials = exp_data['bmi3d_trials']
+    powers = trials['power'][:len(times)]
+    edges = trials['edges'][:len(times)]
+    widths = [t[1] - t[0] for t in edges]
+
+    # Load the sensor data if it's not already in the bmi3d data
+    if 'laser_sensor' not in exp_data:
+        files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
+        exp_data, exp_metadata = parse_bmi3d(data_dir, files)
+
+    # Correct the event timings using the sensor data
+    sensor_data = exp_data['laser_sensor']
+    sensor_voltsperbit = exp_metadata['analog_voltsperbit']
+    samplerate = exp_metadata['analog_samplerate']
+    corrected_times, corrected_widths, corrected_powers = find_laser_stim_times(times, widths, powers, sensor_data, samplerate, sensor_voltsperbit)
+    return corrected_times, corrected_widths, corrected_powers
+                                                                                

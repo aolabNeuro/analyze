@@ -89,6 +89,13 @@ class DigitalCalcTests(unittest.TestCase):
         filled = fill_missing_timestamps(uncorrected_timestamps)
         self.assertCountEqual(expected, filled)
 
+    def test_validate_measurements(self):
+        expected_values = [1, 2, 3]
+        measured_values = [1.5, 2., 2]
+        diff_thr = 0.5
+        corrected_values = validate_measurements(expected_values, measured_values, diff_thr)
+        np.testing.assert_allclose(corrected_values, np.array([1.5, 2., 3.]))
+
     def test_interp_timestamps2timeseries(self):
         timestamps = np.array([1,2,3,4])
         timestamp_values = np.array([100,200,100,300])
@@ -909,6 +916,56 @@ class TestPrepareExperiment(unittest.TestCase):
         contents = get_hdf_dictionary(write_dir, result_filename)
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
+
+    def test_get_laser_trial_times(self):
+        time_before = 0.05
+        time_after = 0.05
+        subject = 'test'
+        te_id = 6581
+        date = '2022-08-19'
+        preproc_dir = data_dir
+
+        trial_times, trial_widths, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date)
+        
+        print(trial_powers)
+
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+        
+        # # Get the ecube data
+        # files = postproc.get_source_files(preproc_dir, subject, te_id, date)
+        # ecube_filename = os.path.basename(files['ecube'])
+        # hdf_filename = ecube_filename + '_preprocessed.hdf'
+        # hdf_filepath = os.path.join(preproc_dir, hdf_filename)
+        # data_path = os.path.join(data_dir, files['ecube'])
+        # analog_data = load_ecube_data(data_path, 'AnalogPanel', [exp_metadata['qwalor_sensor_ach']])
+        # analog_metadata = load_ecube_metadata(data_path, 'AnalogPanel')
+
+        # Plot lfp response
+        ch = 86
+        samplerate = lfp_metadata['lfp_samplerate']
+        erp = analysis.calc_erp(lfp_data, trial_times, time_before, time_after, samplerate)
+        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=0)
+        t = 1000*(np.arange(erp_voltage.shape[0])/samplerate - time_before)
+        ch_data = 1e6*lfp_metadata['voltsperbit']*erp_voltage[:,ch]
+        plt.figure()
+        plt.plot(t, ch_data)
+        plt.plot([0,0], [-3, 0], 'k--')
+        visualization.savefig(write_dir, 'lfp_aligned_laser.png')
+        
+        plt.figure()
+        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,:,ch].T, ylabel='trials')
+        im.set_clim(-100,100)
+        visualization.savefig(write_dir, 'lfp_aligned_laser_time.png')
+        
+        # plt.figure()
+        # print(f"downsampling from {analog_metadata['samplerate']} to {samplerate}")
+        # ds_data = precondition.downsample(analog_data, analog_metadata['samplerate'], samplerate)
+        # ds_data = ds_data - np.mean(ds_data)
+        # analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, samplerate)
+        # print(analog_erp.shape)
+        # im = visualization.plot_image_by_time(t, analog_metadata['voltsperbit']*analog_erp[:,:,0].T, ylabel='trials')
+        # im.set_clim(-0.1,0.1)
 
 class ProcTests(unittest.TestCase):
 
