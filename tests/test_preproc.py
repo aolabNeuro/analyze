@@ -925,24 +925,22 @@ class TestPrepareExperiment(unittest.TestCase):
         date = '2022-08-19'
         preproc_dir = data_dir
 
-        trial_times, trial_widths, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date)
+        # This preprocessed file doesn't contain laser sensor data so it will look for the raw data.
+        # Since the raw data isn't availble in this repo we should get an error. Unless you're running
+        # this test on the lab server...
+        self.assertRaises(FileNotFoundError, lambda: get_laser_trial_times(preproc_dir, subject, te_id, date))
         
+        # This other preprocessed file does contain laser sensor data. Response on ch. 36
+        te_id = 6577
+        trial_times, trial_widths, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date)
+
         print(trial_powers)
 
         exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
         
-        # # Get the ecube data
-        # files = postproc.get_source_files(preproc_dir, subject, te_id, date)
-        # ecube_filename = os.path.basename(files['ecube'])
-        # hdf_filename = ecube_filename + '_preprocessed.hdf'
-        # hdf_filepath = os.path.join(preproc_dir, hdf_filename)
-        # data_path = os.path.join(data_dir, files['ecube'])
-        # analog_data = load_ecube_data(data_path, 'AnalogPanel', [exp_metadata['qwalor_sensor_ach']])
-        # analog_metadata = load_ecube_metadata(data_path, 'AnalogPanel')
-
         # Plot lfp response
-        ch = 86
+        ch = 36
         samplerate = lfp_metadata['lfp_samplerate']
         erp = analysis.calc_erp(lfp_data, trial_times, time_before, time_after, samplerate)
         erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=0)
@@ -953,19 +951,33 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.plot([0,0], [-3, 0], 'k--')
         visualization.savefig(write_dir, 'lfp_aligned_laser.png')
         
+        # Also plot the individual trials
         plt.figure()
         im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,:,ch].T, ylabel='trials')
         im.set_clim(-100,100)
-        visualization.savefig(write_dir, 'lfp_aligned_laser_time.png')
+        visualization.savefig(img_dir, 'laser_aligned_lfp.png')
         
-        # plt.figure()
-        # print(f"downsampling from {analog_metadata['samplerate']} to {samplerate}")
-        # ds_data = precondition.downsample(analog_data, analog_metadata['samplerate'], samplerate)
-        # ds_data = ds_data - np.mean(ds_data)
-        # analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, samplerate)
-        # print(analog_erp.shape)
-        # im = visualization.plot_image_by_time(t, analog_metadata['voltsperbit']*analog_erp[:,:,0].T, ylabel='trials')
-        # im.set_clim(-0.1,0.1)
+        # And compare to the sensor data
+        sensor_data = exp_data['laser_sensor']
+        sensor_voltsperbit = exp_metadata['analog_voltsperbit']
+        samplerate = exp_metadata['analog_samplerate']
+
+        plt.figure()
+        ds_data = precondition.downsample(sensor_data, samplerate, 1000)
+        ds_data = ds_data - np.mean(ds_data)
+        analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
+        print(analog_erp.shape)
+        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
+        im.set_clim(-0.01,0.01)
+        visualization.savefig(img_dir, 'laser_aligned_sensor.png')
+
+        plt.figure()
+        plt.hist(trial_widths, 20)
+        visualization.savefig(write_dir, 'laser_widths.png') # Should be all 0.005 s
+
+        plt.figure()
+        plt.hist(trial_powers, 20)
+        visualization.savefig(write_dir, 'laser_powers.png') # Should be all 0.5
 
 class ProcTests(unittest.TestCase):
 
