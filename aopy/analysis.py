@@ -1405,18 +1405,18 @@ def classify_by_lda(X_train_lda, y_class_train,
                                  n_repeats=3, 
                                  random_state=1):
     """
-    train an linear discriminant model on the training data (X_train_lda) and their labels (y_class_train) with data spliting and
-    k-fold validation. 
+    Trains a linear discriminant model on the training data (X_train_lda) and their labels (y_class_train) with data spliting and
+    k-fold validation. Returns accuracy and variance based on how well the model is able to predict the left-out data.
 
     Args:
-        X_train_lda (n_classes, n_features)
-        y_class_train (n_classes)
+        X_train_lda (n_classes, n_features): 2d training data. first dimension is the number of examples, second dimension is the size of each example
+        y_class_train (n_classes): class to which each example belongs
         n_splits (int, optional): number of paritions to split data Defaults to 5.
         n_repeats (int, optional): number of repeated fitting Defaults to 3.
         random_state (int, optional): random state for data spliting Defaults to 1.
 
     Returns:
-        accuracy(float): mean accuracy of the repeated lda runs.
+        accuracy (float): mean accuracy of the repeated lda runs.
         std (float): standard deviation of the repeated lda runs.
     """
 
