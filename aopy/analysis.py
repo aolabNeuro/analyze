@@ -1604,40 +1604,28 @@ def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , 
     else:
         return reachtime
 
-def calc_segment_duration(events, event_times, start_events, end_events, per_target_stats=True, target_codes=list(range(81, 89)), trial_filter=lambda x:x):
+def calc_segment_duration(events, event_times, start_events, end_events, target_codes=list(range(81, 89)), trial_filter=lambda x:x):
     '''
-    Calculates the duration of a trial segment and optionally report duration per target.
+    Calculates the duration of trial segments.
 
     Args:
         events (nevents): events vector, can be codes, event names, anything to match
         event_times (nevents): time of events in 'events'
         start_events (int, str, or list, optional): set of start events to match
         end_events (int, str, or list, optional): set of end events to match
-        per_target_stats (bool, optional): whether to return duration on a per-target basis
         target_codes (list, optional): list of target codes to use for finding targets within trials
         trial_filter (function, optional): function to apply to each trial's events to determine whether or not to keep it
 
     Returns:
         tuple: tuple containing:
         | **segment_duration (list)**: duration of each segment after filtering
-        | **per_target_stats (tuple)**: optional if per_target_stats == True. Includes:
-            | **per_target_duration (list):** mean segment duration per target
-            | **per_target_idx (list):** target index on each trial
+        | **target_codes (list):** target index on each segment
     '''
     trial_events, trial_times = preproc.get_trial_segments(events, event_times, start_events, end_events)
     trial_events, trial_times = zip(*[(e, t) for e, t in zip(trial_events, trial_times) if trial_filter(e)])
 
     segment_duration = np.array([t[1] - t[0] for t in trial_times])
+    target_idx = [np.argwhere(np.isin(te, target_codes))[0][0] for te in trial_events]
+    target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
 
-    if per_target_stats:
-        per_target_duration = []
-        per_target_idx = []
-        target_idx = [np.argwhere(np.isin(te, target_codes))[0][0] for te in trial_events]
-        target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)])
-
-        for target_idx, iT in enumerate(np.unique(target_codes)):
-            per_target_duration.append(segment_duration[target_codes == iT])
-            per_target_idx.append(target_idx)
-        return segment_duration, (per_target_duration, per_target_idx)
-    else:
-        return segment_duration
+    return segment_duration, target_codes

@@ -695,9 +695,9 @@ class BehaviorMetricsTests(unittest.TestCase):
                  [144., 144., 144., 149., 149.],
                  [154., 154., 154., 160., 160.]]
         rt, rt_pertarget = aopy.analysis.time_to_target(events, times, per_target_stats=True)
-        self.assertCountEqual(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target, skipping unrewarded trial
-        self.assertCountEqual(np.squeeze(rt_pertarget[0]), [[1., 6], 2., 3., 4., 5.,]) # there are two appearances of target 1
-        self.assertCountEqual(np.squeeze(rt_pertarget[1]), [0, 3, 2, 1, 4])
+        np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target, skipping unrewarded trial
+        np.testing.assert_allclose(np.squeeze(rt_pertarget[0]), [[1., 6], 2., 3., 4., 5.,]) # there are two appearances of target 1
+        np.testing.assert_allclose(np.squeeze(rt_pertarget[1]), [0, 3, 2, 1, 4])
 
     def test_calc_segment_duration(self):
         events =  [80, 17, 32, 81, 48,
@@ -712,12 +712,15 @@ class BehaviorMetricsTests(unittest.TestCase):
                  135., 135., 135., 139., 139.,
                  144., 144., 144., 149., 149.,
                  154., 154., 154., 160., 160.]
-        rt, rt_pertarget = aopy.analysis.calc_segment_duration(events, times, [32], [48, 128], per_target_stats=True)
-        self.assertCountEqual(rt, [1., 2., 3., 4., 5., 6.]) # difference from go cue to entering peripheral target
-        self.assertCountEqual(np.squeeze(rt_pertarget[1]), [0, 3, 2, 1, 4])
-        rt_pertarget_expected = [[1., 6], [2.], [3.], [4.], [5.],] # there are two appearances of target 1
-        for rt, rt_expected in zip(np.squeeze(rt_pertarget[0]), rt_pertarget_expected):
-            self.assertCountEqual(rt, rt_expected) 
+        rt, target_idx = aopy.analysis.calc_segment_duration(events, times, [32], [48, 128])
+        np.testing.assert_allclose(rt, [1., 2., 3., 4., 5., 6.]) # difference from go cue to entering peripheral target
+        np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 5, 0])
+
+        # With filtering out unsuccessful trials
+        rt, target_idx = aopy.analysis.calc_segment_duration(events, times, [32], [48, 128], trial_filter=lambda x: 48 in x)
+        np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target
+        np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
+
 
 if __name__ == "__main__":
     unittest.main()
