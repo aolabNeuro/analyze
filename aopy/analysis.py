@@ -928,11 +928,11 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
 
     return erp
 
-def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None):
+def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None, trial_average=True):
     '''
     Calculates the maximum (across time) mean (across trials) event-related potential (ERP) 
     for the given timeseries data.
-
+    
     Args:
         data (nt, nch): timeseries data across channels
         event_times (ntrial): list of event times
@@ -945,12 +945,15 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
             Default is the entire time_before period.
         max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
             after event). Default is the entire time_after period.
-
+        trial_average (bool, optional): by default, average across trials before calculating max
+        
     Returns:
         nch: array of maximum mean-ERP for each channel during the given time periods
-
     '''
-    mean_erp = np.mean(calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window), axis=0)
+    erp = calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window)
+    
+    if trial_average:
+        erp = np.expand_dims(np.nanmean(erp, axis=0), 0)
 
     # Limit the search to the given window
     start_idx = int(time_before*samplerate)
@@ -961,14 +964,20 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
                 t1 is greater than t0")
         end_idx = start_idx + int(max_search_window[1]*samplerate)
         start_idx += int(max_search_window[0]*samplerate)
-    mean_erp_window = mean_erp[start_idx:end_idx,:]
+    
+    # Caculate max separately for each trial
+    erp_window = erp[:,start_idx:end_idx,:]
+    max_erp = np.zeros((erp.shape[0], erp.shape[2]))*np.nan
+    for t in range(erp.shape[0]):
+            
+        # Find the index that maximizes the absolute value, then use that index to get the actual signed value
+        idx_max_erp = start_idx + np.argmax(np.abs(erp_window[t]), axis=0)
+        max_erp[t,:] = np.squeeze([erp[t,idx_max_erp[i],i] for i in range(erp.shape[2])])
 
-    # Find the index that maximizes the absolute value, then use that index to get the actual signed value
-    idx_max_erp = start_idx + np.argmax(np.abs(mean_erp_window), axis=0)
-    max_erp = np.array([mean_erp[idx_max_erp[i],i] for i in range(mean_erp.shape[1])])
-
+    if trial_average:
+        max_erp = max_erp[0]
+        
     return max_erp
-
 '''
 MODEL FITTING
 '''
