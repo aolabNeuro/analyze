@@ -1180,7 +1180,7 @@ def calc_accLLR_threshold(altcond_train, nullcond_train, altcond_test, nullcond_
     fa_rates_above_desired = thresh_props[fa_rates > false_alarm_prob]
     best_tp = np.nan
     if any(fa_rates_above_desired):
-        best_tp = fa_rates_above_desired[0]
+        best_tp = fa_rates_above_desired[-1]
     return best_tp, thresh_props, fa_rates
 
 
