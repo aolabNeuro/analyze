@@ -1562,7 +1562,7 @@ def compute_path_length_per_trajectory(trajectory):
     return path_length
 
 
-def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , go_cue_code=32 , reward_code=48, per_target_stats=False):
+def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , go_cue_code=32 , reward_code=48):
     '''
     This function calculates reach time to target only on rewarded trials given trial aligned event codes and event times See: :func:`aopy.preproc.base.get_trial_segments_and_times` .
 
@@ -1574,9 +1574,7 @@ def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , 
         event_times (list) : trial aligned event times corresponding to the event codes. These event codes and event times could be the output of preproc.base.get_trial_segments_and_times()
         target_codes (list) : list of event codes for cursor entering peripheral target 
         go_cue_code (int) : event code for go cue 
-        reward_code (int) : event code for reward 
-        only_rewarded_trials (bool, optional): only include trials with a reward code
-        per_target_stats (bool, optional): use if you want to calculate reach time per target
+        reward_code (int) : event code for reward
 
     Returns:
         reach_times (list): time in seconds for each trial between the go cue and the cursor entering peripheral target
@@ -1587,26 +1585,15 @@ def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , 
     event_times = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
     event_codes = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
     leave_center_idx = np.argwhere(event_codes == go_cue_code)[0, 1]
-    reach_target_idx = np.argwhere(np.isin(event_codes[0], target_codes))[0][0]
+    reach_target_idx = np.argwhere(np.isin(event_codes[0], target_codes))[0][0] # using just the first trial to get reach_target_idx
     reachtime = event_times[:, reach_target_idx] - event_times[:, leave_center_idx]
+    target_dir = event_codes[:,reach_target_idx]
 
-    # mean reach time per target
-    if per_target_stats:
-        reachtime_pertarget = []
-        trial_id = []
-        target_dir = event_codes[:, reach_target_idx]
-
-        for iT in np.unique(target_dir):
-            dir_idx = np.where(target_dir == iT)[0]
-            reachtime_pertarget.append(reachtime[dir_idx])
-            trial_id.append(dir_idx)
-        return reachtime, (reachtime_pertarget, trial_id)
-    else:
-        return reachtime
+    return reachtime, target_dir
 
 def calc_segment_duration(events, event_times, start_events, end_events, target_codes=list(range(81, 89)), trial_filter=lambda x:x):
     '''
-    Calculates the duration of trial segments.
+    Calculates the duration of trial segments. Event codes and event times for this function are raw and not trial aligned.
 
     Args:
         events (nevents): events vector, can be codes, event names, anything to match
