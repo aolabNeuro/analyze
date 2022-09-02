@@ -694,10 +694,10 @@ class BehaviorMetricsTests(unittest.TestCase):
                  [135., 135., 135., 139., 139.],
                  [144., 144., 144., 149., 149.],
                  [154., 154., 154., 160., 160.]]
-        rt, rt_pertarget = aopy.analysis.time_to_target(events, times, per_target_stats=True)
+        rt, target_dir = aopy.analysis.time_to_target(events, times)
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target, skipping unrewarded trial
-        np.testing.assert_allclose(np.squeeze(rt_pertarget[0]), [[1., 6], 2., 3., 4., 5.,]) # there are two appearances of target 1
-        np.testing.assert_allclose(np.squeeze(rt_pertarget[1]), [0, 3, 2, 1, 4])
+        np.testing.assert_allclose(target_dir, [81, 87, 83, 82, 81]) # there are two appearances of target 1
+
 
     def test_calc_segment_duration(self):
         events =  [80, 17, 32, 81, 48,
