@@ -1582,12 +1582,12 @@ def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , 
             | **reachtime_pertarget (list):** mean reach time per target
             | **trial_id (list):** target index on each trial
     '''
-    event_times = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
-    event_codes = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
-    leave_center_idx = np.argwhere(event_codes == go_cue_code)[0, 1]
-    reach_target_idx = np.argwhere(np.isin(event_codes[0], target_codes))[0][0] # using just the first trial to get reach_target_idx
-    reachtime = event_times[:, reach_target_idx] - event_times[:, leave_center_idx]
-    target_dir = event_codes[:,reach_target_idx]
+    tr_T = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+    tr_E = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+    leave_center_idx = np.argwhere(tr_E == go_cue_code)[0, 1]
+    reach_target_idx = np.argwhere(np.isin(tr_E[0], target_codes))[0][0] # using just the first trial to get reach_target_idx
+    reachtime = tr_T[:, reach_target_idx] - tr_T[:, leave_center_idx]
+    target_dir = tr_E[:,reach_target_idx]
 
     return reachtime, target_dir
 
