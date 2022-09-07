@@ -236,63 +236,6 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
-    def test_calc_success_percent(self):
-        # Test integer events
-        events = [0, 2, 4, 6, 0, 2, 3, 6]
-        start_evt = 0
-        end_events = [3, 6]
-        reward_evt = 3
-        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt)
-        self.assertEqual(success_perc, 0.5)
-        # Test string events
-        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
-        start_events = [b"TARGET_ON"]
-        end_events = [b"REWARD", b"TRIAL_END"]
-        success_events = [b"REWARD"]
-        success_perc = aopy.analysis.calc_success_percent(events, start_events, end_events, success_events)
-        self.assertEqual(success_perc, 0.5)
-
-        # Test rolling success percent calculation
-        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
-        ntrials = 12
-        window_size = 3
-        start_evt = 0
-        end_events = [3, 6]
-        reward_evt = 3
-        expected_success_perc = np.ones(ntrials-window_size+1)*(1/3)
-        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt, window_size=window_size)
-        np.testing.assert_allclose(success_perc, expected_success_perc)
-
-    def test_calc_success_rate(self):
-        # Test integer events
-        events = [0, 2, 4, 6, 0, 2, 3, 6]
-        event_times = np.arange(len(events))
-        start_evt = 0
-        end_events = [3, 6]
-        reward_evt = 3
-        success_rate = aopy.analysis.calc_success_rate(events, event_times, start_evt, end_events, reward_evt)
-        self.assertEqual(success_rate, 1/5)
-        # Test string events
-        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
-        start_events = [b"TARGET_ON"]
-        end_events = [b"REWARD", b"TRIAL_END"]
-        success_events = [b"REWARD"]
-        success_rate = aopy.analysis.calc_success_rate(events,event_times, start_events, end_events, success_events)
-        self.assertEqual(success_rate, 1/4)
-
-        # Test rolling success rate calculation
-        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
-        event_times = np.arange(len(events))
-        ntrials = 12
-        window_size = 3
-        start_evt = 0
-        end_events = [3, 6]
-        reward_evt = 3
-        expected_success_rate = np.ones(ntrials-window_size+1)*(1/5)
-        success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
-        print(success_perc)
-        np.testing.assert_allclose(success_perc, expected_success_rate)
-
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
         samplerate = 1000
@@ -679,6 +622,112 @@ class SpectrumTests(unittest.TestCase):
         self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
         self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
 
+class BehaviorMetricsTests(unittest.TestCase):
+
+    def test_calc_success_percent(self):
+        # Test integer events
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt)
+        self.assertEqual(success_perc, 0.5)
+        # Test string events
+        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
+        start_events = [b"TARGET_ON"]
+        end_events = [b"REWARD", b"TRIAL_END"]
+        success_events = [b"REWARD"]
+        success_perc = aopy.analysis.calc_success_percent(events, start_events, end_events, success_events)
+        self.assertEqual(success_perc, 0.5)
+
+        # Test rolling success percent calculation
+        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
+        ntrials = 12
+        window_size = 3
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        expected_success_perc = np.ones(ntrials-window_size+1)*(1/3)
+        success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt, window_size=window_size)
+        np.testing.assert_allclose(success_perc, expected_success_perc)
+
+    def test_calc_success_rate(self):
+        # Test integer events
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        event_times = np.arange(len(events))
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        success_rate = aopy.analysis.calc_success_rate(events, event_times, start_evt, end_events, reward_evt)
+        self.assertEqual(success_rate, 1/5)
+        # Test string events
+        events = [b"TARGET_ON", b"TARGET_OFF", b"TRIAL_END", b"TARGET_ON", b"TARGET_ON", b"TARGET_OFF", b"REWARD"]
+        start_events = [b"TARGET_ON"]
+        end_events = [b"REWARD", b"TRIAL_END"]
+        success_events = [b"REWARD"]
+        success_rate = aopy.analysis.calc_success_rate(events,event_times, start_events, end_events, success_events)
+        self.assertEqual(success_rate, 1/4)
+
+        # Test rolling success rate calculation
+        events = [0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6, 0,2,6, 0,3, 0,2,6]
+        event_times = np.arange(len(events))
+        ntrials = 12
+        window_size = 3
+        start_evt = 0
+        end_events = [3, 6]
+        reward_evt = 3
+        expected_success_rate = np.ones(ntrials-window_size+1)*(1/5)
+        success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
+        print(success_perc)
+        np.testing.assert_allclose(success_perc, expected_success_rate)
+
+    def test_compute_path_length_per_trajectory(self):
+        pts = [(0,0), (0,1), (3,1), (3,0)]
+        path_length = aopy.analysis.compute_path_length_per_trajectory(pts)
+        self.assertEqual(path_length, 5.0)
+
+    def test_time_to_target(self):
+        events =  [[80, 17, 32, 81, 48],
+                   [80, 23, 32, 87, 48] ,
+                   [80, 19, 32, 83, 48] ,
+                   [80, 18, 32, 82, 48],
+                   [80, 22, 32, 86, 128], # unrewarded trial should be filtered out
+                   [80, 17, 32, 81, 48],]
+        times = [[ 74., 74., 74., 75., 75.],
+                 [ 97., 97., 97., 99., 99.],
+                 [115., 115., 115., 118., 118.],
+                 [135., 135., 135., 139., 139.],
+                 [144., 144., 144., 149., 149.],
+                 [154., 154., 154., 160., 160.]]
+        rt, target_dir = aopy.analysis.time_to_target(events, times)
+        np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target, skipping unrewarded trial
+        np.testing.assert_allclose(target_dir, [81, 87, 83, 82, 81]) # there are two appearances of target 1
+
+
+    def test_calc_segment_duration(self):
+        events =  [80, 17, 32, 81, 48,
+                   80, 23, 32, 87, 48,
+                   80, 19, 32, 83, 48,
+                   80, 18, 32, 82, 48,
+                   80, 22, 32, 86, 128, # unrewarded trial should be filtered out
+                   80, 17, 32, 81, 48]
+        times = [74., 74., 74., 75., 75.,
+                 97., 97., 97., 99., 99.,
+                 115., 115., 115., 118., 118.,
+                 135., 135., 135., 139., 139.,
+                 144., 144., 144., 149., 149.,
+                 154., 154., 154., 160., 160.]
+        rt, target_idx = aopy.analysis.calc_segment_duration(events, times, [32], [48, 128])
+        np.testing.assert_allclose(rt, [1., 2., 3., 4., 5., 6.]) # difference from go cue to entering peripheral target
+        np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 5, 0])
+
+        # With filtering out unsuccessful trials
+        rt, target_idx = aopy.analysis.calc_segment_duration(events, times, [32], [48, 128], trial_filter=lambda x: 48 in x)
+        np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target
+        np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
