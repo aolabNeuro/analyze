@@ -1577,10 +1577,9 @@ def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , 
         reward_code (int) : event code for reward
 
     Returns:
-        reach_times (list): time in seconds for each trial between the go cue and the cursor entering peripheral target
-        reach_times_per_target (tuple): optional if per_target_stats == True. Includes:
-            | **reachtime_pertarget (list):** mean reach time per target
-            | **trial_id (list):** target index on each trial
+      tuple: tuple containing:
+        | **reachtime_pertarget (list)**: duration of each segment after filtering
+        | **trial_id (list):** target index on each segment
     '''
     tr_T = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
     tr_E = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
