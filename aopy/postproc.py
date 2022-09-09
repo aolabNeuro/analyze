@@ -383,14 +383,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         clock = data['clock']['timestamp_sync']
         samplerate = metadata['analog_samplerate']
         time = np.arange(int((clock[-1] + 10)*samplerate))/samplerate
-
-        # Set hand position to np.nan if the cursor position doesn't update. This indicates an optitrack error moved the hand outside the boundary.
-        bad_pt_mask = np.zeros(data['bmi3d_task']['cursor'].shape, dtype=bool) 
-        bad_pt_mask[1:,0] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
-        bad_pt_mask[1:,1] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
-        bad_pt_mask[1:,2] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
-        hand_data_cycles[bad_pt_mask] = np.nan
-
+        hand_data_cycles = _correct_hand_traj(data)
         raw_kinematics, _ = interp_timestamps2timeseries(clock, hand_data_cycles, sampling_points=time, interp_kind='linear')
 
         # print('hi', data['cursor_interp'].shape, hand_data_cycles.shape, raw_kinematics.shape, pts_to_remove)
@@ -415,6 +408,29 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     success_trials = [trial_filter(t) for t in trial_segments]
     
     return trajectories[success_trials], trial_segments[success_trials]
+
+def _correct_hand_traj(data):
+    '''
+    This function removes hand position data points when the cursor is simultaneously stationary in all directions.
+    These hand position data points are artifacts. 
+        
+    Args:
+        data (dict): Preprocessed experimental data
+    
+    Returns:
+        hand_position (nt, 3): Corrected hand position
+    '''
+
+    hand_position = data['bmi3d_task']['manual_input']
+
+    # Set hand position to np.nan if the cursor position doesn't update. This indicates an optitrack error moved the hand outside the boundary.
+    bad_pt_mask = np.zeros(data['bmi3d_task']['cursor'].shape, dtype=bool) 
+    bad_pt_mask[1:,0] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
+    bad_pt_mask[1:,1] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
+    bad_pt_mask[1:,2] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
+    hand_position[bad_pt_mask] = np.nan
+
+    return hand_position
 
 def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True):
