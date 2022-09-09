@@ -374,6 +374,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         
     '''
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
     if datatype == 'cursor':
         raw_kinematics = data['cursor_interp']
         samplerate = metadata['cursor_interp_samplerate']
@@ -382,7 +383,17 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         clock = data['clock']['timestamp_sync']
         samplerate = metadata['analog_samplerate']
         time = np.arange(int((clock[-1] + 10)*samplerate))/samplerate
+
+        # Set hand position to np.nan if the cursor position doesn't update. This indicates an optitrack error moved the hand outside the boundary.
+        bad_pt_mask = np.zeros(data['bmi3d_task']['cursor'].shape, dtype=bool) 
+        bad_pt_mask[1:,0] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
+        bad_pt_mask[1:,1] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
+        bad_pt_mask[1:,2] = (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,0] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,1] & (np.diff(data['bmi3d_task']['cursor'], axis=0)==0)[:,2]
+        hand_data_cycles[bad_pt_mask] = np.nan
+
         raw_kinematics, _ = interp_timestamps2timeseries(clock, hand_data_cycles, sampling_points=time, interp_kind='linear')
+
+        # print('hi', data['cursor_interp'].shape, hand_data_cycles.shape, raw_kinematics.shape, pts_to_remove)
     elif datatype == 'eye':
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         samplerate = eye_metadata['samplerate']
