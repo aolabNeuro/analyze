@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 import numpy.lib.recfunctions as rfn
 
-from aopy import precondition
+from aopy import precondition, postproc
 
 from .base import get_measured_clock_timestamps, fill_missing_timestamps, interp_timestamps2timeseries
 from .. import data as aodata
@@ -407,6 +407,8 @@ def _prepare_bmi3d_v1(data, metadata):
         cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
         data['cursor_interp'] = cursor_data_time
         metadata['cursor_interp_samplerate'] = cursor_samplerate
+
+    data['clean_hand_position'] = postproc._correct_hand_traj(task)
 
     data.update({
         'task': task,
