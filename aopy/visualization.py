@@ -1157,3 +1157,44 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     ax[0].set_title(title)
     
     return fig
+
+def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
+    '''
+    Makes a plot of correlation vs electrode distance for the given data.
+    
+    Args:
+        acq_data (nt, nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode in cm
+        ax (pyplot.Axes, optional): axis on which to plot
+        kwargs (dict, optional): other arguments to supply to :func:`aopy.analysis.calc_corr_over_elec_distance`
+
+    Example:
+        Using the multichannel test data generator in utils, we get a phase-shifted sine wave in each channel. 
+        Assigning each channel i to an electrode with position (i, 0), the correlation across distances looks like this:
+
+        .. code-block:: python
+
+            duration = 0.5
+            samplerate = 1000
+            n_channels = 30
+            frequency = 100
+            amplitude = 0.5
+            acq_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
+            acq_ch = (np.arange(n_channels)+1).astype(int)
+            elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
+            
+            plt.figure()
+            plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos)
+
+        .. image:: _images/corr_over_dist.png
+
+    '''
+    if ax is None:
+        ax = plt.gca()
+    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
+    label = kwargs.pop('label', None)
+    ax.plot(dist, corr, label=label)
+    ax.set_xlabel('binned electrode distance (cm)')
+    ax.set_ylabel('correlation')
+    ax.set_ylim(0,1)
