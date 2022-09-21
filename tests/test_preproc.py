@@ -89,6 +89,13 @@ class DigitalCalcTests(unittest.TestCase):
         filled = fill_missing_timestamps(uncorrected_timestamps)
         self.assertCountEqual(expected, filled)
 
+    def test_validate_measurements(self):
+        expected_values = [1, 2, 3]
+        measured_values = [1.5, 2., 2]
+        diff_thr = 0.5
+        corrected_values = validate_measurements(expected_values, measured_values, diff_thr)
+        np.testing.assert_allclose(corrected_values, np.array([1.5, 2., 3.]))
+
     def test_interp_timestamps2timeseries(self):
         timestamps = np.array([1,2,3,4])
         timestamp_values = np.array([100,200,100,300])
@@ -918,6 +925,68 @@ class TestPrepareExperiment(unittest.TestCase):
         contents = get_hdf_dictionary(write_dir, result_filename)
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
+
+    def test_get_laser_trial_times(self):
+        time_before = 0.05
+        time_after = 0.05
+        subject = 'test'
+        te_id = 6581
+        date = '2022-08-19'
+        preproc_dir = data_dir
+
+        # This preprocessed file doesn't contain laser sensor data so it will look for the raw data.
+        # Since the raw data isn't availble in this repo we should get an error. Unless you're running
+        # this test on the lab server...
+        self.assertRaises(FileNotFoundError, lambda: get_laser_trial_times(preproc_dir, subject, te_id, date))
+        
+        # This other preprocessed file does contain laser sensor data. Response on ch. 36
+        te_id = 6577
+        trial_times, trial_widths, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date)
+
+        print(trial_powers)
+
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+        
+        # Plot lfp response
+        ch = 36
+        samplerate = lfp_metadata['lfp_samplerate']
+        erp = analysis.calc_erp(lfp_data, trial_times, time_before, time_after, samplerate)
+        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=0)
+        t = 1000*(np.arange(erp_voltage.shape[0])/samplerate - time_before)
+        ch_data = 1e6*lfp_metadata['voltsperbit']*erp_voltage[:,ch]
+        plt.figure()
+        plt.plot(t, ch_data)
+        plt.plot([0,0], [-3, 0], 'k--')
+        visualization.savefig(write_dir, 'lfp_aligned_laser.png')
+        
+        # Also plot the individual trials
+        plt.figure()
+        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,:,ch].T, ylabel='trials')
+        im.set_clim(-100,100)
+        visualization.savefig(img_dir, 'laser_aligned_lfp.png')
+        
+        # And compare to the sensor data
+        sensor_data = exp_data['laser_sensor']
+        sensor_voltsperbit = exp_metadata['analog_voltsperbit']
+        samplerate = exp_metadata['analog_samplerate']
+
+        plt.figure()
+        ds_data = precondition.downsample(sensor_data, samplerate, 1000)
+        ds_data = ds_data - np.mean(ds_data)
+        analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
+        print(analog_erp.shape)
+        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
+        im.set_clim(-0.01,0.01)
+        visualization.savefig(img_dir, 'laser_aligned_sensor.png')
+
+        plt.figure()
+        plt.hist(trial_widths, 20)
+        visualization.savefig(write_dir, 'laser_widths.png') # Should be all 0.005 s
+
+        plt.figure()
+        plt.hist(trial_powers, 20)
+        visualization.savefig(write_dir, 'laser_powers.png') # Should be all 0.5
 
 class ProcTests(unittest.TestCase):
 

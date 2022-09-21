@@ -152,6 +152,29 @@ def fill_missing_timestamps(uncorrected_timestamps):
 
     return corrected_timestamps
 
+def validate_measurements(expected_values, measured_values, diff_thr):
+    '''
+    Corrects sensor measurements to expected values. If the difference between any of the measured values 
+    and the expected values fall outside the given threshold (diff_thr) then the expected value is used. If
+    it is within the threshold, the measured value is used. The two input arrays must have the same lengths.
+
+    Args:
+        expected_values (nt): known or expected values
+        measured_values (nt): measured data that may be spurious
+        diff_thr (float): threshold above which differences are deemed to large and expected values are returned
+
+    Returns:
+        (nt) array: array of the same length as the inputs but with validated values
+    '''
+    expected_values = np.squeeze(expected_values)
+    measured_values = np.squeeze(measured_values)
+    assert expected_values.shape == measured_values.shape
+    diff = np.abs(expected_values - measured_values)
+    diff_above_thr = diff > diff_thr
+    corrected_values = measured_values.copy()
+    corrected_values[diff_above_thr] = expected_values[diff_above_thr]
+    return corrected_values
+
 def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrap_values='extrapolate'):
     '''
     This function uses linear interpolation (scipy.interpolate.interp1d) to convert timestamped data to timeseries data given new sampling points.
