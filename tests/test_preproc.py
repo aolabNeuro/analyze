@@ -93,8 +93,9 @@ class DigitalCalcTests(unittest.TestCase):
         expected_values = [1, 2, 3]
         measured_values = [1.5, 2., 2]
         diff_thr = 0.5
-        corrected_values = validate_measurements(expected_values, measured_values, diff_thr)
+        corrected_values, above_thr = validate_measurements(expected_values, measured_values, diff_thr)
         np.testing.assert_allclose(corrected_values, np.array([1.5, 2., 3.]))
+        self.assertEqual(np.count_nonzero(above_thr), 1)
 
     def test_interp_timestamps2timeseries(self):
         timestamps = np.array([1,2,3,4])
@@ -932,7 +933,7 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # This other preprocessed file does contain laser sensor data. Response on ch. 36
         te_id = 6577
-        trial_times, trial_widths, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date)
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date)
 
         print(trial_powers)
 
