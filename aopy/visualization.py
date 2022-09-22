@@ -6,6 +6,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import matplotlib.dates as mdates
+from matplotlib import cm
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -217,7 +218,7 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', show_bad=False, clim=None):
     '''
     Wrapper around plt.imshow for spatial data
 
@@ -247,6 +248,22 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
 
     Returns:
         mappable: image object which you can use to add colorbar, etc.
+
+    Example:
+
+        .. code-block:: python
+
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
+
+        .. image:: _images/posmap_alphamap.png
+
     '''
     # Calculate the proper extents
     if data_map.size > 1:
@@ -261,18 +278,24 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
     cmap.set_bad(color='black')
     
-    # Make an alpha map scaled between 0 and 1
-    if alpha_map is None:
-        alpha_map = 1
-    else:
+    # If an alpha map is present, make an rgba image
+    if alpha_map is not None:
+        if clim is None:
+            clim = (np.nanmin(data_map), np.nanmax(data_map))
+        norm = cm.colors.Normalize(*clim)
+        scalarMap = cm.ScalarMappable(norm=norm, cmap=cmap)
+        data_map = scalarMap.to_rgba(data_map)
+
+        # Apply the alpha map after scaling from 0 to 1
         alpha_range = np.nanmax(alpha_map) - np.nanmin(alpha_map)
         alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
         alpha_map[np.isnan(alpha_map)] = 0
-
+        data_map[:,:,3] = alpha_map
+        
     # Plot
     if ax is None:
         ax = plt.gca()
-    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent)
+    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 

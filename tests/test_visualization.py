@@ -1,3 +1,4 @@
+from pydoc import doc
 import unittest
 from aopy.visualization import *
 import aopy
@@ -68,7 +69,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(data_map.shape, (10, 10))
         plt.figure()
         plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
 
     def test_single_spatial_map(self):
