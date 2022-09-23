@@ -218,14 +218,29 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', show_bad=False, clim=None):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_color='black', clim=None):
     '''
     Wrapper around plt.imshow for spatial data
 
-    Example:
+    Args:
+        data_map ((2,n) array): map of x,y data
+        x (list): list of x positions
+        y (list): list of y positions
+        alpha_map ((2,n) array): map of alpha values (optional, default alpha=1 everywhere)
+        ax (int, optional): axis on which to plot, default gca
+        cmap (str, optional): matplotlib colormap to use in image. default 'bwr'
+        nan_color (str, optional): color to plot nan values, or None to leave them invisible. default 'black'
+        clim ((2,) tuple): (min, max) to set the c axis limits. default None, show the whole range
+
+    Returns:
+        mappable: image object which you can use to add colorbar, etc.
+
+    Examples:
+        
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
-        ::
+        .. code-block:: python
+        
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
             missing = [0, 5, 25]
@@ -238,18 +253,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', show_b
 
         .. image:: _images/posmap.png
 
-    Args:
-        data_map (2,n array): map of x,y data
-        x (list): list of x positions
-        y (list): list of y positions
-        alpha_map (2,n array): map of alpha values (optional, default alpha=1 everywhere)
-        ax (int, optional): axis on which to plot, default gca
-        cmap (str, optional): matplotlib colormap to use in image
-
-    Returns:
-        mappable: image object which you can use to add colorbar, etc.
-
-    Example:
+        Make the same image but include a transparency layer
 
         .. code-block:: python
 
@@ -276,7 +280,8 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', show_b
 
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
-    cmap.set_bad(color='black')
+    if nan_color:
+        cmap.set_bad(color=nan_color)
     
     # If an alpha map is present, make an rgba image
     if alpha_map is not None:
