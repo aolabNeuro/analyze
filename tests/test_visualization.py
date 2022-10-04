@@ -404,6 +404,21 @@ class OtherPlottingTests(unittest.TestCase):
         # Nothing to test here ;-)
         pass
 
+    def test_plot_corr_over_elec_distance(self):
+
+        duration = 0.5
+        samplerate = 1000
+        n_channels = 30
+        frequency = 100
+        amplitude = 0.5
+        acq_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
+        acq_ch = (np.arange(n_channels)+1).astype(int)
+        elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
+        
+        plt.figure()
+        plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, label='test')
+        filename = 'corr_over_dist.png'
+        savefig(docs_dir,filename)
 
 if __name__ == "__main__":
     unittest.main()
