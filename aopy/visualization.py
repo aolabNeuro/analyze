@@ -1192,8 +1192,8 @@ def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
     '''
     if ax is None:
         ax = plt.gca()
-    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
     label = kwargs.pop('label', None)
+    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
     ax.plot(dist, corr, label=label)
     ax.set_xlabel('binned electrode distance (cm)')
     ax.set_ylabel('correlation')

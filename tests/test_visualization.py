@@ -416,7 +416,7 @@ class OtherPlottingTests(unittest.TestCase):
         elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
         
         plt.figure()
-        plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos)
+        plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, label='test')
         filename = 'corr_over_dist.png'
         savefig(docs_dir,filename)
 
