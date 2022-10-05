@@ -300,7 +300,19 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(dist.size, 1)
         self.assertEqual(dist[0], np.sqrt(2))
         self.assertEqual(corr[0], 1.0)
-
+        
+    def test_calc_mean_adjacent_elec(self):
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13])
+        acq_ch = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+        elec_pos = np.array([[1,1],[1,2],[1,3],[2,1],[2,2],[2,3],[3,1],[3,2],[3,3]])       
+        m_acq_data1 = aopy.analysis.calc_mean_adjacent_elec(data, acq_ch, elec_pos, distance=1)
+        m_acq_data2 = aopy.analysis.calc_mean_adjacent_elec(data, acq_ch, elec_pos, distance=np.sqrt(2))
+        
+        self.assertEqual(m_acq_data1.shape[0],9)
+        self.assertEqual(m_acq_data1[4],5)
+        self.assertEqual(m_acq_data1[1],2.75)
+        self.assertEqual(m_acq_data2[5],5.5)        
+        
     def test_calc_erp(self):
         nevents = 3
         event_times = 0.2 + np.arange(nevents)
