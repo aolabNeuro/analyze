@@ -413,12 +413,15 @@ class ModelFitTests(unittest.TestCase):
         # Test 2D kinematics condition
         velocity2D = np.tile(test_data,(2,1)).T
         data2D = np.tile(test_data,(3,1)).T
-        task_subspace = aopy.analysis.calc_task_rel_dims([data2D], [velocity2D])
+        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims([data2D], [velocity2D])
         np.testing.assert_allclose(task_subspace, np.zeros((3,2))+0.5)
 
         # Test list concatenation
-        task_subspace = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D])
+        task_subspace, _ = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D])
         np.testing.assert_allclose(task_subspace, np.zeros((3,2))+0.5)
+
+        # Test data projection  
+        np.testing.assert_allclose(projected_data[0], velocity2D*1.5)
 
 class AccLLRTests(unittest.TestCase):
 

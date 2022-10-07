@@ -1381,19 +1381,33 @@ def calc_task_rel_dims(neural_data, kin_data):
 
 
     Args:
-        neural_data (list of (nt, nch)): Input neural data to regress against kinematic activity
+        neural_data (list of (nt, nch) or (nt, nch)): Input neural data to regress against kinematic activity
         kin_data (nt, ndim): Kinematic variables, commonly position or instantaneous velocity. 'ndims' refers to the number of physical dimensions that define the kinematic data (i.e. X and Y)
 
     Returns:
         (nch, ndim): Subspace that best predicts kinematic variables.
+        (list )
 
     '''
-    neural_data = np.vstack(neural_data)
-    kin_data = np.vstack(kin_data)
+    # If a list of segments from trials, concatenate them into one larget timeseries
+    if type(neural_data) == list:
+        ntrials = len(neural_data)
+        conc_neural_data = np.vstack(neural_data)
+        conc_kin_data = np.vstack(kin_data)
+    else:
+        neural_data = [neural_data]
+        ntrials = 1
 
-    task_subspace = np.linalg.pinv(kin_data.T @ kin_data) @ kin_data.T @ neural_data
+    # Calculate task relevant subspace 
+    task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ conc_neural_data
 
-    return task_subspace.T
+    # Project neural data onto task subspace
+    projected_data = []
+    
+    for itrial in range(ntrials):
+        projected_data.append(neural_data[itrial] @ task_subspace.T)
+
+    return task_subspace.T, projected_data
 
 
     
