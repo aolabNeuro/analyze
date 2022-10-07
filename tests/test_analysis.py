@@ -287,6 +287,20 @@ class CalcTests(unittest.TestCase):
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
 
+    def test_calc_corr_over_elec_distance(self):
+        acq_data = np.array([[1, 2, 3], [4, 5, 6]])
+        acq_ch = np.array([1, 2])
+        elec_pos = np.array(
+            [[1, 1],
+            [2,2],]
+        )
+        dist, corr = aopy.analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, method='pearson', bins=1, exclude_zero_dist=True)
+
+        self.assertEqual(corr.size, 1)
+        self.assertEqual(dist.size, 1)
+        self.assertEqual(dist[0], np.sqrt(2))
+        self.assertEqual(corr[0], 1.0)
+
     def test_calc_erp(self):
         nevents = 3
         event_times = 0.2 + np.arange(nevents)

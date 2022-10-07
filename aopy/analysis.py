@@ -19,6 +19,8 @@ from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 import nitime.algorithms as tsa
+
+from . import utils
 from . import preproc
 
 '''
@@ -805,6 +807,43 @@ def calc_sem(data, axis=None):
 
     return SEM
 
+def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
+    '''
+    Calculates mean absolute correlation between acq_data across channels with the same distance between them.
+    
+    Args:
+        acq_data (nt, nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode
+        bins (int or array): input into scipy.stats.binned_statistic, can be a number or a set of bins
+        method (str, optional): correlation method to use ('pearson' or 'spearman')
+        exclude_zero_dist (bool, optional): whether to exclude distances that are equal to zero. default True
+        
+    Returns:
+        tuple: tuple containing:
+            |**dist (nbins):** electrode distance at each bin
+            |**corr (nbins):** correlation at each bin
+
+    '''
+    dist = utils.calc_euclid_dist_mat(elec_pos)
+    if method == 'spearman':
+        c, _ = stats.spearmanr(acq_data, axis=0)
+    elif method == 'pearson':
+        c = np.corrcoef(acq_data.T)
+    else:
+        raise ValueError(f"Unknown correlation method {method}")
+    
+    c_ = c[np.ix_(acq_ch-1, acq_ch-1)] # note use of open mesh to get the right logical index
+    
+    if exclude_zero_dist:
+        zero_dist = dist == 0
+        dist = dist[~zero_dist]
+        c_ = c_[~zero_dist]
+        
+    corr, edges, _ = stats.binned_statistic(dist.flatten(), np.abs(c_.flatten()), statistic='mean', bins=bins)
+    dist = (edges[:-1] + edges[1:]) / 2
+
+    return dist, corr
 
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''

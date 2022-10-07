@@ -260,7 +260,6 @@ def _parse_bmi3d_v1(data_dir, files):
 
         # Laser sensor (A2)
         if 'qwalor_sensor_ach' in metadata_dict:
-            data_path = os.path.join(data_dir, files['ecube'])
             laser_sensor_data = ecube_analog[:, metadata_dict['qwalor_sensor_ach']]
             data_dict['laser_sensor'] = laser_sensor_data
 
@@ -456,6 +455,9 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
             | **corrected_times (nevent):** corrected laser timings
             | **corrected_widths (nevent):** corrected laser widths
             | **corrected_powers (nevent):** corrected laser powers
+            | **times_not_found (nevent):** boolean array of times where no sensor measurement was found
+            | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
+            | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
     '''
     
     # Calculate timing using the laser sensor
@@ -465,7 +467,7 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
     digital_data = ds_data > threshold
     times, values = detect_edges(digital_data, ds_fs)
     if len(times) == 0:
-        raise ValueError("No laser events detected. Try raising the threshold")
+        raise ValueError("No laser events detected. Try lowering the threshold")
     rising = times[values == 1]
     falling = times[values == 0]
     laser_sensor_times = rising
@@ -485,17 +487,18 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
         warnings.warn(f"{np.count_nonzero(missing_times)} unmeasured laser timestamps")
         corrected_times[missing_times] = laser_event_times[missing_times]
     
-    # Adjust the sensor measurements to remove any that were spurious
-    valid_idx = corrected_idx[~np.isnan(corrected_idx)].astype(int)
+    # Adjust the sensor measurements to remove any that were missing
+    times_not_found = np.isnan(corrected_idx)
+    valid_idx = corrected_idx[~times_not_found].astype(int)
     adjusted_widths = corrected_idx.copy()
     adjusted_widths[~np.isnan(corrected_idx)] = laser_sensor_widths[valid_idx]
     adjusted_powers = corrected_idx.copy()
     adjusted_powers[~np.isnan(corrected_idx)] = laser_sensor_powers[valid_idx]
 
     # Correct the widths and powers with the given thresholds
-    corrected_widths = validate_measurements(laser_event_widths, adjusted_widths, thr_width)
-    corrected_powers = validate_measurements(laser_event_powers, adjusted_powers, thr_power)
-    return corrected_times, corrected_widths, corrected_powers
+    corrected_widths, widths_above_thr = validate_measurements(laser_event_widths, adjusted_widths, thr_width)
+    corrected_powers, powers_above_thr = validate_measurements(laser_event_powers, adjusted_powers, thr_power)
+    return corrected_times, corrected_widths, corrected_powers, times_not_found, widths_above_thr, powers_above_thr
 
 def get_laser_trial_times(preproc_dir, subject, te_id, date, **kwargs):
     '''
@@ -515,6 +518,9 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, **kwargs):
             | **corrected_times (nevent):** corrected laser timings
             | **corrected_widths (nevent):** corrected laser widths
             | **corrected_powers (nevent):** corrected laser powers
+            | **times_not_found (nevent):** boolean array of times where no sensor measurement was found
+            | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
+            | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
     '''
     
     exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
@@ -525,10 +531,20 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, **kwargs):
     times = event_times[events == b'TRIAL_START']
 
     # Get width and power from the 'trials' data
-    trials = exp_data['bmi3d_trials']
-    powers = trials['power'][:len(times)]
-    edges = trials['edges'][:len(times)]
-    widths = [t[1] - t[0] for t in edges]
+    if 'bmi3d_trials' in exp_data:
+        trials = exp_data['bmi3d_trials']
+        powers = trials['power'][:len(times)]
+        edges = trials['edges'][:len(times)]
+        widths = [t[1] - t[0] for t in edges]
+        thr_width=0.001
+        thr_power=0.05
+    else:
+        # Can't use the exp data as ground truth, so just load the analog sensor data
+        widths = np.zeros((len(times),))
+        powers = np.zeros((len(times),))
+        thr_width = 999
+        thr_power = 1
+
 
     # Load the sensor data if it's not already in the bmi3d data
     if 'laser_sensor' not in exp_data:
@@ -541,7 +557,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, **kwargs):
     # Correct the event timings using the sensor data
     sensor_data = exp_data['laser_sensor']
     sensor_voltsperbit = exp_metadata['analog_voltsperbit']
-    samplerate = exp_metadata['analog_samplerate']
-    corrected_times, corrected_widths, corrected_powers = find_laser_stim_times(times, widths, powers, sensor_data, samplerate, sensor_voltsperbit, **kwargs)
-    return corrected_times, corrected_widths, corrected_powers
+    samplerate = exp_metadata['analog_samplerate']       
+    return find_laser_stim_times(times, widths, powers, sensor_data, samplerate, 
+        sensor_voltsperbit, thr_width=thr_width, thr_power=thr_power, **kwargs)
                                                                                 

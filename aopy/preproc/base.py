@@ -164,7 +164,9 @@ def validate_measurements(expected_values, measured_values, diff_thr):
         diff_thr (float): threshold above which differences are deemed to large and expected values are returned
 
     Returns:
-        (nt) array: array of the same length as the inputs but with validated values
+        tuple: tuple containing:
+            |**corrected_values (nt):** array of the same length as the inputs but with validated values
+            |**diff_above_thr (nt):** boolean array of values passing the difference threshold
     '''
     expected_values = np.squeeze(expected_values)
     measured_values = np.squeeze(measured_values)
@@ -173,7 +175,7 @@ def validate_measurements(expected_values, measured_values, diff_thr):
     diff_above_thr = diff > diff_thr
     corrected_values = measured_values.copy()
     corrected_values[diff_above_thr] = expected_values[diff_above_thr]
-    return corrected_values
+    return corrected_values, diff_above_thr
 
 def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrap_values='extrapolate'):
     '''

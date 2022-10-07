@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 import os
 import sys
+import math
 
 '''
 Test signals
@@ -54,7 +55,7 @@ def generate_multichannel_test_signal(duration, samplerate, n_channels, frequenc
     time = np.arange(0, duration, 1/samplerate)
     data = []
     for i in range(n_channels):
-        theta = 2*i*np.pi/8 # shift phase for each channel
+        theta = 2*i*np.pi/n_channels # shift phase for each channel
         sinewave = amplitude * np.sin(2 * np.pi * frequency * time + theta)
         data.append(sinewave)
     data = np.array(data).T
@@ -389,3 +390,43 @@ def derivative(x, y, norm=True):
     dx = np.gradient(x)
     dydx = dy/dx
     return dydx
+
+def calc_euclid_dist_mat(pos):
+    '''
+    Calculates a matrix of euclidean distance. Each entry in the matrix is the distance between ith and jth position
+    
+    Args:
+        pos (nch,2): x, y position list, e.g. for each electrode
+    
+    Returns:
+        (nch, nch) array: distance between each given position
+    
+    '''
+    n_channels = np.shape(pos)[0]
+    dist = np.zeros((n_channels, n_channels))
+    x_pos = pos[:,0]
+    y_pos = pos[:,1]
+    for index, _ in np.ndenumerate(dist):
+        p1 = index[0]
+        p2 = index[1]
+        dist[p1, p2] = math.dist([x_pos[p1], y_pos[p1]], [x_pos[p2], y_pos[p2]])
+    
+    return dist
+    
+def calc_radial_dist(pos, origin=(0,0)):
+    '''
+    Calculates a matrix of radial distance from a given origin. Each entry in the matrix is the distance between ith and jth electrode channel
+        
+    Args:
+        pos (nch,2): x, y position list, e.g. for each electrode
+        origin (2,): point from which to calculate radial distance
+    
+    Returns:
+        (nch,) array: radius between each given position and the origin
+    '''
+    n_channels = np.shape(pos)[0]
+    dist = np.zeros((n_channels,))
+    for i, p in enumerate(pos):
+        dist[i] = math.dist(origin, p)
+    
+    return dist
