@@ -462,19 +462,28 @@ class KFDecoder(object):
     def fit(self, X_kf_train, y_train):
         """
         Train Kalman Filter Decoder
-        Parameters
-        ----------
-        X_kf_train (2D numpy array): [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-            See example file for an example of how to format the neural data correctly
-        y_train (2D numpy array): [n_samples(i.e. timebins), n_outputs]
-            This is the outputs that are being predicted
+        
+        Args:
+            X_kf_train (ntime , nfeatures): This is the neural data in Kalman filter format. See example file for an example of how to format the neural data correctly.
+            y_train (ntime , noutputs): These are the outputs that are being predicted
 
-        Calculations for A,W,H,Q are as follows:
-        .. math:: A = X2*X1' (X1*X1')^{-1}
-        .. math:: W = \frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
-        .. math:: H = Y*X'(X*X')^{-1}
-        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
+        Calculations for :math:`A`, :math:`W`, :math:`H`, :math:`Q` are as follows:
+
+        .. math:: 
+            
+            A = X2*X1' (X1*X1')^{-1}
+
+        .. math:: 
+            
+            W = \\frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
+        
+        .. math:: 
+        
+            H = Y*X'(X*X')^{-1}
+        
+        .. math:: 
+            
+            Q = \\frac{(Y-HX)(Y-HX)' }{time points}
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -511,17 +520,20 @@ class KFDecoder(object):
         """
         Train Kalman Filter Decoder with A and W fixed. A is the state transition model and W is the associated covariance
 
-        Parameters
-        ----------
-        X_kf_train (2D numpy array): [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-            See example file for an example of how to format the neural data correctly
-        y_train (2D numpy array): [n_samples(i.e. timebins), n_outputs]
-            This is the outputs that are being predicted
+        
+        Args:
+            X_kf_train (ntime , nfeatures): This is the neural data in Kalman filter format. See example file for an example of how to format the neural data correctly
+            y_train (ntime , noutputs): These are the outputs that are being predicted
 
         Calculations as follows:
-        .. math:: H = Y*X'(X*X')^{-1}
-        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
+
+        .. math::
+            
+            H = Y*X'(X*X')^{-1}
+
+        .. math:: 
+        
+            Q = \\frac{(Y-HX)(Y-HX)' }{time points}
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -556,18 +568,13 @@ class KFDecoder(object):
     def predict(self, X_kf_test, y_test):
         """
         Predict outcomes using trained Kalman Filter Decoder
-        Parameters
-        ----------
-        X_kf_test (2D numpy array):  [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-        y_test (2D numpy array): [n_samples(i.e. timebins),n_outputs]
-            The actual outputs
-            This parameter is necesary for the Kalman filter (unlike other decoders)
-            because the first value is nececessary for initialization
-        Returns
-        -------
-        y_test_predicted (2D numpy array):  [n_samples(i.e. timebins),n_outputs]
-            The predicted outputs
+
+        Args:
+        X_kf_test (ntime, nfeatures): This is the neural data in Kalman filter format.
+        y_test (ntime , noutputs): The actual outputs. This parameter is necesary for the Kalman filter (unlike other decoders) because the first value is nececessary for initialization
+        
+        Returns:
+            y_test_predicted (ntime, noutputs): The predicted outputs
         """
 
         # Extract parameters
@@ -614,8 +621,7 @@ def calc_rms(signal, remove_offset=True):
         remove_offset (bool): if true, subtract the mean before calculating RMS
 
     Returns:
-        float array: rms of the signal along the first axis. output dimensions will 
-            be the same non-time dimensions as the input signal
+        float array: rms of the signal along the first axis. output dimensions will be the same non-time dimensions as the input signal
     '''
     if remove_offset:
         m = np.mean(signal, axis=0)
@@ -709,8 +715,8 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-        | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-        | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -968,11 +974,11 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
     Returns:
         tuple: Tuple containing:
-        | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
-        | **linear_fit_score (float):** Coefficient of determination for linear fit
-        | **pcc (float):** Pearson's correlation coefficient
-        | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
-        | **reg_fit (sklearn.linear_model._base.LinearRegression)
+            | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
+            | **linear_fit_score (float):** Coefficient of determination for linear fit
+            | **pcc (float):** Pearson's correlation coefficient
+            | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
+            | **reg_fit (sklearn.linear_model._base.LinearRegression)
     '''
     xdata = xdata.reshape(-1, 1)
     ydata = ydata.reshape(-1,1)
@@ -1391,9 +1397,10 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
         adaptive (bool, optional): adaptive taper weighting. Defaults to False.
 
     Returns:
-        fxx (np.array): spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
-        txx (np.array): spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
-        Sxx (len(fxx) x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+        tuple: Tuple containing:
+            | **fxx (np.array):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+            | **txx (np.array):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+            | **Sxx (len(fxx):** x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
     """
     jackknife = False
     sides = 'onesided'
@@ -1506,10 +1513,10 @@ def interp_multichannel(x):
     """interp_multichannel
 
     Args:
-        x (n_sample x n_ch): input data array containing nan-valued missing entries
+        x (n_sample, n_ch): input data array containing nan-valued missing entries
 
     Returns:
-        x_interp (n_sample x n_ch): interpolated data, uses `numpy.interp` method.
+        x_interp (n_sample, n_ch): interpolated data, uses `numpy.interp` method.
     """
     nan_idx = np.isnan(x)
     ok_idx = ~nan_idx

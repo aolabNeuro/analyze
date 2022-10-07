@@ -7,6 +7,7 @@ import numpy.lib.recfunctions as rfn
 import os
 
 from .. import precondition
+from .. import postproc
 from .. import data as aodata
 from .. import utils
 from ..postproc import get_source_files
@@ -415,6 +416,11 @@ def _prepare_bmi3d_v1(data, metadata):
         cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
         data['cursor_interp'] = cursor_data_time
         metadata['cursor_interp_samplerate'] = cursor_samplerate
+
+    # In some versions of BMI3D, hand position contained erroneous data
+    # caused by `np.empty()` instead of `np.nan`. The 'clean_hand_position' 
+    # replaces these bad data with `np.nan`.
+    data['clean_hand_position'] = postproc._correct_hand_traj(task)
 
     data.update({
         'task': task,
