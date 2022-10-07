@@ -1374,6 +1374,30 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
 
         return noisy_test_data
 
+def calc_task_rel_dims(neural_data, kin_data):
+    '''
+    Calculates the task relevant dimensions by regressing neural activity against kinematic data using least squares.
+    If the input neural data is 3D, all trials will be concatenated to calculate the subspace
+
+
+    Args:
+        neural_data (list of (nt, nch)): Input neural data to regress against kinematic activity
+        kin_data (nt, ndim): Kinematic variables, commonly position or instantaneous velocity. 'ndims' refers to the number of physical dimensions that define the kinematic data (i.e. X and Y)
+
+    Returns:
+        (nch, ndim): Subspace that best predicts kinematic variables.
+
+    '''
+    neural_data = np.vstack(neural_data)
+    kin_data = np.vstack(kin_data)
+
+    task_subspace = np.linalg.pinv(kin_data.T @ kin_data) @ kin_data.T @ neural_data
+
+    return task_subspace.T
+
+
+    
+
 ######### Spectral Estimation and Analysis ############
 
 def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
