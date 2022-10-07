@@ -14,8 +14,9 @@ from pandas import read_csv, read_excel
 import warnings
 import yaml
 from ..utils import get_pulse_edge_times, compute_pulse_duty_cycles
+import pandas as pd
 
-from . import peslab
+config_dir = os.path.join(os.path.dirname(__file__), '../config')
 
 ###############################################################################
 # Loading preprocessed data
@@ -1021,6 +1022,33 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
         dataout = datain[:,acq_chs-1]
     
     return dataout, acq_ch_position, acq_chs, connected_elecs
+
+def load_chmap(drive_type='ECoG244', acq_ch_subset=None):
+    '''
+    Load the mapping between acquisition channel and electrode number for the viventi ECoG array.
+    
+    Args:
+        drive_type (str): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition 
+            channels and connected electrodes will be returned.
+
+    Returns:
+        tuple: Tuple Containing:
+            | **acq_ch_position (nelec, 2):** X and Y coordinates of the electrode each acquisition channel gets data from.
+                                        X position is in the first column and Y position is in the second column
+            | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
+            | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
+    '''
+    if drive_type == 'ECoG244':
+        signal_path_filepath = os.path.join(config_dir, '210910_ecog_signal_path.xlsx')
+        elec_to_pos_filepath = os.path.join(config_dir, '244ch_viventi_ecog_elec_to_pos.xlsx')
+    else:
+        raise ValueError('Drive type not supported')
+    signal_path = pd.read_excel(signal_path_filepath)
+    layout = pd.read_excel(elec_to_pos_filepath)
+    if acq_ch_subset is not None:
+        acq_ch_subset = np.array(acq_ch_subset, dtype='int')
+    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset)
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''

@@ -19,6 +19,8 @@ from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 import nitime.algorithms as tsa
+
+from . import utils
 from . import preproc
 
 '''
@@ -241,78 +243,6 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
 
     return fit_params, md, pd
 
-'''
-Performance metrics
-'''
-
-def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
-    '''
-    A wrapper around get_trial_segments which counts the number of trials with a reward event 
-    and divides by the total number of trials. This function can either calculated the success percent
-    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
-    input argument.  
-
-    Args:
-        events (nevents): events vector, can be codes, event names, anything to match
-        start_events (int, str, or list, optional): set of start events to match
-        end_events (int, str, or list, optional): set of end events to match
-        success_events (int, str, or list, optional): which events make a trial a successful trial
-        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
-
-    Returns:
-        float or array (nwindow): success percent = number of successful trials out of all trials attempted.
-    '''
-    segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
-    n_trials = len(segments)
-    success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
-
-    # If requested, calculate success percent across entire input events
-    if window_size is None:
-        n_success = np.count_nonzero(success_trials)  
-        success_percent = n_success / n_trials
-
-    # Otherwise, compute rolling success percent
-    else:
-        filter_array = np.ones(window_size)
-        success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
-        success_percent = success_per_window/window_size
-
-    return success_percent
-
-def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
-    '''
-    Args:
-        events (nevents): events vector, can be codes, event names, anything to match
-        event_times (nevents): time of events in 'events'
-        start_events (int, str, or list, optional): set of start events to match
-        end_events (int, str, or list, optional): set of end events to match
-        success_events (int, str, or list, optional): which events make a trial a successful trial
-        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
-
-    Returns:
-        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
-    '''
-    # Get event time information
-    _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
-    trial_acq_time = times[:,1]-times[:,0]
-    ntrials = times.shape[0]
-    
-    # Get % of successful trials per window 
-    success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
-    
-    # Determine rolling target acquisition time info 
-    if window_size is None:
-        nsuccess = success_perc*ntrials
-        acq_time = np.sum(trial_acq_time)
-
-    else:
-        nsuccess = success_perc*window_size
-        filter_array = np.ones(window_size)
-        acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
-    
-    success_rate = nsuccess / acq_time
-
-    return success_rate
 '''
 Cell type classification analysis
 '''
@@ -883,6 +813,43 @@ def calc_sem(data, axis=None):
 
     return SEM
 
+def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
+    '''
+    Calculates mean absolute correlation between acq_data across channels with the same distance between them.
+    
+    Args:
+        acq_data (nt, nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode
+        bins (int or array): input into scipy.stats.binned_statistic, can be a number or a set of bins
+        method (str, optional): correlation method to use ('pearson' or 'spearman')
+        exclude_zero_dist (bool, optional): whether to exclude distances that are equal to zero. default True
+        
+    Returns:
+        tuple: tuple containing:
+            |**dist (nbins):** electrode distance at each bin
+            |**corr (nbins):** correlation at each bin
+
+    '''
+    dist = utils.calc_euclid_dist_mat(elec_pos)
+    if method == 'spearman':
+        c, _ = stats.spearmanr(acq_data, axis=0)
+    elif method == 'pearson':
+        c = np.corrcoef(acq_data.T)
+    else:
+        raise ValueError(f"Unknown correlation method {method}")
+    
+    c_ = c[np.ix_(acq_ch-1, acq_ch-1)] # note use of open mesh to get the right logical index
+    
+    if exclude_zero_dist:
+        zero_dist = dist == 0
+        dist = dist[~zero_dist]
+        c_ = c_[~zero_dist]
+        
+    corr, edges, _ = stats.binned_statistic(dist.flatten(), np.abs(c_.flatten()), statistic='mean', bins=bins)
+    dist = (edges[:-1] + edges[1:]) / 2
+
+    return dist, corr
 
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
@@ -934,11 +901,11 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
 
     return erp
 
-def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None):
+def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None, trial_average=True):
     '''
     Calculates the maximum (across time) mean (across trials) event-related potential (ERP) 
     for the given timeseries data.
-
+    
     Args:
         data (nt, nch): timeseries data across channels
         event_times (ntrial): list of event times
@@ -951,12 +918,15 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
             Default is the entire time_before period.
         max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
             after event). Default is the entire time_after period.
-
+        trial_average (bool, optional): by default, average across trials before calculating max
+        
     Returns:
         nch: array of maximum mean-ERP for each channel during the given time periods
-
     '''
-    mean_erp = np.mean(calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window), axis=0)
+    erp = calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window)
+    
+    if trial_average:
+        erp = np.expand_dims(np.nanmean(erp, axis=0), 0)
 
     # Limit the search to the given window
     start_idx = int(time_before*samplerate)
@@ -967,14 +937,20 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
                 t1 is greater than t0")
         end_idx = start_idx + int(max_search_window[1]*samplerate)
         start_idx += int(max_search_window[0]*samplerate)
-    mean_erp_window = mean_erp[start_idx:end_idx,:]
+    
+    # Caculate max separately for each trial
+    erp_window = erp[:,start_idx:end_idx,:]
+    max_erp = np.zeros((erp.shape[0], erp.shape[2]))*np.nan
+    for t in range(erp.shape[0]):
+            
+        # Find the index that maximizes the absolute value, then use that index to get the actual signed value
+        idx_max_erp = start_idx + np.argmax(np.abs(erp_window[t]), axis=0)
+        max_erp[t,:] = np.squeeze([erp[t,idx_max_erp[i],i] for i in range(erp.shape[2])])
 
-    # Find the index that maximizes the absolute value, then use that index to get the actual signed value
-    idx_max_erp = start_idx + np.argmax(np.abs(mean_erp_window), axis=0)
-    max_erp = np.array([mean_erp[idx_max_erp[i],i] for i in range(mean_erp.shape[1])])
-
+    if trial_average:
+        max_erp = max_erp[0]
+        
     return max_erp
-
 '''
 MODEL FITTING
 '''
@@ -1550,3 +1526,147 @@ def interp_multichannel(x):
     x[nan_idx] = np.interp(idx,xp,fp)
 
     return x
+
+
+'''
+Behavioral metrics 
+'''
+def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
+    '''
+    A wrapper around get_trial_segments which counts the number of trials with a reward event 
+    and divides by the total number of trials. This function can either calculated the success percent
+    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
+    input argument.  
+
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success percent = number of successful trials out of all trials attempted.
+    '''
+    segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
+    n_trials = len(segments)
+    success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
+
+    # If requested, calculate success percent across entire input events
+    if window_size is None:
+        n_success = np.count_nonzero(success_trials)  
+        success_percent = n_success / n_trials
+
+    # Otherwise, compute rolling success percent
+    else:
+        filter_array = np.ones(window_size)
+        success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
+        success_percent = success_per_window/window_size
+
+    return success_percent
+
+def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
+    '''
+    Calculate the number of successful trials per second with a given trial start and end definition.
+
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        event_times (nevents): time of events in 'events'
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
+    '''
+    # Get event time information
+    _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
+    trial_acq_time = times[:,1]-times[:,0]
+    ntrials = times.shape[0]
+    
+    # Get % of successful trials per window 
+    success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
+    
+    # Determine rolling target acquisition time info 
+    if window_size is None:
+        nsuccess = success_perc*ntrials
+        acq_time = np.sum(trial_acq_time)
+
+    else:
+        nsuccess = success_perc*window_size
+        filter_array = np.ones(window_size)
+        acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
+    
+    success_rate = nsuccess / acq_time
+
+    return success_rate
+
+def compute_path_length_per_trajectory(trajectory):
+    '''
+    This function calculates the path length by computing the distance from all points for a single trajectory. The input trajectry could be cursor or eye trajectory from a single trial. It returns a single value for path length.
+
+    Args:
+        trajectory (nt x 2): single trial trajectory, could be a cursor trajectory or eye trajectory
+
+    Returns:
+        path_length (float): length of the trajectory
+    '''
+    lengths = np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)) # compute the distance from all points in trajectory
+    path_length = np.sum(lengths)
+    return path_length
+
+
+def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , go_cue_code=32 , reward_code=48):
+    '''
+    This function calculates reach time to target only on rewarded trials given trial aligned event codes and event times See: :func:`aopy.preproc.base.get_trial_segments_and_times` .
+
+    Note:
+        Trials are filtered to only include rewarded trials so that all trials have the same length.
+
+    Args:
+        event_codes (list) : trial aligned event codes
+        event_times (list) : trial aligned event times corresponding to the event codes. These event codes and event times could be the output of preproc.base.get_trial_segments_and_times()
+        target_codes (list) : list of event codes for cursor entering peripheral target 
+        go_cue_code (int) : event code for go cue 
+        reward_code (int) : event code for reward
+
+    Returns:
+      tuple: tuple containing:
+        | **reachtime_pertarget (list)**: duration of each segment after filtering
+        | **trial_id (list):** target index on each segment
+    '''
+    tr_T = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+    tr_E = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+    leave_center_idx = np.argwhere(tr_E == go_cue_code)[0, 1]
+    reach_target_idx = np.argwhere(np.isin(tr_E[0], target_codes))[0][0] # using just the first trial to get reach_target_idx
+    reachtime = tr_T[:, reach_target_idx] - tr_T[:, leave_center_idx]
+    target_dir = tr_E[:,reach_target_idx]
+
+    return reachtime, target_dir
+
+def calc_segment_duration(events, event_times, start_events, end_events, target_codes=list(range(81, 89)), trial_filter=lambda x:x):
+    '''
+    Calculates the duration of trial segments. Event codes and event times for this function are raw and not trial aligned.
+
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        event_times (nevents): time of events in 'events'
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        target_codes (list, optional): list of target codes to use for finding targets within trials
+        trial_filter (function, optional): function to apply to each trial's events to determine whether or not to keep it
+
+    Returns:
+        tuple: tuple containing:
+        | **segment_duration (list)**: duration of each segment after filtering
+        | **target_codes (list):** target index on each segment
+    '''
+    trial_events, trial_times = preproc.get_trial_segments(events, event_times, start_events, end_events)
+    trial_events, trial_times = zip(*[(e, t) for e, t in zip(trial_events, trial_times) if trial_filter(e)])
+
+    segment_duration = np.array([t[1] - t[0] for t in trial_times])
+    target_idx = [np.argwhere(np.isin(te, target_codes))[0][0] for te in trial_events]
+    target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
+
+    return segment_duration, target_codes

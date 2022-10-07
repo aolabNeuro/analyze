@@ -2,6 +2,7 @@
 # tests of aopy.data
 from aopy.data import _process_channels
 from aopy.data import *
+from aopy.data import peslab
 from aopy.visualization import *
 from aopy import preproc
 import unittest
@@ -412,6 +413,18 @@ class SignalPathTests(unittest.TestCase):
         
         self.assertEqual(3.75, acq_ch_position[200,0])
         self.assertEqual(4.5, acq_ch_position[200,1])
+
+    def test_load_chmap(self):
+        test_signalpathfile = '210910_ecog_signal_path.xlsx'
+        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+
+        acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='ECoG244')
+        
+        np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
+        np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
+        self.assertEqual(acq_ch_position.shape[0], 240)
+        self.assertEqual(acq_ch_position.shape[1], 2)
 
     def test_map_data2elec(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'

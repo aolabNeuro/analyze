@@ -18,10 +18,11 @@ from PIL import Image
 import copy
 import pandas as pd
 from tqdm import tqdm
-
+import pandas as pd
 
 from . import postproc
 from . import analysis
+from .data import load_chmap
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''
@@ -276,6 +277,42 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr'):
     ax.set_ylabel('y position')
 
     return image
+
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, **interp_kwargs):
+    '''
+    Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
+
+    Args:
+        data ((256,) array): values from the ECoG array to plot in 2D
+        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+
+    Returns:
+        pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+    '''
+    
+    if ax is None:
+        ax = plt.gca()
+    
+    # Load the signal path files
+    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244')
+
+    # Remove bad electrodes
+    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
+    data[bad_ch] = np.nan
+        
+    # Interpolate or directly compute the map
+    if interp:
+        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
+    else:
+        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
+        xy = [elec_pos[:,0], elec_pos[:,1]]
+
+    # Plot
+    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax)
+    return im
 
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
     '''
@@ -1120,3 +1157,44 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     ax[0].set_title(title)
     
     return fig
+
+def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
+    '''
+    Makes a plot of correlation vs electrode distance for the given data.
+    
+    Args:
+        acq_data (nt, nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode in cm
+        ax (pyplot.Axes, optional): axis on which to plot
+        kwargs (dict, optional): other arguments to supply to :func:`aopy.analysis.calc_corr_over_elec_distance`
+
+    Example:
+        Using the multichannel test data generator in utils, we get a phase-shifted sine wave in each channel. 
+        Assigning each channel i to an electrode with position (i, 0), the correlation across distances looks like this:
+
+        .. code-block:: python
+
+            duration = 0.5
+            samplerate = 1000
+            n_channels = 30
+            frequency = 100
+            amplitude = 0.5
+            acq_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
+            acq_ch = (np.arange(n_channels)+1).astype(int)
+            elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
+            
+            plt.figure()
+            plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos)
+
+        .. image:: _images/corr_over_dist.png
+
+    '''
+    if ax is None:
+        ax = plt.gca()
+    label = kwargs.pop('label', None)
+    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
+    ax.plot(dist, corr, label=label)
+    ax.set_xlabel('binned electrode distance (cm)')
+    ax.set_ylabel('correlation')
+    ax.set_ylim(0,1)

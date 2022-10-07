@@ -152,6 +152,31 @@ def fill_missing_timestamps(uncorrected_timestamps):
 
     return corrected_timestamps
 
+def validate_measurements(expected_values, measured_values, diff_thr):
+    '''
+    Corrects sensor measurements to expected values. If the difference between any of the measured values 
+    and the expected values fall outside the given threshold (diff_thr) then the expected value is used. If
+    it is within the threshold, the measured value is used. The two input arrays must have the same lengths.
+
+    Args:
+        expected_values (nt): known or expected values
+        measured_values (nt): measured data that may be spurious
+        diff_thr (float): threshold above which differences are deemed to large and expected values are returned
+
+    Returns:
+        tuple: tuple containing:
+            |**corrected_values (nt):** array of the same length as the inputs but with validated values
+            |**diff_above_thr (nt):** boolean array of values passing the difference threshold
+    '''
+    expected_values = np.squeeze(expected_values)
+    measured_values = np.squeeze(measured_values)
+    assert expected_values.shape == measured_values.shape
+    diff = np.abs(expected_values - measured_values)
+    diff_above_thr = diff > diff_thr
+    corrected_values = measured_values.copy()
+    corrected_values[diff_above_thr] = expected_values[diff_above_thr]
+    return corrected_values, diff_above_thr
+
 def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrap_values='extrapolate'):
     '''
     This function uses linear interpolation (scipy.interpolate.interp1d) to convert timestamped data to timeseries data given new sampling points.
@@ -412,6 +437,44 @@ def get_trial_segments(events, times, start_events, end_events):
                 break 
             idx_end += 1
     segment_times = np.array(segment_times)
+    return segments, segment_times
+
+def get_trial_segments_and_times(events, times, start_events, end_events):
+    '''
+    This function is similar to get_trial_segments() except it returns the timestamps of all events in event code.
+    Trial align the event codes with corresponding event times.
+
+    Args:
+        events (nt): events vector
+        times (nt): times vector
+        start_events (list): set of start events to match
+        end_events (list): set of end events to match
+
+    Returns:
+        tuple: tuple containing:
+            | **segments (list of list of events):** a segment of each trial
+            | **times (list of list of times):** list of timestamps corresponding to each event in the event code
+
+    '''
+    # Find the indices in events that correspond to start events
+    evt_start_idx = np.where(np.in1d(events, start_events))[0]
+
+    # Extract segments for each start event
+    segments = []
+    segment_times = []
+    for idx_evt in range(len(evt_start_idx)):
+        idx_start = evt_start_idx[idx_evt]
+        idx_end = evt_start_idx[idx_evt] + 1
+
+        # Look forward for a matching end event
+        while idx_end < len(events):
+            if np.in1d(events[idx_end], start_events):
+                break # start event must be followed by end event otherwise not valid
+            if np.in1d(events[idx_end], end_events):
+                segments.append(events[idx_start:idx_end+1])
+                segment_times.append(times[idx_start:idx_end+1])
+                break
+            idx_end += 1
     return segments, segment_times
 
 def get_data_segments(data, segment_times, samplerate):
