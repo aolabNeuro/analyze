@@ -785,7 +785,6 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
         plt.bar(hist_bins*1000, np.sum(ISI_hist,axis=1), width = bin_width*1000, edgecolor="black") #multiplied 1000 to rescale to [ms]
         plt.xlabel('Interspike interval (ms)')
         plt.ylabel('Number of intervals')
-        plt.show()
 
     return ISI_hist, hist_bins
 
