@@ -50,7 +50,7 @@ def butterworth_filter_data(data, fs, cutoff_freqs=None, bands=None, order=None,
         cutoff_freqs (float): list of cut-off frequencies (in Hz); only for 'high pass' or 'low pass' filter. Use bands for 'bandpass' filter
         bands (list): frequency bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
         order (int): Order of the butterworth filter. If no order is specified, the function will find the minimum order of filter required to maintain +3dB gain in the bandpass range.
-        filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
+        filter_type (str) : Type of filter. Accepts one of the four values - {'lowpass', 'highpass', 'bandpass', 'bandstop'}
 
     Returns:
         tuple: Tuple containing:
@@ -95,7 +95,7 @@ def dpsschk(tapers):
     Computes the Discrete Prolate Spheroidal Sequences (DPSS) array based on input TAPERS
 
     Args:
-        tapers (list): tapers in [N, NW, K] form. N is window length and NW is standardized half bandwidth. K is the number of DPSS you use.
+        tapers (list): tapers in [N, NW, K] form. N is window length and NW is standardized half bandwidth (dt=1). K is the number of DPSS you use.
 
     Returns:
         e (N, K): K DPSS windows
@@ -137,8 +137,8 @@ def dp_proj(tapers, fs=1, f0=0):
     Args:
         tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
                         P is computed by N*NW and K is given by math.floor(2*P-1)
-                        (N*smapling rate) represents duration of data. 
-                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
+                        (N*sampling rate) represents duration of data. 
+                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is 1./fs
                         K is the number of tapers you use.
         fs (float): sampling rate
         f0 (float): center frequency of filiter
@@ -148,7 +148,7 @@ def dp_proj(tapers, fs=1, f0=0):
     '''
 
     if len(tapers) == 2:
-        n = tapers[0]
+        n = tapers[0]*fs
         w = tapers[1]
         p = n*w
         k = math.floor(2*p-1)
@@ -245,20 +245,18 @@ def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
         w = tapers[1]
         p = n*w
         k = math.floor(2*p-1)
+        print(f"Using {k} tapers of half bandwidth {p:.2f}")
         tapers = [n, p, k]
-    elif len(tapers) == 3:
-        tapers[0] = tapers[0]*fs
-        tapers = dpsschk(tapers)
 
     X = X.T
     filt = mtfilt(tapers, fs, f0)
     N = filt.shape[1]
     szX = X.shape
 
-    if complexflag == 0:
+    if not complexflag:
         filt = filt.real
 
-    if min(szX) > 1:
+    if X.ndim > 1:
         Y = np.zeros(szX) + 1j*np.zeros(szX)
         for ii in range(szX[0]):
             tmp = np.convolve(X[ii,:], filt[0,:])
@@ -270,9 +268,9 @@ def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
     else:
         Y = np.convolve(X, filt[0,:])
         if flag:
-            Y[ii,:] = Y[N:szX[1]+N]
+            Y = Y[N:szX[0]+N]
         else:
-            Y[ii,:] = Y[round(N/2):szX[1]+round(N/2)]
+            Y = Y[round(N/2):szX[0]+round(N/2)]
 
     if f0 > 0:
         Y = 2*Y
