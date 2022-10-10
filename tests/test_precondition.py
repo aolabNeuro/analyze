@@ -18,64 +18,6 @@ if not os.path.exists(write_dir):
 Plots to test filter performance
 '''
 
-def test_filter(filt_fun, fs=25000, T=0.05, freq=[600, 312, 2000], a=[5, 2, 0.5], noise=0.2):
-    '''
-    Helper function to test filters
-
-    Args:
-        filt_fun (function): function which inputs a signal and outputs a filtered signal (no other arguments allowed)
-        fs (int): sampling rate to use. default 25000
-        T (float): period
-        freq (list): list of frequencies to generate
-        a (list): list of amplitudes
-        noise (float): noise amplitude
-    '''
-    # Generate test_signal
-    x_single, t = utils.generate_test_signal(T, fs, [freq[0]], [a[0]])
-    x_noise, t = utils.generate_test_signal(T, fs, freq, a, noise) # with noise
-
-    # Filter and plot
-    x_filt = filt_fun(x_noise)
-    fig, ax = plt.subplot_mosaic([['A', 'B'],
-                                  ['C', 'C']])
-    
-    ax['A'].plot(t, x_noise, label='Noisy signal')
-    ax['A'].plot(t, x_filt, label='Filtered signal')
-    ax['A'].set_xlabel('time (seconds)')
-    
-    x_filt_simple = filt_fun(x_single)
-    ax['B'].plot(t, x_single, label='Simple signal')
-    ax['B'].plot(t, x_filt_simple, label='Filtered signal')
-    ax['B'].set_xlabel('time (seconds)')
-
-    f_noise, psd_noise = analysis.get_psd_welch(x_noise, fs)
-    f_filt, psd_filt = analysis.get_psd_welch(x_filt, fs)
-    ax['C'].semilogy(f_noise, psd_noise, label='Noisy signal')
-    ax['C'].semilogy(f_filt, psd_filt, label='Filtered signal')
-    ax['C'].set_xlabel('frequency (Hz)')
-    ax['C'].set_ylabel('PSD')
-
-    for ax in ax.values():
-        ax.grid(True)
-        ax.axis('tight')
-        ax.legend(loc='best')
-
-
-def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
-    # Plot the frequency response for a few different orders
-    for order in [2, 3, 4, 5, 6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
-        b, a = precondition.butterworth_params(lowcut, highcut, fs, order=order)
-        w, h = freqz(b, a, worN=2000)
-        plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
-
-    plt.plot([0, 0.5 * fs], [np.sqrt(0.5), np.sqrt(0.5)], '--', label='sqrt(0.5)')
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Gain')
-    plt.grid(True)
-    plt.legend(loc='best')
-    plt.title('Comparison of Frequency response for Diff. Orders of Butterworth Filter')
-
-
 class FilterTests(unittest.TestCase):
 
     @classmethod
@@ -93,6 +35,66 @@ class FilterTests(unittest.TestCase):
             utils.generate_multichannel_test_signal(self.T, self.fs, self.n_ch, self.freq[1], self.a*1.5)
         self.t2 = np.arange(self.T*self.fs)/self.fs
 
+    @unittest.skip("Not a test function")
+    @staticmethod
+    def test_filter(filt_fun, fs=25000, T=0.05, freq=[600, 312, 2000], a=[5, 2, 0.5], noise=0.2):
+        '''
+        Helper function to test filters
+
+        Args:
+            filt_fun (function): function which inputs a signal and outputs a filtered signal (no other arguments allowed)
+            fs (int): sampling rate to use. default 25000
+            T (float): period
+            freq (list): list of frequencies to generate
+            a (list): list of amplitudes
+            noise (float): noise amplitude
+        '''
+        # Generate test_signal
+        x_single, t = utils.generate_test_signal(T, fs, [freq[0]], [a[0]])
+        x_noise, t = utils.generate_test_signal(T, fs, freq, a, noise) # with noise
+
+        # Filter and plot
+        x_filt = filt_fun(x_noise)
+        fig, ax = plt.subplot_mosaic([['A', 'B'],
+                                    ['C', 'C']])
+        
+        ax['A'].plot(t, x_noise, label='Noisy signal')
+        ax['A'].plot(t, x_filt, label='Filtered signal')
+        ax['A'].set_xlabel('time (seconds)')
+        
+        x_filt_simple = filt_fun(x_single)
+        ax['B'].plot(t, x_single, label='Simple signal')
+        ax['B'].plot(t, x_filt_simple, label='Filtered signal')
+        ax['B'].set_xlabel('time (seconds)')
+
+        f_noise, psd_noise = analysis.get_psd_welch(x_noise, fs)
+        f_filt, psd_filt = analysis.get_psd_welch(x_filt, fs)
+        ax['C'].semilogy(f_noise, psd_noise, label='Noisy signal')
+        ax['C'].semilogy(f_filt, psd_filt, label='Filtered signal')
+        ax['C'].set_xlabel('frequency (Hz)')
+        ax['C'].set_ylabel('PSD')
+
+        for ax in ax.values():
+            ax.grid(True)
+            ax.axis('tight')
+            ax.legend(loc='best')
+
+    @unittest.skip("Not a test function")
+    @staticmethod
+    def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
+        # Plot the frequency response for a few different orders
+        for order in [2, 3, 4, 5, 6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
+            b, a = precondition.butterworth_params(lowcut, highcut, fs, order=order)
+            w, h = freqz(b, a, worN=2000)
+            plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
+
+        plt.plot([0, 0.5 * fs], [np.sqrt(0.5), np.sqrt(0.5)], '--', label='sqrt(0.5)')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Gain')
+        plt.grid(True)
+        plt.legend(loc='best')
+        plt.title('Comparison of Frequency response for Diff. Orders of Butterworth Filter')
+
     def test_butterworth(self):
         
         # Band pass 500-1200 Hz
@@ -100,23 +102,23 @@ class FilterTests(unittest.TestCase):
         highcut = 1200.0
         fs = 25000
         fn = lambda x: precondition.butterworth_filter_data(x, fs, bands=[(lowcut, highcut)])[0][0]
-        test_filter(fn, fs=fs)
+        self.test_filter(fn, fs=fs)
         fname = 'test_butterworth_bp_500_1200.png'
         savefig(write_dir, fname)
         plt.figure()
-        plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
+        self.plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
         fname = 'test_butterworth_order.png'
         savefig(write_dir, fname)
 
         # Low pass 500 Hz
         fn = lambda x: precondition.butterworth_filter_data(x, fs, filter_type='lowpass', cutoff_freqs=[500], order=4)[0][0]
-        test_filter(fn, fs=fs)
+        self.test_filter(fn, fs=fs)
         fname = 'test_butterworth_lp_500.png'
         savefig(write_dir, fname)
 
         # High pass 500 Hz
         fn = lambda x: precondition.butterworth_filter_data(x, fs=fs, cutoff_freqs=[500], filter_type='highpass', order=4)[0][0]
-        test_filter(fn, fs=fs)
+        self.test_filter(fn, fs=fs)
         fname = 'test_butterworth_hp_500.png'
         savefig(write_dir, fname)
 
@@ -126,7 +128,6 @@ class FilterTests(unittest.TestCase):
         x = utils.generate_multichannel_test_signal(t, fs, nch, 300, 2) # 8 channels data
         x_filter, _ = precondition.butterworth_filter_data(x, fs=fs, bands=[(lowcut, highcut)])
         self.assertEqual(x_filter[0].shape, (t*fs, nch))
-
 
     def test_mtfilter(self):
 
@@ -138,7 +139,7 @@ class FilterTests(unittest.TestCase):
         tapers = [N, NW]
         fs = 25000
         fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
+        self.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_lp_500.png'
         savefig(write_dir, fname)
 
@@ -149,7 +150,7 @@ class FilterTests(unittest.TestCase):
         f0 = np.mean(band)
         tapers = [N, NW]
         fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
+        self.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_lp_500.png'
         savefig(write_dir, fname)
 
@@ -160,7 +161,7 @@ class FilterTests(unittest.TestCase):
         f0 = np.mean(band)
         tapers = [N, NW]
         fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
+        self.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_bp_500.png'
         savefig(write_dir, fname)
 
@@ -171,7 +172,7 @@ class FilterTests(unittest.TestCase):
         f0 = np.mean(band)
         tapers = [N, NW]
         fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
+        self.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_bp_2000.png'
         savefig(write_dir, fname)
 
