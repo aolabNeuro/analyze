@@ -148,7 +148,7 @@ def dp_proj(tapers, fs=1, f0=0):
     '''
 
     if len(tapers) == 2:
-        n = tapers[0]*fs
+        n = tapers[0]
         w = tapers[1]
         p = n*w
         k = math.floor(2*p-1)
@@ -163,10 +163,9 @@ def dp_proj(tapers, fs=1, f0=0):
     K = tapers.shape[1]
     pr_op = np.zeros((N,K),dtype = 'complex')
 
-    f0 = 0
     shifter = np.exp(-2.*np.pi*1j*f0*np.arange(1,N+1)/fs)
     for k in range(K):
-        pr_op[:,k] = shifter*tapers[:,k]
+        pr_op[:,k] = shifter.conj()*tapers[:,k]
         
     return pr_op
 
@@ -189,7 +188,7 @@ def mtfilt(tapers, fs=1, f0=0):
     pr_op = dp_proj(tapers, fs, f0)
     N = pr_op.shape[0]
     X = np.zeros( (1,2*N), dtype = 'complex')
-    pr = pr_op@pr_op.T
+    pr = pr_op@pr_op.conj().T
 
     for t in range(N):
         X[0, t:t+N] = X[0, t:t+N] + pr[:,N-1-t].T
@@ -248,29 +247,30 @@ def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
         print(f"Using {k} tapers of half bandwidth {p:.2f}")
         tapers = [n, p, k]
 
+    if len(tapers) == 3:
+        tapers[0] = tapers[0]*fs
+        tapers, _ = dpsschk(tapers)
+        
     X = X.T
+    if X.ndim == 1:
+        X = np.reshape(X,(1,-1))
+        
     filt = mtfilt(tapers, fs, f0)
     N = filt.shape[1]
     szX = X.shape
 
     if not complexflag:
         filt = filt.real
-
-    if X.ndim > 1:
-        Y = np.zeros(szX) + 1j*np.zeros(szX)
-        for ii in range(szX[0]):
-            tmp = np.convolve(X[ii,:], filt[0,:])
-            if flag:
-                Y[ii,:] = tmp[N:szX[1]+N]
-            else:
-                Y[ii,:] = tmp[round(N/2):szX[1]+round(N/2)]
-
+        Y = np.zeros(szX)
     else:
-        Y = np.convolve(X, filt[0,:])
+        Y = np.zeros(szX) + 1j*np.zeros(szX)
+        
+    for ii in range(szX[0]):
+        tmp = np.convolve(X[ii,:].T, filt[0,:].T)
         if flag:
-            Y = Y[N:szX[0]+N]
+            Y[ii,:] = tmp[N:szX[1]+N]
         else:
-            Y = Y[round(N/2):szX[0]+round(N/2)]
+            Y[ii,:] = tmp[round(N/2):szX[1]+round(N/2)]
 
     if f0 > 0:
         Y = 2*Y
