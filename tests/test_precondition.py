@@ -18,28 +18,47 @@ if not os.path.exists(write_dir):
 Plots to test filter performance
 '''
 
-def plot_filtered_signal(t, x, x_filter, low, high):
-    # Plotting noisy test signal and filtered signal
-    plt.plot(t, x, label='Noisy signal')
-    plt.plot(t, x_filter, label='Filtered signal')
-    plt.xlabel('time (seconds)')
-    # plt.hlines([-self.a, self.a], 0, self.T, linestyles='--')
-    plt.grid(True)
-    plt.axis('tight')
-    plt.legend(loc='best')
-    plt.show()
+def test_filter(filt_fun, fs=25000, T=0.05, freq=[600, 312, 2000], a=[5, 2, 0.5], noise=0.2):
+    '''
+    Helper function to test filters
 
+    Args:
+        filt_fun (function): function which inputs a signal and outputs a filtered signal (no other arguments allowed)
+        fs (int): sampling rate to use. default 25000
+        T (float): period
+        freq (list): list of frequencies to generate
+        a (list): list of amplitudes
+        noise (float): noise amplitude
+    '''
+    # Generate test_signal
+    x_single, t = utils.generate_test_signal(T, fs, [freq[0]], [a[0]])
+    x_noise, t = utils.generate_test_signal(T, fs, freq, a, noise) # with noise
 
-def plot_phase_locking(t, a, f0, x_filter):
-    # Plotting filtered signal with original signal frequency
-    x_f0 = a * 2 * np.cos(2 * np.pi * f0 * t)
-    plt.plot(t, x_f0, label='Original signal (%g Hz)' % f0)
-    plt.plot(t, x_filter, label='Filtered signal (%g Hz)' % f0)
-    plt.xlabel('time (seconds)')
-    plt.ylabel('amplitude')
-    plt.title('Comparison of Original Vs Filtered Signal')
-    plt.legend(loc='best')
-    plt.show()
+    # Filter and plot
+    x_filt = filt_fun(x_noise)
+    fig, ax = plt.subplot_mosaic([['A', 'B'],
+                                  ['C', 'C']])
+    
+    ax['A'].plot(t, x_noise, label='Noisy signal')
+    ax['A'].plot(t, x_filt, label='Filtered signal')
+    ax['A'].set_xlabel('time (seconds)')
+    
+    x_filt_simple = filt_fun(x_single)
+    ax['B'].plot(t, x_single, label='Simple signal')
+    ax['B'].plot(t, x_filt_simple, label='Filtered signal')
+    ax['B'].set_xlabel('time (seconds)')
+
+    f_noise, psd_noise = analysis.get_psd_welch(x_noise, fs)
+    f_filt, psd_filt = analysis.get_psd_welch(x_filt, fs)
+    ax['C'].semilogy(f_noise, psd_noise, label='Noisy signal')
+    ax['C'].semilogy(f_filt, psd_filt, label='Filtered signal')
+    ax['C'].set_xlabel('frequency (Hz)')
+    ax['C'].set_ylabel('PSD')
+
+    for ax in ax.values():
+        ax.grid(True)
+        ax.axis('tight')
+        ax.legend(loc='best')
 
 
 def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
@@ -55,34 +74,12 @@ def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
     plt.grid(True)
     plt.legend(loc='best')
     plt.title('Comparison of Frequency response for Diff. Orders of Butterworth Filter')
-    plt.show()
 
-
-def plot_psd(x, x_filter, fs):
-    # Plot power spectral density of the signal
-    f, psd = analysis.get_psd_welch(x, fs)
-    f_filtered, psd_filtered = analysis.get_psd_welch(x_filter, fs)
-    plt.semilogy(f, psd, label='test signal')
-    plt.semilogy(f_filtered, psd_filtered, label='filtered output')
-    plt.xlabel('frequency [Hz]')
-    plt.ylabel('PSD')
-    plt.legend()
-    plt.title('Power Spectral Density Comparison')
-    plt.show()
-
-
-def plot_db_spectral_estimate(freq, psd, psd_filter, labels):
-    psd = 10 * np.log10(psd)
-    psd_filter = 10 * np.log10(psd_filter)
-    plt.figure()
-    from nitime.viz import plot_spectral_estimate
-    plot_spectral_estimate(freq, psd, (psd_filter,), elabels=(labels,))
-    plt.show()
 
 class FilterTests(unittest.TestCase):
 
-
-    def setUp(self):
+    @classmethod
+    def setUpClass(self):
         self.T = 0.05
         self.fs = 25000
         self.freq = [600, 312, 2000]
@@ -97,152 +94,93 @@ class FilterTests(unittest.TestCase):
         self.t2 = np.arange(self.T*self.fs)/self.fs
 
     def test_butterworth(self):
-        # Sample rate and desired cutoff frequencies (in Hz).
-        # fs = 25000.0
+        
+        # Band pass 500-1200 Hz
         lowcut = 500.0
         highcut = 1200.0
-        tic = time.perf_counter()
-        x_filter, f_band = precondition.butterworth_filter_data(self.x, fs=self.fs, bands=[(lowcut, highcut)])
-        toc = time.perf_counter()
-        print(f"Butterworth filter executed in {toc - tic:0.4f} seconds")
-
-        fname = 'test_signal_filtered_Signal.png'
-        plot_filtered_signal(self.t, self.x, x_filter[0], lowcut, highcut)
-        savefig(write_dir, fname) # Should eliminate low and high frequency noise, only 600 Hz
-
-        fname = 'test_phase_locking.png'
-        plt.figure()
-        plot_phase_locking(self.t, self.a, self.f0, x_filter[0])
-        savefig(write_dir, fname) # Green and red should overlap
-
-        fname = 'freq_response_vs_filter_order.png'
+        fs = 25000
+        fn = lambda x: precondition.butterworth_filter_data(x, fs, bands=[(lowcut, highcut)])[0][0]
+        test_filter(fn, fs=fs)
+        fname = 'test_butterworth_bp_500_1200.png'
+        savefig(write_dir, fname)
         plt.figure()
         plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
-        savefig(write_dir, fname) # freq response should improve with higher order
+        fname = 'test_butterworth_order.png'
+        savefig(write_dir, fname)
 
-        fname = 'plot_psd.png'
-        plt.figure()
-        plot_psd(self.x, x_filter[0], self.fs)
-        savefig(write_dir, fname) # 312Hz and 2000Hz power should be much reduced after filtering
+        # Low pass 500 Hz
+        fn = lambda x: precondition.butterworth_filter_data(x, fs, filter_type='lowpass', cutoff_freqs=[500], order=4)[0][0]
+        test_filter(fn, fs=fs)
+        fname = 'test_butterworth_lp_500.png'
+        savefig(write_dir, fname)
 
-        tic = time.perf_counter()
-        x_filter, f_band = precondition.butterworth_filter_data(self.x2, fs=self.fs, bands=[(lowcut, highcut)])
-        toc = time.perf_counter()
-        print(f"Butterworth filter executed in {toc - tic:0.4f} seconds for 8 channels")
+        # High pass 500 Hz
+        fn = lambda x: precondition.butterworth_filter_data(x, fs=fs, cutoff_freqs=[500], filter_type='highpass', order=4)[0][0]
+        test_filter(fn, fs=fs)
+        fname = 'test_butterworth_hp_500.png'
+        savefig(write_dir, fname)
 
-        self.assertEqual(x_filter[0].shape, (self.t2.size, self.n_ch))
+        # Test that multichannel filtering works
+        t = 2 # seconds
+        nch = 8
+        x = utils.generate_multichannel_test_signal(t, fs, nch, 300, 2) # 8 channels data
+        x_filter, _ = precondition.butterworth_filter_data(x, fs=fs, bands=[(lowcut, highcut)])
+        self.assertEqual(x_filter[0].shape, (t*fs, nch))
 
-        fname = 'test_signal_filtered_multichannel.png'
-        plt.figure()
-        plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
-        savefig(write_dir, fname) # Should only have 600 Hz
-
-        # This needs fixing:
-        # x_filter, f_band = precondition.butterworth_filter_data(self.x2, fs=self.fs, cutoff_freqs=[highcut], filter_type='highpass')
-        # fname = 'test_signal_highpass_filtered_multichannel.png'
-        # plt.figure()
-        # plot_filtered_signal(self.t2, self.x2[:,0], x_filter[0][:,0], lowcut, highcut)
-        # savefig(write_dir, fname) # Should only have 600 Hz
 
     def test_mtfilter(self):
-        band = [-500, 500] # signals within band can pass
-        N = 0.005 # N*sampling_rate is time window you analyze
+
+        # Low pass 500 Hz
+        band = [-500, 500]
+        N = 0.1 # N*sampling_rate is time window you analyze
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
         tapers = [N, NW]
-        x_mtfilter = precondition.mtfilter(self.x2, tapers, fs = self.fs, f0 = f0)
-        x_312hz = utils.generate_multichannel_test_signal(self.T, self.fs, 1, 312, self.a*1.5)
-        plt.figure()
-        plt.plot(self.x, label='Original signal (312 Hz + 600 Hz)')
-        plt.plot(x_312hz, label='Original signal (312 Hz)')
-        plt.plot(x_mtfilter[:,0], label='Multitaper-filtered signal')
-        plt.xlim([0,500])
-        plt.legend()
-        fname = 'mtfilter.png'
-        savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
+        fs = 25000
+        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
+        test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_lp_500.png'
+        savefig(write_dir, fname)
 
-        band = [-50, 50]
-        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        # Low pass 500 Hz with larger time window
+        band = [-500, 500]
+        N = 0.05
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
         tapers = [N, NW]
-        x_30hz = utils.generate_multichannel_test_signal(2, self.fs, self.n_ch, 30, self.a)
-        noise = np.random.normal(0,1,x_30hz.shape)*self.a
-        x_30hz_noise = x_30hz + noise
-        x_30hz_mtfilter = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
-        plt.figure()
-        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
-        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
-        plt.plot(x_30hz_mtfilter[:,0], label='filtered signal (Multitaper-filtered signal)')
-        plt.xlim((0, 1500))
-        plt.title('band = [-50, 50], N = 0.1')
-        plt.legend()
-        fname = 'mtfilter_narrow.png'
-        savefig(write_dir, fname) # Should have power in 30 Hz
+        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
+        test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_lp_500.png'
+        savefig(write_dir, fname)
 
-        band = [0, 100]
-        N = 0.1 # In case where you narrow band, you should increase temporal resoultion N
+        # Narrow band-pass
+        band = [475, 625] # signals within band can pass
+        N = 0.1
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
         tapers = [N, NW]
-        x_30hz_mtfilter2 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
-        plt.figure()
-        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
-        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
-        plt.plot(x_30hz_mtfilter2[:,0], label='filtered signal (Multitaper-filtered signal)')
-        plt.xlim((0, 1500))
-        plt.title('band = [0, 100], N = 0.1')
-        plt.legend()
-        fname = 'mtfilter_narrow_2.png'
-        savefig(write_dir, fname) # Should have power in 30 Hz
+        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
+        test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_bp_500.png'
+        savefig(write_dir, fname)
 
-        band = [0, 50]
-        N = 0.5 # In case where you narrow band, you should increase temporal resoultion N
+        # High freq band-pass
+        band = [1500, 2500] # signals within band can pass
+        N = 0.1 # N*sampling_rate is time window you analyze
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
         tapers = [N, NW]
-        x_30hz_mtfilter3 = precondition.mtfilter(x_30hz_noise, tapers, fs = self.fs, f0 = f0)
-        plt.figure()
-        plt.plot(x_30hz_noise[:,0], label='noise signal (30 Hz + noise)')
-        plt.plot(x_30hz[:,0], label='original signal (30 Hz)')
-        plt.plot(x_30hz_mtfilter3[:,0], label='filtered signal (Multitaper-filtered signal)')
-        plt.xlim((0, 1500))
-        plt.title('band = [0, 50], N = 0.5')
-        plt.legend()
-        plt.show()
+        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
+        test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_bp_2000.png'
+        savefig(write_dir, fname)
 
-        self.assertEqual(x_mtfilter.shape, self.x2.shape)
-
-
-    # def test_multitaper(self):
-    #     f, psd_filter, mu = precondition.get_psd_multitaper(self.x, self.fs)
-    #     psd = precondition.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
-
-    #     fname = 'multitaper_powerspectrum.png'
-    #     plt.figure()
-    #     plt.plot(f, psd, label='Welch')
-    #     plt.plot(f, psd_filter, label='Multitaper')
-    #     plt.xlabel('Frequency (Hz)')
-    #     plt.ylabel('PSD')
-    #     plt.legend()
-    #     savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
-
-    #     bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
-    #     lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
-    #     plt.figure()
-    #     plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
-    #     plt.xticks(np.arange(len(bands)), bands)
-    #     plt.xlabel('Frequency band (Hz)')
-    #     plt.ylabel('Band Power')
-    #     fname = 'lfp_bandpower.png'
-    #     savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
-
-    #     f, psd_filter, mu = precondition.get_psd_multitaper(self.x2, self.fs)
-    #     self.assertEqual(psd_filter.shape[1], self.n_ch)
-    #     print(mu.shape)
-    #     lfp = precondition.multitaper_lfp_bandpower(f, psd_filter, bands, False)
-    #     self.assertEqual(lfp.shape[1], self.x2.shape[1])
-    #     self.assertEqual(lfp.shape[0], len(bands))
+        # Test that multichannel filtering works
+        t = 2 # seconds
+        nch = 8
+        x = utils.generate_multichannel_test_signal(t, fs, nch, 300, 2) # 8 channels data
+        x_filter = precondition.mtfilter(x, tapers, fs=fs, f0=f0)
+        self.assertEqual(x_filter.shape, (t*fs, nch))
 
 
     def test_downsample(self):
