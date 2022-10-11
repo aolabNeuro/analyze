@@ -942,7 +942,9 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # This other preprocessed file does contain laser sensor data. Response on ch. 36
         te_id = 6577
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date)
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
+
 
         print(trial_powers)
 
