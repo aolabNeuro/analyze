@@ -155,7 +155,7 @@ def compute_bp_filter(tapers, fs=1, f0=0):
     pr = pr_op@pr_op.conj().T
 
     for t in range(N):
-        X[0, t:t+N] = X[0, t:t+N] + pr[:,N-1-t].T
+        X[0, t:t+N] = X[0, t:t+N] + pr[:,N-1-t].conj().T
     X = X/N 
     
     return X
