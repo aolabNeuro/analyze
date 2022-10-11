@@ -163,12 +163,14 @@ def compute_bp_filter(tapers, fs=1, f0=0):
 
 def convert_taper_parameters(n, w):
     '''        
-    Converts tapers in [n, w] form to [n, p, k] form.
+    Converts tapers in [n, w] form to [n, p, k] form. It's wise to print out 
+    the number of tapers (k) to check that there will be enough frequency 
+    resoltuion in the filter.
     P is computed by N*W and K is given by math.floor(2*P-1)
 
     Args:
         n (float): time window for analysis (in seconds)
-        w (float): standard half bandwith of tapers (in hz)
+        w (float): half bandwith of tapers (in hz)
 
     Returns:
         tuple: [n, p, k] taper parameters
@@ -181,8 +183,9 @@ def convert_taper_parameters(n, w):
 
 def mt_lowpass_filter(data, lowcut, taper_len, fs, **kwargs):
     '''
-    Wrapper around mtfilter that auto-generates [N, P, K] and f0 parameters based on the lowpass of interest,
-    length of the tapers, and the sampling rate.
+    Wrapper around mtfilter that auto-generates [n, p, k] and f0 parameters 
+    based on the lowpass of interest, length of the tapers, and the sampling 
+    rate. See :func:`~aopy.precondition.mtfilter` for more details.
 
     Args:
         data (nt, nch): time series array
@@ -202,8 +205,8 @@ def mt_lowpass_filter(data, lowcut, taper_len, fs, **kwargs):
 
 def mt_bandpass_filter(data, band, taper_len, fs, **kwargs):
     '''
-    Wrapper around mtfilter that auto-generates [N, P, K] and f0 parameters based on the band of interest,
-    length of the tapers, and the sampling rate.
+    Wrapper around mtfilter that auto-generates [n, p, k] and f0 parameters based on the band of interest,
+    length of the tapers, and the sampling rate. See :func:`~aopy.precondition.mtfilter` for more details.
 
     Args:
         data (nt, nch): time series array
@@ -224,7 +227,14 @@ def mt_bandpass_filter(data, band, taper_len, fs, **kwargs):
 
 def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False, use_fft=True):
     '''
-    Bandpass-filter a time series data using the multitaper method
+    Bandpass-filter a time series data using the multitaper method. Tapers are calculated using [n, p, k]
+    parameters (see :func:`~aopy.precondition.convert_taper_parameters`). Be careful to set these parameters
+    to control temporal and spectral properties of the filter. The parameters you pick will depend on the 
+    time-scale of questions you're interested in. You get better estimates by smoothing across more time, 
+    but at the cost of temporal resolution. For example, if responses that happen quickly, you'll want to keep 
+    the taper length relatively small whenever possible. But that then blurs your frequency resolution, 
+    so you need to play around with the bandwidth and taper length to find the lowest temporal resolution 
+    you can get away with for a given frequency range goal.
 
     Example:
         ::
