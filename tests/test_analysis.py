@@ -406,6 +406,22 @@ class ModelFitTests(unittest.TestCase):
         weights = np.array([0, 1, 1, 1, 1])
         linear_fit, _, pcc, _, _ = aopy.analysis.linear_fit_analysis2D(xdata, ydata, weights=weights)
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
+        
+    def test_lda(self):
+        # idea is to have 10 points in the lower left quadrant
+        # and another points in the upper right quadrant.
+        # lda should be able to classify this distribution into 100 percent
+        X_train_lda = np.array([[-1, -1], [-2, -1], [-3, -2], [-5, -7], [-3, -5], [-6,  -4],
+                                [1, 1],   [2, 1],   [3, 2],   [3,1], [3,9], [2,3]])
+        y_class_train = np.array([1,1,1,1,1,1, -1, -1, -1, -1,-1,-1])
+        
+        accuracy, std = aopy.analysis.classify_by_lda(X_train_lda, y_class_train, 
+                                 n_splits=5,
+                                 n_repeats=3, 
+                                 random_state=1)
+        
+        self.assertAlmostEqual(accuracy, 1.0)
+        self.assertAlmostEqual(std, 0.0 )
 
 class AccLLRTests(unittest.TestCase):
 
