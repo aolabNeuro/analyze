@@ -1,5 +1,4 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
-from platform import python_branch
 import unittest
 from aopy.visualization import *
 import matplotlib.pyplot as plt
@@ -13,66 +12,71 @@ test_dir = os.path.dirname(__file__)
 write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
+docs_dir = os.path.join(os.path.dirname(test_dir),'docs', 'source', '_images')
 
 '''
 Plots to test filter performance
 '''
 
-def test_filter(filt_fun, fs=25000, T=0.05, freq=[600, 312, 2000], a=[5, 2, 0.5], noise=0.2):
-    '''
-    Helper function to test filters
+class HelperFunctions:
 
-    Args:
-        filt_fun (function): function which inputs a signal and outputs a filtered signal (no other arguments allowed)
-        fs (int): sampling rate to use. default 25000
-        T (float): period
-        freq (list): list of frequencies to generate
-        a (list): list of amplitudes
-        noise (float): noise amplitude
-    '''
-    # Generate test_signal
-    x_single, t = utils.generate_test_signal(T, fs, [freq[0]], [a[0]])
-    x_noise, t = utils.generate_test_signal(T, fs, freq, a, noise) # with noise
+    @staticmethod
+    def test_filter(filt_fun, fs=25000, T=0.05, freq=[600, 312, 2000], a=[5, 2, 0.5], noise=0.2):
+        '''
+        Helper function to test filters
 
-    # Filter and plot
-    x_filt = filt_fun(x_noise)
-    fig, ax = plt.subplot_mosaic([['A', 'B'],
-                                ['C', 'C']])
-    
-    ax['A'].plot(t, x_noise, label='Noisy signal')
-    ax['A'].plot(t, x_filt, label='Filtered signal')
-    ax['A'].set_xlabel('time (seconds)')
-    
-    x_filt_simple = filt_fun(x_single)
-    ax['B'].plot(t, x_single, label=f'{freq[0]} Hz signal')
-    ax['B'].plot(t, x_filt_simple, label='Filtered signal')
-    ax['B'].set_xlabel('time (seconds)')
+        Args:
+            filt_fun (function): function which inputs a signal and outputs a filtered signal (no other arguments allowed)
+            fs (int): sampling rate to use. default 25000
+            T (float): period
+            freq (list): list of frequencies to generate
+            a (list): list of amplitudes
+            noise (float): noise amplitude
+        '''
+        # Generate test_signal
+        x_single, t = utils.generate_test_signal(T, fs, [freq[0]], [a[0]])
+        x_noise, t = utils.generate_test_signal(T, fs, freq, a, noise) # with noise
 
-    f_noise, psd_noise = analysis.get_psd_welch(x_noise, fs)
-    f_filt, psd_filt = analysis.get_psd_welch(x_filt, fs)
-    ax['C'].semilogy(f_noise, psd_noise, label='Noisy signal')
-    ax['C'].semilogy(f_filt, psd_filt, label='Filtered signal')
-    ax['C'].set_xlabel('frequency (Hz)')
-    ax['C'].set_ylabel('PSD')
+        # Filter and plot
+        x_filt = filt_fun(x_noise)
+        fig, ax = plt.subplot_mosaic([['A', 'B'],
+                                    ['C', 'C']])
+        
+        ax['A'].plot(t, x_noise, label='Noisy signal')
+        ax['A'].plot(t, x_filt, label='Filtered signal')
+        ax['A'].set_xlabel('time (seconds)')
+        
+        x_filt_simple = filt_fun(x_single)
+        ax['B'].plot(t, x_single, label=f'{freq[0]} Hz signal')
+        ax['B'].plot(t, x_filt_simple, label='Filtered signal')
+        ax['B'].set_xlabel('time (seconds)')
 
-    for ax in ax.values():
-        ax.grid(True)
-        ax.axis('tight')
-        ax.legend(loc='best')
+        f_noise, psd_noise = analysis.get_psd_welch(x_noise, fs)
+        f_filt, psd_filt = analysis.get_psd_welch(x_filt, fs)
+        ax['C'].semilogy(f_noise, psd_noise, label='Noisy signal')
+        ax['C'].semilogy(f_filt, psd_filt, label='Filtered signal')
+        ax['C'].set_xlabel('frequency (Hz)')
+        ax['C'].set_ylabel('PSD')
 
-def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
-    # Plot the frequency response for a few different orders
-    for order in [2, 3, 4, 5, 6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
-        b, a = precondition.butterworth_params(lowcut, highcut, fs, order=order)
-        w, h = freqz(b, a, worN=2000)
-        plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
+        for ax in ax.values():
+            ax.grid(True)
+            ax.axis('tight')
+            ax.legend(loc='best')
 
-    plt.plot([0, 0.5 * fs], [np.sqrt(0.5), np.sqrt(0.5)], '--', label='sqrt(0.5)')
-    plt.xlabel('Frequency (Hz)')
-    plt.ylabel('Gain')
-    plt.grid(True)
-    plt.legend(loc='best')
-    plt.title('Comparison of Frequency response for Diff. Orders of Butterworth Filter')
+    @staticmethod
+    def plot_freq_response_vs_filter_order(lowcut, highcut, fs):
+        # Plot the frequency response for a few different orders
+        for order in [2, 3, 4, 5, 6]:  # trying  different order of butterworth to see the roll off around cut-off frequencies
+            b, a = precondition.butterworth_params(lowcut, highcut, fs, order=order)
+            w, h = freqz(b, a, worN=2000)
+            plt.plot((fs * 0.5 / np.pi) * w, abs(h), label="order = %d" % order)
+
+        plt.plot([0, 0.5 * fs], [np.sqrt(0.5), np.sqrt(0.5)], '--', label='sqrt(0.5)')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Gain')
+        plt.grid(True)
+        plt.legend(loc='best')
+        plt.title('Comparison of Frequency response for Diff. Orders of Butterworth Filter')
 
 class FilterTests(unittest.TestCase):
 
@@ -93,28 +97,36 @@ class FilterTests(unittest.TestCase):
 
     def test_butterworth(self):
         
-        # Band pass 500-1200 Hz
-        lowcut = 500.0
-        highcut = 1200.0
+        # Band pass 1500-2500 Hz
+        lowcut = 1500.0
+        highcut = 2500.0
         fs = 25000
         fn = lambda x: precondition.butterworth_filter_data(x, fs, bands=[(lowcut, highcut)])[0][0]
-        test_filter(fn, fs=fs)
-        fname = 'test_butterworth_bp_500_1200.png'
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_butterworth_bp_2000.png'
         savefig(write_dir, fname)
         plt.figure()
-        plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
+        HelperFunctions.plot_freq_response_vs_filter_order(lowcut, highcut, self.fs)
         fname = 'test_butterworth_order.png'
+        savefig(write_dir, fname)
+
+        # Band pass 600 hz
+        lowcut = 575.0
+        highcut = 625.0
+        fn = lambda x: precondition.butterworth_filter_data(x, fs, filter_type='lowpass', cutoff_freqs=[500], order=4)[0][0]
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_butterworth_bp_600.png'
         savefig(write_dir, fname)
 
         # Low pass 500 Hz
         fn = lambda x: precondition.butterworth_filter_data(x, fs, filter_type='lowpass', cutoff_freqs=[500], order=4)[0][0]
-        test_filter(fn, fs=fs)
+        HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_butterworth_lp_500.png'
         savefig(write_dir, fname)
 
         # High pass 500 Hz
         fn = lambda x: precondition.butterworth_filter_data(x, fs=fs, cutoff_freqs=[500], filter_type='highpass', order=4)[0][0]
-        test_filter(fn, fs=fs)
+        HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_butterworth_hp_500.png'
         savefig(write_dir, fname)
 
@@ -132,22 +144,44 @@ class FilterTests(unittest.TestCase):
         N = 0.1 # N*sampling_rate is time window you analyze
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        tapers = [N, NW]
+        n, p, k = precondition.convert_tapers(N, NW)
         fs = 25000
-        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
+        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
+        HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_lp_500.png'
         savefig(write_dir, fname)
 
-        # Low pass 500 Hz with larger time window
+        # Low pass 500 Hz with smaller time window
         band = [-500, 500]
-        N = 0.05
+        N = 0.01
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        tapers = [N, NW]
-        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
-        fname = 'test_mtfilt_lp_500.png'
+        n, p, k = precondition.convert_tapers(N, NW)
+        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_lp_500_small_time.png'
+        savefig(write_dir, fname)
+
+         # Low pass 500 Hz with complex output
+        band = [-500, 500]
+        N = 0.1
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        n, p, k = precondition.convert_tapers(N, NW)
+        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0, complex_output=True)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_lp_500_complex.png'
+        savefig(write_dir, fname)
+
+        # Low pass 500 Hz without centering the output
+        band = [-500, 500]
+        N = 0.1
+        NW = (band[1]-band[0])/2
+        f0 = np.mean(band)
+        n, p, k = precondition.convert_tapers(N, NW)
+        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0, center_output=False)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_lp_500_noncentered.png'
         savefig(write_dir, fname)
 
         # Narrow band-pass
@@ -155,20 +189,22 @@ class FilterTests(unittest.TestCase):
         N = 0.1
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        tapers = [N, NW]
-        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
-        fname = 'test_mtfilt_bp_500.png'
+        n, p, k = precondition.convert_tapers(N, NW)
+        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_bp_600.png'
         savefig(write_dir, fname)
+        fname = 'mtfilter.png'
+        savefig(docs_dir, fname)
 
         # High freq band-pass
         band = [1500, 2500] # signals within band can pass
         N = 0.1 # N*sampling_rate is time window you analyze
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        tapers = [N, NW]
-        fn = lambda x: precondition.mtfilter(x, tapers, fs=fs, f0=f0)
-        test_filter(fn, fs=fs)
+        n, p, k = precondition.convert_tapers(N, NW)
+        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
+        HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_bp_2000.png'
         savefig(write_dir, fname)
 
@@ -176,7 +212,7 @@ class FilterTests(unittest.TestCase):
         t = 2 # seconds
         nch = 8
         x = utils.generate_multichannel_test_signal(t, fs, nch, 300, 2) # 8 channels data
-        x_filter = precondition.mtfilter(x, tapers, fs=fs, f0=f0)
+        x_filter = precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
         self.assertEqual(x_filter.shape, (t*fs, nch))
 
 

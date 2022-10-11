@@ -90,43 +90,28 @@ def butterworth_filter_data(data, fs, cutoff_freqs=None, bands=None, order=None,
 '''
 Filter functions related to multitaper method
 '''
-def dpsschk(tapers):
+def dpsschk(n, p, k):
     '''
-    Computes the Discrete Prolate Spheroidal Sequences (DPSS) array based on input TAPERS
+    Computes the Discrete Prolate Spheroidal Sequences (DPSS) array based on input tapers
 
     Args:
-        tapers (list): tapers in [N, NW, K] form. N is window length and NW is standardized half bandwidth (dt=1). K is the number of DPSS you use.
+        n (int): window length in number of samples
+        p (int): standardized half bandwidth in hz
+        k (int): number of DPSS tapers to use
 
     Returns:
-        e (N, K): K DPSS windows
-        v (K): The concentration ratios for K windows.
+        e ((n, k) array): K DPSS windows
+        v ((k,) array): The concentration ratios for the K windows
     '''
+    n = round(n)
 
-    length = len(tapers)
-    flag = 0
+    if k < 1:
+        raise Exception('Error:  K must be greater than or equal to 1')
+    elif k > 2*p-1:
+        raise Exception('Error:  K must be less than 2*P-1')
 
-    if length == 3:
-        flag = 1
-
-    if flag:
-        N = tapers[0]
-        NW = tapers[1]
-        K = tapers[2]
-
-        N = round(N)
-
-        if K < 1:
-            raise Exception('Error:  K must be greater than or equal to 1')
-        elif K > 2*NW-1:
-            raise Exception('Error:  K must be less than 2*P-1')
-
-        e, v = windows.dpss(N, NW, K,return_ratios=True)
-        e = e.T
-
-    else:
-        print('Tapers already calculated')
-        e = tapers
-        v = 0
+    e, v = windows.dpss(n, p, k,return_ratios=True)
+    e = e.T
     
     return e, v
 
@@ -135,30 +120,13 @@ def dp_proj(tapers, fs=1, f0=0):
     Generates a prolate projection operator
 
     Args:
-        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
-                        P is computed by N*NW and K is given by math.floor(2*P-1)
-                        (N*sampling rate) represents duration of data. 
-                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is 1./fs
-                        K is the number of tapers you use.
+        tapers ((n, k) array): data tapers
         fs (float): sampling rate
         f0 (float): center frequency of filiter
 
     Returns:
         dp_proj (nt, K): projection operator in [time, K] form
     '''
-
-    if len(tapers) == 2:
-        n = tapers[0]
-        w = tapers[1]
-        p = n*w
-        k = math.floor(2*p-1)
-        tapers = [n, p, k]
-
-    if len(tapers) == 3:
-        tapers[0] = round(tapers[0]*fs)
-        tapers, v = dpsschk(tapers)
-
-    # determine parameters and assign matrices
     N = tapers.shape[0]
     K = tapers.shape[1]
     pr_op = np.zeros((N,K),dtype = 'complex')
@@ -169,16 +137,12 @@ def dp_proj(tapers, fs=1, f0=0):
         
     return pr_op
 
-def mtfilt(tapers, fs=1, f0=0):
+def compute_bp_filter(tapers, fs=1, f0=0):
     '''
     Generates a bandpass filter using the multitaper method
 
     Args:
-        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
-                        P is computed by N*NW and K is given by math.floor(2*P-1)
-                        (N*smapling rate) represents duration of data. 
-                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
-                        K is the number of tapers you use.
+        tapers ((n, k) array): data tapers
         fs (float): sampling rate
         f0 (float): center frequency of filiter
 
@@ -196,86 +160,82 @@ def mtfilt(tapers, fs=1, f0=0):
     
     return X
 
-def mtfilter(X, tapers, fs=1, f0=0, flag=False, complexflag=False):
+def convert_tapers(n, w):
+    '''        
+    Converts tapers in [N, NW] form to [N, P, K] form.
+    P is computed by N*NW and K is given by math.floor(2*P-1)
+
+    Args:
+        n (float): time window for analysis (in seconds)
+        w (float): standard half bandwith of tapers (in hz)
+
+    Returns:
+        _type_: _description_
+    '''
+    p = n*w
+    k = math.floor(2*p-1)
+    return n, p, k
+
+def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False):
     '''
     Bandpass-filter a time series data using the multitaper method
 
     Example:
         ::
 
-            band = [-500, 500] # signals within band can pass
-            N = 0.005 # N*sampling_rate is time window you analyze
+            band = [575, 625] # signals within band can pass
+            N = 0.1
             NW = (band[1]-band[0])/2
+            f0 = np.mean(band)
+            n, p, k = convert_tapers(N, NW)
+            print(f"Using {k} tapers of half bandwidth {p:.2f}")
+
             T = 0.05
             fs = 25000
-            nch = 1
-            x_312hz = utils.generate_multichannel_test_signal(T, fs, nch, 312, self.a*1.5)
-            x_600hz = utils.generate_multichannel_test_signal(T, fs, nch, self.freq[0], self.a*0.5)
-            f0 = np.mean(band)
-            tapers = [N, NW]
-            x_mtfilter = precondition.mtfilter(x_312hz + x_600hz, tapers, fs=fs, f0=f0)
-            plt.figure()
-            plt.plot(x_312hz + x_600hz, label='Original signal (312 Hz + 600 Hz)')
-            plt.plot(x_312hz, label='Original signal (312 Hz)')
-            plt.plot(x_mtfilter, label='Multitaper-filtered signal')
-            plt.xlim([0,500])
-            plt.legend()
+            x, t = utils.generate_test_signal(T, fs, freq=[600, 312, 2000], a=[5, 2, 0.5], noise=0.2)
+
+            x_mtfilter = precondition.mtfilter(x, tapers, fs=fs, f0=f0)
 
         .. image:: _images/mtfilter.png
 
     Args:
-        X (nt, nch): time series array
-        tapers(list):   tapers in [N, NW] or [N, P, K] form. If tapers in [N, NW] form, tapers is converted into [N, P, K] form 
-                        P is computed by N*NW and K is given by math.floor(2*P-1)
-                        (N*smapling rate) represents duration of data. 
-                        NW is standardized half bandwidth corresponding to 2*NW = BW/f0 = BW*N*dt where dt is taken as 1.
-                        K is the number of tapers you use.
+        data (nt, nch): time series array
+        n (int): window length in seconds
+        p (int): standardized half bandwidth in hz
+        k (int): number of DPSS tapers to use
         fs (float): sampling rate
-        f0 (float): center frequency of filiter
-        flag (bool): if flag == 0, output data is centered. Otherwise, output data is not centered.
-        complexflag: if complexflag == 0, output data becomes real. Otherwise, output data becomes complex.
+        f0 (float, optional): center frequency of filiter. Default 0.
+        center_output (bool, optional): if True, output data is centered. Default True.
+        complexflag (bool, optional): if False, output data becomes real. Default False.
 
     Returns:
         Y (nt, nch): filtered time-series data
     '''   
-
-    if len(tapers) == 2:
-        n = tapers[0]
-        w = tapers[1]
-        p = n*w
-        k = math.floor(2*p-1)
-        print(f"Using {k} tapers of half bandwidth {p:.2f}")
-        tapers = [n, p, k]
-
-    if len(tapers) == 3:
-        tapers[0] = tapers[0]*fs
-        tapers, _ = dpsschk(tapers)
+    tapers, _ = dpsschk(n*fs, p, k)
         
-    X = X.T
-    if X.ndim == 1:
-        X = np.reshape(X,(1,-1))
+    if data.ndim == 1:
+        data = np.reshape(data,(-1,1))
         
-    filt = mtfilt(tapers, fs, f0)
+    filt = compute_bp_filter(tapers, fs, f0)
     N = filt.shape[1]
-    szX = X.shape
+    sz = data.shape
 
-    if not complexflag:
-        filt = filt.real
-        Y = np.zeros(szX)
+    if complex_output:
+        Y = np.zeros(sz) + 1j*np.zeros(sz)
     else:
-        Y = np.zeros(szX) + 1j*np.zeros(szX)
-        
-    for ii in range(szX[0]):
-        tmp = np.convolve(X[ii,:].T, filt[0,:].T)
-        if flag:
-            Y[ii,:] = tmp[N:szX[1]+N]
+        filt = filt.real
+        Y = np.zeros(sz)
+
+    for ii in range(sz[1]):
+        tmp = np.convolve(data[:,ii], filt[0,:].T)
+        if center_output:
+            Y[:,ii] = tmp[round(N/2):sz[0]+round(N/2)]
         else:
-            Y[ii,:] = tmp[round(N/2):szX[1]+round(N/2)]
+            Y[:,ii] = tmp[N-1:sz[0]+N]
 
     if f0 > 0:
         Y = 2*Y
     
-    Y = Y.T
     return Y
 
 
