@@ -422,7 +422,8 @@ def _prepare_bmi3d_v1(data, metadata):
     # In some versions of BMI3D, hand position contained erroneous data
     # caused by `np.empty()` instead of `np.nan`. The 'clean_hand_position' 
     # replaces these bad data with `np.nan`.
-    data['clean_hand_position'] = postproc._correct_hand_traj(task)
+    if isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+        data['clean_hand_position'] = postproc._correct_hand_traj(task)
 
     data.update({
         'task': task,
