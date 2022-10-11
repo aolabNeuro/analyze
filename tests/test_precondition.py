@@ -34,6 +34,7 @@ class HelperFunctions:
             noise (float): noise amplitude
         '''
         # Generate test_signal
+        np.random.seed(0)
         x_single, t = utils.generate_test_signal(T, fs, [freq[0]], [a[0]])
         x_noise, t = utils.generate_test_signal(T, fs, freq, a, noise) # with noise
 
@@ -131,10 +132,13 @@ class FilterTests(unittest.TestCase):
         savefig(write_dir, fname)
 
         # Test that multichannel filtering works
-        t = 2 # seconds
-        nch = 8
+        t = 20 # seconds
+        nch = 64
         x = utils.generate_multichannel_test_signal(t, fs, nch, 300, 2) # 8 channels data
+        tic = time.perf_counter()
         x_filter, _ = precondition.butterworth_filter_data(x, fs=fs, bands=[(lowcut, highcut)])
+        toc = time.perf_counter()
+        print(f"Butterworth filtering {nch} channels of {t} seconds data took {toc-tic:0.2f} seconds")
         self.assertEqual(x_filter[0].shape, (t*fs, nch))
 
     def test_mtfilter(self):
@@ -227,10 +231,13 @@ class FilterTests(unittest.TestCase):
         savefig(write_dir, fname)
 
         # Test that multichannel filtering works
-        t = 2 # seconds
-        nch = 8
+        t = 20 # seconds
+        nch = 64
         x = utils.generate_multichannel_test_signal(t, fs, nch, 300, 2) # 8 channels data
+        tic = time.perf_counter()
         x_filter = precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
+        toc = time.perf_counter()
+        print(f"Multitaper filtering {nch} channels of {t} seconds data took {toc-tic:0.2f} seconds")
         self.assertEqual(x_filter.shape, (t*fs, nch))
 
 
