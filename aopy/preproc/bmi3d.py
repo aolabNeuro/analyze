@@ -452,18 +452,18 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
         sensor_data (nt): timeseries data from the laser sensor from the ecube analog port
         samplerate (float): sampling rate of the laser sensor data
         sensor_voltsperbit (float): volts per bit of the laser sensor data
-        thr_volts (float, optional): threshold above which laser sensor data is counted. Defaults to 0.005.
+        thr_volts (float, optional): threshold in volts above which laser sensor data is counted. Defaults to 0.005.
         ds_fs (int, optional): downsampling rate, helps to smooth noise from the sensor. Defaults to 5000.
-        search_radius (float, optional): time around the expected events to search for measured sensor readings. Defaults to 0.015.
+        search_radius (float, optional): time in seconds around the expected events to search for measured sensor readings. Defaults to 0.015.
         thr_width (float, optional): deviation in seconds from the expected widths above which the expected value will be used. Defaults to 0.001.
         thr_power (float, optional): threshold from the expected powers above which the expected value will be used. Defaults to 0.05.
-        debug (bool, optional): print out debug messages, including a plot of 
+        debug (bool, optional): print out debug messages and a plot of the laser sensor aligned to the computed times
 
     Returns:
         tuple: tuple containing:
-            | **corrected_times (nevent):** corrected laser timings
-            | **corrected_widths (nevent):** corrected laser widths
-            | **corrected_powers (nevent):** corrected laser powers
+            | **corrected_times (nevent):** corrected laser timings (seconds)
+            | **corrected_widths (nevent):** corrected laser widths (seconds)
+            | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
             | **times_not_found (nevent):** boolean array of times where no sensor measurement was found
             | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
             | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
@@ -513,13 +513,17 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
         print(f"Laser sensor crossed threshold {len(laser_sensor_times)} times")
         if len(laser_event_times) == len(laser_sensor_times):
             print(f"Average difference: {np.mean(laser_event_times - laser_sensor_times):.4f} s")
+        else:
+            print("Cannot compute average difference. Check the laser threshold is correct")
+            print(f"Using threshold: {thr_volts}")
+            print(f"Maximum voltage deviation of sensor: {np.max(ds_data)*sensor_voltsperbit}")
 
         import matplotlib.pyplot as plt
         plt.figure()
-        time_before = 0.1
-        time_after = 0.1
+        time_before = 0.1 # seconds
+        time_after = 0.1 # seconds
         analog_erp = analysis.calc_erp(ds_data, corrected_times, time_before, time_after, ds_fs)
-        t = 1000*(np.arange(analog_erp.shape[1])/ds_fs - time_before)
+        t = 1000*(np.arange(analog_erp.shape[1])/ds_fs - time_before) # milliseconds
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
         plt.xlabel('time (ms)')
         plt.title('laser sensor aligned')
@@ -541,9 +545,9 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
 
     Returns:
         tuple: tuple containing:
-            | **corrected_times (nevent):** corrected laser timings
-            | **corrected_widths (nevent):** corrected laser widths
-            | **corrected_powers (nevent):** corrected laser powers
+            | **corrected_times (nevent):** corrected laser timings (seconds)
+            | **corrected_widths (nevent):** corrected laser widths (seconds)
+            | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
             | **times_not_found (nevent):** boolean array of times where no sensor measurement was found
             | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
             | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
