@@ -3,6 +3,7 @@
 # for example: down-sampling, outlier detection, and initial filtering
 
 from os import fsdecode, fspath, fstat
+import warnings
 from scipy import signal
 from scipy.signal import butter, lfilter, filtfilt, decimate, windows
 import numpy as np
@@ -160,23 +161,68 @@ def compute_bp_filter(tapers, fs=1, f0=0):
     
     return X
 
-def convert_tapers(n, w):
+def convert_taper_parameters(n, w):
     '''        
-    Converts tapers in [N, NW] form to [N, P, K] form.
-    P is computed by N*NW and K is given by math.floor(2*P-1)
+    Converts tapers in [n, w] form to [n, p, k] form.
+    P is computed by N*W and K is given by math.floor(2*P-1)
 
     Args:
         n (float): time window for analysis (in seconds)
         w (float): standard half bandwith of tapers (in hz)
 
     Returns:
-        _type_: _description_
+        tuple: [n, p, k] taper parameters
     '''
     p = n*w
     k = math.floor(2*p-1)
+    if k < 1:
+        warnings.warn("K is less than 1, try increasing the taper length or the half-bandwidth")
     return n, p, k
 
-def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False):
+def mt_lowpass_filter(data, lowcut, taper_len, fs, **kwargs):
+    '''
+    Wrapper around mtfilter that auto-generates [N, P, K] and f0 parameters based on the lowpass of interest,
+    length of the tapers, and the sampling rate.
+
+    Args:
+        data (nt, nch): time series array
+        lowcut (float): low-pass cutoff frequency
+        taper_len (float): length of the tapers (in seconds) 
+        fs (float): sampling rate of the data
+        kwargs (dict): additional keyword-arguments to pass to mtfilter
+
+    Returns:
+        (nt, nch): filtered time-series data
+    '''
+    n, p, k = convert_taper_parameters(taper_len, lowcut)
+    f0 = 0
+    print(f"Using {k} tapers of length {n:.4f} s")
+    return mtfilter(data, n, p, k, fs, f0, **kwargs)
+
+
+def mt_bandpass_filter(data, band, taper_len, fs, **kwargs):
+    '''
+    Wrapper around mtfilter that auto-generates [N, P, K] and f0 parameters based on the band of interest,
+    length of the tapers, and the sampling rate.
+
+    Args:
+        data (nt, nch): time series array
+        band ((2,) tuple): low and high frequencies to band-pass
+        taper_len (float): length of the tapers (in seconds) 
+        fs (float): sampling rate of the data
+        kwargs (dict): additional keyword-arguments to pass to mtfilter
+
+    Returns:
+        (nt, nch): filtered time-series data
+
+    '''
+    n, p, k = convert_taper_parameters(taper_len, (band[1]-band[0])/2)
+    f0 = np.mean(band)
+    print(f"Using {k} tapers of length {n:.4f} s")
+    return mtfilter(data, n, p, k, fs, f0, **kwargs)
+
+
+def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False, use_fft=True):
     '''
     Bandpass-filter a time series data using the multitaper method
 
@@ -187,7 +233,7 @@ def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False
             N = 0.1
             NW = (band[1]-band[0])/2
             f0 = np.mean(band)
-            n, p, k = convert_tapers(N, NW)
+            n, p, k = convert_taper_parameters(N, NW)
             print(f"Using {k} tapers of half bandwidth {p:.2f}")
 
             T = 0.05
@@ -207,9 +253,10 @@ def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False
         f0 (float, optional): center frequency of filiter. Default 0.
         center_output (bool, optional): if True, output data is centered. Default True.
         complexflag (bool, optional): if False, output data becomes real. Default False.
+        use_fft (bool, optional): if True, use FFT to convolve data with filter, should be faster. Default True.
 
     Returns:
-        Y (nt, nch): filtered time-series data
+        (nt, nch): filtered time-series data
     '''   
     tapers, _ = dpsschk(n*fs, p, k)
         
@@ -226,12 +273,19 @@ def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False
         filt = filt.real
         Y = np.zeros(sz)
 
-    for ii in range(sz[1]):
-        tmp = np.convolve(data[:,ii], filt[0,:].T)
+    if use_fft:
+        tmp = signal.fftconvolve(data, filt.T, axes=0)
         if center_output:
-            Y[:,ii] = tmp[round(N/2):sz[0]+round(N/2)]
+            Y = tmp[round(N/2):sz[0]+round(N/2), :]
         else:
-            Y[:,ii] = tmp[N-1:sz[0]+N]
+            Y = tmp[N-1:sz[0]+N,:]
+    else:
+        for ii in range(sz[1]):
+            tmp = np.convolve(data[:,ii], filt[0,:].T)
+            if center_output:
+                Y[:,ii] = tmp[round(N/2):sz[0]+round(N/2)]
+            else:
+                Y[:,ii] = tmp[N-1:sz[0]+N]
 
     if f0 > 0:
         Y = 2*Y

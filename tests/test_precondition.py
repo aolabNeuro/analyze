@@ -144,22 +144,11 @@ class FilterTests(unittest.TestCase):
         N = 0.1 # N*sampling_rate is time window you analyze
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        n, p, k = precondition.convert_tapers(N, NW)
+        n, p, k = precondition.convert_taper_parameters(N, NW)
         fs = 25000
         fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
         HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_lp_500.png'
-        savefig(write_dir, fname)
-
-        # Low pass 500 Hz with smaller time window
-        band = [-500, 500]
-        N = 0.01
-        NW = (band[1]-band[0])/2
-        f0 = np.mean(band)
-        n, p, k = precondition.convert_tapers(N, NW)
-        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
-        HelperFunctions.test_filter(fn, fs=fs)
-        fname = 'test_mtfilt_lp_500_small_time.png'
         savefig(write_dir, fname)
 
          # Low pass 500 Hz with complex output
@@ -167,7 +156,7 @@ class FilterTests(unittest.TestCase):
         N = 0.1
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        n, p, k = precondition.convert_tapers(N, NW)
+        n, p, k = precondition.convert_taper_parameters(N, NW)
         fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0, complex_output=True)
         HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_lp_500_complex.png'
@@ -178,32 +167,61 @@ class FilterTests(unittest.TestCase):
         N = 0.1
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        n, p, k = precondition.convert_tapers(N, NW)
+        n, p, k = precondition.convert_taper_parameters(N, NW)
         fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0, center_output=False)
         HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_lp_500_noncentered.png'
         savefig(write_dir, fname)
 
-        # Narrow band-pass
-        band = [575, 625] # signals within band can pass
+        # Low pass 500 Hz but using convolve instead of fftconvolve
+        band = [-500, 500]
         N = 0.1
         NW = (band[1]-band[0])/2
         f0 = np.mean(band)
-        n, p, k = precondition.convert_tapers(N, NW)
-        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
+        n, p, k = precondition.convert_taper_parameters(N, NW)
+        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0, use_fft=False)
         HelperFunctions.test_filter(fn, fs=fs)
-        fname = 'test_mtfilt_bp_600.png'
+        fname = 'test_mtfilt_lp_500_nofft.png'
         savefig(write_dir, fname)
-        fname = 'mtfilter.png'
+
+        # Low pass 500 Hz with smaller time window, using wrapper
+        lowcut = 500
+        taper_len = 0.01
+        fn = lambda x: precondition.mt_lowpass_filter(x, lowcut, taper_len, fs)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_lp_500_small_time.png'
+        savefig(write_dir, fname)
+
+        # Narrow band-pass
+        band = [575, 625] # signals within band can pass
+        taper_len = 0.1
+        fn = lambda x: precondition.mt_bandpass_filter(x, band, taper_len, fs)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_bp_600_100ms.png'
+        savefig(write_dir, fname)
+        fname = 'mtfilter.png' # this is the figure that goes in the documentation
         savefig(docs_dir, fname)
+
+        # Narrow band-pass
+        band = [575, 625] # signals within band can pass
+        taper_len = 0.05
+        fn = lambda x: precondition.mt_bandpass_filter(x, band, taper_len, fs)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_bp_600_50ms.png'
+        savefig(write_dir, fname)
+
+        # Narrow band-pass without fft
+        band = [575, 625] # signals within band can pass
+        taper_len = 0.05
+        fn = lambda x: precondition.mt_bandpass_filter(x, band, taper_len, fs, use_fft=False)
+        HelperFunctions.test_filter(fn, fs=fs)
+        fname = 'test_mtfilt_bp_600_50ms_nofft.png'
+        savefig(write_dir, fname)
 
         # High freq band-pass
         band = [1500, 2500] # signals within band can pass
-        N = 0.1 # N*sampling_rate is time window you analyze
-        NW = (band[1]-band[0])/2
-        f0 = np.mean(band)
-        n, p, k = precondition.convert_tapers(N, NW)
-        fn = lambda x: precondition.mtfilter(x, n, p, k, fs=fs, f0=f0)
+        taper_len = 0.01
+        fn = lambda x: precondition.mt_bandpass_filter(x, band, taper_len, fs)
         HelperFunctions.test_filter(fn, fs=fs)
         fname = 'test_mtfilt_bp_2000.png'
         savefig(write_dir, fname)
