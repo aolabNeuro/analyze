@@ -745,6 +745,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('cursor_analog_cm', data)
         self.assertIn('cursor_interp', data)
         self.assertIn('cursor_interp_samplerate', metadata)
+        self.assertIn('clean_hand_position', data)
 
         # Plot the cursor data
         bounds = np.array(metadata['cursor_bounds'])
@@ -787,6 +788,16 @@ class TestPrepareExperiment(unittest.TestCase):
         filename = 'parse_bmi3d_cursor_trajectories_filt_v11.png'
         visualization.savefig(write_dir, filename)
 
+    def test_parse_bmi3d_v12(self):
+        files = {}
+        files['hdf'] = 'beig20221002_09_te6890.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.check_required_fields(data, metadata)
+        files['ecube'] = '2022-10-02_BMI3D_te6890'
+
+        # This is a laser only experiment which does not contain any task data
+        data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
+        self.assertEqual(metadata['sync_protocol_version'], 12)
 
     def test_parse_oculomatic(self):
         files = {}
@@ -942,7 +953,9 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # This other preprocessed file does contain laser sensor data. Response on ch. 36
         te_id = 6577
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date)
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
+
 
         print(trial_powers)
 
