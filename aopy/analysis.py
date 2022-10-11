@@ -853,6 +853,32 @@ def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='sp
 
     return dist, corr
 
+def calc_mean_adjacent_elec(data, acq_ch, elec_pos, distance=0.75):
+    '''
+    Calculates averaged acq_data across adjacent channels within a given distance
+    
+    Args:
+        data (nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode
+        distance (float): define adjacent channels at a given channel. 0.75 is the distance to the most closest 4 channels
+        
+    Returns:
+        m_acq_data (nelec): data averaged across adjacent electrodes
+
+    '''
+    
+    dist = utils.calc_euclid_dist_mat(elec_pos)
+    nelec = dist.shape[0]
+    acq_data = data[acq_ch-1]
+    m_acq_data = np.zeros(nelec)
+    
+    for ich in range(nelec):
+        ave_idx = dist[:,ich] <= distance # Look for close electrodes from a given electrode
+        m_acq_data[ich] = np.mean(acq_data[ave_idx])
+        
+    return m_acq_data
+    
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
     Calculates the event-related potential (ERP) for the given timeseries data.
