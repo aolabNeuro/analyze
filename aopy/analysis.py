@@ -9,6 +9,8 @@ from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.mixture import GaussianMixture
 from sklearn.cluster import KMeans
 from sklearn import model_selection
+
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
 
@@ -19,6 +21,8 @@ from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 import nitime.algorithms as tsa
+
+from . import utils
 from . import preproc
 
 '''
@@ -242,78 +246,6 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     return fit_params, md, pd
 
 '''
-Performance metrics
-'''
-
-def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
-    '''
-    A wrapper around get_trial_segments which counts the number of trials with a reward event 
-    and divides by the total number of trials. This function can either calculated the success percent
-    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
-    input argument.  
-
-    Args:
-        events (nevents): events vector, can be codes, event names, anything to match
-        start_events (int, str, or list, optional): set of start events to match
-        end_events (int, str, or list, optional): set of end events to match
-        success_events (int, str, or list, optional): which events make a trial a successful trial
-        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
-
-    Returns:
-        float or array (nwindow): success percent = number of successful trials out of all trials attempted.
-    '''
-    segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
-    n_trials = len(segments)
-    success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
-
-    # If requested, calculate success percent across entire input events
-    if window_size is None:
-        n_success = np.count_nonzero(success_trials)  
-        success_percent = n_success / n_trials
-
-    # Otherwise, compute rolling success percent
-    else:
-        filter_array = np.ones(window_size)
-        success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
-        success_percent = success_per_window/window_size
-
-    return success_percent
-
-def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
-    '''
-    Args:
-        events (nevents): events vector, can be codes, event names, anything to match
-        event_times (nevents): time of events in 'events'
-        start_events (int, str, or list, optional): set of start events to match
-        end_events (int, str, or list, optional): set of end events to match
-        success_events (int, str, or list, optional): which events make a trial a successful trial
-        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
-
-    Returns:
-        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
-    '''
-    # Get event time information
-    _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
-    trial_acq_time = times[:,1]-times[:,0]
-    ntrials = times.shape[0]
-    
-    # Get % of successful trials per window 
-    success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
-    
-    # Determine rolling target acquisition time info 
-    if window_size is None:
-        nsuccess = success_perc*ntrials
-        acq_time = np.sum(trial_acq_time)
-
-    else:
-        nsuccess = success_perc*window_size
-        filter_array = np.ones(window_size)
-        acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
-    
-    success_rate = nsuccess / acq_time
-
-    return success_rate
-'''
 Cell type classification analysis
 '''
 def classify_cells_spike_width(waveform_data, samplerate, std_threshold=3, pca_varthresh=0.75, min_wfs=10):
@@ -532,19 +464,28 @@ class KFDecoder(object):
     def fit(self, X_kf_train, y_train):
         """
         Train Kalman Filter Decoder
-        Parameters
-        ----------
-        X_kf_train (2D numpy array): [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-            See example file for an example of how to format the neural data correctly
-        y_train (2D numpy array): [n_samples(i.e. timebins), n_outputs]
-            This is the outputs that are being predicted
+        
+        Args:
+            X_kf_train (ntime , nfeatures): This is the neural data in Kalman filter format. See example file for an example of how to format the neural data correctly.
+            y_train (ntime , noutputs): These are the outputs that are being predicted
 
-        Calculations for A,W,H,Q are as follows:
-        .. math:: A = X2*X1' (X1*X1')^{-1}
-        .. math:: W = \frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
-        .. math:: H = Y*X'(X*X')^{-1}
-        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
+        Calculations for :math:`A`, :math:`W`, :math:`H`, :math:`Q` are as follows:
+
+        .. math:: 
+            
+            A = X2*X1' (X1*X1')^{-1}
+
+        .. math:: 
+            
+            W = \\frac{(X_2 - A*X_1)(X_2 - A*X_1)'}{(timepoints - 1)}
+        
+        .. math:: 
+        
+            H = Y*X'(X*X')^{-1}
+        
+        .. math:: 
+            
+            Q = \\frac{(Y-HX)(Y-HX)' }{time points}
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -581,17 +522,20 @@ class KFDecoder(object):
         """
         Train Kalman Filter Decoder with A and W fixed. A is the state transition model and W is the associated covariance
 
-        Parameters
-        ----------
-        X_kf_train (2D numpy array): [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-            See example file for an example of how to format the neural data correctly
-        y_train (2D numpy array): [n_samples(i.e. timebins), n_outputs]
-            This is the outputs that are being predicted
+        
+        Args:
+            X_kf_train (ntime , nfeatures): This is the neural data in Kalman filter format. See example file for an example of how to format the neural data correctly
+            y_train (ntime , noutputs): These are the outputs that are being predicted
 
         Calculations as follows:
-        .. math:: H = Y*X'(X*X')^{-1}
-        .. math:: Q = \frac{(Y-HX)(Y-HX)' }{time points}
+
+        .. math::
+            
+            H = Y*X'(X*X')^{-1}
+
+        .. math:: 
+        
+            Q = \\frac{(Y-HX)(Y-HX)' }{time points}
         """
 
         # Renaming and reformatting variables to be in a more standard kalman filter nomenclature (from Wu et al, 2003):
@@ -626,18 +570,13 @@ class KFDecoder(object):
     def predict(self, X_kf_test, y_test):
         """
         Predict outcomes using trained Kalman Filter Decoder
-        Parameters
-        ----------
-        X_kf_test (2D numpy array):  [n_samples(i.e. timebins) , n_neurons]
-            This is the neural data in Kalman filter format.
-        y_test (2D numpy array): [n_samples(i.e. timebins),n_outputs]
-            The actual outputs
-            This parameter is necesary for the Kalman filter (unlike other decoders)
-            because the first value is nececessary for initialization
-        Returns
-        -------
-        y_test_predicted (2D numpy array):  [n_samples(i.e. timebins),n_outputs]
-            The predicted outputs
+
+        Args:
+        X_kf_test (ntime, nfeatures): This is the neural data in Kalman filter format.
+        y_test (ntime , noutputs): The actual outputs. This parameter is necesary for the Kalman filter (unlike other decoders) because the first value is nececessary for initialization
+        
+        Returns:
+            y_test_predicted (ntime, noutputs): The predicted outputs
         """
 
         # Extract parameters
@@ -684,8 +623,7 @@ def calc_rms(signal, remove_offset=True):
         remove_offset (bool): if true, subtract the mean before calculating RMS
 
     Returns:
-        float array: rms of the signal along the first axis. output dimensions will 
-            be the same non-time dimensions as the input signal
+        float array: rms of the signal along the first axis. output dimensions will be the same non-time dimensions as the input signal
     '''
     if remove_offset:
         m = np.mean(signal, axis=0)
@@ -779,8 +717,8 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-        | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-        | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -877,6 +815,43 @@ def calc_sem(data, axis=None):
 
     return SEM
 
+def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
+    '''
+    Calculates mean absolute correlation between acq_data across channels with the same distance between them.
+    
+    Args:
+        acq_data (nt, nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode
+        bins (int or array): input into scipy.stats.binned_statistic, can be a number or a set of bins
+        method (str, optional): correlation method to use ('pearson' or 'spearman')
+        exclude_zero_dist (bool, optional): whether to exclude distances that are equal to zero. default True
+        
+    Returns:
+        tuple: tuple containing:
+            |**dist (nbins):** electrode distance at each bin
+            |**corr (nbins):** correlation at each bin
+
+    '''
+    dist = utils.calc_euclid_dist_mat(elec_pos)
+    if method == 'spearman':
+        c, _ = stats.spearmanr(acq_data, axis=0)
+    elif method == 'pearson':
+        c = np.corrcoef(acq_data.T)
+    else:
+        raise ValueError(f"Unknown correlation method {method}")
+    
+    c_ = c[np.ix_(acq_ch-1, acq_ch-1)] # note use of open mesh to get the right logical index
+    
+    if exclude_zero_dist:
+        zero_dist = dist == 0
+        dist = dist[~zero_dist]
+        c_ = c_[~zero_dist]
+        
+    corr, edges, _ = stats.binned_statistic(dist.flatten(), np.abs(c_.flatten()), statistic='mean', bins=bins)
+    dist = (edges[:-1] + edges[1:]) / 2
+
+    return dist, corr
 
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
@@ -1001,11 +976,11 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
 
     Returns:
         tuple: Tuple containing:
-        | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
-        | **linear_fit_score (float):** Coefficient of determination for linear fit
-        | **pcc (float):** Pearson's correlation coefficient
-        | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
-        | **reg_fit (sklearn.linear_model._base.LinearRegression)
+            | **linear_fit (npts):** Y value of the linear fit corresponding to each point in the input xdata.
+            | **linear_fit_score (float):** Coefficient of determination for linear fit
+            | **pcc (float):** Pearson's correlation coefficient
+            | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
+            | **reg_fit (sklearn.linear_model._base.LinearRegression)
     '''
     xdata = xdata.reshape(-1, 1)
     ydata = ydata.reshape(-1,1)
@@ -1407,6 +1382,43 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
 
         return noisy_test_data
 
+def classify_by_lda(X_train_lda, y_class_train, 
+                                 n_splits=5,
+                                 n_repeats=3, 
+                                 random_state=1):
+    """
+    Trains a linear discriminant model on the training data (X_train_lda) and their labels (y_class_train) with data spliting and
+    k-fold validation. Returns accuracy and variance based on how well the model is able to predict the left-out data.
+
+    Args:
+        X_train_lda (n_classes, n_features): 2d training data. first dimension is the number of examples, second dimension is the size of each example
+        y_class_train (n_classes): class to which each example belongs
+        n_splits (int, optional): number of paritions to split data Defaults to 5.
+        n_repeats (int, optional): number of repeated fitting Defaults to 3.
+        random_state (int, optional): random state for data spliting Defaults to 1.
+
+    Returns:
+        accuracy (float): mean accuracy of the repeated lda runs.
+        std (float): standard deviation of the repeated lda runs.
+    """
+
+    assert X_train_lda.shape[0] == len(y_class_train)
+
+    # get the model
+    model = LinearDiscriminantAnalysis()
+    
+    # define model evaluation method
+    cv = model_selection.RepeatedStratifiedKFold(n_splits=n_splits,
+                                 n_repeats=n_repeats, 
+                                 random_state=random_state)
+    # evaluate model
+    scores = model_selection.cross_val_score(model, X_train_lda, y_class_train, 
+                                            scoring='accuracy', cv=cv, n_jobs=-1)
+
+    mean_accuracy,  std = np.mean(scores), np.std(scores)
+
+    return mean_accuracy, std
+
 ######### Spectral Estimation and Analysis ############
 
 def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
@@ -1424,9 +1436,10 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
         adaptive (bool, optional): adaptive taper weighting. Defaults to False.
 
     Returns:
-        fxx (np.array): spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
-        txx (np.array): spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
-        Sxx (len(fxx) x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+        tuple: Tuple containing:
+            | **fxx (np.array):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+            | **txx (np.array):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+            | **Sxx (len(fxx):** x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
     """
     jackknife = False
     sides = 'onesided'
@@ -1539,10 +1552,10 @@ def interp_multichannel(x):
     """interp_multichannel
 
     Args:
-        x (n_sample x n_ch): input data array containing nan-valued missing entries
+        x (n_sample, n_ch): input data array containing nan-valued missing entries
 
     Returns:
-        x_interp (n_sample x n_ch): interpolated data, uses `numpy.interp` method.
+        x_interp (n_sample, n_ch): interpolated data, uses `numpy.interp` method.
     """
     nan_idx = np.isnan(x)
     ok_idx = ~nan_idx
@@ -1552,3 +1565,147 @@ def interp_multichannel(x):
     x[nan_idx] = np.interp(idx,xp,fp)
 
     return x
+
+
+'''
+Behavioral metrics 
+'''
+def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWARD", b"TRIAL_END"], success_events=b"REWARD", window_size=None):
+    '''
+    A wrapper around get_trial_segments which counts the number of trials with a reward event 
+    and divides by the total number of trials. This function can either calculated the success percent
+    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
+    input argument.  
+
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success percent = number of successful trials out of all trials attempted.
+    '''
+    segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
+    n_trials = len(segments)
+    success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
+
+    # If requested, calculate success percent across entire input events
+    if window_size is None:
+        n_success = np.count_nonzero(success_trials)  
+        success_percent = n_success / n_trials
+
+    # Otherwise, compute rolling success percent
+    else:
+        filter_array = np.ones(window_size)
+        success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
+        success_percent = success_per_window/window_size
+
+    return success_percent
+
+def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
+    '''
+    Calculate the number of successful trials per second with a given trial start and end definition.
+
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        event_times (nevents): time of events in 'events'
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        success_events (int, str, or list, optional): which events make a trial a successful trial
+        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
+    '''
+    # Get event time information
+    _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
+    trial_acq_time = times[:,1]-times[:,0]
+    ntrials = times.shape[0]
+    
+    # Get % of successful trials per window 
+    success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
+    
+    # Determine rolling target acquisition time info 
+    if window_size is None:
+        nsuccess = success_perc*ntrials
+        acq_time = np.sum(trial_acq_time)
+
+    else:
+        nsuccess = success_perc*window_size
+        filter_array = np.ones(window_size)
+        acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
+    
+    success_rate = nsuccess / acq_time
+
+    return success_rate
+
+def compute_path_length_per_trajectory(trajectory):
+    '''
+    This function calculates the path length by computing the distance from all points for a single trajectory. The input trajectry could be cursor or eye trajectory from a single trial. It returns a single value for path length.
+
+    Args:
+        trajectory (nt x 2): single trial trajectory, could be a cursor trajectory or eye trajectory
+
+    Returns:
+        path_length (float): length of the trajectory
+    '''
+    lengths = np.sqrt(np.sum(np.diff(trajectory, axis=0)**2, axis=1)) # compute the distance from all points in trajectory
+    path_length = np.sum(lengths)
+    return path_length
+
+
+def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , go_cue_code=32 , reward_code=48):
+    '''
+    This function calculates reach time to target only on rewarded trials given trial aligned event codes and event times See: :func:`aopy.preproc.base.get_trial_segments_and_times` .
+
+    Note:
+        Trials are filtered to only include rewarded trials so that all trials have the same length.
+
+    Args:
+        event_codes (list) : trial aligned event codes
+        event_times (list) : trial aligned event times corresponding to the event codes. These event codes and event times could be the output of preproc.base.get_trial_segments_and_times()
+        target_codes (list) : list of event codes for cursor entering peripheral target 
+        go_cue_code (int) : event code for go cue 
+        reward_code (int) : event code for reward
+
+    Returns:
+      tuple: tuple containing:
+        | **reachtime_pertarget (list)**: duration of each segment after filtering
+        | **trial_id (list):** target index on each segment
+    '''
+    tr_T = np.array([event_times[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+    tr_E = np.array([event_codes[iTr] for iTr in range(len(event_times)) if reward_code in event_codes[iTr]])
+    leave_center_idx = np.argwhere(tr_E == go_cue_code)[0, 1]
+    reach_target_idx = np.argwhere(np.isin(tr_E[0], target_codes))[0][0] # using just the first trial to get reach_target_idx
+    reachtime = tr_T[:, reach_target_idx] - tr_T[:, leave_center_idx]
+    target_dir = tr_E[:,reach_target_idx]
+
+    return reachtime, target_dir
+
+def calc_segment_duration(events, event_times, start_events, end_events, target_codes=list(range(81, 89)), trial_filter=lambda x:x):
+    '''
+    Calculates the duration of trial segments. Event codes and event times for this function are raw and not trial aligned.
+
+    Args:
+        events (nevents): events vector, can be codes, event names, anything to match
+        event_times (nevents): time of events in 'events'
+        start_events (int, str, or list, optional): set of start events to match
+        end_events (int, str, or list, optional): set of end events to match
+        target_codes (list, optional): list of target codes to use for finding targets within trials
+        trial_filter (function, optional): function to apply to each trial's events to determine whether or not to keep it
+
+    Returns:
+        tuple: tuple containing:
+        | **segment_duration (list)**: duration of each segment after filtering
+        | **target_codes (list):** target index on each segment
+    '''
+    trial_events, trial_times = preproc.get_trial_segments(events, event_times, start_events, end_events)
+    trial_events, trial_times = zip(*[(e, t) for e, t in zip(trial_events, trial_times) if trial_filter(e)])
+
+    segment_duration = np.array([t[1] - t[0] for t in trial_times])
+    target_idx = [np.argwhere(np.isin(te, target_codes))[0][0] for te in trial_events]
+    target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
+
+    return segment_duration, target_codes
