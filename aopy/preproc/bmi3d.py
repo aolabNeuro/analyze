@@ -567,7 +567,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
         trials = exp_data['bmi3d_trials']
         powers = trials['power'][:len(times)]
         edges = trials['edges'][:len(times)]
-        widths = [t[1] - t[0] for t in edges]
+        widths = np.array([t[1] - t[0] for t in edges])
         thr_width=0.001
         thr_power=0.05
     else:
