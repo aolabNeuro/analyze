@@ -465,7 +465,7 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
             | **corrected_times (nevent):** corrected laser timings (seconds)
             | **corrected_widths (nevent):** corrected laser widths (seconds)
             | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
-            | **times_not_found (nevent):** boolean array of times where no sensor measurement was found (either onset or offset)
+            | **times_not_found (nevent):** boolean array of times without onset and offset sensor measurements
             | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
             | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
     '''
@@ -550,7 +550,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
             | **corrected_times (nevent):** corrected laser timings (seconds)
             | **corrected_widths (nevent):** corrected laser widths (seconds)
             | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
-            | **times_not_found (nevent):** boolean array of times where no sensor measurement was found
+            | **times_not_found (nevent):** boolean array of times without onset and offset sensor measurements
             | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
             | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
     '''
