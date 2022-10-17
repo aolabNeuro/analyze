@@ -8,6 +8,7 @@ from matplotlib.animation import FuncAnimation
 import matplotlib.dates as mdates
 from matplotlib.collections import LineCollection
 from matplotlib.colors import ListedColormap, BoundaryNorm
+from matplotlib import cm
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -218,14 +219,29 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     return data_map, new_xy
 
 
-def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', norm=None):
+def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_color='black', clim=None):
     '''
     Wrapper around plt.imshow for spatial data
 
-    Example:
+    Args:
+        data_map ((2,n) array): map of x,y data
+        x (list): list of x positions
+        y (list): list of y positions
+        alpha_map ((2,n) array): map of alpha values (optional, default alpha=1 everywhere)
+        ax (int, optional): axis on which to plot, default gca
+        cmap (str, optional): matplotlib colormap to use in image. default 'bwr'
+        nan_color (str, optional): color to plot nan values, or None to leave them invisible. default 'black'
+        clim ((2,) tuple): (min, max) to set the c axis limits. default None, show the whole range
+
+    Returns:
+        mappable: image object which you can use to add colorbar, etc.
+
+    Examples:
+        
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
-        ::
+        .. code-block:: python
+        
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
             missing = [0, 5, 25]
@@ -238,17 +254,21 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', norm=N
 
         .. image:: _images/posmap.png
 
-    Args:
-        data_map (2,n array): map of x,y data
-        x (list): list of x positions
-        y (list): list of y positions
-        alpha_map (2,n array): map of alpha values (optional, default alpha=1 everywhere)
-        ax (int, optional): axis on which to plot, default gca
-        cmap (str, optional): matplotlib colormap to use in image
-        norm (matplotlib.colors.Normalize, optional): color normalization to use in the image
+        Make the same image but include a transparency layer
 
-    Returns:
-        mappable: image object which you can use to add colorbar, etc.
+        .. code-block:: python
+
+            data = np.linspace(-1, 1, 100)
+            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
+            missing = [0, 5, 25]
+            data_missing = np.delete(data, missing)
+            x_missing = np.reshape(np.delete(x_pos, missing),-1)
+            y_missing = np.reshape(np.delete(y_pos, missing),-1)
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
+
+        .. image:: _images/posmap_alphamap.png
+
     '''
     # Calculate the proper extents
     if data_map.size > 1:
@@ -261,20 +281,27 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', norm=N
 
     # Set the 'bad' color to something different
     cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
-    cmap.set_bad(color='black')
+    if nan_color:
+        cmap.set_bad(color=nan_color)
     
-    # Make an alpha map scaled between 0 and 1
-    if alpha_map is None:
-        alpha_map = 1
-    else:
+    # If an alpha map is present, make an rgba image
+    if alpha_map is not None:
+        if clim is None:
+            clim = (np.nanmin(data_map), np.nanmax(data_map))
+        norm = cm.colors.Normalize(*clim)
+        scalarMap = cm.ScalarMappable(norm=norm, cmap=cmap)
+        data_map = scalarMap.to_rgba(data_map)
+
+        # Apply the alpha map after scaling from 0 to 1
         alpha_range = np.nanmax(alpha_map) - np.nanmin(alpha_map)
         alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
         alpha_map[np.isnan(alpha_map)] = 0
-
+        data_map[:,:,3] = alpha_map
+        
     # Plot
     if ax is None:
         ax = plt.gca()
-    image = ax.imshow(data_map, alpha=alpha_map, cmap=cmap, origin='lower', extent=extent, norm=norm)
+    image = ax.imshow(data_map, cmap=cmap, origin='lower', extent=extent)
     ax.set_xlabel('x position')
     ax.set_ylabel('y position')
 
@@ -1630,3 +1657,44 @@ def plot_zone_heatmap(data_segments, event_times, which_event, segment_condition
         fig.suptitle(f'{condition_name} {selected_condition}, Trial selected_result: {selected_result}, Number of trials: {len(idx_segments_selected)}', y=0.93)
     
     return idx_segments_selected
+    
+def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
+    '''
+    Makes a plot of correlation vs electrode distance for the given data.
+    
+    Args:
+        acq_data (nt, nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode in cm
+        ax (pyplot.Axes, optional): axis on which to plot
+        kwargs (dict, optional): other arguments to supply to :func:`aopy.analysis.calc_corr_over_elec_distance`
+
+    Example:
+        Using the multichannel test data generator in utils, we get a phase-shifted sine wave in each channel. 
+        Assigning each channel i to an electrode with position (i, 0), the correlation across distances looks like this:
+
+        .. code-block:: python
+
+            duration = 0.5
+            samplerate = 1000
+            n_channels = 30
+            frequency = 100
+            amplitude = 0.5
+            acq_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
+            acq_ch = (np.arange(n_channels)+1).astype(int)
+            elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
+            
+            plt.figure()
+            plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos)
+
+        .. image:: _images/corr_over_dist.png
+
+    '''
+    if ax is None:
+        ax = plt.gca()
+    label = kwargs.pop('label', None)
+    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
+    ax.plot(dist, corr, label=label)
+    ax.set_xlabel('binned electrode distance (cm)')
+    ax.set_ylabel('correlation')
+    ax.set_ylim(0,1)

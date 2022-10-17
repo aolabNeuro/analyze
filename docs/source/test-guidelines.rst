@@ -241,6 +241,8 @@ datasets here as they become available.
      - Description
    * - `beignet/preproc_*.hdf`
      - preprocessed data from a short manual control experiment with Beignet in July, 2022
+   * - `test/preproc_*.hdf`
+     - preprocessed data from a short laser saline test in August 2022
    * - `test20210310_08_te1039.hdf`
      - hdf data for testing sync version 0
    * - `2021-04-07_BMI3D_te1315`
@@ -261,6 +263,10 @@ datasets here as they become available.
      - BMI3D data - another eyetracking test
    * - `2021-12-13_BMI3D_te3498`
      - eCube data - sync version 7
+   * - `beig20221002_09_te6890.hdf`
+     - BMI3D data - a laser only experiment which does not contain any task data
+   * - `2022-10-02_BMI3D_te6890`
+     - eCube data - sync version 12 - including some real headstage ECoG data, although it is truncated in length
    * - `test20210330_12_te1254.hdf`
      - BMI3D data - sync version 2
    * - `fake ecube data`

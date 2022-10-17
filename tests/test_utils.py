@@ -157,6 +157,8 @@ class TestDigitalCalc(unittest.TestCase):
         assert unpacked[1,0] == 1
         assert unpacked[0,1] == 0
 
+class TestMath(unittest.TestCase):
+
     def test_derivative(self):
         x = np.linspace(0, 10, 1000)
         y = x**2
@@ -169,6 +171,29 @@ class TestDigitalCalc(unittest.TestCase):
         dydx = derivative(x, y, norm=True)
         expected = np.ones(1000)*2*np.sqrt(2)
         np.testing.assert_allclose(dydx, expected)
+
+    def test_calc_euclid_dist_mat(self):
+        pos = np.array(
+            [[1,1],
+            [2,2],
+            [-1,1]]
+        )
+        dist_mat = calc_euclid_dist_mat(pos)
+        self.assertEqual(dist_mat.shape, (3, 3))
+        self.assertEqual(np.min(dist_mat), 0)
+        self.assertEqual(np.max(dist_mat), np.sqrt(3**2 + 1)) # between [2,2] and [-1,1]
+
+    def test_calc_radial_dist(self):
+
+        pos = np.array(
+            [[1,1],
+            [2,2],
+            [-1,1]]
+        )
+        origin = np.array([1,1])
+        dist = calc_radial_dist(pos, origin)
+        self.assertEqual(dist.size, 3)
+        np.testing.assert_allclose(dist, [0, np.sqrt(2), 2])
 
 
 if __name__ == "__main__":
