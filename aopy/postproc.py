@@ -8,10 +8,10 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 from collections import defaultdict
-from aopy import precondition
-from aopy.preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
-from aopy.utils import derivative
-from aopy.data import load_hdf_group, load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, map_acq2pos
+from . import precondition
+from . import utils
+from .preproc.base import get_trial_segments_and_times, interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
+from .data import load_hdf_group, load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, map_acq2pos
 # from aopy.analysis import calc_rms, find_outliers, select_segments, calc_erp
 
 def translate_spatial_data(spatial_data, new_origin):
@@ -335,11 +335,12 @@ def get_velocity_segments(*args, **kwargs):
             | **velocities (ntrial):** array of velocity estimates for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
     '''
-    return get_kinematic_segments(*args, **kwargs, preproc=derivative)
+    return get_kinematic_segments(*args, **kwargs, preproc=utils.derivative)
 
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor'):
+                           trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor',
+                           return_times=False):
     '''
     Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -369,13 +370,14 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
             for which the filter returns False will not be included in the output
         preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
             a smoothing function or an estimate of velocity from position
-        data (str, optional): choice of 'cursor', 'hand', or 'eye' kinematics to load
+        datatype (str, optional): choice of 'cursor', 'hand', or 'eye' kinematics to load
+        return_times (bool, optional): whether to also return timestamps of each event
     
     Returns:
         tuple: tuple containing:
             | **trajectories (ntrial):** array of filtered cursor trajectories for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
-            | **trial_times_all (ntrial):** array of all event timestamps for each trial
+            | **trial_times (ntrial, optional):** array of all event timestamps for each trial
         
     '''
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
@@ -390,8 +392,6 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         time = np.arange(int((clock[-1] + 10)*samplerate))/samplerate
         hand_data_cycles = _correct_hand_traj(data['bmi3d_task'])
         raw_kinematics, _ = interp_timestamps2timeseries(clock, hand_data_cycles, sampling_points=time, interp_kind='linear')
-
-        # print('hi', data['cursor_interp'].shape, hand_data_cycles.shape, raw_kinematics.shape, pts_to_remove)
     elif datatype == 'eye':
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         samplerate = eye_metadata['samplerate']
@@ -410,15 +410,17 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
                                                                   trial_start_codes, trial_end_codes)
     trajectories = np.array(get_data_segments(kinematics, trial_times, samplerate), dtype='object')
     trial_segments = np.array(trial_segments, dtype='object')
-
-    trial_times_all = np.empty(trial_times.shape)
-    for idx_trial in range(len(trial_times)):
-        idx_first_event = list(event_times).index(trial_times[idx_trial][0])
-        trial_times_all[idx_trial] = event_times[idx_first_event:(idx_first_event+len(trial_segments[idx_trial]))]
-
     success_trials = [trial_filter(t) for t in trial_segments]
-    
-    return trajectories[success_trials], trial_segments[success_trials], trial_times_all[success_trials]
+
+    if not return_times:
+        return trajectories[success_trials], trial_segments[success_trials]
+
+    trial_segments, trial_times = get_trial_segments_and_times(event_codes, event_times, 
+                                                                  trial_start_codes, trial_end_codes)
+    trial_segments = np.array(trial_segments, dtype='object')
+    trial_times = np.array(trial_times, dtype='object')
+
+    return trajectories[success_trials], trial_segments[success_trials], trial_times[success_trials]
 
 def _correct_hand_traj(bmi3d_task_data):
     '''
@@ -562,11 +564,8 @@ def estimate_velocity(positions, dt):
     Returns:
         vels (nt): array of magnitudes of velocity
     '''
-    
-    dxyz = np.gradient(positions, axis=0)
-    dists = np.linalg.norm(dxyz, axis=1)
-    vels = dists/dt
-    return vels
+    t = np.arange(0, positions.shape[0]*dt, dt)
+    return utils.derivative(t, positions, norm=True)
 
 def estimate_acceleration(positions, dt):
     '''
@@ -579,11 +578,8 @@ def estimate_acceleration(positions, dt):
     Returns:
         accs (nt): array of magnitudes of acceleration
     '''
-    
-    ddxyz = np.gradient(np.gradient(positions, axis=0), axis=0)
-    dists = np.linalg.norm(ddxyz, axis=1)
-    accs = dists/(dt**2)
-    return accs
+    t = np.arange(0, positions.shape[0]*dt, dt)
+    return utils.double_derivative(t, positions, norm=True)
 
 def get_distance_to_target(positions, target_pos, target_radius):
     '''
@@ -646,7 +642,7 @@ def get_average_eye_position(eye_positions, eye_labels = (0,1,2,3)):
     return np.stack([(eye_positions[:,left_eye_x]+eye_positions[:,right_eye_x])/2, 
                      (eye_positions[:,left_eye_y]+eye_positions[:,right_eye_y])/2], axis=1)
 
-def get_threshold(data, num_sd = 0, ax = None):
+def get_threshold(data, num_sd=0, axis=None, ax=None):
     '''
     Compute number of standard deviations above the mean as a threshold
     and optionally plot 1D histogram of data with threshold marked
@@ -654,40 +650,25 @@ def get_threshold(data, num_sd = 0, ax = None):
     Args:
         data (nt): dataset
         num_sd (int): number of standard deviations above the mean (can be negative)
+        axis (None or int or tuple of ints, optional):
+            Axis or axes along which the threshold is computed. 
+            The default is to compute the threshold of the flattened array.
         ax (pyplot.Axis): axis for plotting histogram; if None, histogram is not plotted
     
     Returns:
-        threshold (float): mean of data plus number of standard deviations above
+        float: computed threshold, some number of standard deviations above the mean
     '''
     
     threshold = np.mean(data)+num_sd*np.std(data)
     
     if ax is not None:
-        ax.hist(data, bins=50, density=False)
+        ax.hist(data.reshape(-1), bins=50, density=False)
         ymax = ax.get_ylim()[1]
         ax.vlines(x=threshold, ymin=0, ymax=ymax/2, linestyles='dashed')
         ax.set_ylabel('Count')
         ax.annotate(f'mean + ({num_sd})*sd',(threshold, ymax/2))
     
     return threshold
-
-def get_nearest_timestamps(old_event_timestamps, new_samplerate, in_samples = False):
-    '''
-    Convert timestamps of event occurrences to timestamps at a new sampling rate
-    
-    Args:
-        old_event_timestamps (nevents): array of event timestamps for one trial at old sampling rate, in seconds
-        new_samplerate (float): new sampling rate, in Hz
-        in_samples (bool, optional): whether to return the timestamps in samples or in seconds
-    
-    Returns:
-        new_event_timestamps (nevents): array of event timestamps for one trial at new sampling rate, in seconds by default
-    '''
-
-    new_event_timestamps = np.round(old_event_timestamps * new_samplerate)
-    if in_samples:
-        new_event_timestamps /= new_samplerate
-    return new_event_timestamps
 
 def assign_jaa_zone(positions, target, target_radius):
     '''
@@ -817,7 +798,7 @@ def get_aligned_epochs(lfp_data_segments, event_samples, which_event, time_befor
     num_epochs = len(idx_segments_selected)
     return lfp_data_aligned, num_epochs
 
-    
+
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
     Retrieves the dictionary of source files from a preprocessed file

@@ -11,3 +11,4 @@ build/
 htmlcov
 docs/source/examples/.ipynb_checkpoints
 .idea/
+.coverage

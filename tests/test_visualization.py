@@ -229,6 +229,69 @@ class AnimationTests(unittest.TestCase):
         ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
         saveanim(ani, write_dir, filename)
 
+class KinematicPlottingTests(unittest.TestCase):
+
+    def test_plot_random_segments(self):
+        
+        plot_random_segments(data, event_start_times, event_end_times, samplerate=1, num_plots=3, ax=None)
+    
+    def test_plot_boxplots_from_dict(self):
+        
+        plot_boxplots_from_dict(data, idx_entries_selected, which_event, ax)
+        
+    def test_plot_cursor_kinematics_around_saccade(self):
+    
+        plot_cursor_kinematics_around_saccade(saccade_start_times, saccade_end_times, dists, vels, 
+                                            num_samples_before, num_samples_after, 
+                                            segment_conditions, selected_condition, segment_results, selected_result, 
+                                            which_saccade, selected_condition_name='')
+        
+    def test_plot_eye_vs_cursor_scatter(self):
+        
+        plot_eye_vs_cursor_scatter(eye_data, cursor_data, eye_samplerate=1e3, cursor_samplerate=1e3, ax=None, xlabel='', ylabel='', title='')
+        
+    def test_plot_event_lines(self):
+        
+        plot_event_lines(cur_init_time, sac_start_times, sac_end_times, event_times, event_codes, ymin, ymax, ax)
+        
+        
+    def test_plot_error_angle(self):
+        
+        plot_error_angle(cursor_angle, eye_angle, cursor_init_time, saccade_start_times, saccade_end_times, 
+                        event_times, event_codes, cursor_samplerate, eye_samplerate, ax)
+
+    def test_create_zone_line(self):
+        
+        create_zone_line(zone, samplerate, colors, height, ax)
+        
+
+    def test_plot_zone_lines(self):
+        
+        plot_zone_lines(cursor_zone, eye_zone, colors, cursor_samplerate, eye_samplerate, ax)
+        
+
+    def test_plot_distance_from_target(self):
+        
+        plot_distance_from_target(cursor_dist, eye_dist, cursor_init_time, saccade_start_times, saccade_end_times, 
+                                event_times, event_codes, cursor_samplerate, eye_samplerate, ax)
+        
+    def test_plot_window_around_event(self):
+        
+        plot_window_around_event(cursor_angle, eye_angle, event_times, which_event, num_samples_before, num_samples_after, 
+                                segment_conditions, selected_condition, condition_name, result_segments, selected_result)
+
+    def test_order_segments(self):
+        
+        order_segments(data_segments, idx_segments_selected, order='')
+
+    def test_plot_zone_heatmap(self):
+        
+        plot_zone_heatmap(data_segments, event_times, which_event, segment_conditions, selected_condition, 
+                      condition_name, result_segments, selected_result, samplerate, segment_order=[], 
+                      order='', color_list=['r', 'g', 'b', 'c', 'm', 'y', 'w'], plot_cbar=True, 
+                      zone_labels = ['CENTER', 'CENT<->SURR', 'SURROUND', 'NEAR_CENT', 'NEAR_SURR', 'BET_CENT_SURR', 'ELSEWHERE'],
+                      with_title=True, fig=None, ax=None)
+
 class OtherPlottingTests(unittest.TestCase):
 
     def test_plot_targets(self):

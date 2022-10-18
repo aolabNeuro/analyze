@@ -1,3 +1,4 @@
+from aopy.analysis import detect_saccades
 from aopy.postproc import *
 import aopy
 import numpy as np
@@ -188,50 +189,36 @@ class TestTrajectoryFuncs(unittest.TestCase):
 
     def test_estimate_velocity(self):
         dt = 1/2
-        positions = np.array([[0,0], [1,0], [2,0], [3,0], [4,0]])
-        expected_vels = np.array([2, 2, 2, 2, 2])
-        self.assertEqual(expected_vels, estimate_velocity(positions, dt))
-        positions = np.array([[0,0], [1,1], [4,4], [9,9]])
-        expected_vels = 2*np.array([np.sqrt(2), np.sqrt(8), np.sqrt(32), np.sqrt(50)])
-        self.assertEqual(expected_vels, estimate_velocity(positions, dt))
+        positions = np.array([[0,0], [1,0], [2,0], [3,0], [4,0], [5,0]])
+        expected_vels = np.array([2, 2, 2, 2, 2, 2])
+        np.testing.assert_allclose(expected_vels, estimate_velocity(positions, dt))
 
     def test_estimate_acceleration(self):
         dt = 1/2
-        positions = np.array([[0,0], [1,0], [2,0], [3,0], [4,0]])
-        expected_accs = np.array([0, 0, 0, 0, 0])
-        self.assertEqual(expected_accs, estimate_acceleration(positions, dt))
-        positions = np.array([[0,0], [1,1], [4,4], [9,9]])
-        expected_accs = 2*np.array([np.sqrt(2), np.sqrt(4.5), np.sqrt(4.5), np.sqrt(2)])
-        self.assertEqual(expected_accs, estimate_acceleration(positions, dt))
+        positions = np.array([[0,0], [1,0], [2,0], [3,0], [4,0], [5,0]])
+        expected_accs = np.array([0, 0, 0, 0, 0, 0])
+        np.testing.assert_allclose(expected_accs, estimate_acceleration(positions, dt))
     
     def test_get_distance_to_target(self):
         positions = np.array([[0,0], [1,0], [2,0], [3,0], [2,0], [3,0], [4,0]])
         target_pos = np.array([5, 0])
         target_radius = 1
         expected_dists = np.array([4, 3, 2, 1, 2, 1, 0])
-        self.assertEqual(expected_dists, get_distance_to_target(positions, target_pos, target_radius))
-        positions = np.array([0,0], [-1,-1], [-2,-2], [-3,-3])
+        np.testing.assert_allclose(expected_dists, get_distance_to_target(positions, target_pos, target_radius))
+        positions = np.array([[0,0], [-1,-1], [-2,-2], [-3,-3]])
         target_pos = np.array([-6, -6])
         target_radius = np.sqrt(2)
         expected_dists = np.array([5*np.sqrt(2), 4*np.sqrt(2), 3*np.sqrt(2), 2*np.sqrt(2)])
-        self.assertEqual(expected_dists, get_distance_to_target(positions, target_pos, target_radius))
+        np.testing.assert_allclose(expected_dists, get_distance_to_target(positions, target_pos, target_radius))
 
     def test_get_average_eye_position(self):
         eye_positions = np.array([[0, 2, 1, 3], [-1, 2, -1.5, -2.5], [10, 0, 11, -1]])
         eye_labels = (0, 1, 2, 3)
         expected_avg_eye_pos = np.array([[0.5, 2.5], [-1.25, -0.25], [10.5, -0.5]])
-        self.assertEqual(expected_avg_eye_pos, get_average_eye_position(eye_positions, eye_labels))
+        np.testing.assert_allclose(expected_avg_eye_pos, get_average_eye_position(eye_positions, eye_labels))
         eye_labels = (0, 2, 1, 3)
         expected_avg_eye_pos = np.array([[1, 2], [0.5, -2], [5, 5]])
-        self.assertEqual(expected_avg_eye_pos, get_average_eye_position(eye_positions, eye_labels))
-
-    def test_get_nearest_timestamps(self):
-        old_timestamps = np.array([1.333, 2.456, 11.311])
-        new_samplerate = 2
-        expected_new_timestamps = np.array([1, 2.5, 11])
-        self.assertEqual(expected_new_timestamps, get_nearest_timestamps(old_timestamps, new_samplerate))
-        expected_new_timestamps = np.array([2, 5, 22])
-        self.assertEqual(expected_new_timestamps, get_nearest_timestamps(old_timestamps, new_samplerate, in_samples = True))
+        np.testing.assert_allclose(expected_avg_eye_pos, get_average_eye_position(eye_positions, eye_labels))
 
     def test_assign_jaa_zone(self):
         zone_str = ['CENTER', 'CENT<->SURR', 'SURROUND', 'NEAR_CENT', 'NEAR_SURR', 'BET_CENT_SURR', 'ELSEWHERE']
@@ -260,23 +247,10 @@ class TestTrajectoryFuncs(unittest.TestCase):
         data = np.random.standard_normal((10000,1,1))
         fig, ax = plt.subplots(1,1,figsize=(6,6))
         threshold = get_threshold(data, num_sd=2, ax=ax)
-        expected_threshold = 2
-        self.assertAlmostEqual(expected_threshold, threshold)
         figname = 'get_threshold_ex.png'
         aopy.visualization.savefig(docs_dir, figname)
-
-    def test_detect_saccades(self):
-        # how to load data?
-        files = {}
-        result_filename = 'test_proc_eyetracking.hdf'
-        files['ecube'] = '2021-09-29_BMI3D_te2949'
-        files['hdf'] = 'beig20210929_02_te2949.hdf'
-        eye_data, eye_metadata = aopy.data.load_preproc_eye_data('home/aopy/beignet', subject, te_id, date)
-        if os.path.exists(os.path.join(write_dir, result_filename)):
-            os.remove(os.path.join(docs_dir, result_filename))
-
-        # plot_random_segments()
-
+        expected_threshold = 2
+        self.assertAlmostEqual(expected_threshold, threshold, places=1)
 
 class TestCalcFuncs(unittest.TestCase):
 
@@ -381,6 +355,12 @@ class TestGetFuncs(unittest.TestCase):
         trial_filter = lambda t: TRIAL_END not in t
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
         self.assertEqual(len(trajs), 7)
+
+        # Output all the event times
+        trajs, segs, times = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter, return_times=True)
+        self.assertEqual(len(trajs), 7)
+        self.assertEqual(len(times), 7)
+        self.assertEqual(len(times[0]), 5)
 
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]

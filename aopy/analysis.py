@@ -13,7 +13,7 @@ from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
 from scipy.optimize import curve_fit
-from tslearn.clustering import TimeSeriesKMeans
+# from tslearn.clustering import TimeSeriesKMeans
 from sklearn.metrics import silhouette_score
 
 import scipy
@@ -685,28 +685,7 @@ def select_segments(segment_conditions, selected_condition, segment_results, sel
                          and (segment_results[i] in selected_result)]
     return np.array(idx_segments_selected)
 
-def compute_angle(v1, v2):
-    '''
-    Computes the angle (in degrees) between two vectors with the same number of dimensions
-    
-    Args:
-        v1 (ndim): vector in ndim-dimensional space
-        v2 (ndim): vector in ndim-dimensional space
-        
-    Returns:
-        theta (float): angle between vectors v1 and v2, in degrees
-    '''
-    
-    if np.linalg.norm(v1) == 0 or np.linalg.norm(v2) == 0:
-        return 0
-    else:
-        v1_u = v1 / np.linalg.norm(v1) # normalize
-        v2_u = v2 / np.linalg.norm(v2)
-        cos = np.clip(v1_u @ v2_u, -1, 1)
-        theta = np.arccos(cos)*180/np.pi
-        return theta
-
-def compute_directional_error(positions, target_pos, use_initial_direction = False):
+def compute_directional_error(positions, target_pos, use_initial_direction=False):
     '''
     Computes the instantaneous directional error between the cursor velocity and a direct path to target
     
@@ -730,7 +709,7 @@ def compute_directional_error(positions, target_pos, use_initial_direction = Fal
     else:
         directions_to_target = (np.tile(target_pos, (len(positions),1)) - positions)[:-1]  # continuous cursor-to-target direction
     
-    directional_error_angle = np.array([compute_angle(directions_actual[i], directions_to_target[i]) 
+    directional_error_angle = np.array([utils.compute_angle(directions_actual[i], directions_to_target[i]) 
                                for i in range(directions_actual.shape[0])])
     
     return np.insert(directional_error_angle, 0, np.nan)  # offset index by 1 to align timing with other time series
@@ -747,7 +726,7 @@ def compute_dist_to_line(v1, v2):
         dist (float): orthogonal distance from v1 to v2
     '''
     
-    dist = np.sin(compute_angle(v1, v2)*np.pi/180) * np.linalg.norm(v1)
+    dist = np.sin(utils.compute_angle(v1, v2)*np.pi/180) * np.linalg.norm(v1)
     return dist
 
 def compute_deviations_from_straight(traj, start_sample, target_pos):
@@ -771,21 +750,6 @@ def compute_deviations_from_straight(traj, start_sample, target_pos):
     for i in range(len_traj):
         sq_dists.append(compute_dist_to_line(traj_shifted[i], straight_path)**2)
     return sq_dists
-
-def compute_eye_to_cursor_dists(eye_traj, cursor_traj):
-    '''
-    Computes distances of eye to cursor at each timepoint in trajectories
-    
-    Args:
-        eye_traj (nt, nch): time series array for positions of eye
-        cursor_traj (nt, nch): time series array for positions of cursor
-        
-    Returns:
-        dist_eye_to_cursor (nt): time series array for distances from eye to cursor
-    '''
-    
-    eye_to_cursor_dists = np.linalg.norm(eye_traj - cursor_traj, axis=1)
-    return eye_to_cursor_dists
 
 def compute_eye_rel_trajectory(eye_traj, cursor_traj, target_pos):
     '''
@@ -2027,7 +1991,10 @@ def interp_multichannel(x):
 
     return x
 
-def create_aligned_data_matrix(data_segments, idx_segments_selected, event_samples, which_event, fill_nan = True):
+'''
+Clustering
+'''
+def create_aligned_data_matrix(data_segments, idx_segments_selected, event_samples, which_event, fill_nan=True):
     '''
     Stacks data segments from a list into a data matrix, aligned to a particular event
 
