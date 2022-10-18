@@ -757,6 +757,90 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
 
 
+class EyeTests(unittest.TestCase):
+
+    def test_detect_saccades(self):
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        eye_data, eye_metadata = aopy.data.load_preproc_eye_data(data_dir, subject, te_id, date)
+
+
+        sac_samples, sac_start_samples, sac_end_samples, sac_durations, sac_vel_amplitudes, sac_acc_amplitudes, num_saccades =\
+            aopy.analysis.detect_saccades(eye_vels, eye_accs, samplerate, vel_threshold, earliest_sac_time=0.1, acc_threshold=0, dur_threshold=0)
+
+    def test_saccade_directions(self):
+
+        sac_directions = get_saccade_directions(eye_traj, sac_start_samples, sac_durations)
+
+    
+    def test_get_saccade_direction_groups(self):
+        sac_groups = get_saccade_direction_groups(saccade_directions, angular_dist=45, num_groups=8)
+
+
+    def test_detect_cursor_initiation(self):
+
+        cursor_init_sample = detect_cursor_initiation(cursor_vels, cursor_accs, cursor_dists, vel_threshold, 
+                             samplerate, earliest_init_time=0.2, acc_threshold=0)
+
+    def test_get_init_latencies(self):
+
+        cursor_init_latencies, first_saccade_latencies, num_cursor_fail, num_eye_fail = \
+            aopy.analysis.get_init_latencies(cursor_init_samples, saccade_start_samples, segment_conditions, selected_condition, segment_results, selected_result)
+
+    def test_get_cursor_kinematics_around_saccades(self):
+
+        cursor_dists, cursor_vels, dist_slope, dist_avg, vel_slope, vel_avg = \
+            aopy.analysis.get_cursor_kinematics_around_saccades(saccade_start_samples, saccade_end_samples, dists, vels, num_samples_before, num_samples_after)
+
+    def test_select_segments(self):
+
+        aopy.analysis.select_segments(segment_conditions, selected_condition, segment_results, selected_result)
+
+    def test_compute_directional_error(self):
+
+        aopy.analysis.compute_directional_error(positions, target_pos, use_initial_direction=False)
+        
+    def test_compute_deviations_from_straight(self):
+
+        aopy.analysis.compute_deviations_from_straight(traj, start_sample, target_pos)
+
+    def test_compute_eye_rel_trajectory(self):
+
+        aopy.analysis.compute_eye_rel_trajectory(eye_traj, cursor_traj, target_pos)
+
+    def test_get_error_angles(self):
+
+        cursor_error_at_cur_init, eye_error_at_cur_init, cursor_error_at_sac_start, \
+           eye_error_at_sac_start, num_cursor_fail, num_eye_fail = \
+            aopy.analysis.get_error_angles(cursor_angle, eye_angle, cursor_init_samples, saccade_start_samples, segment_conditions, selected_condition,
+                     result_segments, selected_result, window_size=1)
+
+    def test_get_reach_latencies(self):
+
+        cursor_reach_latencies, eye_reach_latencies, num_cursor_fail, num_eye_fail = \
+            aopy.analysis.get_reach_latencies(cursor_dist_to_target, eye_dist_to_target, segment_conditions, selected_condition, result_segments, selected_result)
+
+class ClusteringTests(unittest.TestCase):
+
+    def test_create_aligned_data_matrix(self):
+
+        data_matrix, max_samples_before_event = aopy.analysis.create_aligned_data_matrix(data_segments, idx_segments_selected, event_samples, which_event, fill_nan = True)
+
+    def test_cluster_data_matrix(self):
+
+        segment_clusters, model = aopy.analysis.cluster_data_matrix(X_train, n_clusters, metric='euclidean')
+
+    def test_select_n_clusters(self):
+
+        n_clusters_selected = aopy.analysis.select_n_clusters(X_train, n_clusters_range, sample_size, metric='euclidean')
+
+    def test_cluster_data_segments(self):
+
+        segment_clusters, idx_segments_clustered, n_clusters, model = \
+            aopy.analysis.cluster_data_segments(data_segments, n_clusters_range, segment_conditions, selected_condition, 
+                          segment_results, selected_result, event_samples, which_event=0, metric='euclidean')
+
 if __name__ == "__main__":
     unittest.main()
 

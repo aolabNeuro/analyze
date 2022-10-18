@@ -391,6 +391,43 @@ def derivative(x, y, norm=True):
     dydx = dy/dx
     return dydx
 
+def double_derivative(x, y, norm=True):
+    '''
+    Computes the double derivative of y along x.
+
+    Args:
+        x (nt): independent variable, e.g. time
+        y (nt, ...): dependent variable, e.g. position
+        norm (bool, optional): also compute the norm of y if it is multidimensional (default True)
+
+    Returns:
+        nt: double derivative of y
+    '''
+    ddy = np.gradient(np.gradient(y, axis=0, edge_order=2), axis=0, edge_order=2)
+    if norm and ddy.ndim > 1:
+        ddy = np.linalg.norm(ddy, axis=1)
+    dx = np.gradient(x)
+    ddydx = ddy/(dx**2)
+    return ddydx
+
+def compute_angle(v1, v2):
+    '''
+    Computes the angle (in degrees) between two vectors with the same number of dimensions
+    
+    Args:
+        v1 (ndim): vector in ndim-dimensional space
+        v2 (ndim): vector in ndim-dimensional space
+        
+    Returns:
+        theta (float): angle between vectors v1 and v2, in degrees  
+    '''
+    
+    v1 = v1 / np.linalg.norm(v1) # normalize
+    v2 = v2 / np.linalg.norm(v2)
+    cos = np.clip(v1 @ v2, -1, 1)
+    theta = np.arccos(cos)*180/np.pi
+    return theta
+
 def calc_euclid_dist_mat(pos):
     '''
     Calculates a matrix of euclidean distance. Each entry in the matrix is the distance between ith and jth position

@@ -172,6 +172,25 @@ class TestMath(unittest.TestCase):
         expected = np.ones(1000)*2*np.sqrt(2)
         np.testing.assert_allclose(dydx, expected)
 
+    def test_double_derivative(self):
+        x = np.linspace(0, 10, 1000)
+        y = x**2
+        ddydx = double_derivative(x, y, norm=False)
+        expected = 2*np.ones((1000,))
+        np.testing.assert_allclose(ddydx, expected)
+
+        x = np.linspace(0, 10, 1000)
+        y = np.array([x*2, x*2]).T
+        ddydx = double_derivative(x, y, norm=True)
+        expected = np.zeros((1000,))
+        np.testing.assert_allclose(ddydx, expected, 1e-6, 1e-6)
+
+    def test_compute_angle(self):
+        v1 = [0,1]
+        v2 = [1,0]
+        theta = compute_angle(v1, v2)
+        self.assertEqual(theta, 90)
+
     def test_calc_euclid_dist_mat(self):
         pos = np.array(
             [[1,1],

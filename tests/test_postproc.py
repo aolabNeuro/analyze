@@ -1,3 +1,4 @@
+from aopy.analysis import detect_saccades
 from aopy.postproc import *
 import aopy
 import numpy as np
@@ -5,10 +6,12 @@ import warnings
 import unittest
 import os
 import matplotlib.pyplot as plt
+from matplotlib.colors import ListedColormap, BoundaryNorm
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(os.path.dirname(test_dir),'docs', 'source', '_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -183,7 +186,71 @@ class TestTrajectoryFuncs(unittest.TestCase):
     
         self.assertEqual(meanfr.shape[1], 360/45) # Check correct num of direction bins
         np.testing.assert_almost_equal(meanfr, exp_meanfr)
+
+    def test_estimate_velocity(self):
+        dt = 1/2
+        positions = np.array([[0,0], [1,0], [2,0], [3,0], [4,0], [5,0]])
+        expected_vels = np.array([2, 2, 2, 2, 2, 2])
+        np.testing.assert_allclose(expected_vels, estimate_velocity(positions, dt))
+
+    def test_estimate_acceleration(self):
+        dt = 1/2
+        positions = np.array([[0,0], [1,0], [2,0], [3,0], [4,0], [5,0]])
+        expected_accs = np.array([0, 0, 0, 0, 0, 0])
+        np.testing.assert_allclose(expected_accs, estimate_acceleration(positions, dt))
     
+    def test_get_distance_to_target(self):
+        positions = np.array([[0,0], [1,0], [2,0], [3,0], [2,0], [3,0], [4,0]])
+        target_pos = np.array([5, 0])
+        target_radius = 1
+        expected_dists = np.array([4, 3, 2, 1, 2, 1, 0])
+        np.testing.assert_allclose(expected_dists, get_distance_to_target(positions, target_pos, target_radius))
+        positions = np.array([[0,0], [-1,-1], [-2,-2], [-3,-3]])
+        target_pos = np.array([-6, -6])
+        target_radius = np.sqrt(2)
+        expected_dists = np.array([5*np.sqrt(2), 4*np.sqrt(2), 3*np.sqrt(2), 2*np.sqrt(2)])
+        np.testing.assert_allclose(expected_dists, get_distance_to_target(positions, target_pos, target_radius))
+
+    def test_get_average_eye_position(self):
+        eye_positions = np.array([[0, 2, 1, 3], [-1, 2, -1.5, -2.5], [10, 0, 11, -1]])
+        eye_labels = (0, 1, 2, 3)
+        expected_avg_eye_pos = np.array([[0.5, 2.5], [-1.25, -0.25], [10.5, -0.5]])
+        np.testing.assert_allclose(expected_avg_eye_pos, get_average_eye_position(eye_positions, eye_labels))
+        eye_labels = (0, 2, 1, 3)
+        expected_avg_eye_pos = np.array([[1, 2], [0.5, -2], [5, 5]])
+        np.testing.assert_allclose(expected_avg_eye_pos, get_average_eye_position(eye_positions, eye_labels))
+
+    def test_assign_jaa_zone(self):
+        zone_str = ['CENTER', 'CENT<->SURR', 'SURROUND', 'NEAR_CENT', 'NEAR_SURR', 'BET_CENT_SURR', 'ELSEWHERE']
+        density = 100
+        x = np.linspace(-10, 10, density); y = x
+        z = np.zeros((density, density))
+        target_pos = np.array([1, 1])
+        target_radius = 0.25
+
+        for i in range(len(x)):
+            for j in range(len(y)):
+                z[j,i] = assign_jaa_zone(np.array([x[i], y[j]]), target_pos, target_radius)
+
+        color_list = ['r', 'g', 'b', 'c', 'm', 'y', 'w'][:len(zone_str)]
+        cmap = ListedColormap(color_list)
+        norm = BoundaryNorm(list(range(len(zone_str)+1)), cmap.N)
+        plt.pcolormesh(x, y, z, cmap = cmap, norm=norm)
+        cbar = plt.colorbar()
+        cbar.set_ticks(np.arange(len(zone_str))+0.5)
+        cbar.set_ticklabels(zone_str)
+        
+        figname = 'jaa_zones.png'
+        aopy.visualization.savefig(docs_dir, figname)
+
+    def test_get_threshold(self):
+        data = np.random.standard_normal((10000,1,1))
+        fig, ax = plt.subplots(1,1,figsize=(6,6))
+        threshold = get_threshold(data, num_sd=2, ax=ax)
+        figname = 'get_threshold_ex.png'
+        aopy.visualization.savefig(docs_dir, figname)
+        expected_threshold = 2
+        self.assertAlmostEqual(expected_threshold, threshold, places=1)
 
 class TestCalcFuncs(unittest.TestCase):
 
@@ -288,6 +355,12 @@ class TestGetFuncs(unittest.TestCase):
         trial_filter = lambda t: TRIAL_END not in t
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
         self.assertEqual(len(trajs), 7)
+
+        # Output all the event times
+        trajs, segs, times = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter, return_times=True)
+        self.assertEqual(len(trajs), 7)
+        self.assertEqual(len(times), 7)
+        self.assertEqual(len(times[0]), 5)
 
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]

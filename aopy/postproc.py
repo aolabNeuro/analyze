@@ -4,11 +4,15 @@
 
 import numpy as np
 import math
+import matplotlib.pyplot as plt
+import pandas as pd
 import warnings
+from collections import defaultdict
 from . import precondition
-from .preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
-from .utils import derivative
-from .data import load_hdf_group, load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
+from . import utils
+from .preproc.base import get_trial_segments_and_times, interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
+from .data import load_hdf_group, load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, map_acq2pos
+# from aopy.analysis import calc_rms, find_outliers, select_segments, calc_erp
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
@@ -331,11 +335,12 @@ def get_velocity_segments(*args, **kwargs):
             | **velocities (ntrial):** array of velocity estimates for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
     '''
-    return get_kinematic_segments(*args, **kwargs, preproc=derivative)
+    return get_kinematic_segments(*args, **kwargs, preproc=utils.derivative)
 
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor'):
+                           trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor',
+                           return_times=False):
     '''
     Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -365,12 +370,14 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
             for which the filter returns False will not be included in the output
         preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
             a smoothing function or an estimate of velocity from position
-        data (str, optional): choice of 'cursor', 'hand', or 'eye' kinematics to load
+        datatype (str, optional): choice of 'cursor', 'hand', or 'eye' kinematics to load
+        return_times (bool, optional): whether to also return timestamps of each event
     
     Returns:
         tuple: tuple containing:
             | **trajectories (ntrial):** array of filtered cursor trajectories for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
+            | **trial_times (ntrial, optional):** array of all event timestamps for each trial
         
     '''
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
@@ -385,8 +392,6 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         time = np.arange(int((clock[-1] + 10)*samplerate))/samplerate
         hand_data_cycles = _correct_hand_traj(data['bmi3d_task'])
         raw_kinematics, _ = interp_timestamps2timeseries(clock, hand_data_cycles, sampling_points=time, interp_kind='linear')
-
-        # print('hi', data['cursor_interp'].shape, hand_data_cycles.shape, raw_kinematics.shape, pts_to_remove)
     elif datatype == 'eye':
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         samplerate = eye_metadata['samplerate']
@@ -406,8 +411,16 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     trajectories = np.array(get_data_segments(kinematics, trial_times, samplerate), dtype='object')
     trial_segments = np.array(trial_segments, dtype='object')
     success_trials = [trial_filter(t) for t in trial_segments]
-    
-    return trajectories[success_trials], trial_segments[success_trials]
+
+    if not return_times:
+        return trajectories[success_trials], trial_segments[success_trials]
+
+    trial_segments, trial_times = get_trial_segments_and_times(event_codes, event_times, 
+                                                                  trial_start_codes, trial_end_codes)
+    trial_segments = np.array(trial_segments, dtype='object')
+    trial_times = np.array(trial_times, dtype='object')
+
+    return trajectories[success_trials], trial_segments[success_trials], trial_times[success_trials]
 
 def _correct_hand_traj(bmi3d_task_data):
     '''
@@ -539,6 +552,252 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
         trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
         locations.append(trials['target'][trial_idx][[0,2,1]])
     return np.array(locations)
+
+def estimate_velocity(positions, dt):
+    '''
+    Estimates magnitude of velocity from position data using the central differences derivative method
+    
+    Args:
+        positions (nt, nch): array of position data
+        dt (float): sampling period of position data
+        
+    Returns:
+        vels (nt): array of magnitudes of velocity
+    '''
+    t = np.arange(0, positions.shape[0]*dt, dt)
+    return utils.derivative(t, positions, norm=True)
+
+def estimate_acceleration(positions, dt):
+    '''
+    Estimates magnitude of acceleration from position data using the central differences derivative method
+    
+    Args:
+        positions (nt, nch): array of position data
+        dt (float): sampling period of position data
+        
+    Returns:
+        accs (nt): array of magnitudes of acceleration
+    '''
+    t = np.arange(0, positions.shape[0]*dt, dt)
+    return utils.double_derivative(t, positions, norm=True)
+
+def get_distance_to_target(positions, target_pos, target_radius):
+    '''
+    Computes distance from position data to boundary of specified target
+    
+    Args:
+        positions (nt, nch): array of position data
+        target_pos (nch): position of center of target
+        target_radius (float): target radius (from metadata)
+        
+    Returns:
+        dists (nt): array of magnitudes of distance from target
+    '''
+    
+    dists_xy = positions-np.tile(target_pos, (positions.shape[0],1))
+    dists = np.linalg.norm(dists_xy, axis=1) - target_radius
+    return dists
+
+def get_in_target_samples(dists_to_target):
+    '''
+    Gets all timepoints when gaze/cursor is inside of target
+    
+    Args:
+        dists_to_target (nt): array of distances to target
+    
+    Returns:
+        in_target_samples (1D Array): array of timepoints (in samples) when inside target
+        enter_target_samples (1D Array): array of timepoints (in samples) when entering target
+        leave_target_samples (1D Array): array of timepoints (in samples) when leaving target
+        in_target_durations (1D Array): array of durations (in samples) of times when inside target
+    '''
+    
+    in_target_samples = np.nonzero(dists_to_target < 0)[0]
+    idx_leave_target_samples = np.nonzero(np.diff(in_target_samples) > 1)[0]
+    leave_target_samples = in_target_samples[idx_leave_target_samples]
+    enter_target_samples = in_target_samples[idx_leave_target_samples + 1]
+    
+    if len(in_target_samples) > 0:  # if eye/cursor enters target at any time during the trial
+        leave_target_samples = np.append(leave_target_samples, in_target_samples[-1])
+        enter_target_samples = np.append(in_target_samples[0], enter_target_samples)
+    
+    in_target_durations = leave_target_samples - enter_target_samples + 1
+    
+    return in_target_samples, enter_target_samples, leave_target_samples, in_target_durations
+
+def get_average_eye_position(eye_positions, eye_labels = (0,1,2,3)):
+    '''
+    Get the average x,y position data between left and right eyes
+    
+    Args:
+        eye_positions (nt, 4): array of eye position data for one trial, as output by exp_data
+        eye_labels (tuple): array of column indices corresponding to position data 
+                            for (left_eye_x, left_eye_y, right_eye_x, right_eye_y)
+    
+    Returns:
+        (nt, 2): array of x,y eye position data averaged between both eyes
+    '''
+    
+    left_eye_x, left_eye_y, right_eye_x, right_eye_y = eye_labels
+    return np.stack([(eye_positions[:,left_eye_x]+eye_positions[:,right_eye_x])/2, 
+                     (eye_positions[:,left_eye_y]+eye_positions[:,right_eye_y])/2], axis=1)
+
+def get_threshold(data, num_sd=0, axis=None, ax=None):
+    '''
+    Compute number of standard deviations above the mean as a threshold
+    and optionally plot 1D histogram of data with threshold marked
+    
+    Args:
+        data (nt): dataset
+        num_sd (int): number of standard deviations above the mean (can be negative)
+        axis (None or int or tuple of ints, optional):
+            Axis or axes along which the threshold is computed. 
+            The default is to compute the threshold of the flattened array.
+        ax (pyplot.Axis): axis for plotting histogram; if None, histogram is not plotted
+    
+    Returns:
+        float: computed threshold, some number of standard deviations above the mean
+    '''
+    
+    threshold = np.mean(data)+num_sd*np.std(data)
+    
+    if ax is not None:
+        ax.hist(data.reshape(-1), bins=50, density=False)
+        ymax = ax.get_ylim()[1]
+        ax.vlines(x=threshold, ymin=0, ymax=ymax/2, linestyles='dashed')
+        ax.set_ylabel('Count')
+        ax.annotate(f'mean + ({num_sd})*sd',(threshold, ymax/2))
+    
+    return threshold
+
+def assign_jaa_zone(positions, target, target_radius):
+    '''
+    Assign positions to zones (defined by Joseph) on screen to downsample eye/cursor location in space
+    Zone locations depend on specified target
+    
+    .. image:: _images/jaa_zones.png
+
+    Args:
+        positions (nt, nch): array of position data
+        target (nch): position of target
+        target_radius (float): radius of target
+        
+    Returns:
+        (int): arbitrary number corresponding to zone of position
+    '''
+    
+    target_distance = np.linalg.norm(target)
+    if np.linalg.norm(positions) <= target_radius:  # in center target
+        return 0
+    if np.linalg.norm(positions - target) <= target_radius:  # in surround target
+        return 2
+
+    # rotate positions as if Target 1 were the surround target
+    pos_r = rotate_spatial_data(positions, new_axis=np.array([0,1]), current_axis=target)[0,:2]  
+    if (np.abs(pos_r[0]) <= target_radius) and (0 <= pos_r[1] <= target_distance):  
+        return 1  # in channel between center and surround target
+    if (np.linalg.norm(positions) <= target_radius*1.5):  
+        return 3  # near center target (and not in channel between center and surround)
+    if (np.linalg.norm(positions - target) <= target_radius*1.5):  
+        return 4  # near surround target (and not in channel between center and surround)
+    target = np.array([0,1])
+    if (np.linalg.norm(pos_r - target) <= target_distance) and (0 <= pos_r[1] <= target_distance):  
+        return 5  # roughly between center and surround targets
+    return 6  # elsewhere on screen
+
+def get_good_channels(lfp_data, samplerate, window_length, std_threshold, num_windows):
+    '''
+    Automatically identifies and rejects channels with consistently outlying rms in a given session
+    
+    Args:
+        lfp_data (nt, nch): array of lfp data for one session
+        samplerate (float): sampling rate for lfp data
+        window_length (float): amount of time over which to compute rms, in seconds (~180)
+        std_threshold (float): number of standard deviations from mean for channel rms to be considered an outlier (~2.5)
+        num_windows (int): number of windows over which to repeat the rms calculation (~40)
+
+    Returns:
+        good_acq_ch_idx (1D Array): array of channel indices to be retained
+    '''
+
+    files = {}
+    files['signal_path'] = "/home/aolab/gdrive/Lab Equipment/electrophysiology/210910_ecog_signal_path.xlsx"
+    files['elec_to_pos'] = "/home/aolab/gdrive/Lab Equipment/electrophysiology/our signal path definitions/244ch_viventi_ecog_elec_to_pos.xlsx"
+
+    # Load channel mapping
+    signal_path = pd.read_excel(files['signal_path'])
+    layout = pd.read_excel(files['elec_to_pos'])
+    elec_channels = np.array(list(range(256)), dtype='int')
+    elec_pos, acq_ch_idx, _ = map_acq2pos(signal_path, layout, elec_channels)
+
+    bad_acq_ch_idx_count = defaultdict(int)
+
+    for n in range(num_windows):
+        
+        # compute rms from random window of data
+        np.random.seed(n)
+        window_start = np.random.randint((lfp_data.shape[0] - int(window_length*samplerate)))
+        acq_ch_rms = calc_rms(lfp_data[window_start:int(window_start + window_length*samplerate), acq_ch_idx])
+                
+        bad_acq_ch_tf, _ = find_outliers(np.reshape(acq_ch_rms, (-1, 1)), std_threshold=std_threshold)
+        bad_acq_ch_idx = acq_ch_idx[bad_acq_ch_tf == False]
+
+        for ch in bad_acq_ch_idx:
+            bad_acq_ch_idx_count[ch] += 1
+
+    bad_acq_ch_idx_final = [ch for ch, count in bad_acq_ch_idx_count.items() if count > num_windows/2]
+    print(f'Bad channel indices detected: {bad_acq_ch_idx_final}')
+
+    good_acq_ch_idx = np.array(list(set(acq_ch_idx) - set(bad_acq_ch_idx_final)))
+
+    return good_acq_ch_idx
+
+def get_aligned_epochs(lfp_data_segments, event_samples, which_event, time_before, time_after, 
+                       samplerate, segment_conditions, selected_condition, segment_results, selected_result, baseline_window=None):
+    '''
+    Align lfp data from selected segments into epoch array
+
+    Args:
+        lfp_data_segments (list): lfp data (nt, nch) for each segment
+        event_samples (ntrials): list of arrays containing sample timepoints around which segment data are aligned
+        which_event (int): which element to take from each array in event_samples 
+        time_before (float): number of seconds to include before each event
+        time_after (float): number of seconds to include after each event
+        samplerate (float): sampling rate of lfp data
+        segment_conditions (ntrials): list of conditions corresponding to segment indices
+        selected_condition (list): list containing conditions which segment must satisfy
+        segment_results (ntrials): list of results corresponding to segment indices
+        selected_result (str): trial result by which to select segments
+        baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event) 
+                                                Default is the entire time_before period
+    
+    Returns:
+        tuple: Tuple containing:
+            | **lfp_data_aligned (ntrials, nt, nch):** array of epoch time series aligned to provided event
+            | **num_epochs (int):** number of epochs selected
+    '''
+    
+    # select segments
+    num_samples_before, num_samples_after = int(time_before*samplerate), int(time_after*samplerate)
+    idx_segments_selected = select_segments(segment_conditions, selected_condition, segment_results, selected_result)
+    idx_segments_selected = [i for i, x in enumerate(event_samples) 
+                             if i in idx_segments_selected and len(x) > which_event 
+                             and x[which_event] + num_samples_after < lfp_data_segments[i].shape[0]
+                             and x[which_event] >= num_samples_before]
+    
+    # extract interval around event and store in data matrix
+    window_length = num_samples_before + num_samples_after
+    num_acq_channels = lfp_data_segments[0].shape[1]
+    lfp_data_aligned = np.zeros((len(idx_segments_selected), num_acq_channels, window_length))
+    for i, idx_segment in enumerate(idx_segments_selected):
+        lfp_data_aligned[i] = calc_erp(lfp_data_segments[idx_segment], 
+                                                     [event_samples[idx_segment][which_event]/samplerate],
+                                                     time_before, time_after, samplerate,
+                                                     subtract_baseline=True, baseline_window=baseline_window).T.squeeze()
+    
+    num_epochs = len(idx_segments_selected)
+    return lfp_data_aligned, num_epochs
+
 
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
