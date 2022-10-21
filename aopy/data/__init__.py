@@ -1042,6 +1042,9 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None):
     if drive_type == 'ECoG244':
         signal_path_filepath = os.path.join(config_dir, '210910_ecog_signal_path.xlsx')
         elec_to_pos_filepath = os.path.join(config_dir, '244ch_viventi_ecog_elec_to_pos.xlsx')
+    elif drive_type == 'Opto32':
+        signal_path_filepath = os.path.join(config_dir, '221021_opto_signal_path.xlsx')
+        elec_to_pos_filepath = os.path.join(config_dir, '32ch_fiber_optic_assy_elec_to_pos.xlsx')
     else:
         raise ValueError('Drive type not supported')
     signal_path = pd.read_excel(signal_path_filepath)
