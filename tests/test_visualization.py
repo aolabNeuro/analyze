@@ -421,5 +421,42 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'corr_over_dist.png'
         savefig(docs_dir,filename)
 
+    def test_plot_tfr(self):
+
+        fig, ax = plt.subplots(3,1,figsize=(4,6))
+
+        samplerate = 1000
+        t = np.arange(2*samplerate)/samplerate
+        f0 = 1
+        t1 = 2
+        f1 = 1000
+        data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+        print(data.shape)
+        aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+        aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+
+        freqs = np.linspace(1,1000,200)
+        coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+
+        print(data.shape)
+        print(coef.shape)
+        print(t.shape)
+        print(freqs.shape)
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
+
+        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+        filename = 'tfr_cwt_chirp.png'
+        plt.tight_layout()
+        savefig(docs_dir,filename)
+
+
+    def test_savefig(self):
+
+        fig, ax = plt.subplots()
+        ax.patch.set_facecolor('black')
+
+        aopy.visualization.savefig(write_dir, "axis_transparency.png", transparent=False)
+
+
 if __name__ == "__main__":
     unittest.main()

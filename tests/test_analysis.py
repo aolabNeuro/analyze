@@ -9,9 +9,11 @@ import unittest
 
 import os
 import matplotlib.pyplot as plt
+from scipy import signal
 
 test_dir = os.path.dirname(__file__)
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -651,6 +653,39 @@ class SpectrumTests(unittest.TestCase):
         )
         self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
         self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
+
+    def test_tfr_wavelets(self):
+        fig, ax = plt.subplots(3,1,figsize=(4,6))
+
+        samplerate = 1000
+        data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
+        nt = data_200_hz.shape[0]
+        data_200_hz[:int(nt/3),:] /= 3
+        data_200_hz[int(2*nt/3):,:] *= 2
+
+        data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
+        data_50_hz[:int(nt/2),:] /= 2
+
+        data = data_50_hz + data_200_hz
+        print(data.shape)
+        aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+        aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+
+        freqs = np.linspace(1,250,100)
+        coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+        t = np.arange(nt)/samplerate
+        
+        print(data.shape)
+        print(coef.shape)
+        print(t.shape)
+        print(freqs.shape)
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
+
+        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+        filename = 'tfr_cwt_50_200.png'
+        plt.tight_layout()
+        savefig(docs_dir,filename)
+
 
 class BehaviorMetricsTests(unittest.TestCase):
 

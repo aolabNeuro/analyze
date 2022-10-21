@@ -1226,3 +1226,66 @@ def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
     ax.set_xlabel('binned electrode distance (cm)')
     ax.set_ylabel('correlation')
     ax.set_ylim(0,1)
+
+
+def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwargs):
+    '''
+    Plot a time-frequency representation of a signal.
+
+    Args:
+        values ((nt, nfreq) array): 
+        times ((nt,) array): 
+        freqs ((nfreq,) array): 
+        cmap (str, optional): colormap to use for plotting
+        logscale (bool, optional): apply a log scale to the freq axis. Default False
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to pyplot
+        
+    Returns:
+        pyplot.Image: image object returned from pyplot.pcolormesh. Useful for adding colorbars, etc.
+        
+    Examples:
+        
+        .. code-block:: python
+
+            fig, ax = plt.subplots(3,1,figsize=(4,6))
+
+            samplerate = 1000
+            t = np.arange(2*samplerate)/samplerate
+            f0 = 1
+            t1 = 2
+            f1 = 1000
+            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+            print(data.shape)
+            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+
+            freqs = np.linspace(1,1000,200)
+            coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+
+            print(data.shape)
+            print(coef.shape)
+            print(t.shape)
+            print(freqs.shape)
+            pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
+
+            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+    
+        .. image:: _images/tfr_cwt_chirp.png
+
+    See Also:
+        :func:`~aopy.analysis.calc_cwt_tfr`
+    '''
+    
+    if ax == None:
+        ax = plt.gca()
+        
+    pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
+    pcm.set_edgecolor('face')
+    
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Frequency (Hz)')
+    if logscale:
+        ax.set_yscale('log')
+
+    return pcm

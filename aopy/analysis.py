@@ -21,6 +21,7 @@ from scipy import stats, signal
 import warnings
 from numpy.linalg import inv as inv # used in Kalman Filter
 import nitime.algorithms as tsa
+import pywt
 
 from . import utils
 from . import preproc
@@ -735,6 +736,69 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
 
+def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
+    '''
+    Use morlet wavelet decomposition to calculate a time-frequency representation of your data.
+    
+    Args:
+        data (nt, nch): time series data
+        freqs (nfreq): frequencies to decompose
+        samplerate (float): sampling rate of the data
+        fb (float, optional): time-decay parameter, inverse relationship with bandwidth 
+            of the wavelets; setting a higher number results in narrower frequency resolution
+        f0_norm (float, optional): center frequency of the wavelets, normalized to the sampling 
+            rate. Default to 1.0, or the same frequency as the sampling rate.
+        verbose (bool, optional): print out information about the wavelets
+
+    Returns:
+        (nfreq, nt, nch): tfr representation for each channel
+
+    Examples:
+        
+        .. code-block:: python
+
+            fig, ax = plt.subplots(3,1,figsize=(4,6))
+
+            samplerate = 1000
+            data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
+            nt = data_200_hz.shape[0]
+            data_200_hz[:int(nt/3),:] /= 3
+            data_200_hz[int(2*nt/3):,:] *= 2
+
+            data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
+            data_50_hz[:int(nt/2),:] /= 2
+
+            data = data_50_hz + data_200_hz
+            print(data.shape)
+            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+
+            freqs = np.linspace(1,250,100)
+            coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+            t = np.arange(nt)/samplerate
+            
+            print(data.shape)
+            print(coef.shape)
+            print(t.shape)
+            print(freqs.shape)
+            pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
+
+            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+            
+        .. image:: _images/tfr_cwt_chirp.png
+
+    '''
+    freqs = np.flip(freqs)/samplerate
+    wav = pywt.ContinuousWavelet(f'cmor{fb}-{f0_norm}')
+    scale = pywt.frequency2scale(wav, freqs)
+    coef, _ = pywt.cwt(data, scale, wav, axis=0)
+    if verbose:
+        print(wav.bandwidth_frequency)
+        print(f"Wavelet ({wav.lower_bound}, {wav.upper_bound})")
+        print(f"Scale ({scale[0]}, {scale[-1]})")
+        print(f"Freqs ({freqs[0]}, {freqs[-1]})")
+    
+    return np.flip(coef, axis=0)
 
 def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
     '''

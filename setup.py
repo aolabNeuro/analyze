@@ -19,6 +19,7 @@ install_requires = [
     'openpyxl',
     'matplotlib',
     'scipy',
+    'PyWavelets',
     'seaborn',
     'pyyaml',
     'tqdm'
