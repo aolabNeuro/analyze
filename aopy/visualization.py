@@ -1273,6 +1273,26 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     
         .. image:: _images/tfr_cwt_chirp.png
 
+        .. code-block:: python
+
+            lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
+            samplerate = lfp_metadata['lfp_samplerate']
+            lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
+
+            aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
+            aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
+
+            freqs = np.linspace(1,200,100)
+            nt = lfp_data.shape[0]
+            t = np.arange(nt)/samplerate
+            coef = aopy.analysis.calc_cwt_tfr(lfp_data, freqs, samplerate, fb=1.5, f0_norm=1, verbose=True)
+
+            pcm = aopy.visualization.plot_tfr(abs(coef), t, freqs, 'plasma', ax=ax[2])
+            fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
+
+        .. image:: _images/tfr_cwt_lfp.png
+
+
     See Also:
         :func:`~aopy.analysis.calc_cwt_tfr`
     '''
