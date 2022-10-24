@@ -561,6 +561,9 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
     events = exp_data['sync_events']['event'] 
     event_times = exp_data['sync_events']['timestamp']
     times = event_times[events == b'TRIAL_START']
+    min_isi = np.min(np.diff(times))
+    if 'search_radius' not in kwargs:
+        kwargs['search_radius'] = min_isi/2 # look for sensor measurements up to half the minimum ISI away
 
     # Get width and power from the 'trials' data
     if 'bmi3d_trials' in exp_data:
@@ -589,8 +592,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
     sensor_data = exp_data['laser_sensor']
     sensor_voltsperbit = exp_metadata['analog_voltsperbit']
     samplerate = exp_metadata['analog_samplerate']   
-    search_radius = 1./exp_metadata['fps']    
-    return find_laser_stim_times(times, widths, powers, sensor_data, samplerate, 
-        sensor_voltsperbit, thr_width=thr_width, thr_power=thr_power, 
-        search_radius=search_radius, debug=debug, **kwargs)
+    return find_laser_stim_times(times, widths, powers, sensor_data, 
+        samplerate, sensor_voltsperbit, thr_width=thr_width, 
+        thr_power=thr_power, debug=debug, **kwargs)
                                                                                 
