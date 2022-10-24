@@ -789,7 +789,8 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
 
     '''
     freqs = np.flip(freqs)/samplerate
-    wav = pywt.ContinuousWavelet(f'cmor{fb}-{f0_norm}')
+    wav = pywt.ContinuousWavelet(f'cmor{fb}-{f0_norm}') # 'cmorB-C' for a complex Morlet wavelet with the
+                                                        # given time-decay (B) and center frequency (C) params.
     scale = pywt.frequency2scale(wav, freqs)
     coef, _ = pywt.cwt(data, scale, wav, axis=0)
     if verbose:
