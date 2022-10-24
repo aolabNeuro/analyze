@@ -1377,7 +1377,8 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
 def calc_task_rel_dims(neural_data, kin_data):
     '''
     Calculates the task relevant dimensions by regressing neural activity against kinematic data using least squares.
-    If the input neural data is 3D, all trials will be concatenated to calculate the subspace
+    If the input neural data is 3D, all trials will be concatenated to calculate the subspace. 
+    Calculation is based on the approach used in Sun et al. 2022 https://doi.org/10.1038/s41586-021-04329-x
 
 
     Args:
@@ -1405,7 +1406,7 @@ def calc_task_rel_dims(neural_data, kin_data):
     projected_data = []
     
     for itrial in range(ntrials):
-        projected_data.append(neural_data[itrial] @ task_subspace.T)
+        projected_data.append(neural_data[itrial] @ np.linalg.pinv(task_subspace))
 
     return task_subspace.T, projected_data
 

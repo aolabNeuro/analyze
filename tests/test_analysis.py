@@ -421,7 +421,7 @@ class ModelFitTests(unittest.TestCase):
         np.testing.assert_allclose(task_subspace, np.zeros((3,2))+0.5)
 
         # Test data projection  
-        np.testing.assert_allclose(projected_data[0], velocity2D*1.5)
+        np.testing.assert_allclose(projected_data[0], velocity2D)
 
 class AccLLRTests(unittest.TestCase):
 
