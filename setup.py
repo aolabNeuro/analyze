@@ -20,6 +20,7 @@ install_requires = [
     'matplotlib',
     'scipy',
     'PyWavelets',
+    'Pillow',
     'seaborn',
     'pyyaml',
     'tqdm'
