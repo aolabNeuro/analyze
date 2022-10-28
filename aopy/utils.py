@@ -2,6 +2,8 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
+import platform
+import resource
 import numpy as np
 import re
 from datetime import datetime
@@ -430,3 +432,53 @@ def calc_radial_dist(pos, origin=(0,0)):
         dist[i] = math.dist(origin, p)
     
     return dist
+
+'''
+Memory
+'''
+def get_memory_available_gb():
+    '''
+    Get the available system memory in gigabytes. Only works on linux platforms.
+
+    Returns:
+        int: number of gigabytes of available system memory
+    '''
+    if platform.system() != "Linux":
+        print('Only works on linux!')
+        return
+    with open('/proc/meminfo', 'r') as mem:
+        free_memory = 0
+        for i in mem:
+            sline = i.split()
+            if str(sline[0]) == 'MemAvailable:':
+                free_memory = int(sline[1])
+                break
+    return int(free_memory/1e6) # convert KB to GB
+
+def set_memory_limit_gb(size_gb):
+    '''
+    Set a memory resource limit in gigabytes.
+
+    Args:
+        size_gb (int): upper limit of memory that will be made available to python in gigabytes
+    '''
+    maxsize = int(1e9*size_gb)
+    resource.setrlimit(resource.RLIMIT_AS, (maxsize, -1))
+
+def get_memory_limit_gb():
+    '''
+    Get the memory resource limit in gigabytes.
+
+    Returns:
+        int or None: upper limit of memory available to python in gigabytes
+    '''
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    if soft == -1:
+        return None
+    return int(soft/1e9)
+    
+def release_memory_limit():
+    '''
+    Unset any memory resource limit that may have been applied.
+    '''
+    resource.setrlimit(resource.RLIMIT_AS, (-1, -1))
