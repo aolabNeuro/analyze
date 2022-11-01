@@ -174,7 +174,7 @@ met:
 -  Saving
 
 Adding new packages
-~~~~~~~~~~~~~~~~~~~
+-------------------
 
 If you need to add a new dependency to the repo, there are a couple items
 that must also be completed:
