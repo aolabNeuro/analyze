@@ -14,7 +14,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('../..'))
 
-autodoc_mock_imports = ['numpy', 'pandas', 'psutil', 'h5py', 'tables', 'sklearn', 'scipy', 'PyWavelets', 'matplotlib', 'seaborn', 'nitime', 'torch', 'yaml', 'tqdm', 'xarray']
+autodoc_mock_imports = ['numpy', 'pandas', 'psutil', 'h5py', 'tables', 'sklearn', 'scipy', 'pywt', 'matplotlib', 'seaborn', 'nitime', 'torch', 'yaml', 'tqdm', 'xarray']
 
 # -- Project information -----------------------------------------------------
 
