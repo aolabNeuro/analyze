@@ -37,6 +37,7 @@ extensions = [
     'sphinx.ext.napoleon', 
     'sphinx.ext.mathjax', 
     'sphinx.ext.viewcode',
+    'sphinx.ext.autosectionlabel',
     'nbsphinx'
 ]
 

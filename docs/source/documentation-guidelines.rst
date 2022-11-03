@@ -1,5 +1,8 @@
-Writing docstrings
-==================
+Writing documentation
+=====================
+
+Docstrings
+----------
 
 All functions are required to have a header placed under the function
 definition that is based on the google docstring style. The header
@@ -105,7 +108,7 @@ You can also use the Python Docstring Generator extension to
 automatically generate docstrings for your functions.
 
 Adding images
--------------
+^^^^^^^^^^^^^
 
 In your docstring or in the .rst file of your choice include the line
 
@@ -116,7 +119,7 @@ In your docstring or in the .rst file of your choice include the line
 Then put your image into /docs/source/\_images/
 
 Adding equations
-----------------
+^^^^^^^^^^^^^^^^
 
 You can include any LaTeX equations in the documentation.
 
@@ -148,3 +151,31 @@ Math equation on its own line:
     Inline math: :math:`\theta`
 
 Inline math: :math:`\theta`
+
+Documentation pages
+-------------------
+
+In addition to function docstrings, there is also considerable documentation here
+on readthedocs. There is this section, :ref:`Contributing:`, as well as a :ref:`Getting started:`
+guide, an :ref:`Examples:` page, and many submodules containing general information,
+for example the :ref:`Preprocessed data format` page. 
+
+It is recommended to add documentation in this way whenever there is information relevant
+to many functions. For example, some documentation should be provided for each submodule
+in the repository, i.e. :ref:`Precondition:`, :ref:`Data:`, etc. To add documentation to
+these submodule pages, simply edit the relevant `.rst` file and include your prose at the 
+top of the file before the block that looks like:
+
+.. code-block:: rst
+
+    API
+    ---
+
+    .. automodule:: aopy.postproc
+        :members:
+
+It is also recommended to include :ref:`Examples:` of common workflows, for instance
+trial-aligning kinematics and neural data. To add an example page, upload your notebook
+to `docs/source/examples/`, then add its filename into the `examples.rst` document.
+Be sure that your notebook has a title at the beginning, otherwise it won't show up in
+the table of contents.
