@@ -93,6 +93,11 @@ class NeuralDataPlottingTests(unittest.TestCase):
         # undefined by the channel mapping) should be visible in the map.
 
         plt.figure()
+        plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None, nan_color=None)
+        filename = 'posmap_244ch_no_interp_transparent.png'
+        savefig(write_dir, filename) # Now we make the missing electrodes transparent
+
+        plt.figure()
         plot_ECoG244_data_map(data, bad_elec=missing, interp=True, cmap='bwr', ax=None)
         filename = 'posmap_244ch.png'
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
