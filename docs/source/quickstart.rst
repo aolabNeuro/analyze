@@ -15,11 +15,38 @@ in editable mode rather than installing a fixed version.
     > cd analyze
     > pip install -e .
 
-Example usage
--------------
+Overview of functions
+---------------------
+
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+| Module        | contents                                                                                                  | Examples                                                                                                                       |
++===============+===========================================================================================================+================================================================================================================================+
+| data          | Directly loading and saving data from bmi3d, peslab, and results                                          | :func:`~aopy.data.load_ecube_data`, :func:`~aopy.data.save_hdf`                                                                |
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+| preproc       | Reorganize data into a standard format, largely automated for bmi3d                                       | :func:`~aopy.preproc.get_trial_segments`, :func:`~aopy.preproc.proc_exp`                                                       |
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+| precondition  | Clean and prepare neural data for users to interact with                                                  | :func:`~aopy.precondition.downsample`, :func:`~aopy.precondition.get_psd_multitaper`, :func:`~aopy.precondition.detect_spikes` |
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+| postproc      | Separating neural features such as LFP bands or spikes binning. And (currently) loading preprocessed data | :func:`~aopy.postproc.extract_mtm_features`, :func:`~aopy.postproc.get_kinematic_segments`                                     |
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+| analysis      | Compute firing rates, success rates, direction tuning, etc.                                               | :func:`~aopy.analysis.calc_success_rate`, :func:`~aopy.analysis.calc_rms`                                                      |
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+| visualization | Neural data plotting                                                                                      | :func:`~aopy.visualization.plot_spatial_map`, :func:`~aopy.visualization.plot_raster`, :func:`~aopy.visualization.plot_tfr`    |
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+| utils         | Helper functions, math, other things that don't really pertain to neural data analysis                    | :func:`~aopy.utils.generate_test_signal`, :func:`~aopy.utils.detect_edges`, :func:`~aopy.utils.derivative`                     |
++---------------+-----------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------+
+
+Supported systems
+-----------------
+
+Currently aopy supports data from aolab BMI3D and pesaran lab wireless data.
+
 Data from experiments comes from several sources (e.g. experiment hdf files, optitrack csv, binary neural data).
 To manage all these different sources of data, aopy has parsing functions that standardize the format and 
 contents of these files.
+
+BMI3D
+^^^^^
 
 A simple example:
 
@@ -108,8 +135,13 @@ Or to load an entire group:
 
     exp_metadata = aopy.data.load_hdf_group(result_dir, result_filename, 'exp_metadata')
 
+For a more comprehensive example, see the Examples section of this documentation.
 
-Integrating with BMI3D
-----------------------
+Peslab
+^^^^^^
 
-coming soon!
+Documentation in progress.
+
+.. code-block:: python
+
+    aopy.data.peslab

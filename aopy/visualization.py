@@ -306,7 +306,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, **interp_kwargs):
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
@@ -316,9 +316,30 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): dictionary of additional keyword argument pairs to send to calc_data_map and plot_spatial_map.
 
     Returns:
         pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+
+    Examples:
+
+        .. code-block:: python
+
+            data = np.linspace(-1, 1, 256)
+            missing = [0, 5, 25]
+            plt.figure()
+            plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None)
+            # Here the missing electrodes (in addition to the ones
+            # undefined by the channel mapping) should be visible in the map.
+
+            plt.figure()
+            plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None, nan_color=None)
+            # Now we make the missing electrodes transparent
+
+            plt.figure()
+            plot_ECoG244_data_map(data, bad_elec=missing, interp=True, cmap='bwr', ax=None)
+            # Missing electrodes should be filled in with linear interp.
+
     '''
     
     if ax is None:
@@ -333,13 +354,15 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         
     # Interpolate or directly compute the map
     if interp:
+        interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
         data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
     else:
         data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
         xy = [elec_pos[:,0], elec_pos[:,1]]
 
     # Plot
-    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax)
+    plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
+    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
     return im
 
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
@@ -1226,3 +1249,86 @@ def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
     ax.set_xlabel('binned electrode distance (cm)')
     ax.set_ylabel('correlation')
     ax.set_ylim(0,1)
+
+
+def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwargs):
+    '''
+    Plot a time-frequency representation of a signal.
+
+    Args:
+        values ((nt, nfreq) array): 
+        times ((nt,) array): 
+        freqs ((nfreq,) array): 
+        cmap (str, optional): colormap to use for plotting
+        logscale (bool, optional): apply a log scale to the freq axis. Default False
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to pyplot
+        
+    Returns:
+        pyplot.Image: image object returned from pyplot.pcolormesh. Useful for adding colorbars, etc.
+        
+    Examples:
+        
+        .. code-block:: python
+
+            fig, ax = plt.subplots(3,1,figsize=(4,6))
+
+            samplerate = 1000
+            t = np.arange(2*samplerate)/samplerate
+            f0 = 1
+            t1 = 2
+            f1 = 1000
+            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+            print(data.shape)
+            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+
+            freqs = np.linspace(1,1000,200)
+            coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+
+            print(data.shape)
+            print(coef.shape)
+            print(t.shape)
+            print(freqs.shape)
+            pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
+
+            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+    
+        .. image:: _images/tfr_cwt_chirp.png
+
+        .. code-block:: python
+
+            lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
+            samplerate = lfp_metadata['lfp_samplerate']
+            lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
+
+            aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
+            aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
+
+            freqs = np.linspace(1,200,100)
+            nt = lfp_data.shape[0]
+            t = np.arange(nt)/samplerate
+            coef = aopy.analysis.calc_cwt_tfr(lfp_data, freqs, samplerate, fb=1.5, f0_norm=1, verbose=True)
+
+            pcm = aopy.visualization.plot_tfr(abs(coef), t, freqs, 'plasma', ax=ax[2])
+            fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
+
+        .. image:: _images/tfr_cwt_lfp.png
+
+
+    See Also:
+        :func:`~aopy.analysis.calc_cwt_tfr`
+    '''
+    
+    if ax == None:
+        ax = plt.gca()
+        
+    pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
+    pcm.set_edgecolor('face')
+    
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Frequency (Hz)')
+    if logscale:
+        ax.set_yscale('log')
+
+    return pcm
