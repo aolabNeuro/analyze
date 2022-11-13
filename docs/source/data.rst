@@ -11,8 +11,8 @@ API
     :members:
 
 
-API - Peslab
-------------
+Peslab
+^^^^^^
 
 .. automodule:: aopy.data.peslab
     :members:

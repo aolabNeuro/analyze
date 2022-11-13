@@ -13,3 +13,14 @@ API
 .. automodule:: aopy.analysis
     :members:
 
+AccLLR
+^^^^^^
+
+.. automodule:: aopy.preproc.accllr
+    :members:
+
+KFDecoder
+^^^^^^^^^
+
+.. automodule:: aopy.preproc.kfdecoder
+    :members:
