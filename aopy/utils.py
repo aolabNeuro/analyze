@@ -440,6 +440,11 @@ def get_memory_available_gb():
     '''
     Get the available system memory in gigabytes. Only works on linux platforms.
 
+    Note:
+        The results of this function are equivalent to the terminal commands:
+        * "grep MemAvailable /proc/meminfo" -> available memory
+        * "grep MemTotal /proc/meminfo" -> total memory
+
     Returns:
         int: number of gigabytes of available system memory
     '''
@@ -458,6 +463,14 @@ def get_memory_available_gb():
 def set_memory_limit_gb(size_gb):
     '''
     Set a memory resource limit in gigabytes.
+
+    Note: 
+        The soft limit is a value upon which the operating system will restrict memory
+        usage by the process (python, in this case).
+        A true upper bound on the memory values can be defined by the hard limit. However,
+        although the hard limit can be lowered, it can never be raised by user processes 
+        (even if the process lowered itself) and is controlled by a system-wide parameter 
+        set by the system administrator.
 
     Args:
         size_gb (int): upper limit of memory that will be made available to python in gigabytes
