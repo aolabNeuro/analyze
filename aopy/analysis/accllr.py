@@ -203,8 +203,8 @@ def detect_accllr_fast(accllr, upper, lower):
     # Find the first value above the threshold for all trials at once
     lower_hit = accllr < lower
     upper_hit = accllr > upper
-    lower_hit_st = first_nonzero(lower_hit, axis=0, invalid_val=nt+1) # if no hit, then set nt+1
-    upper_hit_st = first_nonzero(upper_hit, axis=0, invalid_val=nt+1)
+    lower_hit_st = first_nonzero(lower_hit, axis=0, all_zeros_val=nt+1) # if no hit, then set nt+1
+    upper_hit_st = first_nonzero(upper_hit, axis=0, all_zeros_val=nt+1)
 
     # Break lower-upper ties
     lower_first = lower_hit_st < upper_hit_st
