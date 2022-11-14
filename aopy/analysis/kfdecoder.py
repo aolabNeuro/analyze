@@ -1,9 +1,9 @@
+# kfdecoder.py
+#
+# Kalman Filter implementation
+
 import numpy as np
 from numpy.linalg import inv as inv # used in Kalman Filter
-
-'''
-KALMAN FILTER 
-'''
 
 class KFDecoder(object):
     """

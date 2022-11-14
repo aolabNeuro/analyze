@@ -1,5 +1,6 @@
 Preproc:
 ===============
+Code for preprocessing neural data (reorganize data into the needed form) including parsing experimental files, trial sorting, and subsampling
 
 .. contents:: :local:
 

@@ -1,3 +1,6 @@
+# tuning.py
+#
+# Code related to tuning analysis, e.g. modulation depth, specificity, curve fitting, etc.
 
 import numpy as np
 from scipy.optimize import curve_fit
@@ -6,8 +9,6 @@ from scipy.optimize import curve_fit
 '''
 Curve fitting
 '''
-
-
 # These functions are for curve fitting and getting modulation depth and preferred direction from firing rates
 def curve_fitting_func(target_theta, b1, b2, b3):
     '''

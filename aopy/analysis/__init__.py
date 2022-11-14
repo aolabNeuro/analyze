@@ -5,5 +5,5 @@ from .base import *
 from .behavior import *
 from .kfdecoder import *
 from .celltype import *
-from .curvefit import *
+from .tuning import *
 from .kfdecoder import *

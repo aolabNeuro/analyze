@@ -1,3 +1,7 @@
+# behavior.py
+#
+# Behavioral metrics code, e.g. trajectory path lengths, eye movement analysis, success rate, etc.
+
 import numpy as np
 from .. import preproc
 from scipy import signal

@@ -1,4 +1,3 @@
-# analysis.py
 # Code for neural data analysis; functions here should return interpretable results such as
 # firing rates, success rates, direction tuning, etc.
 
