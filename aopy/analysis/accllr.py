@@ -112,8 +112,8 @@ def calc_accllr_lfp(lfp_altcond, lfp_nullcond, lfp_altcond_lowpass, lfp_nullcond
                                           lfp_mean_nullcond_loo,
                                           lfp_sigma_altcond, lfp_sigma_nullcond)
 
-        accllr_altcond[:, idx_trial] = np.nancumsum(llr_altcond)[1:] # remove!
-        accllr_nullcond[:, idx_trial] = np.nancumsum(llr_nullcond)[1:] # remove!
+        accllr_altcond[:, idx_trial] = np.nancumsum(llr_altcond)
+        accllr_nullcond[:, idx_trial] = np.nancumsum(llr_nullcond)
             
     return accllr_altcond, accllr_nullcond
 
@@ -237,8 +237,10 @@ def calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels=200):
         
     Returns:
         tuple: tuple containing:
-            |**p (nlevels,2,3):** probability of upper, lower, and unknown level detections
-                for the alternative and null conditions, respectively, at each detection level
+            |**p_altcond (nlevels,3):** probability of upper, lower, and unknown level detections
+                for the alternative condition at each detection level
+            |**p_nullcond (nlevels,3):** probability of upper, lower, and unknown level detections
+                for the null condition at each detection level
             |**selection_idx (nlevels):** index at which accllr crosses upper threshold 
                 (or nan if missed) for each trial, averaged across trials
             |**levels (nlevels):** levels used for calculation of probabilities
@@ -439,7 +441,7 @@ def calc_accllr_st_single_ch(data_altcond_ch, data_nullcond_ch, lowpass_altcond_
 
     return selection_time_altcond, roc_auc, roc_se
 
-def calc_accLLR_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond,
+def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond,
                         modality, bin_width, nlevels, parallel=True):
     '''
     Calculate accllr selection times for each channel of the given data.
@@ -480,8 +482,6 @@ def calc_accLLR_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
         # result_objects is a list of pool.ApplyResult objects
         results = [r.get() for r in result_objects]
         selection_time_altcond, roc_auc, roc_se = zip(*results)
-        accllr_altcond = np.array(accllr_altcond).transpose(1,0,2)
-        accllr_nullcond = np.array(accllr_nullcond).transpose(1,0,2)
         selection_time_altcond = np.array(selection_time_altcond)
         roc_auc = np.squeeze(roc_auc)
         roc_se = np.squeeze(roc_se)
@@ -497,9 +497,12 @@ def calc_accLLR_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
                                                      modality, bin_width, nlevels)
             
     # Calculate a FDR-corrected p value for the AUC
-    z = np.squeeze((roc_auc-0.5)/roc_se) # above 0.5 (above chance)
+    z = (roc_auc-0.5)/roc_se # above 0.5 (above chance)
     p_uncorrected = norm.sf(abs(z)) # one-sided
-    rej, roc_p_fdrc = fdrcorrection(p_uncorrected, alpha=0.05)
+    if nch > 1:
+        rej, roc_p_fdrc = fdrcorrection(p_uncorrected, alpha=0.05)
+    else:
+        roc_p_fdrc = np.array((np.nan,))
     
     return selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
             
@@ -514,8 +517,33 @@ def calc_accllr_st_match_selectivity(data_altcond, data_nullcond,
     across all channels.
 
     Note: 
-        No noise is added to the models built by the lowpass versions of data. It is unclear how
+        No noise is added to the models built on the lowpass versions of data. It is unclear how
         this step was performed in the original paper.
+
+    Examples:
+
+        .. code-block:: python
+
+            npts = 50
+            nch = 2
+            ntrials = 10
+            onset_idx = 20
+            noise_sd = npts/2
+            altcond = np.zeros(npts)
+            altcond[onset_idx:] = np.arange(npts-onset_idx)
+            altcond = np.repeat(np.tile(altcond, (nch,1)).T[:,:,None], ntrials, axis=2)
+            
+            np.random.seed(0)
+            nullcond = np.random.normal(0,noise_sd,size=altcond.shape)
+            altcond += np.random.normal(0,noise_sd,size=altcond.shape)
+
+            # Make ch2 have higher selectivity
+            altcond[onset_idx:,1,:] *= 2
+
+            st, roc_auc, roc_se, roc_p_fdrc = calc_accllr_st_match_selectivity(altcond, nullcond, altcond, nullcond, 'lfp', 1, 200, noise_sd_step=noise_sd)
+
+
+        .. image:: _images/match_selectivity_accllr.png
     
     Args:
         data_altcond ((nt, nch, ntrial)): lfp channel data for trials from the alternative condition
@@ -543,7 +571,7 @@ def calc_accllr_st_match_selectivity(data_altcond, data_nullcond,
     nch = data_altcond.shape[1]
     ntrials = data_altcond.shape[2]
     (selection_time_altcond, 
-     roc_auc, roc_se, roc_p_fdrc) = calc_accLLR_st(data_altcond, data_nullcond, 
+     roc_auc, roc_se, roc_p_fdrc) = calc_accllr_st(data_altcond, data_nullcond, 
                                                    lowpass_altcond, lowpass_nullcond, modality, 
                                                    bin_width, nlevels)
     
@@ -573,7 +601,7 @@ def calc_accllr_st_match_selectivity(data_altcond, data_nullcond,
         # Re-calculate roc 
         (selection_time_altcond[unmatch_chs_idx,:], roc_auc[unmatch_chs_idx], 
          roc_se[unmatch_chs_idx], roc_p_fdrc[unmatch_chs_idx]) = \
-            calc_accLLR_st(data_altcond[:,unmatch_chs_idx,:], data_nullcond[:,unmatch_chs_idx,:],
+            calc_accllr_st(data_altcond[:,unmatch_chs_idx,:], data_nullcond[:,unmatch_chs_idx,:],
                            lowpass_altcond[:,unmatch_chs_idx,:], lowpass_nullcond[:,unmatch_chs_idx,:],
                            modality, bin_width, nlevels)
 
@@ -583,4 +611,12 @@ def calc_accllr_st_match_selectivity(data_altcond, data_nullcond,
         
     pbar.close()
 
+    # Need to re-do the fdr correction across all channels
+    z = (roc_auc-0.5)/roc_se # above 0.5 (above chance)
+    p_uncorrected = norm.sf(abs(z)) # one-sided
+    if nch > 1:
+        rej, roc_p_fdrc = fdrcorrection(p_uncorrected, alpha=0.05)
+    else:
+        roc_p_fdrc = np.array((np.nan,))
+    
     return selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
