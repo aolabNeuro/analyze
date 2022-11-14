@@ -1,0 +1,586 @@
+import numpy as np
+from scipy.stats import norm
+from statsmodels.stats.multitest import fdrcorrection
+from tqdm.auto import tqdm
+import multiprocessing as mp
+import warnings
+
+from ..utils import first_nonzero
+
+def calc_llr_gauss(lfp, lfp_mean_1, lfp_mean_2, lfp_sigma_1, lfp_sigma_2):
+    '''
+    Calculate log likelihood ratio of lfp data belonging to one of two 
+    gaussian models with no history.
+    
+    Args:
+        lfp ((nt,) array): single trial lfp data
+        lfp_mean_1 ((nt,) array): mean across trials of lfp data from condition 1
+        lfp_mean_2 ((nt,) array): mean across trials of lfp data from condition 2
+        lfp_sigma_1 (float): variance of lfp data from condition 1
+        lfp_sigma_2 (float): variance of lfp data from condition 2
+    
+    Returns:
+        (nt,) array: log likelihood ratio 
+    
+    '''
+    res_1 = lfp - lfp_mean_1
+    res_2 = lfp - lfp_mean_2
+
+    llr = (np.log(lfp_sigma_2) 
+          - np.log(lfp_sigma_1)
+          + res_2**2/(2*lfp_sigma_2**2)
+          - res_1**2./(2*lfp_sigma_1**2))
+    
+    return llr
+   
+def calc_accllr_lfp(lfp_altcond, lfp_nullcond, lfp_altcond_lowpass, lfp_nullcond_lowpass, common_variance=True):
+    '''
+    Accumulated log likelihood for single channel LFP data.
+    
+    Note: 
+        As quoted from Banerjee et al. (2010), the common_variance parameter should
+        be set to True:
+        "Since AccLLR changes for LFP activity are scaled by the noise variance for 
+        each condition, if the noise variances for each condition differ, the AccLLRs 
+        scale differently and this leads to the need for different upper and lower 
+        bounds at the discrimination stage. To allow the simplicity of using the same 
+        bound for both conditions (see the following subsection), we assume that the 
+        variance of activity under each condition is the same."
+        
+    Note:
+        Unsure whether the lowpass filtered version of the lfp should be used in 
+        place of the lfp entirely. That is how the Pesaran lab code works, however
+        it doesn't seem to make sense to throw away the raw lfp, so here I use
+        the lowpass filtered version for the mean estimate across trials but use 
+        the raw lfp for single trials.
+        
+    Note:
+        Finally, there is a difference between how the cumulative sum is calculated
+        here versus in the Pesaran lab code. Here we include the first value of
+        the LLR as the first value of the accLLR. However, the Pesaran lab truncates
+        the accLLR so that it starts at the second sum.
+    
+    Args:
+        lfp_altcond ((nt, ntrial) array): lfp data for alternative condition trials
+        lfp_nullcond ((nt, ntrial) array): lfp data for null condition trials. The number of null condition
+            trials must be the same as the number of alternative condition trials.
+        lfp_altcond_lowpass ((nt, ntrial) array): low-pass filtered copy of alternative condition trials. If
+            desired, just pass the lfp_altcond again to avoid using a low-pass filtered version for model building.
+        lfp_nullcond_lowpass ((nt, ntrial) array): low-pass filtered copy of null condition trials
+        common_variance (bool, optional): calculate a shared variance of event and null lfp (see notes). Default True.
+    
+    Returns:
+        tuple: tuple containing:
+            | **accllr_altcond ((nt, ntrial) array):** accumulated log-likelihood for alterative condition trials
+            | **accllr_nullcond ((nt, ntrial) array):** accumulated log-likelihood for null condition trials
+    '''    
+    assert lfp_altcond.shape == lfp_nullcond.shape
+
+    nt = lfp_altcond.shape[0]
+    n_trial = lfp_altcond.shape[1]
+    
+    lfp_mean_altcond = np.mean(lfp_altcond_lowpass, axis=1)
+    lfp_mean_nullcond = np.mean(lfp_nullcond_lowpass, axis=1)
+        
+    lfp_sigma_altcond = np.std(lfp_altcond.T - lfp_mean_altcond, ddof=1) # ddof=1 is the behavior of MATLAB
+    lfp_sigma_nullcond = np.std(lfp_nullcond.T - lfp_mean_nullcond, ddof=1)
+    lfp_sigma_both = (lfp_sigma_altcond + lfp_sigma_nullcond)/2
+        
+    accllr_altcond = np.zeros((nt, n_trial))
+    accllr_nullcond = np.zeros((nt, n_trial))
+    
+    for idx_trial in range(n_trial):
+        
+        loo_trials = np.ones((n_trial,), dtype='bool')
+        loo_trials[idx_trial] = 0
+        
+        lfp_mean_altcond_loo = np.mean(lfp_altcond_lowpass[:,loo_trials], axis=1)
+        lfp_mean_nullcond_loo = np.mean(lfp_nullcond_lowpass[:,loo_trials], axis=1)
+        
+        if common_variance:
+            llr_altcond = calc_llr_gauss(lfp_altcond[:,idx_trial], 
+                                         lfp_mean_altcond_loo, lfp_mean_nullcond, 
+                                         lfp_sigma_both, lfp_sigma_both)
+            llr_nullcond = calc_llr_gauss(lfp_nullcond[:,idx_trial], lfp_mean_altcond, 
+                                          lfp_mean_nullcond_loo, 
+                                          lfp_sigma_both, lfp_sigma_both)
+        else:
+            llr_altcond = calc_llr_gauss(lfp_altcond[:,idx_trial], 
+                                         lfp_mean_altcond_loo, lfp_mean_nullcond, 
+                                         lfp_sigma_altcond, lfp_sigma_nullcond)
+            llr_nullcond = calc_llr_gauss(lfp_nullcond[:,idx_trial], lfp_mean_altcond, 
+                                          lfp_mean_nullcond_loo,
+                                          lfp_sigma_altcond, lfp_sigma_nullcond)
+
+        accllr_altcond[:, idx_trial] = np.nancumsum(llr_altcond)[1:] # remove!
+        accllr_nullcond[:, idx_trial] = np.nancumsum(llr_nullcond)[1:] # remove!
+            
+    return accllr_altcond, accllr_nullcond
+
+# Try using ROC approach from Qiao et al 2020
+def detect_accllr(accllr, upper, lower):
+    '''
+    Calculate the probability of upper, lower, and unknown level detections
+    
+    Args:
+        accllr (nt, ntrial): the accllr timeseries to test across trials
+        upper (float): upper level
+        lower (float): lower level
+        
+    Returns:
+        tuple: tuple containing:
+            |**p (3,):** probability of upper, lower, and unknown level detections
+            |**selection_idx (ntrial):** index at which accllr crosses upper threshold 
+                (or nan if missed) for each trial
+    '''
+    ntrial = accllr.shape[1]
+    selection_idx = np.zeros((ntrial,))
+    n_upper = 0
+    n_lower = 0
+    n_unknown = 0
+    
+    for tr_idx in range(ntrial):
+        lower_hit = accllr[:,tr_idx] < lower
+        upper_hit = accllr[:,tr_idx] > upper
+        if np.any(lower_hit) and np.any(upper_hit):
+            
+            # both thresholds hit, count whichever was first
+            if np.where(lower_hit)[0][0] < np.where(upper_hit)[0][0]:
+                n_lower += 1
+                selection_idx[tr_idx] = np.where(lower_hit)[0][0]
+            else:
+                n_upper += 1
+                selection_idx[tr_idx] = np.where(upper_hit)[0][0]
+            
+        elif np.any(lower_hit):
+            
+            # lower threshold hit
+            n_lower += 1
+            selection_idx[tr_idx] = np.nan
+            
+        elif np.any(upper_hit):
+            
+            # upper threshold hit
+            n_upper += 1
+            selection_idx[tr_idx] = np.where(upper_hit)[0][0]
+            
+        else:
+            
+            # no hit
+            n_unknown += 1
+            selection_idx[tr_idx] = np.nan
+
+    
+    p = np.array([
+        n_upper/ntrial,
+        n_lower/ntrial,
+        n_unknown/ntrial
+    ])
+    
+    return p, selection_idx
+
+# Write a faster version of the detection algorithm
+def detect_accllr_fast(accllr, upper, lower):
+    '''
+    Calculate the probability of upper, lower, and unknown level detections. This
+    faster algorithm avoids looping over every single trial, greatly speeding up
+    computations of accllr. 
+    
+    Args:
+        accllr (nt, ntrial): the accllr timeseries to test across trials
+        upper (float): upper level
+        lower (float): lower level
+        
+    Returns:
+        tuple: tuple containing:
+            |**p (3,):** probability of upper, lower, and unknown level detections
+            |**selection_idx (ntrial):** index at which accllr crosses upper threshold 
+                (or nan if missed) for each trial
+    '''
+    nt = accllr.shape[0]
+    n_trial = accllr.shape[1]
+    
+    # Find the first value above the threshold for all trials at once
+    lower_hit = accllr < lower
+    upper_hit = accllr > upper
+    lower_hit_st = first_nonzero(lower_hit, axis=0, invalid_val=nt+1) # if no hit, then set nt+1
+    upper_hit_st = first_nonzero(upper_hit, axis=0, invalid_val=nt+1)
+
+    # Break lower-upper ties
+    lower_first = lower_hit_st < upper_hit_st
+    st = np.where(lower_first, np.nan, upper_hit_st)
+    
+    unknown = st == nt+1 # no threshold was hit
+    st[st == nt+1] = np.nan
+
+    # Sum the counts to calculate probabilites
+    n_lower = np.count_nonzero(lower_first & ~unknown)
+    n_unknown = np.count_nonzero(unknown)
+    n_upper = n_trial - n_lower - n_unknown
+    p = np.array([
+        n_upper/n_trial,
+        n_lower/n_trial,
+        n_unknown/n_trial
+    ])
+    
+    return p, st
+
+def calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels=200):
+    '''
+    Calculate the probabilities and selection times of accllr trials for a number of
+    different levels, evenly spaced between 0 and the max value of the accllr series. 
+    
+    Args:
+        event_accllr (nt, ntrial): accllr timeseries for alternative condition trials
+        null_accllr (nt, ntrial): accllr timeseries for null condition trials
+        nlevels (int, optional): number of levels to calculate. Defaults to 200.
+        
+    Returns:
+        tuple: tuple containing:
+            |**p (nlevels,2,3):** probability of upper, lower, and unknown level detections
+                for the alternative and null conditions, respectively, at each detection level
+            |**selection_idx (nlevels):** index at which accllr crosses upper threshold 
+                (or nan if missed) for each trial, averaged across trials
+            |**levels (nlevels):** levels used for calculation of probabilities
+    '''
+    max_accllr = np.nanmax([accllr_altcond, accllr_nullcond]) # ignore nan
+    levels = np.linspace(max_accllr/nlevels,max_accllr,nlevels)
+
+    p_altcond = np.ones((nlevels,3))
+    p_nullcond = np.ones((nlevels,3))
+    selection_idx = []
+    for idx_level, level in enumerate(levels):
+        p_altcond[idx_level,:], selection_idx_altcond = detect_accllr_fast(accllr_altcond, level, -level)
+        p_nullcond[idx_level,:], _ = detect_accllr_fast(accllr_nullcond, level, -level)
+        if np.all(selection_idx_altcond!=selection_idx_altcond):
+            selection_idx.append(np.nan)
+        else:
+            selection_idx.append(np.nanmean(selection_idx_altcond))
+        
+    return p_altcond, p_nullcond, selection_idx, levels
+
+def choose_best_level(p_altcond, p_nullcond, levels):
+    '''
+    Given a list of probabilities for upper, lower, and unknown detections at 
+    various levels, select the level with the highest difference in correct 
+    detection and incorrect detection.
+
+    Args:
+        p_altcond ((ntrial, 3) array): [upper, lower, unknown] detections for 
+            trials from the alternative condition
+        p_nullcond ((ntrial, 3) array): [upper, lower, unknown] detections for 
+            trials from the null condition
+        levels (nlevels): levels used for calculation of probabilities
+
+    Returns:
+        float: the best level to use
+    '''
+    p_correct_detect = (p_altcond[:,0]+p_nullcond[:,1])/2
+    p_incorrect_detect = (p_nullcond[:,0]+p_altcond[:,1])/2
+    p_diff = p_correct_detect - p_incorrect_detect
+    p_max_idx = np.argmax(p_diff)
+    p_max = p_diff[p_max_idx]
+    level = levels[p_max_idx]
+    return level
+
+def compute_midrank(x):
+    '''
+    Computes midranks.
+    
+    Adapted from: https://github.com/yandexdataschool/roc_comparison
+
+    Args:
+       x (npt): data to compute midrank over
+    
+    Returns:
+       (npt): array of midranks
+    '''
+    x_sorting = np.argsort(x)
+    x_sorted = x[x_sorting]
+    npt = len(x)
+    mid_sorted = np.zeros(npt, dtype=float)
+    i = 0
+    while i < npt:
+        j = i
+        while j < npt and x_sorted[j] == x_sorted[i]:
+            j += 1
+        mid_sorted[i:j] = 0.5*(i + j - 1)
+        i = j
+    midrank = np.empty(npt, dtype=float)
+    midrank[x_sorting] = mid_sorted + 1
+    return midrank
+
+def calc_delong_roc_variance(ground_truth, predictions):
+    '''
+    Computes ROC AUC variance for a single set of predictions using the
+    fast version of DeLong's method for computing the covariance of
+    unadjusted AUC.
+
+    Adapted from https://github.com/Netflix/vmaf/
+
+    Args:
+        ground_truth (nt): array of 0 and 1 ground truth classes
+        predictions (nt): array of floats of the probability of being class 1
+       
+    Returns:
+        tuple: tuple containing:
+            |**auc (float):** area under the curve after ROC analysis
+            |**cov (float):** variance of the predicted auc
+ 
+    Reference:
+        @article{sun2014fast,
+            title={Fast Implementation of DeLong's Algorithm for
+                  Comparing the Areas Under Correlated Receiver Oerating
+                  Characteristic Curves},
+            author={Xu Sun and Weichao Xu},
+            journal={IEEE Signal Processing Letters},
+            volume={21},
+            number={11},
+            pages={1389--1393},
+            year={2014},
+            publisher={IEEE}
+        }
+    '''
+    assert np.array_equal(np.unique(ground_truth), [0, 1])
+    order = (-ground_truth).argsort()
+    label_1_count = int(ground_truth.sum())
+    predictions_sorted_transposed = predictions[np.newaxis, order]
+
+    # Short variables are named as they are in the paper
+    m = label_1_count
+    n = predictions_sorted_transposed.shape[1] - m
+    positive_examples = predictions_sorted_transposed[:, :m]
+    negative_examples = predictions_sorted_transposed[:, m:]
+    k = predictions_sorted_transposed.shape[0]
+
+    tx = np.empty([k, m], dtype=float)
+    ty = np.empty([k, n], dtype=float)
+    tz = np.empty([k, m + n], dtype=float)
+    for r in range(k):
+        tx[r, :] = compute_midrank(positive_examples[r, :])
+        ty[r, :] = compute_midrank(negative_examples[r, :])
+        tz[r, :] = compute_midrank(predictions_sorted_transposed[r, :])
+    aucs = tz[:, :m].sum(axis=1) / m / n - float(m + 1.0) / 2.0 / n
+    v01 = (tz[:, :m] - tx[:, :]) / n
+    v10 = 1.0 - (tz[:, m:] - ty[:, :]) / m
+    sx = np.cov(v01)
+    sy = np.cov(v10)
+    delongcov = sx / m + sy / n
+    assert len(aucs) == 1, "There is a bug in the code, please forward this to the developers"
+    return aucs[0], delongcov
+
+def calc_accllr_roc(accllr_altcond, accllr_nullcond):
+    '''
+    ROC analysis on accllr data. Groups the data according to class (alt or null) and computes
+    area under the curve (AUC) using the DeLong method.
+    
+    Args:
+        accllr_altcond ((ntrial,) array): a single accumulated llr across trials for alternative
+            condition trials. Usually we pick the end of the accumulation window as the timepoint 
+            of interest.
+        accllr_nullcond((ntrial,) array): a single accumulated llr across trials for null
+            condition trials.
+
+    Returns:
+        tuple: tuple containing:
+            | **auc (float):** area under the curve
+            | **se (float):** error across trials of the auc
+    '''
+    group = np.concatenate([np.ones((len(accllr_altcond),)), np.zeros((len(accllr_nullcond),))])
+    data = np.concatenate([accllr_altcond, accllr_nullcond])
+
+    auc, var = calc_delong_roc_variance(group, data)
+    return auc, np.sqrt(var)
+
+def calc_accllr_st_single_ch(data_altcond_ch, data_nullcond_ch, lowpass_altcond_ch, lowpass_nullcond_ch,
+                       modality, bin_width, nlevels, verbose_out=False):
+    '''
+    Calculate accllr selection time for a single channel
+
+    Args:
+        data_altcond_ch ((nt, ntrial)): lfp data for trials from the alternative condition
+        data_nullcond_ch ((nt, ntrial)): lfp data for trials from the null condition
+        lowpass_altcond_ch ((nt, ntrial) array): low-pass filtered copy of alternative condition trials. If
+            desired, just pass the lfp_altcond again to avoid using a low-pass filtered version for model building.
+        lowpass_nullcond_ch ((nt, ntrial) array): low-pass filtered copy of null condition trials
+        modality (str): type of data being inputted ("lfp", "spikes", etc.)
+        bin_width (float): bin width of input activity, or 1./samplerate for lfp data
+        nlevels (int): number of levels at which to test accllr performance
+        verbose_out (bool, optional): Include probabilities of detection and accllr in the output. Defaults to False.
+
+    Returns:
+        tuple: tuple containing:
+            | **selection_time (nch, ntrials):** time (in s) at which each trial 
+            | **roc_auc (nch,):** area under the curve from receiver operating characteristic analysis
+            | **roc_se (nch,):** error across trials of the auc analysis
+    '''
+    # Calculate accllr for null and altcond
+    if modality == 'lfp':
+        accllr_altcond, accllr_nullcond = calc_accllr_lfp(data_altcond_ch, data_nullcond_ch, 
+                                                          lowpass_altcond_ch, lowpass_nullcond_ch)
+    else:
+        raise ValueError("AccLLR currently only supports LFP")
+        
+    # Calculate appropriate levels to select accLLR decisions
+    p_altcond, p_nullcond, _, levels = calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels)
+    level = choose_best_level(p_altcond, p_nullcond, levels)
+
+    # Calculate p values and selection times using the level with highest significance
+    p_altcond, selection_idx_altcond = detect_accllr_fast(accllr_altcond, level,-level)
+    selection_time_altcond = (selection_idx_altcond)*bin_width
+
+    # Calculate ROC at the end of AccLLR accmulation time
+    roc_auc, roc_se = calc_accllr_roc(accllr_altcond[-1,:], accllr_nullcond[-1,:])
+
+    if verbose_out:
+        p_nullcond, selection_idx_nullcond = detect_accllr_fast(-accllr_nullcond, level, -level)
+        return (accllr_altcond, accllr_nullcond, p_altcond, p_nullcond, 
+                selection_time_altcond, roc_auc, roc_se)
+
+    return selection_time_altcond, roc_auc, roc_se
+
+def calc_accLLR_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond,
+                        modality, bin_width, nlevels, parallel=True):
+    '''
+    Calculate accllr selection times for each channel of the given data.
+
+    Args:
+        data_altcond ((nt, nch, ntrial)): lfp channel data for trials from the alternative condition
+        data_nullcond ((nt, nch, ntrial)): lfp channel data for trials from the null condition
+        lowpass_altcond ((nt, nch, ntrial) array): low-pass filtered copy of alternative condition trials. If
+            desired, just pass the lfp_altcond again to avoid using a low-pass filtered version for model building.
+        lowpass_nullcond ((nt, nch, ntrial) array): low-pass filtered copy of null condition trials
+        modality (str): type of data being inputted ("lfp", "spikes", etc.)
+        bin_width (float): bin width of input activity, or 1./samplerate for lfp data
+        nlevels (int): number of levels at which to test accllr performance
+        parallel (bool, optional): if True, run the computations across channels in parallel. Default True.
+
+    Returns:
+        tuple: tuple containing:
+            | **selection_time (nch, ntrials):** time (in s) at which each trial 
+            | **roc_auc (nch,):** area under the curve from receiver operating characteristic analysis
+            | **roc_se (nch,):** error across trials of the auc analysis
+            | **roc_p_fdrc (nch,):** p-value for each channel after false-discovery-rate correction
+    '''
+    nt = data_altcond.shape[0]
+    nch = data_altcond.shape[1]
+    ntrials = data_altcond.shape[2]
+    
+    # Run accllr on the test datasets    
+    if parallel:
+        pool = mp.Pool(mp.cpu_count())
+        
+        # call apply_async() without callback
+        result_objects = [pool.apply_async(calc_accllr_st_single_ch, 
+                          args=(data_altcond[:,ich,:], data_nullcond[:,ich,:], 
+                                lowpass_altcond[:,ich,:], lowpass_nullcond[:,ich,:],
+                                modality, bin_width, nlevels)) 
+                          for ich in range(nch)]
+
+        # result_objects is a list of pool.ApplyResult objects
+        results = [r.get() for r in result_objects]
+        selection_time_altcond, roc_auc, roc_se = zip(*results)
+        accllr_altcond = np.array(accllr_altcond).transpose(1,0,2)
+        accllr_nullcond = np.array(accllr_nullcond).transpose(1,0,2)
+        selection_time_altcond = np.array(selection_time_altcond)
+        roc_auc = np.squeeze(roc_auc)
+        roc_se = np.squeeze(roc_se)
+
+    else:
+        selection_time_altcond = np.zeros((nch, ntrials))*np.nan
+        roc_auc = np.zeros((nch,))*np.nan
+        roc_se = np.zeros((nch,))*np.nan
+        for ich in tqdm(range(nch), desc="AccLLR wrapper", leave=False):
+            (selection_time_altcond[ich,:], roc_auc[ich], 
+             roc_se[ich]) = calc_accllr_st_single_ch(data_altcond[:,ich,:], data_nullcond[:,ich,:], 
+                                                     lowpass_altcond[:,ich,:], lowpass_nullcond[:,ich,:],
+                                                     modality, bin_width, nlevels)
+            
+    # Calculate a FDR-corrected p value for the AUC
+    z = np.squeeze((roc_auc-0.5)/roc_se) # above 0.5 (above chance)
+    p_uncorrected = norm.sf(abs(z)) # one-sided
+    rej, roc_p_fdrc = fdrcorrection(p_uncorrected, alpha=0.05)
+    
+    return selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
+            
+def calc_accllr_st_match_selectivity(data_altcond, data_nullcond, 
+                                     lowpass_altcond, lowpass_nullcond, 
+                                     modality, bin_width, 
+                                     nlevels=200, match_ch=None, noise_sd_step=1):
+    '''
+    Calculate accllr selection time for a single channel after matching each channel 
+    for selectivity. Selectivity is defined by the area under the ROC curve. To match 
+    selectivity, we add gaussian noise to channel until selectivity is constant 
+    across all channels.
+
+    Note: 
+        No noise is added to the models built by the lowpass versions of data. It is unclear how
+        this step was performed in the original paper.
+    
+    Args:
+        data_altcond ((nt, nch, ntrial)): lfp channel data for trials from the alternative condition
+        data_nullcond ((nt, nch, ntrial)): lfp channel data for trials from the null condition
+        lowpass_altcond ((nt, nch, ntrial) array): low-pass filtered copy of alternative condition trials. If
+            desired, just pass the lfp_altcond again to avoid using a low-pass filtered version for model building.
+        lowpass_nullcond ((nt, nch, ntrial) array): low-pass filtered copy of null condition trials
+        modality (str): type of data being inputted ("lfp", "spikes", etc.)
+        bin_width (float): bin width of input activity, or 1./samplerate for lfp data
+        nlevels (int): number of levels at which to test accllr performance
+        match_ch ((nch,) bool array or None, optional): if set, limit selectivity matching to only these 
+            channels. Default None.
+        noise_sd_step (float, optional): standard deviation step size to take when adding noise to ch data. 
+            Default 1.
+
+    Returns:
+        tuple: tuple containing:
+            | **selection_time (nch, ntrials):** time (in s) at which each trial 
+            | **roc_auc (nch,):** area under the curve from receiver operating characteristic analysis
+            | **roc_se (nch,):** error across trials of the auc analysis
+            | **roc_p_fdrc (nch,):** p-value for each channel after false-discovery-rate correction
+    '''
+    # Calculate an initial ROC analysis
+    nt = data_altcond.shape[0]
+    nch = data_altcond.shape[1]
+    ntrials = data_altcond.shape[2]
+    (selection_time_altcond, 
+     roc_auc, roc_se, roc_p_fdrc) = calc_accLLR_st(data_altcond, data_nullcond, 
+                                                   lowpass_altcond, lowpass_nullcond, modality, 
+                                                   bin_width, nlevels)
+    
+    # Find selective channel with the lowest ROC AUC
+    if match_ch is None:
+        match_ch = np.ones((nch,), dtype='bool')
+    if not np.any(match_ch):
+        warnings.warn("No channels selected. Not attempting selectivity matching.")
+        return accllr_altcond, accllr_nullcond, selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
+    match_ch_prob = np.min(roc_auc[match_ch])
+    print(f"Matching selectivity to {match_ch_prob:0.4f}. Largest selectivity is {np.max(roc_auc[match_ch]):0.4f}")
+    match_ch_idx = roc_auc <= match_ch_prob
+
+    # Use the ROC AUC to match selectivity across channels   
+    pbar = tqdm(total=nch-np.sum(match_ch_idx), desc="Matching selectivity")
+    noise_sd = noise_sd_step
+    while np.sum(match_ch_idx) < nch:
+        
+        # Add noise to non-matched channels
+        unmatch_chs_idx = np.arange(nch) # unmatched channel idx
+        unmatch_chs_idx = unmatch_chs_idx[~match_ch_idx]
+
+        noise = np.random.normal(0,noise_sd, size=(nt,len(unmatch_chs_idx), ntrials))
+        data_altcond[:,unmatch_chs_idx,:] += noise
+        data_nullcond[:,unmatch_chs_idx,:] += noise
+
+        # Re-calculate roc 
+        (selection_time_altcond[unmatch_chs_idx,:], roc_auc[unmatch_chs_idx], 
+         roc_se[unmatch_chs_idx], roc_p_fdrc[unmatch_chs_idx]) = \
+            calc_accLLR_st(data_altcond[:,unmatch_chs_idx,:], data_nullcond[:,unmatch_chs_idx,:],
+                           lowpass_altcond[:,unmatch_chs_idx,:], lowpass_nullcond[:,unmatch_chs_idx,:],
+                           modality, bin_width, nlevels)
+
+        match_ch_idx = roc_auc <= match_ch_prob
+        noise_sd += noise_sd_step
+        pbar.update(np.sum(match_ch_idx[unmatch_chs_idx]))
+        
+    pbar.close()
+
+    return selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
