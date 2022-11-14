@@ -195,6 +195,25 @@ class TestMath(unittest.TestCase):
         self.assertEqual(dist.size, 3)
         np.testing.assert_allclose(dist, [0, np.sqrt(2), 2])
 
+class MemoryTests(unittest.TestCase):
+
+    def test_get_memory_available(self):
+
+        avail = get_memory_available_gb()
+        print(f"available memory: {avail} GB")
+
+    def test_get_set_release_memory_limit(self):
+
+        release_memory_limit()
+        set_memory_limit_gb(1)
+        
+        if get_memory_limit_gb() == 1:
+            self.assertRaises(MemoryError, lambda: np.ones((1000000,100))) # ~800 MB
+
+        release_memory_limit()
+
+        a = np.ones((1000000,100))
+        print(f"allocated {a.nbytes/1e9} GB")
 
 if __name__ == "__main__":
     unittest.main()

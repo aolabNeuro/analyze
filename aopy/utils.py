@@ -462,36 +462,49 @@ def get_memory_available_gb():
 
 def set_memory_limit_gb(size_gb):
     '''
-    Set a memory resource limit in gigabytes.
+    Set a memory resource limit in gigabytes. Only works on linux platforms.
 
     Note: 
-        The soft limit is a value upon which the operating system will restrict memory
-        usage by the process (python, in this case).
-        A true upper bound on the memory values can be defined by the hard limit. However,
-        although the hard limit can be lowered, it can never be raised by user processes 
-        (even if the process lowered itself) and is controlled by a system-wide parameter 
-        set by the system administrator.
+        This function sets a soft limit, not a hard limit. The soft limit is a value upon 
+        which the operating system will restrict memory usage by the process (python, 
+        in this case). A true upper bound on the memory values can be defined by the hard 
+        limit. However, although the hard limit can be lowered, it can never be raised by 
+        user processes (even if the process lowered itself) and is controlled by a 
+        system-wide parameter set by the system administrator. Nevertheless, the soft
+        limit should serve to raise a `MemoryError` whenever python exceeds the setting.
 
     Args:
         size_gb (int): upper limit of memory that will be made available to python in gigabytes
     '''
+    if platform.system() != "Linux":
+        print('Only works on linux!')
+        return
     maxsize = int(1e9*size_gb)
-    resource.setrlimit(resource.RLIMIT_AS, (maxsize, -1))
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    resource.setrlimit(resource.RLIMIT_AS, (maxsize, hard))
 
 def get_memory_limit_gb():
     '''
-    Get the memory resource limit in gigabytes.
+    Get the memory resource limit in gigabytes. Only works on linux platforms.
 
     Returns:
         int or None: upper limit of memory available to python in gigabytes
     '''
+    if platform.system() != "Linux":
+        print('Only works on linux!')
+        return
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
-    if soft == -1:
-        return None
+    if soft == resource.RLIM_INFINITY:
+        return
     return int(soft/1e9)
     
 def release_memory_limit():
     '''
-    Unset any memory resource limit that may have been applied.
+    Unset any memory resource limit that may have been applied. Only works on 
+    linux platforms.
     '''
-    resource.setrlimit(resource.RLIMIT_AS, (-1, -1))
+    if platform.system() != "Linux":
+        print('Only works on linux!')
+        return
+    soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+    resource.setrlimit(resource.RLIMIT_AS, (resource.RLIM_INFINITY, hard))
