@@ -430,3 +430,19 @@ def calc_radial_dist(pos, origin=(0,0)):
         dist[i] = math.dist(origin, p)
     
     return dist
+
+def first_nonzero(arr, axis=0, invalid_val=-1):
+    '''
+    Helper function to find the first non-zero element in an array
+
+    Args:
+        arr (ndarray): array containing zeros
+        axis (int, optional): axis along which to compute the first nonzero. Defaults to 0.
+        invalid_val (int, optional): _description_. Defaults to -1.
+
+    Returns:
+        _type_: _description_
+    '''
+    mask = (arr != 0)
+    return np.where(mask.any(axis=axis), mask.argmax(axis=axis), invalid_val)
+
