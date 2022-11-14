@@ -1,4 +1,4 @@
-from aopy import analysis
+from .. import analysis
 from ..utils import print_progress_bar
 import sys
 import numpy as np

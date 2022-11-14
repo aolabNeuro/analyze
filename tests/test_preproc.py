@@ -1,6 +1,7 @@
 from matplotlib import pyplot as plt
 from aopy import visualization
 from aopy import preproc
+from aopy import analysis
 from aopy.preproc import *
 from aopy.preproc.bmi3d import *
 from aopy.preproc import quality
