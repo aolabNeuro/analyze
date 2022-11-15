@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from scipy import signal
 
 test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
 docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
@@ -657,13 +658,14 @@ class AccLLRTests(unittest.TestCase):
         test_data_nullcond = nullcond.copy()
 
         # First test without matching selectivity
-        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1, 200)
+        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
         print("Matching selectivities:")
         print(roc_auc)
         self.assertTrue(roc_auc[1] > roc_auc[0])
 
         # Test wrapper with LFP data and no selectivity matching and trial_average=True
-        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st_match_selectivity(altcond, nullcond, altcond, nullcond, 'lfp', 1, 200, noise_sd_step=noise_sd)
+        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1, 
+                                                                       match_selectivity=True, noise_sd_step=noise_sd)
         print("Matched selectivities:")
         print(roc_auc)
         self.assertTrue(roc_auc[1] <= roc_auc[0]) # selectivity should flip
@@ -694,12 +696,54 @@ class AccLLRTests(unittest.TestCase):
         nullcond = np.random.normal(0,5,size=altcond.shape)
 
         # Test wrapper with LFP data and no selectivity matching and trial_average=True
-        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1, 200)
+        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
     
-        self.assertEqual(sTime_alt.shape, (nch, ntrials))
-        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
+        self.assertEqual(st.shape, (nch, ntrials))
+        mask = np.logical_and(st > 50, st < 70)
         mask = np.all(mask, axis=1) # all trials should have selectivity within 50-70 s
         self.assertEqual(np.sum(mask), nch) # all channels should have selectivity within 50-70 s
+
+        # Test on some real data
+        test_data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
+        altcond = test_data['data_altcond']
+        nullcond = test_data['data_nullcond']
+        altcond_lp = altcond.copy()
+        nullcond_lp = nullcond.copy()
+        samplerate = 1000
+        time_before = 0.05
+
+        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate)
+        accllr_mean = np.nanmean(st, axis=1)
+
+        plt.figure()
+        ch_data = np.concatenate((np.mean(nullcond, axis=2), np.mean(altcond, axis=2)), axis=0)
+        t = np.arange(ch_data.shape[0])/samplerate - time_before
+        plt.plot(t, ch_data)
+        x = np.tile(accllr_mean, (2,1))
+        min_max = np.array([np.min(ch_data, axis=0), np.max(ch_data, axis=0)])
+        plt.gca().set_prop_cycle(None) # reset the color cycler
+        plt.plot(x, min_max, '--')
+        filename = 'accllr_test_data.png'
+        aopy.visualization.savefig(docs_dir, filename)
+        plt.close()
+
+        # Test again with selectivity matching
+        np.random.seed(0)
+        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate, 
+                                                                match_selectivity=True, noise_sd_step=8)
+        accllr_mean = np.nanmean(st, axis=1)
+
+        plt.figure()
+        ch_data = np.concatenate((np.mean(nullcond, axis=2), np.mean(altcond, axis=2)), axis=0)
+        t = np.arange(ch_data.shape[0])/samplerate - time_before
+        plt.plot(t, ch_data)
+        x = np.tile(accllr_mean, (2,1))
+        min_max = np.array([np.min(ch_data, axis=0), np.max(ch_data, axis=0)])
+        plt.gca().set_prop_cycle(None) # reset the color cycler
+        plt.plot(x, min_max, '--')
+        filename = 'accllr_test_data_match_selectivity.png'
+        aopy.visualization.savefig(docs_dir, filename)
+        plt.close()
 
 
 class SpectrumTests(unittest.TestCase):

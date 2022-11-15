@@ -449,10 +449,10 @@ def calc_accllr_st_single_ch(data_altcond_ch, data_nullcond_ch, lowpass_altcond_
 
     return selection_time_altcond, roc_auc, roc_se
 
-def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond,
-                        modality, bin_width, nlevels, parallel=True):
+def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond,
+                           modality, bin_width, nlevels, parallel):
     '''
-    Calculate accllr selection times for each channel of the given data.
+    Worker function for calc_accllr_st(). 
 
     Args:
         data_altcond ((nt, nch, ntrial)): lfp channel data for trials from the alternative condition
@@ -462,15 +462,14 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
         lowpass_nullcond ((nt, nch, ntrial) array): low-pass filtered copy of null condition trials
         modality (str): type of data being inputted ("lfp", "spikes", etc.)
         bin_width (float): bin width of input activity, or 1./samplerate for lfp data
-        nlevels (int): number of levels at which to test accllr performance
-        parallel (bool, optional): if True, run the computations across channels in parallel. Default True.
+        nlevels (int): number of levels at which to test accllr performance. 
+        parallel (bool): if True, run the computations across channels in parallel.
 
     Returns:
         tuple: tuple containing:
             | **selection_time (nch, ntrials):** time (in s) at which each trial 
             | **roc_auc (nch,):** area under the curve from receiver operating characteristic analysis
             | **roc_se (nch,):** error across trials of the auc analysis
-            | **roc_p_fdrc (nch,):** p-value for each channel after false-discovery-rate correction
     '''
     nt = data_altcond.shape[0]
     nch = data_altcond.shape[1]
@@ -494,6 +493,7 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
         roc_auc = np.squeeze(roc_auc)
         roc_se = np.squeeze(roc_se)
 
+        pool.close()
     else:
         selection_time_altcond = np.zeros((nch, ntrials))*np.nan
         roc_auc = np.zeros((nch,))*np.nan
@@ -503,26 +503,23 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
              roc_se[ich]) = calc_accllr_st_single_ch(data_altcond[:,ich,:], data_nullcond[:,ich,:], 
                                                      lowpass_altcond[:,ich,:], lowpass_nullcond[:,ich,:],
                                                      modality, bin_width, nlevels)
+                
+    return selection_time_altcond, roc_auc, roc_se
             
-    # Calculate a FDR-corrected p value for the AUC
-    z = (roc_auc-0.5)/roc_se # above 0.5 (above chance)
-    p_uncorrected = norm.sf(abs(z)) # one-sided
-    if nch > 1:
-        rej, roc_p_fdrc = fdrcorrection(p_uncorrected, alpha=0.05)
-    else:
-        roc_p_fdrc = np.array((np.nan,))
-    
-    return selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
-            
-def calc_accllr_st_match_selectivity(data_altcond, data_nullcond, 
-                                     lowpass_altcond, lowpass_nullcond, 
-                                     modality, bin_width, 
-                                     nlevels=200, match_ch=None, noise_sd_step=1):
+def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond, 
+                   modality, bin_width, nlevels=None, match_selectivity=False, 
+                   match_ch=None, noise_sd_step=1, parallel=True):
     '''
     Calculate accllr selection time for a single channel after matching each channel 
     for selectivity. Selectivity is defined by the area under the ROC curve. To match 
     selectivity, we add gaussian noise to channel until selectivity is constant 
     across all channels.
+
+    Based on the paper:
+
+    Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times 
+    in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. 
+    doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8. https://pubmed.ncbi.nlm.nih.gov/20884767/
 
     Note: 
         No noise is added to the models built on the lowpass versions of data. It is unclear how
@@ -530,29 +527,30 @@ def calc_accllr_st_match_selectivity(data_altcond, data_nullcond,
 
     Examples:
 
+        Below are powers in 50-250hz band of three channels of laser-evoked response in motor cortex, 
+        aligned to laser onset across 350 trials, 50 ms before and after. We first apply AccLLR without
+        selectivity matching:
+
         .. code-block:: python
 
-            npts = 50
-            nch = 2
-            ntrials = 10
-            onset_idx = 20
-            noise_sd = npts/2
-            altcond = np.zeros(npts)
-            altcond[onset_idx:] = np.arange(npts-onset_idx)
-            altcond = np.repeat(np.tile(altcond, (nch,1)).T[:,:,None], ntrials, axis=2)
-            
-            np.random.seed(0)
-            nullcond = np.random.normal(0,noise_sd,size=altcond.shape)
-            altcond += np.random.normal(0,noise_sd,size=altcond.shape)
+            st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, 
+                                                                    nullcond, 'lfp', 1./samplerate)
+            accllr_mean = np.nanmean(st, axis=1)
 
-            # Make ch2 have higher selectivity
-            altcond[onset_idx:,1,:] *= 2
+        .. image:: _images/accllr_test_data.png
 
-            st, roc_auc, roc_se, roc_p_fdrc = calc_accllr_st_match_selectivity(altcond, nullcond, altcond, nullcond, 'lfp', 1, 200, noise_sd_step=noise_sd)
-
-
-        .. image:: _images/match_selectivity_accllr.png
+        The dotted lines are the estimated selection times returned by accllr. Note that the bigger
+        responses have faster selection times -- to test whether the estimates are biased by the 
+        larger peaks being easier to identify, we can add noise until they match the selectivity of
+        the smaller peak. Selectivity is defined by ROC analysis -- our ability to discriminate 
+        between laser event trials and null trials.
     
+        .. image:: _images/accllr_test_data_match_selectivity.png
+
+        Note that the selection times for the two larger peaks have shifted slightly to the right,
+        but are still earlier than the smaller peak, despite having the same (or lower) selectivity.
+        Thus, we can be confident that the bigger peaks appear faster than the smaller one.
+
     Args:
         data_altcond ((nt, nch, ntrial)): lfp channel data for trials from the alternative condition
         data_nullcond ((nt, nch, ntrial)): lfp channel data for trials from the null condition
@@ -562,10 +560,13 @@ def calc_accllr_st_match_selectivity(data_altcond, data_nullcond,
         modality (str): type of data being inputted ("lfp", "spikes", etc.)
         bin_width (float): bin width of input activity, or 1./samplerate for lfp data
         nlevels (int): number of levels at which to test accllr performance
+        match_selectivity (bool, optional): if True, add noise to input data to match selectivity across channels.
+            Default False.
         match_ch ((nch,) bool array or None, optional): if set, limit selectivity matching to only these 
             channels. Default None.
         noise_sd_step (float, optional): standard deviation step size to take when adding noise to ch data. 
             Default 1.
+        parallel (bool, optional): if True, run the computations across channels in parallel. Default True.
 
     Returns:
         tuple: tuple containing:
@@ -574,52 +575,57 @@ def calc_accllr_st_match_selectivity(data_altcond, data_nullcond,
             | **roc_se (nch,):** error across trials of the auc analysis
             | **roc_p_fdrc (nch,):** p-value for each channel after false-discovery-rate correction
     '''
-    # Calculate an initial ROC analysis
+    # Calculate an initial analysis
     nt = data_altcond.shape[0]
     nch = data_altcond.shape[1]
     ntrials = data_altcond.shape[2]
+    if nlevels is None:
+        nlevels = nt
     (selection_time_altcond, 
-     roc_auc, roc_se, roc_p_fdrc) = calc_accllr_st(data_altcond, data_nullcond, 
-                                                   lowpass_altcond, lowpass_nullcond, modality, 
-                                                   bin_width, nlevels)
+     roc_auc, roc_se) = _calc_accllr_st_worker(data_altcond, data_nullcond, 
+                                               lowpass_altcond, lowpass_nullcond, modality, 
+                                               bin_width, nlevels, parallel)
     
-    # Find selective channel with the lowest ROC AUC
+    # Optionally perform selectivity matching
     if match_ch is None:
         match_ch = np.ones((nch,), dtype='bool')
-    if not np.any(match_ch):
+    if match_selectivity and not np.any(match_ch):
         warnings.warn("No channels selected. Not attempting selectivity matching.")
-        return accllr_altcond, accllr_nullcond, selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
-    match_ch_prob = np.min(roc_auc[match_ch])
-    print(f"Matching selectivity to {match_ch_prob:0.4f}. Largest selectivity is {np.max(roc_auc[match_ch]):0.4f}")
-    match_ch_idx = roc_auc <= match_ch_prob
+        match_selectivity = False
+    if match_selectivity:
 
-    # Use the ROC AUC to match selectivity across channels   
-    pbar = tqdm(total=nch-np.sum(match_ch_idx), desc="Matching selectivity")
-    noise_sd = noise_sd_step
-    while np.sum(match_ch_idx) < nch:
-        
-        # Add noise to non-matched channels
-        unmatch_chs_idx = np.arange(nch) # unmatched channel idx
-        unmatch_chs_idx = unmatch_chs_idx[~match_ch_idx]
-
-        noise = np.random.normal(0,noise_sd, size=(nt,len(unmatch_chs_idx), ntrials))
-        data_altcond[:,unmatch_chs_idx,:] += noise
-        data_nullcond[:,unmatch_chs_idx,:] += noise
-
-        # Re-calculate roc 
-        (selection_time_altcond[unmatch_chs_idx,:], roc_auc[unmatch_chs_idx], 
-         roc_se[unmatch_chs_idx], roc_p_fdrc[unmatch_chs_idx]) = \
-            calc_accllr_st(data_altcond[:,unmatch_chs_idx,:], data_nullcond[:,unmatch_chs_idx,:],
-                           lowpass_altcond[:,unmatch_chs_idx,:], lowpass_nullcond[:,unmatch_chs_idx,:],
-                           modality, bin_width, nlevels)
-
+        # Find selective channel with the lowest ROC AUC
+        match_ch_prob = np.min(roc_auc[match_ch])
+        print(f"Matching selectivity to {match_ch_prob:0.4f}. Largest selectivity is {np.max(roc_auc[match_ch]):0.4f}")
         match_ch_idx = roc_auc <= match_ch_prob
-        noise_sd += noise_sd_step
-        pbar.update(np.sum(match_ch_idx[unmatch_chs_idx]))
-        
-    pbar.close()
 
-    # Need to re-do the fdr correction across all channels
+        # Use the ROC AUC to match selectivity across channels   
+        pbar = tqdm(total=nch-np.sum(match_ch_idx), desc="Matching selectivity")
+        noise_sd = noise_sd_step
+        while np.sum(match_ch_idx) < nch:
+            
+            # Add noise to non-matched channels
+            unmatch_chs_idx = np.arange(nch) # unmatched channel idx
+            unmatch_chs_idx = unmatch_chs_idx[~match_ch_idx]
+
+            noise = np.random.normal(0,noise_sd, size=(nt,len(unmatch_chs_idx), ntrials))
+            data_altcond[:,unmatch_chs_idx,:] += noise
+            data_nullcond[:,unmatch_chs_idx,:] += noise
+
+            # Re-calculate roc 
+            (selection_time_altcond[unmatch_chs_idx,:], roc_auc[unmatch_chs_idx], 
+            roc_se[unmatch_chs_idx]) = \
+                _calc_accllr_st_worker(data_altcond[:,unmatch_chs_idx,:], data_nullcond[:,unmatch_chs_idx,:],
+                                       lowpass_altcond[:,unmatch_chs_idx,:], lowpass_nullcond[:,unmatch_chs_idx,:],
+                                       modality, bin_width, nlevels, parallel)
+
+            match_ch_idx = roc_auc <= match_ch_prob
+            noise_sd += noise_sd_step
+            pbar.update(np.sum(match_ch_idx[unmatch_chs_idx]))
+            
+        pbar.close()
+
+    # Finally calculate an FDR-corrected p-value across all channels
     z = (roc_auc-0.5)/roc_se # above 0.5 (above chance)
     p_uncorrected = norm.sf(abs(z)) # one-sided
     if nch > 1:
