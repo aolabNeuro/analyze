@@ -477,7 +477,7 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
     
     # Run accllr on the test datasets    
     if parallel:
-        pool = mp.Pool(mp.cpu_count())
+        pool = mp.Pool(min(mp.cpu_count(), nch))
         
         # call apply_async() without callback
         result_objects = [pool.apply_async(calc_accllr_st_single_ch, 
