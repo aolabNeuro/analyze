@@ -3,8 +3,10 @@ from .. import data as aodata
 def parse_oculomatic(data_dir, files, debug=True):
     """
     Loads eye data from ecube and hdf data. 
+    
     Data includes:
         data (nt, nch): eye data in volts
+        
     Metadata includes:
         channels (nch): analog channels on which eye data was recorded
         labels (nch): string labels for each eye channel

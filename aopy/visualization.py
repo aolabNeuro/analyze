@@ -374,11 +374,11 @@ def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
     Example:
         ::
 
-        time = np.array([-2, -1, 0, 1, 2, 3])
-        data = np.array([[0, 0, 1, 1, 0, 0],
-                         [0, 0, 0, 1, 1, 0]]).T
-        plot_image_by_time(time, data)
-        filename = 'image_by_time.png'
+            time = np.array([-2, -1, 0, 1, 2, 3])
+            data = np.array([[0, 0, 1, 1, 0, 0],
+                            [0, 0, 0, 1, 1, 0]]).T
+            plot_image_by_time(time, data)
+            filename = 'image_by_time.png'
 
         .. image:: _images/image_by_time.png
 
@@ -1081,8 +1081,7 @@ def advance_plot_color(ax, n):
         next(ax._get_lines.prop_cycler)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
-    """profile_data_channels
-
+    """
     Runs `plot_channel_summary` and `combine_channel_figures` on all channels in a data array
 
     Args:
@@ -1108,8 +1107,7 @@ def profile_data_channels(data, samplerate, figuredir, **kwargs):
 
     
 def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
-    """combine_channel_figures
-
+    """
     Combines all channel figures in directory generated from plot_channel_summary
 
     Args:
@@ -1143,17 +1141,18 @@ def combine_channel_figures(figuredir, nch=256, figsize=(6,5), dpi=150):
 
 
 def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange=None, title=None, figsize=(6, 5), dpi=150, frange=(0, 80), cmap_lim=(0, 40)):
-    """plot_channel_summary
-    
+    """
     Plot time domain trace, spectrogram and normalized (z-scored) spectrogram. Computes spectrogram.
     
-    ---------------
-    | time series |
-    |-------------|
-    | spectrogram |
-    |-------------|
-    | norm sgram  |
-    ---------------
+    ::
+
+        ---------------
+        | time series |
+        |-------------|
+        | spectrogram |
+        |-------------|
+        | norm sgram  |
+        ---------------
     
     Args:
         chdata (nt,1): neural recording data from a given channel (lfp, ecog, broadband)
