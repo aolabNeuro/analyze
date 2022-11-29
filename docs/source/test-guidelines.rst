@@ -291,3 +291,6 @@ datasets here as they become available.
      - optitrack data exported into csv format
    * - `task_codes.yaml`
      - yaml formatted file with some task codes
+   * - `accllr_test_data.hdf` 
+     - power in 50-250hz band of laser-evoked response in motor cortex, aligned to laser 
+       onset across 350 trials, 0.05 seconds before and after. sampled at 1khz.

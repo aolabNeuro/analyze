@@ -226,7 +226,8 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
         data_map ((2,n) array): map of x,y data
         x (list): list of x positions
         y (list): list of y positions
-        alpha_map ((2,n) array): map of alpha values (optional, default alpha=1 everywhere)
+        alpha_map ((2,n) array): map of alpha values (optional, default alpha=1 everywhere). If the alpha
+            values are outside of the range (0,1) they will be scaled automatically.
         ax (int, optional): axis on which to plot, default gca
         cmap (str, optional): matplotlib colormap to use in image. default 'bwr'
         nan_color (str, optional): color to plot nan values, or None to leave them invisible. default 'black'
@@ -293,7 +294,8 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
         # Apply the alpha map after scaling from 0 to 1
         alpha_range = np.nanmax(alpha_map) - np.nanmin(alpha_map)
-        alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
+        if alpha_range > 1 or np.nanmax(alpha_map) > 1 or np.nanmin(alpha_map) < 0:
+            alpha_map = (alpha_map - np.nanmin(alpha_map)) / alpha_range
         alpha_map[np.isnan(alpha_map)] = 0
         data_map[:,:,3] = alpha_map
         

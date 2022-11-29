@@ -1,6 +1,5 @@
-from cmath import exp
-from aopy.analysis import calc_success_rate
 from aopy.visualization import savefig
+from aopy.analysis import accllr
 import aopy
 import os
 import numpy as np
@@ -12,6 +11,7 @@ import matplotlib.pyplot as plt
 from scipy import signal
 
 test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
 docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
@@ -427,115 +427,262 @@ class ModelFitTests(unittest.TestCase):
 
 class AccLLRTests(unittest.TestCase):
 
-    def test_calc_activity_onset_accLLR(self):
-        # Spiking data
-        eps = 0.0001
-        cond1_train = np.array((eps,eps,eps,1,1,1), dtype=float)
-        cond2_train = np.array((eps,eps,eps,eps,eps,eps), dtype=float)
-        
-        cond1_test = np.array((0,0,0,1,1,1))
-        binwdith = 1
+    def test_detect_accLLR(self, upper=10, lower=-10):
+      
+        accllr_data = np.array(
+            [
+                [0, 0, 1, 2, 3, 4, 4, 5, 6, 10, 10, 11],            # even trials
+                [0, -1, -1, -2, -3, -4, -5, -5, -6, -10, -11, -11]  # odd trials
+            ])
+        accllr_data = np.tile(accllr_data.T, (1, 20)) # simulate 40 trials
+        self.assertEqual(accllr_data.shape, (12, 40))
 
-        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
-        point_spike_LLR = (eps-1) + np.log(1/eps)
-        expected_LLR = np.array((0,0,0,point_spike_LLR, point_spike_LLR, point_spike_LLR))
-        
-        np.testing.assert_allclose(accLLR, np.cumsum(expected_LLR).reshape(-1,1))
-        self.assertAlmostEqual(time, 3)
+        p, st = accllr.detect_accllr(accllr_data, upper, lower)
 
-        # Multitrial spiking data
-        cond1_test = np.tile(cond1_test, (50,1)).T
+        p_fast, st_fast = accllr.detect_accllr_fast(accllr_data, upper, lower)
         
-        tavg_accLLR, tavg_time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=True)
-        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='spikes', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
-        expected_accLLR_array = np.tile(np.cumsum(expected_LLR), (50,1)).T
-        
-        np.testing.assert_allclose(tavg_accLLR/50, np.cumsum(expected_LLR))
-        self.assertAlmostEqual(tavg_time, 3)
-        np.testing.assert_allclose(accLLR, expected_accLLR_array)
-        np.testing.assert_allclose(time, np.ones(50)*3)
+        np.testing.assert_allclose(p, p_fast)
+        np.testing.assert_allclose(st, st_fast)
 
-        # LFP data 
-        cond1_train = np.array((0,0,0,1,2,3))
-        cond2_train = np.array((0,0,0,0,0,0))
-        
-        cond1_test = np.array((0,0,0,1,2,3))
-        samplerate = 1
+        np.testing.assert_allclose(p, [.5, .5, 0])
+        self.assertEqual(st.shape, (40,))
 
-        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=1./samplerate, thresh_proportion=0.15, trial_average=False)
-        denom = 2*np.var(cond1_test)
-        np.testing.assert_allclose(accLLR, np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))).reshape(-1,1))
-        self.assertAlmostEqual(time, 4)
+        import time
+        t0 = time.perf_counter()
+        for i in range(1000):
+            accllr.detect_accllr(accllr_data, upper, lower)
+        t1 = time.perf_counter() - t0
 
-        # Multitrial LFP data
-        cond1_test = np.tile(cond1_test, (50,1)).T
+        t0 = time.perf_counter()
+        for i in range(1000):
+            accllr.detect_accllr_fast(accllr_data, upper, lower)
+        t2 = time.perf_counter() - t0
+
+        print(f"detect_accllr() took {t1:.2f} s")
+        print(f"detect_accllr_fast() took {t2:.2f} s")
         
-        tavg_accLLR, tavg_time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=binwdith, thresh_proportion=0.15, trial_average=True)
-        accLLR, time = aopy.analysis.calc_activity_onset_accLLR(cond1_test, cond1_train, cond2_train, modality='lfp', bin_width=binwdith, thresh_proportion=0.15, trial_average=False)
-        expected_accLLR_array = np.tile(np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))), (50,1)).T
+    def test_delong_roc_variance(self):
+        alpha = .95
+        y_pred = np.array([0.21, 0.32, 0.63, 0.35, 0.92, 0.79, 0.82, 0.99, 0.04])
+        y_true = np.array([0,    1,    0,    0,    1,    1,    0,    1,    0   ])
+
+        auc, auc_cov = accllr.calc_delong_roc_variance(
+            y_true,
+            y_pred)
+
+        # Compare to values in the original paper
+        self.assertAlmostEqual(auc, 0.8)
+        self.assertAlmostEqual(auc_cov, 0.02875)
+    
+    def test_calc_accllr_roc(self):
+        test_data1 = [0, 1, 2, 4, 6, 7, 3, 4, 5, 16, 7]
+        test_data2 = [0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 0]
+        auc, se = accllr.calc_accllr_roc(test_data1, test_data2)
+
+        matlab_auc = 0.921487603
+        matlab_se = 0.06396
         
-        np.testing.assert_allclose(tavg_accLLR/50, np.cumsum(np.array((0,0,0,1/denom, 4/denom, 9/denom))))
-        self.assertAlmostEqual(tavg_time, 4)
-        np.testing.assert_allclose(accLLR, expected_accLLR_array)
-        np.testing.assert_allclose(time, np.ones(50)*4)
+        self.assertAlmostEqual(auc, matlab_auc)
+        # self.assertAlmostEqual(se, matlab_se) # known difference between matlab and python version
+
+    def test_llr(self):
+        test_lfp = np.array([0, 0.8, 1, 5, 4, 1, 2.5, 3, 4, 4, 4])
+        test_data1 = np.array([0, 1, 2, 4, 6, 2, 3, 4, 5, 16, 7])
+        test_data2 = np.array([0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 0])
+
+        llr = accllr.calc_llr_gauss(test_lfp, test_data1, test_data2, np.std(test_data1), np.std(test_data2))
+
+        matlab_llr = np.array(
+            [-1.863, -1.09,  -0.682, 17.468, 17.38,  -1.892,  5.692,  8.998,  2.948, 13.3, 17.235]
+        )
+        np.testing.assert_allclose(llr.round(3), matlab_llr)
+
+    def test_accllr(self):
+        
+        lfp_altcond = np.array([
+            [0, 1.1, 2, 4, 6, 2, 3, 4, 5, 4, 7],
+            [0.5, 0.8, 2, 5, 4, 3, 2.5, 3, 4, 4, 4],
+            [0.2, 0.3, 2., 4, 8, 3, 2.1, 7, 4, 4, 4]
+
+        ]).T
+        lfp_nullcond = np.array([
+            [0, 0.2, 0, 1, 0, 1, 0, 0, 0.3, 0, 0],
+            [0, 1, 0, 0.8, 0, 0, 0, 0.7, 0.8, 0, 0],
+            [0, 0, 0, 0., 0, 2, 0, 0, 2, 0, 0],
+
+        ]).T
+
+        accllr_altcond, accllr_nullcond = accllr.calc_accllr_lfp(lfp_altcond, lfp_nullcond,
+                                                        lfp_altcond, lfp_nullcond, 
+                                                        common_variance=True)
+        '''
+        MATLAB accllr_altcond (rounded to 2 decimals): 
+        [[ 8.0000e-02  2.9000e-01 -4.5000e-01]
+        [ 4.9100e+00  5.1200e+00  4.3700e+00]
+        [ 1.8550e+01  2.7270e+01  1.8020e+01]
+        [ 6.2000e+01  3.5720e+01  8.4390e+01]
+        [ 6.2000e+01  4.0250e+01  8.8920e+01]
+        [ 7.2270e+01  4.7780e+01  9.3730e+01]
+        [ 8.8180e+01  4.9480e+01  1.3420e+02]
+        [ 1.0596e+02  5.9800e+01  1.4452e+02]
+        [ 1.2527e+02  7.9110e+01  1.6383e+02]
+        [ 1.7354e+02  9.5700e+01  1.8042e+02]]
+        MATLAB accllr_nullcond: 
+        [[  -0.3     0.83   -0.28]
+        [  -5.13   -4.     -5.11]
+        [ -18.1   -18.96  -26.79]
+        [ -61.54  -62.4   -70.23]
+        [ -64.9   -68.27  -68.05]
+        [ -72.64  -76.01  -75.8 ]
+        [ -98.77  -94.41 -101.93]
+        [-116.95 -109.33 -105.96]
+        [-136.25 -128.63 -125.27]
+        [-166.42 -158.8  -155.44]]
+        '''
+
+        # Known difference between matlab and python version:
+        #   python accumulates LLR from t=0, matlab from t=1
+        self.assertAlmostEqual(accllr_altcond[1,0], 8.0e-2, places=2)
+        self.assertAlmostEqual(accllr_altcond[-1,0], 1.7354e2, places=2)
+        self.assertAlmostEqual(accllr_nullcond[1,0], -0.3, places=2)
+        self.assertAlmostEqual(accllr_nullcond[-1,0], -166.42, places=2)
+
+    def test_choose_accllr_level(self):
+
+        lfp_altcond = np.array([
+            [0, 1.1, 2, 4, 6, 2, 3, 4, 5, 4, 7],
+            [0.5, 0.8, 2, 5, 4, 3, 2.5, 3, 4, 4, 4],
+            [0.2, 0.3, 2., 4, 8, 3, 2.1, 7, 4, 4, 4]
+
+        ]).T
+        lfp_nullcond = np.array([
+            [0, 0.2, 0, 1, 0, 1, 0, 0, 0.3, 0, 0],
+            [0, 1, 0, 0.8, 0, 0, 0, 0.7, 0.8, 0, 0],
+            [0, 0, 0, 0., 0, 2, 0, 0, 2, 0, 0],
+
+        ]).T
+        accllr_altcond, accllr_nullcond = accllr.calc_accllr_lfp(lfp_altcond, lfp_nullcond,
+                                                        lfp_altcond, lfp_nullcond, 
+                                                        common_variance=True)
+
+        nlevels = 200
+        p_altcond, p_nullcond, _, levels = accllr.calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels)
+        level = accllr.choose_best_level(p_altcond, p_nullcond, levels)
+        print(level)
+        
+        # From running the matlab version we expect
+        matlab_level = 0.902120
+        self.assertAlmostEqual(level, matlab_level, places=5)
+
+
+    def test_accllr_single_ch(self):
+        '''
+        Check that the selection time wrapper computes accllr correctly compared to the accllr_functions
+        '''
+        samplerate = 1000
+        lfp_altcond = np.array([
+            [0, 1.1, 2, 4, 6, 2, 3, 4, 5, 4, 7],
+            [0.5, 0.8, 2, 5, 4, 3, 2.5, 3, 4, 4, 4],
+            [0.2, 0.3, 2., 4, 8, 3, 2.1, 7, 4, 4, 4]
+
+        ]).T
+        lfp_nullcond = np.array([
+            [0, 0.2, 0, 1, 0, 1, 0, 0, 0.3, 0, 0],
+            [0, 1, 0, 0.8, 0, 0, 0, 0.7, 0.8, 0, 0],
+            [0, 0, 0, 0., 0, 2, 0, 0, 2, 0, 0],
+
+        ]).T
+        data_altcond = np.expand_dims(lfp_altcond,1)
+        data_nullcond = np.expand_dims(lfp_nullcond,1)
+        lowpass_altcond = data_nullcond
+        lowpass_nullcond = data_altcond
+        
+        ch = 0
+        wrapper_accllr_altcond, wrapper_accllr_nullcond, p_altcond, p_nullcond, selection_t, roc_auc, roc_se = \
+            accllr.calc_accllr_st_single_ch(data_altcond[:,ch,:], data_nullcond[:,ch,:], lowpass_altcond[:,ch,:],
+                                 lowpass_nullcond[:,ch,:], 'lfp', 1./samplerate, nlevels=200, verbose_out=True) # try parallel True and False
+        
+        single_accllr_altcond, single_accllr_nullcond = accllr.calc_accllr_lfp(data_altcond[:,ch,:], data_nullcond[:,ch,:],
+                                                        lowpass_altcond[:,ch,:], lowpass_nullcond[:,ch,:], 
+                                                        common_variance=True)
+
+        np.testing.assert_allclose(single_accllr_altcond, wrapper_accllr_altcond)
+        np.testing.assert_allclose(single_accllr_nullcond, wrapper_accllr_nullcond)
+        
 
     def test_calc_accLLR_threshold(self):
         # LFP data 
-        ntrials = 50
-        altcond_train = np.array((0,0,0,1,2,3))
-        nullcond_train = np.array((0,0,0,0,0,0))
-        
+        npts = 50
+        ntrials = 10
+        onset_idx = 20
+        noise_sd = npts/2
+        altcond = np.zeros(npts)
+        altcond[onset_idx:] = np.arange(npts-onset_idx)
+        altcond = np.repeat(altcond[:,None], ntrials, axis=1)
         np.random.seed(0)
-        nullcond_test = np.random.normal(0, 1, size=(len(nullcond_train), ntrials))
+        nullcond = np.random.normal(0,noise_sd,size=altcond.shape)
+        altcond += np.random.normal(0,noise_sd,size=altcond.shape)
         
-        # nullcond_test = np.array((0,0,0,0,0,0))
-        # nullcond_test = np.tile(nullcond_test, (50, 1)).T
+        accllr_altcond, accllr_nullcond = accllr.calc_accllr_lfp(altcond, nullcond,
+                                                        altcond, nullcond)
 
-        samplerate = 1
-        best_tp, tp, fa = aopy.analysis.calc_accLLR_threshold(altcond_train, nullcond_train, altcond_train, nullcond_test, modality='lfp', bin_width=1./samplerate, thresh_step_size=0.01, false_alarm_prob=0.05)
-        plt.plot(tp, fa)
-        plt.xlabel('Thresh proportion')
-        plt.ylabel('False Alarm Prop')
-        filename = 'accllr_thresh_prop.png'
+        p_altcond, p_nullcond, _, _ = accllr.calc_accllr_performance(accllr_altcond, accllr_nullcond, 200)
+        p_correct_detect = (p_altcond[:,0]+p_nullcond[:,1])/2
+        p_incorrect_detect = (p_nullcond[:,0]+p_altcond[:,1])/2
+
+        plt.figure()
+        plt.plot(p_correct_detect, p_incorrect_detect, 'o')
+        plt.xlabel('Hit prob')
+        plt.ylabel('False Alarm prob')
+        filename = 'accllr_roc.png'
         aopy.visualization.savefig(write_dir, filename)
 
     def test_match_selectivity_accLLR(self):
         # LFP data 
-        ntrials = 50
+        npts = 50
         nch = 2
-        train_data_altcond = np.array([((0,0,0,1,2,3),), ((0,0,0,0.5,1,1.5),)])
-        train_data_nullcond = np.array([((0,0,0,0,0,0),), ((0,0,0,0,0,0),)])
-        train_data_altcond = np.swapaxes(train_data_altcond, 0, 2)
-        train_data_nullcond = np.swapaxes(train_data_nullcond, 0, 2)
-        train_data_altcond = np.swapaxes(train_data_altcond, 1, 2)
-        train_data_nullcond = np.swapaxes(train_data_nullcond, 1, 2)
-
-        print(train_data_altcond.shape)
-        print(train_data_nullcond.shape)
-
+        ntrials = 10
+        onset_idx = 20
+        noise_sd = npts/2
+        altcond = np.zeros(npts)
+        altcond[onset_idx:] = np.arange(npts-onset_idx)
+        altcond = np.repeat(np.tile(altcond, (nch,1)).T[:,:,None], ntrials, axis=2)
         np.random.seed(0)
-        test_data_altcond = np.random.normal(0, 1, size=(len(train_data_altcond), nch, ntrials))
+        nullcond = np.random.normal(0,noise_sd,size=altcond.shape)
+        altcond += np.random.normal(0,noise_sd,size=altcond.shape)
 
-        test_data_altcond_ = test_data_altcond.copy()
+        # Make ch2 have higher selectivity
+        altcond[onset_idx:,1,:] *= 2
 
-        print(test_data_altcond.shape)
-        
-        # nullcond_test = np.array((0,0,0,0,0,0))
-        # nullcond_test = np.tile(nullcond_test, (50, 1)).T
+        test_data_altcond = altcond.copy()
+        test_data_nullcond = nullcond.copy()
 
-        samplerate = 1
-        noisy_data_altcond = aopy.analysis.match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_nullcond, 'lfp', bin_width=1./samplerate, thresh_proportion=0.15)
-        
+        # First test without matching selectivity
+        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
+        print("Matching selectivities:")
+        print(roc_auc)
+        self.assertTrue(roc_auc[1] > roc_auc[0])
+
+        # Test wrapper with LFP data and no selectivity matching and trial_average=True
+        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1, 
+                                                                       match_selectivity=True, noise_sd_step=noise_sd)
+        print("Matched selectivities:")
+        print(roc_auc)
+        self.assertTrue(roc_auc[1] <= roc_auc[0]) # selectivity should flip
+
         # One channel should remain the same pre- and post- selectivity matching,
         # while the other channel should have added noise.
+        before = np.mean(test_data_altcond, axis=2) # mean across trials
+        after = np.mean(altcond, axis=2) # mean across trials
         plt.figure()
-        plt.plot(test_data_altcond_[:,0,0], 'r', label='before matching ch 1')
-        plt.plot(test_data_altcond_[:,1,0], 'b', label='before matching ch 2')
-        plt.plot(noisy_data_altcond[:,0,0], 'g--', label='after matching ch 1')
-        plt.plot(noisy_data_altcond[:,1,0], 'c--', label='after matching ch 2')
+        plt.plot(before[:,0], 'r', label='before matching ch 1')
+        plt.plot(before[:,1], 'b', label='before matching ch 2')
+        plt.plot(after[:,0], 'g--', label='after matching ch 1')
+        plt.plot(after[:,1], 'c--', label='after matching ch 2')
         plt.legend()
         filename = 'match_selectivity_accllr.png'
-        aopy.visualization.savefig(write_dir, filename)
+        aopy.visualization.savefig(docs_dir, filename)
+        plt.close()
 
     def test_calc_accLLR_wrapper(self):
         npts = 100
@@ -549,52 +696,54 @@ class AccLLRTests(unittest.TestCase):
         nullcond = np.random.normal(0,5,size=altcond.shape)
 
         # Test wrapper with LFP data and no selectivity matching and trial_average=True
-        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, match_selectivity=False)
+        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
     
-        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
-        self.assertTrue(np.sum(mask) == nch)
+        self.assertEqual(st.shape, (nch, ntrials))
+        mask = np.logical_and(st > 50, st < 70)
+        mask = np.all(mask, axis=1) # all trials should have selectivity within 50-70 s
+        self.assertEqual(np.sum(mask), nch) # all channels should have selectivity within 50-70 s
 
-        # Test wrapper with LFP data and no selectivity matching and trial_average=False
-        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, trial_average=False, match_selectivity=False)
+        # Test on some real data
+        test_data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
+        altcond = test_data['data_altcond']
+        nullcond = test_data['data_nullcond']
+        altcond_lp = altcond.copy()
+        nullcond_lp = nullcond.copy()
+        samplerate = 1000
+        time_before = 0.05
 
-        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
-        self.assertTrue(np.sum(mask) == sTime_alt.shape[0]*sTime_alt.shape[1])
-        
-        # Test wrapper with LFP data and yes selectivity matching and trial_average=True
-        diff_selective_signal_len = 20
-        altcond[:,2,1:3] = 0 # Make the signal less selective by making some trials 0
-        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, match_selectivity=True)
-        print(sTime_alt)
-        mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
+        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate)
+        accllr_mean = np.nanmean(st, axis=1)
 
-        # Test wrapper with spike data and selectivity matching trial_average=False
+        plt.figure()
+        ch_data = np.concatenate((np.mean(nullcond, axis=2), np.mean(altcond, axis=2)), axis=0)
+        t = np.arange(ch_data.shape[0])/samplerate - time_before
+        plt.plot(t, ch_data)
+        x = np.tile(accllr_mean, (2,1))
+        min_max = np.array([np.min(ch_data, axis=0), np.max(ch_data, axis=0)])
+        plt.gca().set_prop_cycle(None) # reset the color cycler
+        plt.plot(x, min_max, '--')
+        filename = 'accllr_test_data.png'
+        aopy.visualization.savefig(docs_dir, filename)
+        plt.close()
+
+        # Test again with selectivity matching
         np.random.seed(0)
-        altcond = np.random.binomial(1,0.05,size=(npts,nch, ntrials))
-        start_idx = npts//2
-        altcond[start_idx:,:,:] = 1
-        np.random.seed(1)
-        nullcond = np.random.binomial(1,0.05,size=altcond.shape)
+        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate, 
+                                                                match_selectivity=True, noise_sd_step=8)
+        accllr_mean = np.nanmean(st, axis=1)
 
-        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'spikes', 1, match_selectivity=False)
-        mask = np.logical_and(sTime_alt > 45, sTime_alt < 55)
-        self.assertTrue(np.sum(mask) == nch)
-
-        # Test wrapper with spike data and no selectivity matching and trial_average=False
-        sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'spikes', 1, trial_average=False, match_selectivity=False)
-        mask = np.logical_and(sTime_alt > 45, sTime_alt < 55)
-        self.assertTrue(np.sum(mask) > nch*sTime_alt.shape[1]*0.66) # Since this is noisy data on a trial by trial basis the selection time will be noisy
-
-        # selection_time_cond1, selection_time_cond2, accllr_cond1, accllr_cond2 = aopy.analysis.accLLR_wrapper(cond1, cond2, 'lfp', 1.)
-        # print(selection_time_cond1)
-        # print(selection_time_cond2)
-        # print(accllr_cond1.shape)
-        # print(accllr_cond2.shape)
-
-    # def test_accLLR_real_data(self):
-    #     data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data.hdf')
-    #     cond1 = data['cond1']
-    #     cond2 = data['cond2']
-    #     samplerate = data['samplerate']
+        plt.figure()
+        ch_data = np.concatenate((np.mean(nullcond, axis=2), np.mean(altcond, axis=2)), axis=0)
+        t = np.arange(ch_data.shape[0])/samplerate - time_before
+        plt.plot(t, ch_data)
+        x = np.tile(accllr_mean, (2,1))
+        min_max = np.array([np.min(ch_data, axis=0), np.max(ch_data, axis=0)])
+        plt.gca().set_prop_cycle(None) # reset the color cycler
+        plt.plot(x, min_max, '--')
+        filename = 'accllr_test_data_match_selectivity.png'
+        aopy.visualization.savefig(docs_dir, filename)
+        plt.close()
 
 
 class SpectrumTests(unittest.TestCase):

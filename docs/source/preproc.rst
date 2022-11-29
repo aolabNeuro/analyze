@@ -1,5 +1,6 @@
 Preproc:
 ===============
+Code for preprocessing neural data (reorganize data into the needed form) including parsing experimental files, trial sorting, and subsampling
 
 .. contents:: :local:
 
@@ -513,35 +514,35 @@ API
     :members:
 
 
-API - Base
-----------
+Base
+^^^^
 
 .. automodule:: aopy.preproc.base
     :members:
 
 
-API - Quality
-----------
+Quality
+^^^^^^^
 
 .. automodule:: aopy.preproc.quality
     :members:
 
 
-API - BMI3D
------------
+BMI3D
+^^^^^
 
 .. automodule:: aopy.preproc.bmi3d
     :members:
 
 
-API - Oculomatic
-----------------
+Oculomatic
+^^^^^^^^^^
 
 .. automodule:: aopy.preproc.oculomatic
     :members:
 
-API - Optitrack
-----------------
+Optitrack
+^^^^^^^^^
 
 .. automodule:: aopy.preproc.optitrack
     :members:

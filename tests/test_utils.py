@@ -195,6 +195,22 @@ class TestMath(unittest.TestCase):
         self.assertEqual(dist.size, 3)
         np.testing.assert_allclose(dist, [0, np.sqrt(2), 2])
 
+    def test_first_nonzero(self):
+        p = np.array([0, 0, 1])
+        q = first_nonzero(p, axis=0, all_zeros_val=-1)
+
+        self.assertEqual(q, 2)
+
+        p = np.array([1])
+        q = first_nonzero(p, axis=0, all_zeros_val=-1)
+
+        self.assertEqual(q, 0)
+
+        p = np.array([0])
+        q = first_nonzero(p, axis=0, all_zeros_val=-1)
+
+        self.assertEqual(q, -1)
+
 class MemoryTests(unittest.TestCase):
 
     def test_get_memory_available(self):

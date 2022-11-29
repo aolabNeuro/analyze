@@ -14,6 +14,7 @@ install_requires = [
     'h5py',
     'tables',
     'scikit-learn',
+    'statsmodels',
     'nitime',
     'xlrd',
     'openpyxl',
