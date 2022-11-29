@@ -22,29 +22,29 @@ Base
 Behavior
 ^^^^^^^^
 
-.. automodule:: aopy.preproc.behavior
+.. automodule:: aopy.analysis.behavior
     :members:
 
 CellType
 ^^^^^^^^
 
-.. automodule:: aopy.preproc.celltype
+.. automodule:: aopy.analysis.celltype
     :members:
 
 Tuning
 ^^^^^^
 
-.. automodule:: aopy.preproc.tuning
+.. automodule:: aopy.analysis.tuning
     :members:
 
 KFDecoder
 ^^^^^^^^^
 
-.. automodule:: aopy.preproc.kfdecoder
+.. automodule:: aopy.analysis.kfdecoder
     :members:
 
 AccLLR
 ^^^^^^
 
-.. automodule:: aopy.preproc.accllr
+.. automodule:: aopy.analysis.accllr
     :members:

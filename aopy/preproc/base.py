@@ -165,8 +165,8 @@ def validate_measurements(expected_values, measured_values, diff_thr):
 
     Returns:
         tuple: tuple containing:
-            |**corrected_values (nt):** array of the same length as the inputs but with validated values
-            |**diff_above_thr (nt):** boolean array of values passing the difference threshold
+            | **corrected_values (nt):** array of the same length as the inputs but with validated values
+            | **diff_above_thr (nt):** boolean array of values passing the difference threshold
     '''
     expected_values = np.squeeze(expected_values)
     measured_values = np.squeeze(measured_values)

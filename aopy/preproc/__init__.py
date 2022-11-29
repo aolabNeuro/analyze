@@ -75,9 +75,12 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
-    Process experiment data files: 
-        Currently supports BMI3D only
-        Loads 'hdf' and 'ecube' (if present) data, parses, and prepares experiment data and metadata
+    Process experiment data files. Loads 'hdf' and 'ecube' (if present) data, parses, and 
+    prepares experiment data and metadata.
+
+    Note:
+        Currently supports BMI3D only. 
+    
     The above data is prepared into structured arrays:
         exp_data:
             task ([('cursor', '<f8', (3,)), ('trial', 'u8', (1,)), ('time', 'u8', (1,)), ...])
@@ -164,7 +167,9 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     '''
     Loads eyedata from ecube analog signal and calculates calibration profile using least square fitting.
     Requires that experimental data has already been preprocessed in the same result hdf file.
+    
     The data is prepared into HDF datasets:
+    
     eye_data:
         raw_data (nt, nch): raw eye data
         calibrated_data (nt, nch): calibrated eye data
@@ -172,6 +177,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         correlation_coeff (nch): best fit correlation coefficients from linear regression
         cursor_calibration_data (ntr, 2): cursor coordinates used for calibration
         eye_calibration_data (ntr, nch): eye coordinates used for calibration
+    
     eye_metadata:
         samplerate (float): sampling rate of the calibrated eye data
         see :func:`aopy.preproc.parse_oculomatic` for oculomatic metadata
