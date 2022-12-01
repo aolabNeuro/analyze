@@ -510,12 +510,19 @@ Or at the same time
 API
 ---
 
-.. automodule:: aopy.preproc
+Preproc wrappers
+^^^^^^^^^^^^^^^^
+
+These functions are also available directly from ``aopy.preproc``
+
+.. automodule:: aopy.preproc.wrappers
     :members:
 
 
-Base
-^^^^
+Preproc base
+^^^^^^^^^^^^
+
+These functions are also available directly from ``aopy.preproc``
 
 .. automodule:: aopy.preproc.base
     :members:
