@@ -5,10 +5,10 @@
 import numpy as np
 import math
 import warnings
-from . import precondition
-from .preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
-from .utils import derivative
-from .data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
+from .. import precondition
+from ..preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
+from ..utils import derivative
+from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
