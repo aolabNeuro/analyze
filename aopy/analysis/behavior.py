@@ -15,38 +15,67 @@ def calc_success_percent(events, start_events=[b"TARGET_ON"], end_events=[b"REWA
     A wrapper around get_trial_segments which counts the number of trials with a reward event 
     and divides by the total number of trials. This function can either calculated the success percent
     across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
-    input argument.  
+    input argument. 
+    
+    See also:
+        :func:`~aopy.analysis.calc_success_percent_trials`
 
     Args:
         events (nevents): events vector, can be codes, event names, anything to match
         start_events (int, str, or list, optional): set of start events to match
         end_events (int, str, or list, optional): set of end events to match
         success_events (int, str, or list, optional): which events make a trial a successful trial
-        window_size (int, optional): [Untis: number of trials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+        window_size (int, optional): [in number of trials] For computing rolling success perecent. How many trials 
+            to include in each window. If None, this functions calculates the success percent across all trials.
 
     Returns:
         float or array (nwindow): success percent = number of successful trials out of all trials attempted.
     '''
     segments, _ = preproc.get_trial_segments(events, np.arange(len(events)), start_events, end_events)
-    n_trials = len(segments)
-    success_trials = [np.any(np.isin(success_events, trial)) for trial in segments]
+    trial_success = [np.any(np.isin(success_events, trial)) for trial in segments]
+
+    return calc_success_percent_trials(trial_success, window_size)
+
+def calc_success_percent_trials(trial_success, window_size=None):
+    '''
+    A wrapper around get_trial_segments which counts the number of trials with a reward event 
+    and divides by the total number of trials. This function can either calculated the success percent
+    across all trials in the input events, or compute a rolling success percent based on the 'window_size' 
+    input argument. 
+    
+    See also:
+        :func:`~aopy.analysis.calc_success_percent`
+
+    Args:
+        trial_success ((ntrial,) bool array): list of trials where success is non-zero and failure is zero
+        window_size (int, optional): [in number of trials] For computing rolling success perecent. How many trials 
+            to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success percent = number of successful trials out of all trials attempted.
+    '''
+    n_trials = len(trial_success)
 
     # If requested, calculate success percent across entire input events
     if window_size is None:
-        n_success = np.count_nonzero(success_trials)  
+        n_success = np.count_nonzero(trial_success)  
         success_percent = n_success / n_trials
 
     # Otherwise, compute rolling success percent
     else:
         filter_array = np.ones(window_size)
-        success_per_window = signal.convolve(success_trials, filter_array, mode='valid', method='direct')
+        success_per_window = signal.convolve(trial_success, filter_array, mode='valid', method='direct')
         success_percent = success_per_window/window_size
 
     return success_percent
 
 def calc_success_rate(events, event_times, start_events, end_events, success_events, window_size=None):
     '''
-    Calculate the number of successful trials per second with a given trial start and end definition.
+    Calculate the number of successful trials per second with a given trial start and end definition. 
+    Inputs are raw event codes and times.
+
+    See also:
+        :func:`~aopy.analysis.calc_success_rate_trials`
 
     Args:
         events (nevents): events vector, can be codes, event names, anything to match
@@ -54,28 +83,52 @@ def calc_success_rate(events, event_times, start_events, end_events, success_eve
         start_events (int, str, or list, optional): set of start events to match
         end_events (int, str, or list, optional): set of end events to match
         success_events (int, str, or list, optional): which events make a trial a successful trial
-        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials to include in each window. If None, this functions calculates the success percent across all trials.
+        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials 
+            to include in each window. If None, this functions calculates the success percent across all trials.
 
     Returns:
         float or array (nwindow): success rate [success/s] = number of successful trials completed per second of time between the start event(s) and end event(s).
     '''
     # Get event time information
-    _, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
+    segments, times = preproc.get_trial_segments(events, event_times, start_events, end_events)
     trial_acq_time = times[:,1]-times[:,0]
-    ntrials = times.shape[0]
-    
+    trial_success = [np.any(np.isin(success_events, trial)) for trial in segments]
+
+    return calc_success_rate_trials(trial_success, trial_acq_time, window_size=window_size)
+
+
+def calc_success_rate_trials(trial_success, trial_time, window_size=None):
+    '''
+    Calculate the number of successful trials per second with a given trial start and end definition. 
+
+    See also:
+        :func:`~aopy.analysis.calc_success_rate`
+
+    Args:
+        trial_success ((ntrial,) bool array): list of trials where success is non-zero and failure is zero
+        trial_time ((ntrial,) array): list of the time taken in each time (e.g. acquisition time)
+        window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials 
+            to include in each window. If None, this functions calculates the success percent across all trials.
+
+    Returns:
+        float or array (nwindow): success rate [success/s] = number of successful trials completed per second of 
+            time between the start event(s) and end event(s).
+    '''
+    assert len(trial_time) == len(trial_success), "Mismatched trial lengths"
+
     # Get % of successful trials per window 
-    success_perc = calc_success_percent(events, start_events, end_events, success_events, window_size=window_size)
-    
+    success_perc = calc_success_percent_trials(trial_success, window_size=window_size)
+    ntrials = len(trial_time)
+
     # Determine rolling target acquisition time info 
     if window_size is None:
         nsuccess = success_perc*ntrials
-        acq_time = np.sum(trial_acq_time)
+        acq_time = np.sum(trial_time)
 
     else:
         nsuccess = success_perc*window_size
         filter_array = np.ones(window_size)
-        acq_time = signal.convolve(trial_acq_time, filter_array, mode='valid', method='direct')
+        acq_time = signal.convolve(trial_time, filter_array, mode='valid', method='direct')
     
     success_rate = nsuccess / acq_time
 
