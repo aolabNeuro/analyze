@@ -161,11 +161,9 @@ class PCATests(unittest.TestCase):
 class PR_tests(unittest.TestCase):
     def test_pr_eig(self):
         test_data = np.array([[2, 1, 2], [1, 2, 1], [1, 2, 1]])
-        pr = aopy.analysis.estimate_PR(test_data,'eig')
+        pr = aopy.analysis.estimate_PR(test_data)
         self.assertEqual(pr, 1)
 
-        pr_tr = aopy.analysis.estimate_PR(test_data,'trace')
-        self.assertEqual(pr_tr, 1)
 
 class misc_tests(unittest.TestCase):
     def test_find_outliers(self):
