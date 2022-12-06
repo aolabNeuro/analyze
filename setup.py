@@ -21,6 +21,7 @@ install_requires = [
     'matplotlib',
     'scipy',
     'PyWavelets',
+    'pywt',
     'Pillow',
     'seaborn',
     'pyyaml',
