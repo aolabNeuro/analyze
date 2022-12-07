@@ -1,8 +1,10 @@
 # test_data.py 
 # tests of aopy.data
-from aopy.data import _process_channels
+from aopy import visualization
 from aopy.data import *
 from aopy.data import peslab
+from aopy.data import optitrack
+from aopy.data import bmi3d
 from aopy.visualization import *
 from aopy import preproc
 import unittest
@@ -51,7 +53,33 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
 
-class LoadDataTests(unittest.TestCase):
+class OptitrackTests(unittest.TestCase):
+        
+    def test_load_mocap(self):
+        # Data directory and filepath
+        filename = 'Take 2021-03-10 17_56_55 (1039).csv'
+
+        # Load Meta data
+        mocap_metadata = optitrack.load_optitrack_metadata(data_dir, filename)
+        assert mocap_metadata['samplerate'] == 240
+        assert mocap_metadata['Rigid Body Name'] == 'Hand'
+        assert mocap_metadata['Length Units'] == 'Meters'
+        
+        # Load Data
+        mocap_data_pos, mocap_data_rot = optitrack.load_optitrack_data(data_dir, filename)
+        assert mocap_data_pos.shape[0] == 92383
+        assert mocap_data_rot.shape[0] == 92383
+        assert mocap_data_pos.shape[1] == 3
+        assert mocap_data_rot.shape[1] == 4
+
+        # Load timestamps
+        mocap_timestamps = optitrack.load_optitrack_time(data_dir, filename)
+        assert mocap_timestamps.shape[0] == 92383
+        assert mocap_timestamps.ndim == 1
+        diff = np.diff(mocap_timestamps)
+        assert (diff > 0).all(), 'Should be monotonically increasing'
+
+class BMI3DTests(unittest.TestCase):
 
     def test_get_filenames_in_dir(self):
         test_dir = os.path.join(data_dir, 'test_filenames_dir')
@@ -61,52 +89,28 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(files['foo'], os.path.join('foo','1039_foo'))
         self.assertEqual(files['bar'], os.path.join('bar','1039_bar.txt'))
 
-    def test_load_mocap(self):
-        # Data directory and filepath
-        filename = 'Take 2021-03-10 17_56_55 (1039).csv'
-
-        # Load Meta data
-        mocap_metadata = load_optitrack_metadata(data_dir, filename)
-        assert mocap_metadata['samplerate'] == 240
-        assert mocap_metadata['Rigid Body Name'] == 'Hand'
-        assert mocap_metadata['Length Units'] == 'Meters'
-        
-        # Load Data
-        mocap_data_pos, mocap_data_rot = load_optitrack_data(data_dir, filename)
-        assert mocap_data_pos.shape[0] == 92383
-        assert mocap_data_rot.shape[0] == 92383
-        assert mocap_data_pos.shape[1] == 3
-        assert mocap_data_rot.shape[1] == 4
-
-        # Load timestamps
-        mocap_timestamps = load_optitrack_time(data_dir, filename)
-        assert mocap_timestamps.shape[0] == 92383
-        assert mocap_timestamps.ndim == 1
-        diff = np.diff(mocap_timestamps)
-        assert (diff > 0).all(), 'Should be monotonically increasing'
-
     def test_get_ecube_data_sources(self):
-        sources = get_ecube_data_sources(test_filepath)
+        sources = bmi3d.get_ecube_data_sources(test_filepath)
         assert len(sources) == 1
         assert sources[0] == "Headstages"
 
     def test_load_ecube_metadata(self):
-        metadata = load_ecube_metadata(test_filepath, 'Headstages')
+        metadata = bmi3d.load_ecube_metadata(test_filepath, 'Headstages')
         assert metadata['n_channels'] == 64
         assert metadata['n_samples'] == 214032
         assert metadata['data_source'] == 'Headstages'
         assert metadata['samplerate'] == 25000.
 
     def test_process_channels(self):
-        metadata = load_ecube_metadata(test_filepath, 'Headstages')
+        metadata = bmi3d.load_ecube_metadata(test_filepath, 'Headstages')
         data = np.zeros((0,1))
-        for chunk in  _process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16'):
+        for chunk in  bmi3d._process_channels(test_filepath, 'Headstages', [0], metadata['n_samples'], 'uint16'):
             data = np.concatenate((data, chunk), axis=0)
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
 
     def test_load_ecube_metadata(self):
-        metadata = load_ecube_metadata(test_filepath, 'Headstages')
+        metadata = bmi3d.load_ecube_metadata(test_filepath, 'Headstages')
         assert metadata['samplerate'] == 25000.
         assert metadata['n_channels'] == 64
 
@@ -128,7 +132,7 @@ class LoadDataTests(unittest.TestCase):
         savefig(write_dir, figname)
 
         # Compare to using the load_ecube_data() function
-        data = load_ecube_data(sim_filepath, 'Headstages')
+        data = bmi3d.load_ecube_data(sim_filepath, 'Headstages')
         self.assertEqual(data.shape[1], 8)
         self.assertEqual(data.shape[0], 25000)
         plt.figure()
@@ -141,18 +145,18 @@ class LoadDataTests(unittest.TestCase):
         self.assertIsNone(str)
 
         # Load real data
-        data = load_ecube_data(test_filepath, 'Headstages')
+        data = bmi3d.load_ecube_data(test_filepath, 'Headstages')
         assert data.shape[1] == 64
         assert data.shape[0] == 214032
 
         # Test that channels work
-        data = load_ecube_data(test_filepath, 'Headstages', channels=[4])
+        data = bmi3d.load_ecube_data(test_filepath, 'Headstages', channels=[4])
         assert data.shape[1] == 1
         assert data.shape[0] == 214032
 
     def test_load_ecube_data_chunked(self):
         # Load 738 samples at once
-        gen = load_ecube_data_chunked(test_filepath, 'Headstages')
+        gen = bmi3d.load_ecube_data_chunked(test_filepath, 'Headstages')
         data = next(gen)
         assert data.shape[1] == 64
         assert data.shape[0] == 728
@@ -165,14 +169,14 @@ class LoadDataTests(unittest.TestCase):
         assert data.shape[0] == 214032
 
         # Test that channels work
-        gen = load_ecube_data_chunked(test_filepath, 'Headstages', channels=[4])
+        gen = bmi3d.load_ecube_data_chunked(test_filepath, 'Headstages', channels=[4])
         data = next(gen)
         assert data.shape[1] == 1
         assert data.shape[0] == 728
 
         # Make a figure to test that the data is intact
         data = np.zeros((0,8))
-        for chunk in load_ecube_data_chunked(sim_filepath, 'Headstages'):
+        for chunk in bmi3d.load_ecube_data_chunked(sim_filepath, 'Headstages'):
             data = np.concatenate((data, chunk), axis=0)
         self.assertEqual(data.shape[0], 25000)
         plt.figure()
@@ -185,14 +189,29 @@ class LoadDataTests(unittest.TestCase):
         hdf_filepath = os.path.join(write_dir, "preprocessed_ecube_data.hdf")
         if os.path.exists(hdf_filepath):
             os.remove(hdf_filepath)
-        dset, metadata = proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
+        dset, metadata = bmi3d.proc_ecube_data(test_filepath, 'Headstages', hdf_filepath)
         assert os.path.exists(hdf_filepath)
         hdf = h5py.File(hdf_filepath, 'r')
         assert 'broadband_data' in hdf
         assert hdf['broadband_data'].shape[1] == 64
         assert hdf['broadband_data'].shape[0] == 214032
         assert metadata['samplerate'] == 25000
-    
+
+    def test_load_bmi3d_hdf_table(self):
+        testfile = 'test20210330_12_te1254.hdf'
+        data, metadata = bmi3d.load_bmi3d_hdf_table(data_dir, testfile, 'task')
+        self.assertEqual(len(data), 534)
+        self.assertEqual(len(metadata.keys()), 35)
+
+        data, metadata = bmi3d.load_bmi3d_hdf_table(data_dir, testfile, 'sync_clock')
+        self.assertEqual(len(data), 534)
+        data, metadata = bmi3d.load_bmi3d_hdf_table(data_dir, testfile, 'sync_events')
+        self.assertEqual(len(data), 6)
+
+        self.assertRaises(ValueError, lambda: bmi3d.load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
+
+class HDFTests(unittest.TestCase):
+
     def test_save_hdf(self):
         import os
         import h5py
@@ -279,19 +298,112 @@ class LoadDataTests(unittest.TestCase):
         self.assertEqual(len(data_dict['test_data_2']), len(data_dict['test_data_2']))
         self.assertDictEqual(params_only, params_dict)
 
-    def test_load_bmi3d_hdf_table(self):
-        testfile = 'test20210330_12_te1254.hdf'
-        data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'task')
-        self.assertEqual(len(data), 534)
-        self.assertEqual(len(metadata.keys()), 35)
+CENTER_TARGET_ON = 16
+CURSOR_ENTER_CENTER_TARGET = 80
+CURSOR_ENTER_PERIPHERAL_TARGET = list(range(81,89))
+PERIPHERAL_TARGET_ON = list(range(17,25))
+CENTER_TARGET_OFF = 32
+REWARD = 48
+DELAY_PENALTY = 66
+TIMEOUT_PENALTY = 65
+HOLD_PENALTY = 64
+TRIAL_END = 239
 
-        data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'sync_clock')
-        self.assertEqual(len(data), 534)
-        data, metadata = load_bmi3d_hdf_table(data_dir, testfile, 'sync_events')
-        self.assertEqual(len(data), 6)
+class TestGetPreprocDataFuncs(unittest.TestCase):
 
-        self.assertRaises(ValueError, lambda: load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
+    @classmethod
+    def setUpClass(cls):
+        files = {}
+        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
+        files['ecube'] = 'fake ecube data'
+        cls.subject = 'test'
+        cls.te_id = 3498
+        cls.date = '2021-12-13'
+        preproc.proc_single(data_dir, files, os.path.join(write_dir, cls.subject), cls.subject, cls.te_id, cls.date, ['exp', 'eye', 'lfp'], overwrite=True)
 
+    def test_get_kinematic_segments(self):
+
+        # Plot cursor trajectories - expect 9 trials
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [REWARD, TRIAL_END]
+        trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
+        self.assertEqual(len(trajs), 9)
+        self.assertEqual(trajs[1].shape, (32917, 2)) # x z
+        bounds = [-10, 10, -10, 10]
+        plt.figure()
+        visualization.plot_trajectories(trajs, bounds=bounds)
+        figname = 'get_trial_aligned_trajectories.png'
+        visualization.savefig(write_dir, figname)
+        plt.close()
+
+        # Plot eye trajectories - expect same 9 trials but no eye pos to plot
+        trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye')
+        self.assertEqual(len(trajs), 9)
+        self.assertEqual(trajs[1].shape, (32917, 4)) # two eyes x and y
+        plt.figure()
+        visualization.plot_trajectories(trajs[:2], bounds=bounds)
+        figname = 'get_eye_trajectories.png'
+        visualization.savefig(write_dir, figname) # expect a bunch of noise
+        plt.close()
+
+        # Plot hand trajectories - expect same 9 trials but hand kinematics.
+        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand')
+        self.assertEqual(len(hand_trajs), 9)
+        self.assertEqual(hand_trajs[1].shape, (32917, 3))
+        plt.figure()
+        visualization.plot_trajectories(hand_trajs, bounds=bounds)
+        figname = 'get_hand_trajectories.png' # since these were test data generated with a cursor, it should look the same as the cursor data.
+        visualization.savefig(write_dir, figname)
+        plt.close()
+
+        # Try cursor velocity
+        vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
+        self.assertEqual(len(vel), 9)
+        self.assertEqual(vel[1].shape, (32917,))
+        plt.figure()
+        plt.plot(vel[1])
+        figname = 'get_trial_velocities.png'
+        visualization.savefig(write_dir, figname)
+        plt.close()
+
+        # Use a trial filter to only get rewarded trials
+        trial_filter = lambda t: TRIAL_END not in t
+        trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
+        self.assertEqual(len(trajs), 7)
+
+    def test_get_lfp_segments(self):
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [REWARD, TRIAL_END]
+        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
+        self.assertEqual(len(lfp_segs), 9)
+        self.assertEqual(lfp_segs[0].shape, (0, 8)) # fake lfp data has 8 channels and 0 samples
+
+    def test_get_lfp_aligned(self):
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [REWARD, TRIAL_END]
+        time_before = 0.1
+        time_after = 0.4
+        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, time_before, time_after)
+        self.assertEqual(lfp_aligned.shape, (9, (time_before+time_after)*1000, 8))
+
+    def test_get_target_locations(self):
+        target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
+        locs = get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices)
+        self.assertEqual(locs.shape, (9, 3))
+
+    def test_get_source_files(self):
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        preproc_dir = data_dir
+
+        files, raw_data_dir = get_source_files(preproc_dir, subject, te_id, date)
+        self.assertEqual(files['hdf'], 'hdf/beig20220701_04_te5974.hdf')
+        self.assertEqual(files['ecube'], 'ecube/2022-07-01_BMI3D_te5974')
+        self.assertEqual(raw_data_dir, '/data/raw')
+
+class TestMatlab(unittest.TestCase):
+    
     def test_load_matlab_cell_strings(self):
         testfile = 'matlab_cell_str.mat'
         strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
@@ -319,6 +431,7 @@ class LoadDataTests(unittest.TestCase):
         # Check case where neither str_include or str_avoid are used
         parsed_strs4 = parse_str_list(str_list)
         self.assertListEqual(parsed_strs4, str_list)
+
 
 class TestPickle(unittest.TestCase):
 
