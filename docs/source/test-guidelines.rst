@@ -263,6 +263,10 @@ datasets here as they become available.
      - BMI3D data - another eyetracking test
    * - `2021-12-13_BMI3D_te3498`
      - eCube data - sync version 7
+   * - `beig20221002_09_te6890.hdf`
+     - BMI3D data - a laser only experiment which does not contain any task data
+   * - `2022-10-02_BMI3D_te6890`
+     - eCube data - sync version 12 - including some real headstage ECoG data, although it is truncated in length
    * - `test20210330_12_te1254.hdf`
      - BMI3D data - sync version 2
    * - `fake ecube data`
@@ -287,3 +291,6 @@ datasets here as they become available.
      - optitrack data exported into csv format
    * - `task_codes.yaml`
      - yaml formatted file with some task codes
+   * - `accllr_test_data.hdf` 
+     - power in 50-250hz band of laser-evoked response in motor cortex, aligned to laser 
+       onset across 350 trials, 0.05 seconds before and after. sampled at 1khz.

@@ -173,3 +173,19 @@ met:
 -  Plotting
 -  Saving
 
+Adding new packages
+-------------------
+
+If you need to add a new dependency to the repo, there are a couple items
+that must also be completed:
+
+#. Include your new dependency in setup.py, inside the `install_requires = []` list.
+Keep in mind that the name of the package on pypi might be different than what you
+import in python. For example, the PyWavelets package is imported with `import pywt`
+but installed with `pip install PyWavelets`. Here you would list `PyWavelets` as
+the dependency.
+#. Include your new dependency in docs/source/conf.py inside the 
+`autodoc_mock_imports = []` list. Here you should type the module name that you import
+in python. For example, `pywt` for PyWavelets.
+#. Finally, please notify the `coding` channel on the aolab slack that you have made 
+changes that require users to re-install the package with `pip install -e .`
