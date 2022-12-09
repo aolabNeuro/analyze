@@ -165,16 +165,23 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     Calculates the task relevant dimensions by regressing neural activity against kinematic data using least squares.
     If the input neural data is 3D, all trials will be concatenated to calculate the subspace. 
     Calculation is based on the approach used in Sun et al. 2022 https://doi.org/10.1038/s41586-021-04329-x
-
+    
+    .. math::
+    
+        R \\in \\mathbb{R}^{nt \\times nch}
+        M \\in \\mathbb{R}^{nt \\times ndim}
+        \\beta \\in \\mathbb{R}^{nch \\times ndim}
+        R = M\\beta^T
+        [\\beta_0 \beta_x \beta_y]^T = (M^T M)^{-1} M^T R
 
     Args:
-        neural_data ((nt, nch) or list of (nt, nch)): Input neural data to regress against kinematic activity.
-        kin_data ((nt, ndim) or list of (nt, ndim)): Kinematic variables, commonly position or instantaneous velocity. 'ndims' refers to the number of physical dimensions that define the kinematic data (i.e. X and Y)
+        neural_data ((nt, nch) or list of (nt, nch)): Input neural data (:math:`R`) to regress against kinematic activity.
+        kin_data ((nt, ndim) or list of (nt, ndim)): Kinematic variables (:math:`M`), commonly position or instantaneous velocity. 'ndims' refers to the number of physical dimensions that define the kinematic data (i.e. X and Y)
         conc_proj_data (bool): If the projected neural data should be concatenated.
 
     Returns:
         tuple: Tuple containing:
-            | **(nch, ndim):** Subspace that best predicts kinematic variables.
+            | **(nch, ndim):** Subspace (:math:`\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
             | **((nt, nch) or list of (nt, ndim)):** Neural data projected onto task relevant subspace
 
     '''
@@ -221,7 +228,7 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     projected_data = []
     
     for itrial in range(ntrials):
-        projected_data.append(neural_data[itrial] @ np.linalg.pinv(task_subspace.T))
+        projected_data.append(neural_data[itrial] @ np.linalg.pinv(task_subspace))
 
     if conc_proj_data:
         return task_subspace.T, np.vstack(projected_data)
