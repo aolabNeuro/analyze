@@ -408,20 +408,28 @@ class ModelFitTests(unittest.TestCase):
         np.testing.assert_allclose(linear_fit[1:], ydata[1:])
 
     def test_calc_task_rel_dims(self):
-        test_data = np.array([1,2,3,4, 5])
+        test_data = np.array([0,1,2,3,4])
 
         # Test 2D kinematics condition
         velocity2D = np.tile(test_data,(2,1)).T
         data2D = np.tile(test_data,(3,1)).T
-        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims([data2D], [velocity2D])
-        np.testing.assert_allclose(task_subspace, np.zeros((3,2))+0.5)
+        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims(data2D, velocity2D)
+        M = np.ones((5,3))
+        M[:,1:] = velocity2D
+        np.testing.assert_allclose(data2D-np.mean(data2D,axis=0), np.round(M @ task_subspace.T, 10))
 
         # Test list concatenation
         task_subspace, _ = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D])
-        np.testing.assert_allclose(task_subspace, np.zeros((3,2))+0.5)
 
-        # Test data projection  
-        np.testing.assert_allclose(projected_data[0], velocity2D)
+        np.testing.assert_allclose(np.vstack([data2D, data2D])-np.mean(np.vstack([data2D, data2D]),axis=0),
+                                     np.round(np.vstack([M,M]) @ task_subspace.T, 10))
+
+        # Test output concatenation
+        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D], True)
+        np.testing.assert_allclose(np.vstack([data2D, data2D])-np.mean(np.vstack([data2D, data2D]),axis=0),
+                                     np.round(np.vstack([M,M]) @ task_subspace.T, 10))
+        np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
+
 
 class AccLLRTests(unittest.TestCase):
 
@@ -562,7 +570,6 @@ class AccLLRTests(unittest.TestCase):
         diff_selective_signal_len = 20
         altcond[:,2,1:3] = 0 # Make the signal less selective by making some trials 0
         sTime_alt, accllr_alt = aopy.analysis.accLLR_wrapper(altcond, nullcond, 'lfp', 1, match_selectivity=True)
-        print(sTime_alt)
         mask = np.logical_and(sTime_alt > 50, sTime_alt < 70)
 
         # Test wrapper with spike data and selectivity matching trial_average=False
@@ -708,7 +715,6 @@ class BehaviorMetricsTests(unittest.TestCase):
         reward_evt = 3
         expected_success_rate = np.ones(ntrials-window_size+1)*(1/5)
         success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
-        print(success_perc)
         np.testing.assert_allclose(success_perc, expected_success_rate)
 
     def test_compute_path_length_per_trajectory(self):

@@ -1374,7 +1374,7 @@ def match_selectivity_accLLR(test_data_altcond, train_data_altcond, train_data_n
 
         return noisy_test_data
 
-def calc_task_rel_dims(neural_data, kin_data):
+def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     '''
     Calculates the task relevant dimensions by regressing neural activity against kinematic data using least squares.
     If the input neural data is 3D, all trials will be concatenated to calculate the subspace. 
@@ -1382,33 +1382,65 @@ def calc_task_rel_dims(neural_data, kin_data):
 
 
     Args:
-        neural_data (list of (nt, nch) or (nt, nch)): Input neural data to regress against kinematic activity
-        kin_data (nt, ndim): Kinematic variables, commonly position or instantaneous velocity. 'ndims' refers to the number of physical dimensions that define the kinematic data (i.e. X and Y)
+        neural_data ((nt, nch) or list of (nt, nch)): Input neural data to regress against kinematic activity.
+        kin_data ((nt, ndim) or list of (nt, ndim)): Kinematic variables, commonly position or instantaneous velocity. 'ndims' refers to the number of physical dimensions that define the kinematic data (i.e. X and Y)
+        conc_proj_data (bool): If the projected neural data should be concatenated.
 
     Returns:
-        (nch, ndim): Subspace that best predicts kinematic variables.
-        (list )
+        tuple: Tuple containing:
+            | **(nch, ndim):** Subspace that best predicts kinematic variables.
+            | **((nt, nch) or list of (nt, ndim)):** Neural data projected onto task relevant subspace
 
     '''
+
     # If a list of segments from trials, concatenate them into one larget timeseries
     if type(neural_data) == list:
         ntrials = len(neural_data)
-        conc_neural_data = np.vstack(neural_data)
-        conc_kin_data = np.vstack(kin_data)
+
+        conc_neural_data = np.vstack(neural_data) #(nt, nch)
+        ntime = conc_neural_data.shape[0]
+        
+        # Set input neural data as a float
+        conc_neural_data = conc_neural_data.astype(float)
+
+        conc_kin_data = np.zeros((ntime,kin_data[0].shape[1]+1))*np.nan
+        conc_kin_data[:,0] = 1
+        conc_kin_data[:,1:] = np.vstack(kin_data)
+
+        # Center neural data:
+        conc_neural_data -= np.nanmean(conc_neural_data, axis=0)
+
+        # Calculate task relevant subspace 
+        task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ conc_neural_data
+    
     else:
+        # Save original neural data as a list
         neural_data = [neural_data]
+        
+        # Set input neural data as a float
+        neural_data_centered = neural_data[0].astype(float)
+        
+        # Center neural data:
+        neural_data_centered -= np.nanmean(neural_data_centered, axis=0)
+        ntime = neural_data_centered.shape[0]
+        conc_kin_data = np.zeros((ntime, kin_data.shape[1]+1))*np.nan
+        conc_kin_data[:,0] = 1
+        conc_kin_data[:,1:] = kin_data
+        
+        # Calculate task relevant subspace 
+        task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ neural_data_centered
         ntrials = 1
-
-    # Calculate task relevant subspace 
-    task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ conc_neural_data
-
+        
     # Project neural data onto task subspace
     projected_data = []
     
     for itrial in range(ntrials):
-        projected_data.append(neural_data[itrial] @ np.linalg.pinv(task_subspace))
+        projected_data.append(neural_data[itrial] @ np.linalg.pinv(task_subspace.T))
 
-    return task_subspace.T, projected_data
+    if conc_proj_data:
+        return task_subspace.T, np.vstack(projected_data)
+    else:    
+        return task_subspace.T, projected_data
 
 
     
