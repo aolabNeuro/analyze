@@ -194,7 +194,7 @@ def _parse_bmi3d_v1(data_dir, files):
         # Mask and detect BMI3D computer events from ecube
         event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
         ecube_sync_data = utils.mask_and_shift(digital_data, event_bit_mask)
-        if metadata_dict['sync_protocol_version'] < 12:
+        if metadata_dict['sync_protocol_version'] < 13:
             ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
                 rising=True, falling=False, min_pulse_width=metadata_dict['sync_pulse_width'])
         else:
