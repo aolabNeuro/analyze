@@ -160,12 +160,20 @@ class TestDigitalCalc(unittest.TestCase):
 class TestMath(unittest.TestCase):
 
     def test_derivative(self):
-        x = np.array([np.linspace(0, 10, 1000), np.linspace(0, 10, 1000)]).T
+        # Test 1D case 
+        x = np.linspace(0,10,1000)
         y = x**2
         dydx = derivative(x, y, norm=False)
         expected = x*2
         np.testing.assert_allclose(dydx, expected)
 
+        # Test 2D case with component-wise derivative
+        y = np.array([x**2, x**2]).T
+        dydx = derivative(x, y, norm=False)
+        expected = np.array([x*2, x*2]).T
+        np.testing.assert_allclose(dydx, expected)
+
+        # Test 2D case with norm derivative
         x = np.linspace(0, 10, 1000)
         y = np.array([x*2, x*2]).T
         dydx = derivative(x, y, norm=True)

@@ -391,8 +391,11 @@ def derivative(x, y, norm=True):
     if norm and dy.ndim > 1:
         dy = np.linalg.norm(dy, axis=1)
         dydx = dy/dx
-    elif not norm:
+    elif not norm and dy.ndim > 1:
         dydx = dy/np.expand_dims(dx, len(dy.shape)-1)
+    else:
+        dydx = dy/dx
+
     return dydx
 
 def calc_euclid_dist_mat(pos):
