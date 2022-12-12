@@ -160,7 +160,7 @@ class TestDigitalCalc(unittest.TestCase):
 class TestMath(unittest.TestCase):
 
     def test_derivative(self):
-        x = np.linspace(0, 10, 1000)
+        x = np.array([np.linspace(0, 10, 1000), np.linspace(0, 10, 1000)]).T
         y = x**2
         dydx = derivative(x, y, norm=False)
         expected = x*2

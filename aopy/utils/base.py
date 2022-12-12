@@ -381,16 +381,18 @@ def derivative(x, y, norm=True):
     Args:
         x (nt): independent variable, e.g. time
         y (nt, ...): dependent variable, e.g. position
-        norm (bool, optional): also compute the norm of y if it is multidimensional (default True)
+        norm (bool, optional): also compute the norm of y if it is multidimensional (default True). Set to false to output component wise derivative. 
 
     Returns:
         nt: derivative of y
     '''
     dy = np.gradient(y, axis=0, edge_order=2)
+    dx = np.gradient(x)
     if norm and dy.ndim > 1:
         dy = np.linalg.norm(dy, axis=1)
-    dx = np.gradient(x)
-    dydx = dy/dx
+        dydx = dy/dx
+    elif not norm:
+        dydx = dy/np.expand_dims(dx, len(dy.shape)-1)
     return dydx
 
 def calc_euclid_dist_mat(pos):
