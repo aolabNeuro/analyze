@@ -344,7 +344,7 @@ def load_bmi3d_root_metadata(data_dir, filename):
 #####################
 # Preprocessed data #
 #####################
-def get_velocity_segments(*args, norm=False, **kwargs):
+def get_velocity_segments(*args, norm=True, **kwargs):
     '''
     Estimates velocity from cursor position, then finds the trial segments for velocity using 
     :func:`~aopy.postproc.get_kinematic_segments()`.
