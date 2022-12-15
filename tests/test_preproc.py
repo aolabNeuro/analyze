@@ -1052,7 +1052,7 @@ class QualityTests(unittest.TestCase):
     def setUp(self):
         # Load some test data
         test_filepath = os.path.join(data_dir, "short headstage test")
-        self.data = load_ecube_data(test_filepath, 'Headstages')
+        self.data = load_ecube_data(test_filepath, 'Headstages', channels=range(1,9))
         self.samplerate = 25000
         self.lf_c = 100.
         self.win_t = 0.1
@@ -1069,7 +1069,7 @@ class QualityTests(unittest.TestCase):
             sg_over_t = self.over_t,
             sg_bw = self.bandwidth
         )
-        self.assertEqual(bad_ch.shape, (64,))
+        self.assertEqual(bad_ch.shape, (8,))
         # self.assertEqual(np.count_nonzero(bad_ch), 64)
 
     def test_high_freq_data_detection(self):
