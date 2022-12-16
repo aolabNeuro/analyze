@@ -9,5 +9,5 @@ This module contains functions for ancillary but extracategorical tasks commonly
 API
 ---
 
-.. automodule:: aopy.utils
+.. automodule:: aopy.utils.base
     :members:

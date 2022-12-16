@@ -21,9 +21,9 @@ import pandas as pd
 from tqdm import tqdm
 import pandas as pd
 
-from . import postproc
-from . import analysis
-from .data import load_chmap
+from .. import postproc
+from .. import analysis
+from ..data import load_chmap
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''

@@ -5,10 +5,10 @@
 import numpy as np
 import math
 import warnings
-from . import precondition
-from .preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
-from .utils import derivative
-from .data import load_hdf_group, load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
+from .. import precondition
+from ..preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
+from ..utils import derivative
+from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
@@ -331,6 +331,10 @@ def get_velocity_segments(*args, **kwargs):
             | **velocities (ntrial):** array of velocity estimates for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
     '''
+
+    warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
+        "Please update your code.", DeprecationWarning, stacklevel=2)
+
     return get_kinematic_segments(*args, **kwargs, preproc=derivative)
 
 
@@ -373,6 +377,9 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
             | **trial_segments (ntrial):** array of numeric code segments for each trial
         
     '''
+    warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
+        "Please update your code.", DeprecationWarning, stacklevel=2)
+
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
 
     if datatype == 'cursor':
@@ -456,6 +463,9 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
 
     '''
+    warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
+        "Please update your code.", DeprecationWarning, stacklevel=2)
+
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
     samplerate = lfp_metadata['lfp_samplerate']
@@ -496,6 +506,9 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
 
 
     '''
+    warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
+        "Please update your code.", DeprecationWarning, stacklevel=2)
+
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
     samplerate = lfp_metadata['lfp_samplerate']
@@ -529,6 +542,9 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     Returns:
         ndarray: (ntarg x 3) array of coordinates of the given targets
     '''
+    warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
+        "Please update your code.", DeprecationWarning, stacklevel=2)
+        
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     try:
         trials = data['trials']
@@ -555,5 +571,8 @@ def get_source_files(preproc_dir, subject, te_id, date):
             |** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
             |** data_dir (str):** directory where the source files were located
     '''
+    warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
+        "Please update your code.", DeprecationWarning, stacklevel=2)
+        
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
