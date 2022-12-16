@@ -106,7 +106,7 @@ def calc_success_rate_trials(trial_success, trial_time, window_size=None):
 
     Args:
         trial_success ((ntrial,) bool array): list of trials where success is non-zero and failure is zero
-        trial_time ((ntrial,) array): list of the time taken in each time (e.g. acquisition time)
+        trial_time ((ntrial,) array): list of the time taken in each trial (e.g. acquisition time)
         window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials 
             to include in each window. If None, this functions calculates the success percent across all trials.
 
