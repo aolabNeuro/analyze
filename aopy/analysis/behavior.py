@@ -47,7 +47,7 @@ def calc_success_percent_trials(trial_success, window_size=None):
         :func:`~aopy.analysis.calc_success_percent`
 
     Args:
-        trial_success ((ntrial,) bool array): list of trials where success is non-zero and failure is zero
+        trial_success ((ntrial,) bool array): boolean array of trials where success is non-zero and failure is zero
         window_size (int, optional): [in number of trials] For computing rolling success perecent. How many trials 
             to include in each window. If None, this functions calculates the success percent across all trials.
 
@@ -105,8 +105,8 @@ def calc_success_rate_trials(trial_success, trial_time, window_size=None):
         :func:`~aopy.analysis.calc_success_rate`
 
     Args:
-        trial_success ((ntrial,) bool array): list of trials where success is non-zero and failure is zero
-        trial_time ((ntrial,) array): list of the time taken in each trial (e.g. acquisition time)
+        trial_success ((ntrial,) bool array): boolean array of trials where success is non-zero and failure is zero
+        trial_time ((ntrial,) array): float array of the time taken in each trial (e.g. acquisition time)
         window_size (int, optional): [ntrials] For computing rolling success perecent. How many trials 
             to include in each window. If None, this functions calculates the success percent across all trials.
 
