@@ -581,7 +581,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(metadata['sync_protocol_version'], -1)
         self.assertIn('fps', metadata)
         self.assertAlmostEqual(metadata['fps'], 120.)
-        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['clock'].dtype.names)
         n_cycles = data['clock']['time'][-1] + 1
         self.assertEqual(len(data['clock']), n_cycles)
 
@@ -605,9 +605,8 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
         self.assertTrue(metadata['has_measured_timestamps'])
-        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
-        self.assertIn('timestamp_sync', data['clock'].dtype.names)
-        self.assertIn('timestamp', data['sync_events'].dtype.names)
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
         n_cycles = data['clock']['time'][-1] + 1
         # self.assertEqual(len(data['clock']), n_cycles)
 
@@ -631,9 +630,8 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
         self.assertEqual(len(data['measure_clock_online']), 1682)
         self.assertTrue(metadata['has_measured_timestamps'])
-        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
-        self.assertIn('timestamp_sync', data['clock'].dtype.names)
-        self.assertIn('timestamp', data['sync_events'].dtype.names)
+        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
         n_cycles = data['clock']['time'][-1]
         self.assertEqual(len(data['clock']), n_cycles)
         self.assertIn('clock', data)

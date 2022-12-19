@@ -7,15 +7,9 @@ This module contains functions written to load and save data.
 API
 ---
 
-.. automodule:: aopy.data.base
+.. automodule:: aopy.data
     :members:
 
-
-BMI3D
-^^^^^
-
-.. automodule:: aopy.data.bmi3d
-    :members:
 
 Peslab
 ^^^^^^

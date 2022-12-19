@@ -10,8 +10,6 @@ from datetime import datetime
 import os
 import sys
 import math
-from scipy.ndimage.interpolation import shift
-
 
 '''
 Test signals
@@ -152,8 +150,7 @@ def convert_analog_to_digital(analog_data, thresh=.3):
 
     return digital_data
 
-def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True, 
-        min_pulse_width=None):
+def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True):
     '''
     Finds the timestamp and corresponding value of all the bit flips in data. Assumes 
     the first element in data isn't a transition
@@ -172,22 +169,15 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alte
         rising (bool, optional): include low to high transitions
         falling (bool, optional): include high to low transitions
         check_alternating (bool, optional): if True, enforces that rising and falling
-            edges must be alternating. An edge is valid when it is no longer rising or falling.
-        min_pulse_width (float, optional): if not None, makes sure rising edges are
-            followed by a minimum pulse width before calculating edge values
+            edges must be alternating
 
     Returns:
         tuple: tuple containing:
             | **timestamps (nbitflips):** when the bits flipped
             | **values (nbitflips):** corresponding values for each change
     '''
-    digital_data = np.squeeze(np.uint64(digital_data)) # important conversion for binary math
-    if min_pulse_width:
-        channels = convert_digital_to_channels(digital_data)
-        channels = copy_edges_forwards(channels, int(samplerate*min_pulse_width)-1, axis=0)
-        digital_data = convert_channels_to_digital(channels)
 
-    # Find edges
+    digital_data = np.squeeze(np.uint64(digital_data)) # important conversion for binary math
     rising_idx = (~digital_data[:-1] & digital_data[1:]) > 0 # find low->high transitions
     falling_idx = (~digital_data[1:] & digital_data[:-1]) > 0
 
@@ -196,17 +186,14 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alte
     if check_alternating:
         all_edges = np.where(rising_idx | falling_idx)[0]
         next_edge_rising = True
-        next_edge_falling = True
         for idx in range(len(all_edges)):
             this_idx = all_edges[idx]
             if next_edge_rising and rising_idx[this_idx]:
                 # Expected rising and found rising
                 next_edge_rising = False 
-                next_edge_falling = True
-            elif next_edge_falling and falling_idx[this_idx]:
+            elif not next_edge_rising and falling_idx[this_idx]:
                 # Expected falling and found falling
                 next_edge_rising = True 
-                next_edge_falling = False
             elif idx > 0: # skip the first edge since there is no previous edge
                 # Unexpected; there must be an extra edge somewhere.
                 # We will count this one as valid and the previous one as invalid
@@ -292,21 +279,6 @@ def convert_digital_to_channels(data_64_bit):
     packed = np.squeeze(np.uint64(data_64_bit)) # required conversion to unsigned int
     unpacked = np.unpackbits(packed.view(np.dtype('<u1')), bitorder='little')
     return unpacked.reshape((packed.size, 64))
-
-def convert_channels_to_digital(data_channels):
-    '''
-    Converts binary channels from eCube into 64-bit digital data.
-
-    Args:
-        data_channels (n, 64): where channel 0 is least significant bit
-
-    Returns:
-        (n): masked 64-bit data, little-endian
-    '''
-
-    # Take the input, split into bytes, then unpack each byte, all little endian
-    packed = np.packbits(data_channels, bitorder='little').view(np.dtype('<u8'))
-    return np.squeeze(packed)
     
 def get_edges_from_onsets(onsets, pulse_width):
     '''
@@ -384,32 +356,6 @@ def max_repeated_nans(a):
         idx = np.nonzero(mask[1:] != mask[:-1])[0]
         return (idx[1::2] - idx[::2]).max()
 
-def copy_edges_forwards(data, n_steps, axis=0):
-    '''
-    Basically forces pulses to have a fixed width
-
-    Note: 
-        Only works for 1- or 2-D arrays
-    '''
-    if data.ndim == 1:
-        data = np.expand_dims(data, 1)
-    if axis != 0:
-        data = data.T
-    edges = (~data[:-1] & data[1:]) > 0 # find low->high transitions
-    edges = np.insert(edges, 0, False, axis=0) # first element never a transition
-    shift_amount = np.zeros((edges.ndim,))
-    shift_amount[0] = 1
-    for n in range(n_steps):
-        edges_shifted = np.roll(edges, 1, axis=0)
-        edges_shifted[0,:] = 0
-        edges = np.logical_or(edges, edges_shifted)
-    if axis != 0:
-        edges = edges.T
-    return np.squeeze(edges)
-
-'''
-Other utils
-'''
 # simple progressbar, not tied to the iterator
 def print_progress_bar(count, total, status=''):
     """print_progress_bar

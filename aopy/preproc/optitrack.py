@@ -1,6 +1,5 @@
 from .. import utils
 from .. import data as aodata
-from ..data import optitrack as ot
 import numpy as np
 
 def parse_optitrack(data_dir, files):
@@ -22,8 +21,8 @@ def parse_optitrack(data_dir, files):
 
     # Load frame data
     optitrack_filename = files['optitrack']
-    optitrack_metadata = ot.load_optitrack_metadata(data_dir, optitrack_filename)
-    optitrack_pos, optitrack_rot = ot.load_optitrack_data(data_dir, optitrack_filename)
+    optitrack_metadata = aodata.load_optitrack_metadata(data_dir, optitrack_filename)
+    optitrack_pos, optitrack_rot = aodata.load_optitrack_data(data_dir, optitrack_filename)
 
     # Load timing data from the ecube if present
     if 'ecube' in files:
@@ -61,7 +60,7 @@ def parse_optitrack(data_dir, files):
     # Otherwise just use the frame timing from optitrack
     else:
         print("Warning: using optitrack's internal timing")
-        optitrack_timestamps = ot.load_optitrack_time(data_dir, optitrack_filename)
+        optitrack_timestamps = aodata.load_optitrack_time(data_dir, optitrack_filename)
 
     # Organize everything into dictionaries
     optitrack = np.empty((len(optitrack_timestamps),), dtype=[('timestamp', 'f8'), ('position', 'f8', (3,)), ('rotation', 'f8', (4,))])

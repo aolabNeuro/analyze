@@ -8,5 +8,5 @@ outlier detection, and initial filtering, among others.
 API
 ---
 
-.. automodule:: aopy.precondition.base
+.. automodule:: aopy.precondition
     :members:

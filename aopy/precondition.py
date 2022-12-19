@@ -9,8 +9,8 @@ from scipy.signal import butter, lfilter, filtfilt, decimate, windows
 import numpy as np
 import math
 
-from .. import analysis
-from .. import utils
+from . import analysis
+from . import utils
 '''
 Filter functions
 '''
