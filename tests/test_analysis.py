@@ -888,6 +888,11 @@ class BehaviorMetricsTests(unittest.TestCase):
         success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt, window_size=window_size)
         np.testing.assert_allclose(success_perc, expected_success_perc)
 
+        # Test calling the trial helper function directly with trial separated data
+        trial_success = [0, 1, 1, 0]
+        success_perc = aopy.analysis.calc_success_percent_trials(trial_success)
+        self.assertEqual(success_perc, 0.5)
+
     def test_calc_success_rate(self):
         # Test integer events
         events = [0, 2, 4, 6, 0, 2, 3, 6]
@@ -917,6 +922,12 @@ class BehaviorMetricsTests(unittest.TestCase):
         success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
         print(success_perc)
         np.testing.assert_allclose(success_perc, expected_success_rate)
+
+        # Test calling the trial helper function directly with trial separated data
+        trial_success = [0, 1, 1, 0]
+        trial_time = [0.5, 0.3, 0.1, 0.2]
+        success_perc = aopy.analysis.calc_success_rate_trials(trial_success, trial_time)
+        self.assertEqual(success_perc, 2/1.1)
 
     def test_compute_path_length_per_trajectory(self):
         pts = [(0,0), (0,1), (3,1), (3,0)]
