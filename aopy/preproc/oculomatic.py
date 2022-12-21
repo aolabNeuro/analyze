@@ -1,6 +1,7 @@
 from .. import data as aodata
+from .. import precondition
 
-def parse_oculomatic(data_dir, files, debug=True):
+def parse_oculomatic(data_dir, files, downsamplerate=480, debug=True):
     """
     Loads eye data from ecube and hdf data. 
     
@@ -45,11 +46,13 @@ def parse_oculomatic(data_dir, files, debug=True):
     eye_metadata['channels'] = eye_channels
     eye_metadata['labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
     
-    # get eye data
+    # Get eye data and downsample
     analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
-    eye_metadata['samplerate'] = analog_metadata['samplerate']
-    eye_metadata['n_samples'] = analog_data.shape[0]
-    
+    raw_samplerate = analog_metadata['samplerate']
+    downsample_data = precondition.downsample(analog_data, raw_samplerate, downsamplerate)
+    eye_metadata['samplerate'] = downsamplerate
+    eye_metadata['n_samples'] = downsample_data.shape[0]
+
     #scale eye data from bits to volts
     if 'voltsperbit' in analog_metadata:
         analog_voltsperbit = analog_metadata['voltsperbit']
@@ -58,6 +61,6 @@ def parse_oculomatic(data_dir, files, debug=True):
     eye_metadata['units'] = 'volts'
         
     eye_data = {
-        'data': analog_data * analog_voltsperbit
+        'data': downsample_data * analog_voltsperbit
     }
     return eye_data, eye_metadata
