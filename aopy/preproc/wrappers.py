@@ -52,6 +52,9 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             eye_filename,
             overwrite=overwrite,
         )
+        eye_data, eye_metadata = load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
+        assert 'raw_data' in eye_data
+        assert eye_data['raw_data'].shape == (eye_metadata['n_samples'], eye_metadata['n_channels'])
     if 'broadband' in preproc_jobs:
         print('processing broadband data...')
         broadband_filename = get_preprocessed_filename(subject, te_id, date, 'broadband')
@@ -62,6 +65,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             broadband_filename,
             overwrite=overwrite
         )
+        broadband_data, broadband_metadata = load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
+        assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
         lfp_filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
@@ -73,11 +78,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             overwrite=overwrite,
             filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
         )
-
-        # Also do some sanity checks to make sure the data was properly converted
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
-        assert lfp_metadata['samplerate'] == 1000
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''

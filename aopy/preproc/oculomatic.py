@@ -41,12 +41,14 @@ def parse_oculomatic(data_dir, files, debug=True):
         eye_channels = [10, 11, 8, 9]
         if debug: print(f'No metadata from BMI3D, assuming eye channels {eye_channels} ')
         
+    eye_metadata['n_channels'] = len(eye_channels)
     eye_metadata['channels'] = eye_channels
     eye_metadata['labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
     
     # get eye data
     analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
     eye_metadata['samplerate'] = analog_metadata['samplerate']
+    eye_metadata['n_samples'] = analog_data.shape[0]
     
     #scale eye data from bits to volts
     if 'voltsperbit' in analog_metadata:
