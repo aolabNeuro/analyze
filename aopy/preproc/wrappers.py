@@ -4,7 +4,8 @@ from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
-from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename, load_preproc_lfp_data
+from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
+from ..data import load_preproc_lfp_data, load_preproc_broadband_data, load_preproc_eye_data
 import os
 import h5py
 
@@ -52,8 +53,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             eye_filename,
             overwrite=overwrite,
         )
-        eye_data, eye_metadata = load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
-        assert 'raw_data' in eye_data
+        eye_data, eye_metadata = load_preproc_eye_data(preproc_dir_base, subject, te_id, date)
+        assert 'raw_data' in eye_data.keys(), "No eye data found"
         assert eye_data['raw_data'].shape == (eye_metadata['n_samples'], eye_metadata['n_channels'])
     if 'broadband' in preproc_jobs:
         print('processing broadband data...')
@@ -65,7 +66,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             broadband_filename,
             overwrite=overwrite
         )
-        broadband_data, broadband_metadata = load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
+        broadband_data, broadband_metadata = load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
         assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
