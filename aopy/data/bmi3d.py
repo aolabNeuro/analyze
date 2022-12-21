@@ -1,4 +1,4 @@
-from aopy.preproc.base import get_data_segments, get_trial_segments, interp_timestamps2timeseries, trial_align_data
+from ..preproc.base import get_data_segments, get_trial_segments, interp_timestamps2timeseries, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
