@@ -3,7 +3,6 @@
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
 import platform
-import resource
 import numpy as np
 import re
 from datetime import datetime
@@ -500,6 +499,7 @@ def set_memory_limit_gb(size_gb):
     if platform.system() != "Linux":
         print('Only works on linux!')
         return
+    import resource
     maxsize = int(1e9*size_gb)
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     resource.setrlimit(resource.RLIMIT_AS, (maxsize, hard))
@@ -514,6 +514,7 @@ def get_memory_limit_gb():
     if platform.system() != "Linux":
         print('Only works on linux!')
         return
+    import resource
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     if soft == resource.RLIM_INFINITY:
         return
@@ -527,5 +528,6 @@ def release_memory_limit():
     if platform.system() != "Linux":
         print('Only works on linux!')
         return
+    import resource
     soft, hard = resource.getrlimit(resource.RLIMIT_AS)
     resource.setrlimit(resource.RLIMIT_AS, (resource.RLIM_INFINITY, hard))
