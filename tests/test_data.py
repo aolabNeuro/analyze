@@ -339,7 +339,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Plot eye trajectories - expect same 9 trials but no eye pos to plot
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye')
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape, (32917, 4)) # two eyes x and y
+        self.assertEqual(trajs[1].shape, (632, 4)) # two eyes x and y
         plt.figure()
         visualization.plot_trajectories(trajs[:2], bounds=bounds)
         figname = 'get_eye_trajectories.png'
