@@ -562,11 +562,12 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
         trials = data['trials']
     except:
         trials = data['bmi3d_trials']
-    locations = []
+    locations = np.nan*np.zeros((len(target_indices), 3))
     for i in range(len(target_indices)):
-        trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
-        locations.append(trials['target'][trial_idx][[0,2,1]])
-    return np.array(locations)
+        trial_idx = np.where(trials['index'] == target_indices[i])[0]
+        if len(trial_idx) > 0:
+            locations[i,:] = trials['target'][trial_idx[0]][[0,2,1]] # use x,y,z format
+    return locations
 
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
