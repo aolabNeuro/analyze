@@ -567,6 +567,8 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
         trial_idx = np.where(trials['index'] == target_indices[i])[0]
         if len(trial_idx) > 0:
             locations[i,:] = trials['target'][trial_idx[0]][[0,2,1]] # use x,y,z format
+        else:
+            raise ValueError(f"Target index {target_indices[i]} not found")
     return locations
 
 def get_source_files(preproc_dir, subject, te_id, date):
