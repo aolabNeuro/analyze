@@ -344,13 +344,14 @@ def load_bmi3d_root_metadata(data_dir, filename):
 #####################
 # Preprocessed data #
 #####################
-def get_velocity_segments(*args, **kwargs):
+def get_velocity_segments(*args, norm=True, **kwargs):
     '''
     Estimates velocity from cursor position, then finds the trial segments for velocity using 
     :func:`~aopy.postproc.get_kinematic_segments()`.
     
     Args:
         *args: arguments for :func:`~aopy.postproc.get_kinematic_segments`
+        norm (bool): if the output segments should be normalized. Set to false to output component velocities.
         **kwargs: parameters for :func:`~aopy.postproc.get_kinematic_segments`
         
     Returns:
@@ -358,7 +359,7 @@ def get_velocity_segments(*args, **kwargs):
             | **velocities (ntrial):** array of velocity estimates for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
     '''
-    return get_kinematic_segments(*args, **kwargs, preproc=derivative)
+    return get_kinematic_segments(*args, **kwargs, preproc=lambda x, y: derivative(x, y, norm=norm))
 
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 

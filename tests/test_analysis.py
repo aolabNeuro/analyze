@@ -184,6 +184,29 @@ class misc_tests(unittest.TestCase):
         expected_outliers_dist = np.array([1, 0, 0, 1])
         np.testing.assert_allclose(outliers_dist, expected_outliers_dist)
 
+    def test_calc_task_rel_dims(self):
+        test_data = np.array([0,1,2,3,4])
+
+        # Test 2D kinematics condition
+        velocity2D = np.tile(test_data,(2,1)).T
+        data2D = np.tile(test_data,(3,1)).T
+        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims(data2D, velocity2D)
+        M = np.ones((5,3))
+        M[:,1:] = velocity2D
+        np.testing.assert_allclose(data2D-np.mean(data2D,axis=0), np.round(M @ task_subspace.T, 10))
+
+        # Test list concatenation
+        task_subspace, _ = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D])
+
+        np.testing.assert_allclose(np.vstack([data2D, data2D])-np.mean(np.vstack([data2D, data2D]),axis=0),
+                                     np.round(np.vstack([M,M]) @ task_subspace.T, 10))
+
+        # Test output concatenation
+        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D], True)
+        np.testing.assert_allclose(np.vstack([data2D, data2D])-np.mean(np.vstack([data2D, data2D]),axis=0),
+                                     np.round(np.vstack([M,M]) @ task_subspace.T, 10))
+        np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
+
 class tuningcurve_fitting_tests(unittest.TestCase):
     def test_run_tuningcurve_fit(self):
         nunits = 7
@@ -865,6 +888,11 @@ class BehaviorMetricsTests(unittest.TestCase):
         success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt, window_size=window_size)
         np.testing.assert_allclose(success_perc, expected_success_perc)
 
+        # Test calling the trial helper function directly with trial separated data
+        trial_success = [0, 1, 1, 0]
+        success_perc = aopy.analysis.calc_success_percent_trials(trial_success)
+        self.assertEqual(success_perc, 0.5)
+
     def test_calc_success_rate(self):
         # Test integer events
         events = [0, 2, 4, 6, 0, 2, 3, 6]
@@ -894,6 +922,12 @@ class BehaviorMetricsTests(unittest.TestCase):
         success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
         print(success_perc)
         np.testing.assert_allclose(success_perc, expected_success_rate)
+
+        # Test calling the trial helper function directly with trial separated data
+        trial_success = [0, 1, 1, 0]
+        trial_time = [0.5, 0.3, 0.1, 0.2]
+        success_perc = aopy.analysis.calc_success_rate_trials(trial_success, trial_time)
+        self.assertEqual(success_perc, 2/1.1)
 
     def test_compute_path_length_per_trajectory(self):
         pts = [(0,0), (0,1), (3,1), (3,0)]

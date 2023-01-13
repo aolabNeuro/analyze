@@ -357,7 +357,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.close()
 
         # Try cursor velocity
-        vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
+        # Test normalized output
+        vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=True)
         self.assertEqual(len(vel), 9)
         self.assertEqual(vel[1].shape, (32917,))
         plt.figure()
@@ -365,6 +366,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'get_trial_velocities.png'
         visualization.savefig(write_dir, figname)
         plt.close()
+
+        # Test component wise velocity output
+        vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
+        self.assertEqual(len(vel), 9)
+        self.assertEqual(vel[1].shape, (32917, 2))
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
