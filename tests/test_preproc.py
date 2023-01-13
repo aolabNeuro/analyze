@@ -802,6 +802,22 @@ class TestPrepareExperiment(unittest.TestCase):
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
         self.assertEqual(metadata['sync_protocol_version'], 12)
 
+    def test_parse_bmi3d_v13(self):
+        files = {}
+        files['hdf'] = 'beig20230109_15_te7977.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.check_required_fields(data, metadata)
+        files['ecube'] = '2023-01-09_BMI3D_te7977'
+
+        # Reduce the file size so we can upload it to github
+        # analog_data, metadata = aodata.load_ecube_analog(data_dir, files['ecube'])
+        # analog_data = analog_data[:25000*60,:8]
+        # filename = utils.save_test_signal_ecube(analog_data, data_dir, 1, datasource='AnalogPanel')
+
+        # There is a pause bug that should be corrected
+        data, metadata = parse_bmi3d(data_dir, files) # with ecube data
+        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+
     def test_parse_oculomatic(self):
         files = {}
         files['ecube'] = '2021-09-30_BMI3D_te2952'

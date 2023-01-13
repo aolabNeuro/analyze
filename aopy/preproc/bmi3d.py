@@ -89,9 +89,10 @@ def parse_bmi3d(data_dir, files):
         metadata['bmi3d_parser'] = 0
         metadata['sync_protocol_version'] = sync_version
 
-    elif sync_version < 12:
+    elif sync_version < 14:
         data, metadata = _parse_bmi3d_v1(data_dir, files)
         metadata['bmi3d_parser'] = 1
+
     else:
         print("Warning: this bmi3d sync version is untested!")
         data, metadata = _parse_bmi3d_v1(data_dir, files)
@@ -194,12 +195,14 @@ def _parse_bmi3d_v1(data_dir, files):
         # Mask and detect BMI3D computer events from ecube
         event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
         ecube_sync_data = utils.mask_and_shift(digital_data, event_bit_mask)
-        if metadata_dict['sync_protocol_version'] < 13:
+        ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
+            rising=True, falling=False)
+        if np.min(np.diff(ecube_sync_timestamps)) < metadata_dict['sync_pulse_width']:
+            print(f"Correcting sync pulse width in {ecube_filename}")
+            # There can occasionally be a compression of the pause event that smears it across multiple 
+            # digital lines _-‾ and it shows up as multiple events very close together.
             ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
                 rising=True, falling=False, min_pulse_width=metadata_dict['sync_pulse_width'])
-        else:
-            ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
-                rising=True, falling=False)
         sync_event_names, sync_event_data = decode_events(metadata_dict['event_sync_dict'], ecube_sync_events)
         sync_events = np.empty((len(ecube_sync_timestamps),), dtype=[('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         sync_events['timestamp'] = ecube_sync_timestamps
