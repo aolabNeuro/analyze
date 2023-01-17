@@ -1044,6 +1044,7 @@ class ProcTests(unittest.TestCase):
 
         self.assertEqual(lfp_data.shape, (1000, 8))
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
+        self.assertEqual(lfp_metadata['samplerate'], 1000)
 
 class QualityTests(unittest.TestCase):
 
