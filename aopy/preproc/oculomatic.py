@@ -1,7 +1,7 @@
 from .. import precondition
 from .. import data as aodata
 
-def parse_oculomatic(data_dir, files, downsamplerate=480, debug=True):
+def parse_oculomatic(data_dir, files, samplerate=480, debug=True):
     """
     Loads eye data from ecube and hdf data. 
     
@@ -17,6 +17,7 @@ def parse_oculomatic(data_dir, files, downsamplerate=480, debug=True):
     Args:
         data_dir (str): folder containing the data you want to load
         files (dict): a dictionary that has 'ecube' as the key
+        samplerate (float, optional): sampling rate to output in Hz. Default 480. 
         debug (bool, optional): prints debug information
 
     Returns:
@@ -42,14 +43,16 @@ def parse_oculomatic(data_dir, files, downsamplerate=480, debug=True):
         eye_channels = [10, 11, 8, 9]
         if debug: print(f'No metadata from BMI3D, assuming eye channels {eye_channels} ')
         
+    eye_metadata['n_channels'] = len(eye_channels)
     eye_metadata['channels'] = eye_channels
     eye_metadata['labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
     
     # Get eye data and downsample
     analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
     raw_samplerate = analog_metadata['samplerate']
-    downsample_data = precondition.downsample(analog_data, raw_samplerate, downsamplerate)
-    eye_metadata['samplerate'] = downsamplerate
+    downsample_data = precondition.downsample(analog_data, raw_samplerate, samplerate)
+    eye_metadata['samplerate'] = samplerate
+    eye_metadata['n_samples'] = downsample_data.shape[0]
     
     #scale eye data from bits to volts
     if 'voltsperbit' in analog_metadata:

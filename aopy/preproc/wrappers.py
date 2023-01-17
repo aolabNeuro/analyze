@@ -5,9 +5,9 @@ from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
 from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
+from ..data import load_preproc_lfp_data, load_preproc_broadband_data, load_preproc_eye_data
 import os
 import h5py
-
 
 '''
 proc_* wrappers
@@ -25,10 +25,12 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         preproc_jobs (list): list of proc_types to generate
         overwrite (bool, optional): Overwrite files in result_dir. Defaults to False.
     '''
-    if subject not in preproc_dir:
+    if os.path.basename(os.path.normpath(preproc_dir)) != subject:
         preproc_dir = os.path.join(preproc_dir, subject)
     if not os.path.exists(preproc_dir):
         os.mkdir(preproc_dir)
+    preproc_dir_base = os.path.dirname(preproc_dir)
+
     if 'exp' in preproc_jobs:
         print('processing experiment data...')
         exp_filename = get_preprocessed_filename(subject, te_id, date, 'exp')
@@ -51,6 +53,9 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             eye_filename,
             overwrite=overwrite,
         )
+        eye_data, eye_metadata = load_preproc_eye_data(preproc_dir_base, subject, te_id, date)
+        assert 'raw_data' in eye_data.keys(), "No eye data found"
+        assert eye_data['raw_data'].shape == (eye_metadata['n_samples'], eye_metadata['n_channels'])
     if 'broadband' in preproc_jobs:
         print('processing broadband data...')
         broadband_filename = get_preprocessed_filename(subject, te_id, date, 'broadband')
@@ -61,6 +66,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             broadband_filename,
             overwrite=overwrite
         )
+        broadband_data, broadband_metadata = load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
+        assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
         lfp_filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
@@ -72,6 +79,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             overwrite=overwrite,
             filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
         )
+        lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
+        assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
@@ -334,8 +343,8 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
         chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
         lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
         downsample_factor = int(samplerate/lfp_samplerate)
-        lfp_samples = np.ceil(metadata['n_samples']/downsample_factor)
-        n_channels = metadata['n_channels']
+        lfp_samples = int(np.ceil(metadata['n_samples']/downsample_factor))
+        n_channels = int(metadata['n_channels'])
 
         # Create an hdf dataset
         result_filepath = os.path.join(result_dir, result_filename)
@@ -351,10 +360,13 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
             n_samples += chunk_len
         hdf.close()
 
-    # Append the lfp metadata to the file
-    lfp_metadata = metadata
-    lfp_metadata['lfp_samplerate'] = lfp_samplerate
-    lfp_metadata['low_cut'] = 500
-    lfp_metadata['buttord'] = 4
-    lfp_metadata.update(filter_kwargs)
+        # Append the lfp metadata to the file
+        lfp_metadata = metadata
+        lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
+        lfp_metadata['samplerate'] = lfp_samplerate
+        lfp_metadata['n_samples'] = lfp_samples
+        lfp_metadata['low_cut'] = 500
+        lfp_metadata['buttord'] = 4
+        lfp_metadata.update(filter_kwargs)
+
     save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)

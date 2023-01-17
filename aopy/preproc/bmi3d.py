@@ -13,6 +13,7 @@ from .. import utils
 from .. import analysis
 from .. import visualization
 from ..postproc import get_source_files
+from ..precondition import downsample
 from ..utils import detect_edges
 from .base import get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries
 
@@ -58,6 +59,28 @@ def decode_events(dictionary, values):
     '''
     tuples = [decode_event(dictionary, value) for value in values]
     return list(zip(*tuples))
+
+def _correct_hand_traj(hand_position, cursor_position):
+    '''
+    This function removes hand position data points when the cursor is simultaneously stationary in all directions.
+    These hand position data points are artifacts. 
+        
+    Args:
+        hand_position (nt, 3): Uncorrected hand position
+        cursor_position (nt, 3): Cursor position from the same experiment, used to find where the hand position is invalid.
+    
+    Returns:
+        hand_position (nt, 3): Corrected hand position
+    '''
+
+    # Set hand position to np.nan if the cursor position doesn't update. This indicates an optitrack error moved the hand outside the boundary.
+    bad_pt_mask = np.zeros(cursor_position.shape, dtype=bool) 
+    bad_pt_mask[1:,0] = (np.diff(cursor_position, axis=0)==0)[:,0] & (np.diff(cursor_position, axis=0)==0)[:,1] & (np.diff(cursor_position, axis=0)==0)[:,2]
+    bad_pt_mask[1:,1] = (np.diff(cursor_position, axis=0)==0)[:,0] & (np.diff(cursor_position, axis=0)==0)[:,1] & (np.diff(cursor_position, axis=0)==0)[:,2]
+    bad_pt_mask[1:,2] = (np.diff(cursor_position, axis=0)==0)[:,0] & (np.diff(cursor_position, axis=0)==0)[:,1] & (np.diff(cursor_position, axis=0)==0)[:,2]
+    hand_position[bad_pt_mask] = np.nan
+
+    return hand_position
 
 def parse_bmi3d(data_dir, files):
     '''
@@ -426,17 +449,33 @@ def _prepare_bmi3d_v1(data, metadata):
         cursor_data_cycles = task['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
         clock = corrected_clock['timestamp_sync']
         assert cursor_data_cycles.shape[0] == len(clock), f"Cursor data and clock should have the same number of cycles ({cursor_data_cycles.shape[0]} vs {len(clock)})"
-        cursor_samplerate = metadata['analog_samplerate']
-        time = np.arange(int((clock[-1] + 10)*metadata['analog_samplerate']))/cursor_samplerate
+        time = np.arange(int((clock[-1] + 10)*metadata['analog_samplerate']))/metadata['analog_samplerate']
         cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
+        cursor_samplerate = metadata['fps']
+        cursor_data_time = downsample(cursor_data_time, metadata['analog_samplerate'], cursor_samplerate)
         data['cursor_interp'] = cursor_data_time
         metadata['cursor_interp_samplerate'] = cursor_samplerate
-
+  
     # In some versions of BMI3D, hand position contained erroneous data
     # caused by `np.empty()` instead of `np.nan`. The 'clean_hand_position' 
     # replaces these bad data with `np.nan`.
     if isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
-        data['clean_hand_position'] = aodata.bmi3d._correct_hand_traj(task)
+        clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
+        if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
+            data['clean_hand_position'] = clean_hand_position
+
+    # Interpolate clean hand kinematics
+    if 'timestamp_sync' in corrected_clock.dtype.names and 'clean_hand_position' in data:
+        hand_data_cycles = data['clean_hand_position']
+        cursor_data_cycles = task['cursor']
+        clock = corrected_clock['timestamp_sync']
+        samplerate = metadata['analog_samplerate']
+        time = np.arange(int((clock[-1] + 10)*samplerate))/samplerate
+        hand_data_time, _ = interp_timestamps2timeseries(clock, hand_data_cycles, sampling_points=time, interp_kind='linear')
+        hand_samplerate = metadata['fps']
+        hand_data_time = downsample(hand_data_time, metadata['analog_samplerate'], hand_samplerate)
+        data['hand_interp'] = hand_data_time
+        metadata['hand_interp_samplerate'] = hand_samplerate
 
     data.update({
         'task': task,
