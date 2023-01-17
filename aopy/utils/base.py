@@ -385,7 +385,18 @@ def max_repeated_nans(a):
 
 def copy_edges_forwards(data, n_steps, axis=0):
     '''
-    Basically forces pulses to have a fixed width
+    Forces pulses to have a fixed width of eactly n_steps. First, find the rising edges of the data,
+    then copy them forwards n_steps times. Works across multiple channels simulatenously but is still
+    quite slow. Future enhancement could maybe work one channel at a time and place the edges directly
+    where they need to go.
+
+    Args:
+        data ((nt,) or (nt, nch)): digital data
+        n_steps (int): how many timesteps should pulses be
+        axis (int, optional): along which axis to copy edges. Default 0.
+
+    Returns:
+        (nt,) or (nt, nch): digital data but with fixed pulse widths
 
     Note: 
         Only works for 1- or 2-D arrays
@@ -396,8 +407,6 @@ def copy_edges_forwards(data, n_steps, axis=0):
         data = data.T
     edges = (~data[:-1] & data[1:]) > 0 # find low->high transitions
     edges = np.insert(edges, 0, False, axis=0) # first element never a transition
-    shift_amount = np.zeros((edges.ndim,))
-    shift_amount[0] = 1
     for n in range(n_steps):
         edges_shifted = np.roll(edges, 1, axis=0)
         edges_shifted[0,:] = 0
