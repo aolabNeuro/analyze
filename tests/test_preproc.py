@@ -581,7 +581,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(metadata['sync_protocol_version'], -1)
         self.assertIn('fps', metadata)
         self.assertAlmostEqual(metadata['fps'], 120.)
-        self.assertIn('timestamp', data['clock'].dtype.names)
+        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
         n_cycles = data['clock']['time'][-1] + 1
         self.assertEqual(len(data['clock']), n_cycles)
 
@@ -605,8 +605,9 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
         self.assertTrue(metadata['has_measured_timestamps'])
-        self.assertIn('timestamp', data['clock'].dtype.names)
-        self.assertIn('timestamp', data['events'].dtype.names)
+        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
+        self.assertIn('timestamp_sync', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['sync_events'].dtype.names)
         n_cycles = data['clock']['time'][-1] + 1
         # self.assertEqual(len(data['clock']), n_cycles)
 
@@ -630,8 +631,9 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
         self.assertEqual(len(data['measure_clock_online']), 1682)
         self.assertTrue(metadata['has_measured_timestamps'])
-        self.assertIn('timestamp', data['clock'].dtype.names)
-        self.assertIn('timestamp', data['events'].dtype.names)
+        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
+        self.assertIn('timestamp_sync', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['sync_events'].dtype.names)
         n_cycles = data['clock']['time'][-1]
         self.assertEqual(len(data['clock']), n_cycles)
         self.assertIn('clock', data)
@@ -799,6 +801,22 @@ class TestPrepareExperiment(unittest.TestCase):
         # This is a laser only experiment which does not contain any task data
         data, metadata = parse_bmi3d(data_dir, files) # and with ecube data
         self.assertEqual(metadata['sync_protocol_version'], 12)
+
+    def test_parse_bmi3d_v13(self):
+        files = {}
+        files['hdf'] = 'beig20230109_15_te7977.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.check_required_fields(data, metadata)
+        files['ecube'] = '2023-01-09_BMI3D_te7977'
+
+        # Reduce the file size so we can upload it to github
+        # analog_data, metadata = aodata.load_ecube_analog(data_dir, files['ecube'])
+        # analog_data = analog_data[:25000*60,:8]
+        # filename = utils.save_test_signal_ecube(analog_data, data_dir, 1, datasource='AnalogPanel')
+
+        # There is a pause bug that should be corrected
+        data, metadata = parse_bmi3d(data_dir, files) # with ecube data
+        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
 
     def test_parse_oculomatic(self):
         files = {}
@@ -1051,7 +1069,7 @@ class QualityTests(unittest.TestCase):
     def setUp(self):
         # Load some test data
         test_filepath = os.path.join(data_dir, "short headstage test")
-        self.data = load_ecube_data(test_filepath, 'Headstages')
+        self.data = load_ecube_data(test_filepath, 'Headstages', channels=range(1,9))
         self.samplerate = 25000
         self.lf_c = 100.
         self.win_t = 0.1
@@ -1068,7 +1086,7 @@ class QualityTests(unittest.TestCase):
             sg_over_t = self.over_t,
             sg_bw = self.bandwidth
         )
-        self.assertEqual(bad_ch.shape, (64,))
+        self.assertEqual(bad_ch.shape, (8,))
         # self.assertEqual(np.count_nonzero(bad_ch), 64)
 
     def test_high_freq_data_detection(self):
