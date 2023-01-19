@@ -407,6 +407,10 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         locs = get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices)
         self.assertEqual(locs.shape, (9, 3))
 
+        # If you supply an invalid target index it should raise an error
+        target_indices = np.array([10])
+        self.assertRaises(ValueError, lambda: get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices))
+
     def test_get_source_files(self):
         subject = 'beignet'
         te_id = 5974
