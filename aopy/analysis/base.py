@@ -204,7 +204,8 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
         conc_neural_data -= np.nanmean(conc_neural_data, axis=0)
 
         # Calculate task relevant subspace 
-        task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ conc_neural_data
+        # task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ conc_neural_data
+        task_subspace = np.linalg.pinv(conc_neural_data.T @ conc_neural_data) @ conc_neural_data.T @ conc_kin_data
     
     else:
         # Save original neural data as a list
@@ -221,7 +222,7 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
         conc_kin_data[:,1:] = kin_data
         
         # Calculate task relevant subspace 
-        task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ neural_data_centered
+        task_subspace = np.linalg.pinv(conc_neural_data.T @ conc_neural_data) @ conc_neural_data.T @ conc_kin_data
         ntrials = 1
         
     # Project neural data onto task subspace
