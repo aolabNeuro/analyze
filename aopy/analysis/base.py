@@ -222,19 +222,19 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
         conc_kin_data[:,1:] = kin_data
         
         # Calculate task relevant subspace 
-        task_subspace = np.linalg.pinv(conc_neural_data.T @ conc_neural_data) @ conc_neural_data.T @ conc_kin_data
+        task_subspace = np.linalg.pinv(neural_data_centered.T @ neural_data_centered) @ neural_data_centered.T @ conc_kin_data
         ntrials = 1
         
     # Project neural data onto task subspace
     projected_data = []
     
     for itrial in range(ntrials):
-        projected_data.append(neural_data[itrial] @ np.linalg.pinv(task_subspace))
+        projected_data.append(neural_data[itrial] @ task_subspace)
 
     if conc_proj_data:
-        return task_subspace.T, np.vstack(projected_data)
+        return task_subspace, np.vstack(projected_data)
     else:    
-        return task_subspace.T, projected_data
+        return task_subspace, projected_data
 
 '''
 METRIC CALCULATIONS
