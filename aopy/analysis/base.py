@@ -169,10 +169,10 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     .. math::
     
         R \\in \\mathbb{R}^{nt \\times nch}
-        M \\in \\mathbb{R}^{nt \\times ndim}
-        \\beta \\in \\mathbb{R}^{nch \\times ndim}
-        R = M\\beta^T
-        [\\beta_0 \beta_x \beta_y]^T = (M^T M)^{-1} M^T R
+        M \\in \\mathbb{R}^{nt \\times nkin}
+        \\beta \\in \\mathbb{R}^{nch \\times nkin}
+        M = R \\beta^T
+        [\\beta_0 \\beta_x \\beta_y] = (R^T R)^{-1} R^T M
 
     Args:
         neural_data ((nt, nch) or list of (nt, nch)): Input neural data (:math:`R`) to regress against kinematic activity.
@@ -181,7 +181,7 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
 
     Returns:
         tuple: Tuple containing:
-            | **(nch, ndim):** Subspace (:math:`\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
+            | **(nch, ndim):** Subspace (:math:`\\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
             | **((nt, nch) or list of (nt, ndim)):** Neural data projected onto task relevant subspace
 
     '''

@@ -190,21 +190,22 @@ class misc_tests(unittest.TestCase):
         # Test 2D kinematics condition
         velocity2D = np.tile(test_data,(2,1)).T
         data2D = np.tile(test_data,(3,1)).T
-        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims(data2D, velocity2D)
+        task_subspace, projected_data = calc_task_rel_dims(data2D, velocity2D)
         M = np.ones((5,3))
         M[:,1:] = velocity2D
-        np.testing.assert_allclose(data2D-np.mean(data2D,axis=0), np.round(M @ task_subspace.T, 10))
+
+        np.testing.assert_allclose(data2D, np.round(M @ np.linalg.pinv(task_subspace), 10))
 
         # Test list concatenation
-        task_subspace, _ = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D])
+        task_subspace, _ = calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D])
 
-        np.testing.assert_allclose(np.vstack([data2D, data2D])-np.mean(np.vstack([data2D, data2D]),axis=0),
-                                     np.round(np.vstack([M,M]) @ task_subspace.T, 10))
+        np.testing.assert_allclose(np.vstack([data2D, data2D]),
+                                    np.round(np.vstack([M,M]) @ np.linalg.pinv(task_subspace), 10))
 
         # Test output concatenation
-        task_subspace, projected_data = aopy.analysis.calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D], True)
-        np.testing.assert_allclose(np.vstack([data2D, data2D])-np.mean(np.vstack([data2D, data2D]),axis=0),
-                                     np.round(np.vstack([M,M]) @ task_subspace.T, 10))
+        task_subspace, projected_data = calc_task_rel_dims([data2D, data2D], [velocity2D, velocity2D], True)
+        np.testing.assert_allclose(np.vstack([data2D, data2D]),
+                                    np.round(np.vstack([M,M]) @ np.linalg.pinv(task_subspace), 10))
         np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
 
 class tuningcurve_fitting_tests(unittest.TestCase):
