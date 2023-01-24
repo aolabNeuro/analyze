@@ -267,6 +267,10 @@ datasets here as they become available.
      - BMI3D data - a laser only experiment which does not contain any task data
    * - `2022-10-02_BMI3D_te6890`
      - eCube data - sync version 12 - including some real headstage ECoG data, although it is truncated in length
+   * - `beig20230109_15_te7977.hdf`
+     - BMI3D data - tracking task experiment
+   * - `2023-01-09_BMI3D_te7977`
+     - eCube data - sync version 13 - from the above tracking task experiment, including an instance of the "pause bug"
    * - `test20210330_12_te1254.hdf`
      - BMI3D data - sync version 2
    * - `fake ecube data`

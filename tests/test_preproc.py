@@ -818,6 +818,12 @@ class TestPrepareExperiment(unittest.TestCase):
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
         self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
 
+        # Test a file with no sync events to make sure we're not breaking things
+        files['hdf'] = 'beig20221002_09_te6890.hdf'
+        files['ecube'] = '2022-10-02_BMI3D_te6890'
+        data, metadata = parse_bmi3d(data_dir, files) # with ecube data
+        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+
     def test_parse_oculomatic(self):
         files = {}
         files['ecube'] = '2021-09-30_BMI3D_te2952'
