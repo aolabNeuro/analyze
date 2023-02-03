@@ -3,19 +3,23 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
+from ..preproc.base import dpsschk
+
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
 from sklearn import model_selection
-
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
 
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
+from scipy.fft import fft
+
 import warnings
 import nitime.algorithms as tsa
 import pywt
+import math
 
 from .. import utils
 from .. import preproc
@@ -697,6 +701,76 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
     fxx = _f
 
     return fxx, txx, Sxx
+
+def tfspec(X, n, p, k, fs, dn=None, fk=None, pad=2, ref=True):
+    '''
+    Compute multitaper estimate from multichannel signal input. This code is Pesaran lab code.
+    
+    Args:
+        X (nt, nch): time series array
+        n (int): window length in seconds
+        p (int): standardized half bandwidth in hz
+        k (int): number of DPSS tapers to use
+        fs (float): sampling rate
+        dn (float): window step. Defaults to dn = n/10.
+        fk (float): frequency range to return in Hz ([0, fk]). Defaults to fs/2.
+        pad (int):  padding factor for the FFT. This should be 1 or a multiple of 2.
+                    For N=500, if pad=1, we pad the FFT to 512 points.
+                    If pad=2, we pad the FFT to 1024 points. 
+                    If pad=4, we pad the FFT to 2024 points.
+        ref (bool): referencing flag. If True, mean of neural signals across electrodes 
+                    for each time window is subtracted to remove common noise
+                    so that you can get spacially-localized signals.
+                    If you only analyze single channel data, this has to be False.
+                    This paper discuss referencing scheme
+                    https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
+                       
+    Returns:
+        f (n_freq): frequency axis for spectrogram
+        t (n_time): time axis for spectrogram
+        spec (n_freq,n_time,nch): multitaper spectrogram estimate
+
+    '''
+    if X.ndim == 1: X = np.reshape(X,(-1,1))
+    if X.shape[1] == 1: ref = False
+    if dn == None: dn = n/10
+    if fk == None: fk = fs/2
+        
+    X = X.T
+    nch,nt = X.shape
+    fk = np.array([0,fk])
+    tapers, _ = dpsschk(n*fs, p, k)
+    
+    N = tapers.shape[0]
+    dn = int(np.floor(dn*fs))
+    nf = np.max([256,pad*2**nextpow2(N+1)])
+    nfk = np.floor(fk/fs*nf)
+    nwin = int(np.floor((nt-N)/dn))
+    f = np.linspace(fk[0],fk[1],int(np.diff(nfk)))
+
+    spec = np.zeros((nch,nwin,int(np.diff(nfk))),dtype = 'complex_')
+    for win in range(nwin):
+        if ref:
+            mX = np.sum(X[:,dn*win:dn*win+N],axis=0,keepdims=True)/nch # Mean across channels for that window
+            tmp = (X[:,dn*win:dn*win+N]-np.tile(mX[0,:],(nch,1))).T # Subtract mean from data            
+        else:
+            tmp = (X[:,dn*win:dn*win+N]).T
+        
+        for ich in range(nch):
+            Xk = fft(tapers*np.tile(tmp[:,ich],(k,1)).T, nf, axis=0)
+            Xk = Xk[int(nfk[0]):int(nfk[1]),:]
+            spec[ich,win,:] = (np.sum(Xk*Xk.conj(),axis=1)/k).T
+    spec = spec.real.T
+    
+    t = np.arange(nwin)*dn + n/2 # Center of each window is time axis
+    
+    def nextpow2(x):
+        #   Next higher power of 2.
+        #   NEXTPOW2(N) returns the first P such that 2.^P >= abs(N).
+        #   It is often useful for finding the nearest power of two sequence length for FFT operations.
+        return 1 if x == 0 else math.ceil(math.log2(x))
+
+    return f, t, spec
 
 def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
     '''
