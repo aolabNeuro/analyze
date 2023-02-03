@@ -3,7 +3,7 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
-from ..preproc.base import dpsschk
+from ..precondition.base import dpsschk
 
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
