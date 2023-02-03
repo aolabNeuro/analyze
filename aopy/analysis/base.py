@@ -730,7 +730,13 @@ def tfspec(X, n, p, k, fs, dn=None, fk=None, pad=2, ref=True):
         t (n_time): time axis for spectrogram
         spec (n_freq,n_time,nch): multitaper spectrogram estimate
 
-    '''
+    '''   
+    def nextpow2(x):
+        #   Next higher power of 2.
+        #   NEXTPOW2(N) returns the first P such that 2.^P >= abs(N).
+        #   It is often useful for finding the nearest power of two sequence length for FFT operations.
+        return 1 if x == 0 else math.ceil(math.log2(x))
+    
     if X.ndim == 1: X = np.reshape(X,(-1,1))
     if X.shape[1] == 1: ref = False
     if dn == None: dn = n/10
@@ -764,11 +770,7 @@ def tfspec(X, n, p, k, fs, dn=None, fk=None, pad=2, ref=True):
     
     t = np.arange(nwin)*dn + n/2 # Center of each window is time axis
     
-    def nextpow2(x):
-        #   Next higher power of 2.
-        #   NEXTPOW2(N) returns the first P such that 2.^P >= abs(N).
-        #   It is often useful for finding the nearest power of two sequence length for FFT operations.
-        return 1 if x == 0 else math.ceil(math.log2(x))
+
 
     return f, t, spec
 
