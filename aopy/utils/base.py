@@ -383,16 +383,20 @@ def max_repeated_nans(a):
         idx = np.nonzero(mask[1:] != mask[:-1])[0]
         return (idx[1::2] - idx[::2]).max()
 
-def copy_edges_forwards(data, n_steps, axis=0):
+def copy_edges_forwards(data, n_steps, truncate_edges=False, copy_per_step=False, axis=0):
     '''
     Forces pulses to have a fixed width of eactly n_steps. First, find the rising edges of the data,
-    then copy them forwards n_steps times. Works across multiple channels simulatenously but is still
-    quite slow. Future enhancement could maybe work one channel at a time and place the edges directly
-    where they need to go.
+    then copy them forwards n_steps times. Works across multiple channels simulatenously.
 
     Args:
         data ((nt,) or (nt, nch)): digital data
         n_steps (int): how many timesteps should pulses be
+        truncate_edges (bool, optional): if True, then edges will always be set to n_steps length. 
+            If false, then edges that are longer than n_steps will remain the same length. Default False.
+        copy_per_step (bool, optional): copy edges one step at a time or one edge at a time; changes
+            processing time but output stays the same. If there are long edges, the default option False
+            is faster. If there are a lot of short edges, then setting copy_per_step=True will be faster. 
+            Default False.
         axis (int, optional): along which axis to copy edges. Default 0.
 
     Returns:
@@ -405,15 +409,26 @@ def copy_edges_forwards(data, n_steps, axis=0):
         data = np.expand_dims(data, 1)
     if axis != 0:
         data = data.T
+    nt = data.shape[0]
     edges = (~data[:-1] & data[1:]) > 0 # find low->high transitions
     edges = np.insert(edges, 0, False, axis=0) # first element never a transition
-    for n in range(n_steps):
-        edges_shifted = np.roll(edges, 1, axis=0)
-        edges_shifted[0,:] = 0
-        edges = np.logical_or(edges, edges_shifted)
+    if not copy_per_step:
+        # Find the edges, set their pulses directly
+        idx = np.where(edges)
+        for e_idx in zip(idx[0],idx[1]):
+            edges[e_idx[0]:min(nt,e_idx[0]+n_steps+1),e_idx[1]] = 1
+    else:
+        # For all of the data at once, shift to the right by n_steps, or-ing with edges at each step
+        for n in range(n_steps):
+            edges_shifted = np.roll(edges, 1, axis=0)
+            edges_shifted[0,:] = 0
+            edges = np.logical_or(edges, edges_shifted)
     if axis != 0:
         edges = edges.T
-    return np.squeeze(edges)
+        data = data.T
+    if truncate_edges:
+        return np.squeeze(edges)
+    return np.squeeze(edges | data)
 
 '''
 Other utils

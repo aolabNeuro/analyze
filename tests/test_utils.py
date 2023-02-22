@@ -1,3 +1,4 @@
+import time
 from aopy.utils import *
 from aopy.visualization import plot_timeseries, savefig
 import os
@@ -115,11 +116,11 @@ class TestDigitalCalc(unittest.TestCase):
         np.testing.assert_allclose(values, [3, 0, 3, 0, 7, 0])
 
         # Test using min_pulse_width
-        test_bool = [1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0]
+        test_bool = [1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0] # Note the first 1 doesn't count as an edge!
         test_int = [0, 0, 4, 0, 3, 2, 0, 0, 0, 0, 0]
         ts, values = detect_edges(test_bool, 1, min_pulse_width=4)
-        np.testing.assert_allclose(ts,  [2, 8])  # Can't get falling edge without rising edge in this case
-        np.testing.assert_allclose(values, [1, 0])
+        np.testing.assert_allclose(ts,  [1, 2, 8])  # Can't get falling edge without rising edge in this case
+        np.testing.assert_allclose(values, [0, 1, 0])
         
         ts, values = detect_edges(test_int, 1, min_pulse_width=4)
         np.testing.assert_allclose(ts, [4, 8]) # the rising edge isn't finished until index 4 now
@@ -184,13 +185,13 @@ class TestDigitalCalc(unittest.TestCase):
             [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0],
             [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
         ])
-        out = copy_edges_forwards(test_edges, 1)
+        out = copy_edges_forwards(test_edges, 1, truncate_edges=True)
         np.testing.assert_allclose(out, expected_edges[0])
 
-        out = copy_edges_forwards(test_edges, 2)
+        out = copy_edges_forwards(test_edges, 2, truncate_edges=True)
         np.testing.assert_allclose(out, expected_edges[1])
 
-        out = copy_edges_forwards(test_edges, 3)
+        out = copy_edges_forwards(test_edges, 3, truncate_edges=True)
         np.testing.assert_allclose(out, expected_edges[2])
 
         # Test with 2D array
@@ -202,14 +203,51 @@ class TestDigitalCalc(unittest.TestCase):
             [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0],
             [0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0]
         ])
-        out = copy_edges_forwards(test_edges, 1, axis=1)
+        out = copy_edges_forwards(test_edges, 1, axis=1, truncate_edges=True)
         print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges)
 
-        out = copy_edges_forwards(test_edges.T, 1, axis=0) # check axis=0 as well
+        out = copy_edges_forwards(test_edges.T, 1, axis=0, truncate_edges=True) # check axis=0 as well
         print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges.T)
 
+        # Test with no truncation
+        test_edges = np.array([1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0])
+        expected_edges = np.array([1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0])
+        out = copy_edges_forwards(test_edges, 1, truncate_edges=False)
+        print(out.astype(int))
+        np.testing.assert_allclose(out, expected_edges)
+
+        test_edges = np.array([
+            [0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0],
+            [0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0]
+        ])
+        expected_edges = np.array([
+            [0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0],
+            [0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0]
+        ])
+        out = copy_edges_forwards(test_edges, 1, axis=1, truncate_edges=False)
+        print(out.astype(int))
+        np.testing.assert_allclose(out, expected_edges)
+
+        out = copy_edges_forwards(test_edges.T, 1, axis=0, truncate_edges=False) # check axis=0 as well
+        print(out.astype(int))
+        np.testing.assert_allclose(out, expected_edges.T)
+
+        # Test super long sequence with lots of edges
+        test_edges = np.random.randint(10000, size=(25000*60,10)) < 1
+        n_edges = np.count_nonzero(test_edges)
+        n_steps = int(0.003*25000) # 3ms pulse at 25khz
+
+        t0 = time.perf_counter()
+        out = copy_edges_forwards(test_edges, n_steps, truncate_edges=False, copy_per_step=True)
+        t1 = time.perf_counter()
+        print(f"Copy-per-step method takes {t1-t0:0.2f} seconds on {n_edges} edges")
+
+        t0 = time.perf_counter()
+        out = copy_edges_forwards(test_edges, n_steps, truncate_edges=False, copy_per_step=False)
+        t1 = time.perf_counter()
+        print(f"Default method takes {t1-t0:0.2f} seconds on {n_edges} edges")
 
 class TestMath(unittest.TestCase):
 
