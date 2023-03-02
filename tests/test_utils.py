@@ -115,6 +115,12 @@ class TestDigitalCalc(unittest.TestCase):
         np.testing.assert_allclose(ts, [2, 3, 4, 7, 9, 13])
         np.testing.assert_allclose(values, [3, 0, 3, 0, 7, 0])
 
+        # Test setting first_valid = True, the first one should count instead of the last one
+        test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
+        ts, values = detect_edges(test_valid, 1, first_valid=True)
+        np.testing.assert_allclose(ts, [2, 3, 4, 5, 8, 10])
+        np.testing.assert_allclose(values, [3, 0, 3, 0, 7, 0])
+
         # Test using min_pulse_width
         test_bool = [1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0] # Note the first 1 doesn't count as an edge!
         test_int = [0, 0, 4, 0, 3, 2, 0, 0, 0, 0, 0]
@@ -176,7 +182,6 @@ class TestDigitalCalc(unittest.TestCase):
         np.testing.assert_allclose(testdata, packed)
 
     def test_copy_edges_forwards(self):
-        print("")
         test_edges = np.array(
             [0, 1, 0, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0]
         )
@@ -204,18 +209,15 @@ class TestDigitalCalc(unittest.TestCase):
             [0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0]
         ])
         out = copy_edges_forwards(test_edges, 1, axis=1, truncate_edges=True)
-        print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges)
 
         out = copy_edges_forwards(test_edges.T, 1, axis=0, truncate_edges=True) # check axis=0 as well
-        print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges.T)
 
         # Test with no truncation
         test_edges = np.array([1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0])
         expected_edges = np.array([1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0])
         out = copy_edges_forwards(test_edges, 1, truncate_edges=False)
-        print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges)
 
         test_edges = np.array([
@@ -227,11 +229,9 @@ class TestDigitalCalc(unittest.TestCase):
             [0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0]
         ])
         out = copy_edges_forwards(test_edges, 1, axis=1, truncate_edges=False)
-        print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges)
 
         out = copy_edges_forwards(test_edges.T, 1, axis=0, truncate_edges=False) # check axis=0 as well
-        print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges.T)
 
         # Test super long sequence with lots of edges

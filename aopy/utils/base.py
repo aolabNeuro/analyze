@@ -152,7 +152,7 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     return digital_data
 
 def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True, 
-        min_pulse_width=None):
+        first_valid=False, min_pulse_width=None):
     '''
     Finds the timestamp and corresponding value of all the bit flips in data. Assumes 
     the first element in data isn't a transition
@@ -172,6 +172,8 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alte
         falling (bool, optional): include high to low transitions
         check_alternating (bool, optional): if True, enforces that rising and falling
             edges must be alternating. An edge is valid when it is no longer rising or falling.
+        first_valid (bool, optional): if True, the first edge in a sequence of non-alternating
+            edges will be counted as a valid edge, and the rest as invalid edges. Default False.
         min_pulse_width (float, optional): if not None, makes sure rising edges are
             followed by a minimum pulse width before calculating edge values
 
@@ -206,12 +208,26 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alte
                 # Expected falling and found falling
                 next_edge_rising = True 
                 next_edge_falling = False
+            elif first_valid and idx > 0:
+                # Unexpected; there must be an extra edge somewhere.
+                # We will count this one as invalid
+                invalid[this_idx] = True
+                print(f"FIRST_VALID setting {this_idx} ({digital_data[this_idx]}) to be invalid")
+                # And copy this data to the previous valid index
+                # i = 1
+                # prev_idx = all_edges[idx-i]
+                # while invalid[prev_idx]:
+                #     i += 1
+                #     prev_idx = all_edges[idx-i]
+                # print(f"set {prev_idx} ({digital_data[prev_idx]}) to have {digital_data[this_idx]} from {this_idx}.. (normally would set {all_edges[idx-1]} as invalid)")
+                # digital_data[prev_idx] = digital_data[this_idx]
             elif idx > 0: # skip the first edge since there is no previous edge
                 # Unexpected; there must be an extra edge somewhere.
                 # We will count this one as valid and the previous one as invalid
                 prev_idx = all_edges[idx-1]
                 invalid[prev_idx] = True
-    
+                print(f"LAST_VALID setting {prev_idx} ({digital_data[prev_idx]}) to be invalid")
+
     # Assemble final index    
     logical_idx = np.zeros((len(digital_data)-1,), dtype='?')
     if rising:
