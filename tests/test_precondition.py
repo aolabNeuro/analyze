@@ -390,6 +390,11 @@ class SpikeDetectionTests(unittest.TestCase):
         self.assertEqual(time_bins[2], 0.025)
         self.assertEqual(time_bins[3], 0.035)
 
+class EyeTests(unittest.TestCase):
+
+    def test_detect_saccades(self):
+        pass
+
 if __name__ == "__main__":
     unittest.main()
 

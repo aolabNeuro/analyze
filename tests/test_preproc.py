@@ -829,6 +829,9 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('channels', metadata)
         self.assertIn('labels', metadata)
 
+    def test_detect_noise(self):
+        pass
+
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'

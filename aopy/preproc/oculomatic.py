@@ -1,5 +1,6 @@
 from .. import precondition
 from .. import data as aodata
+import numpy as np
 
 def parse_oculomatic(data_dir, files, samplerate=480, debug=True):
     """
@@ -65,3 +66,44 @@ def parse_oculomatic(data_dir, files, samplerate=480, debug=True):
         'data': downsample_data * analog_voltsperbit
     }
     return eye_data, eye_metadata
+
+def detect_noise(eye_data, samplerate, step_thr=3, t_closed_min=0.1):
+    '''
+    Detect noise in oculomatic eye data.
+    
+    Args:
+        eye_data (): unfiltered raw or calibrated eye position data
+        samplerate
+        t_closed_min
+        
+    Returns:
+        eye_closed_mask
+    '''
+    
+    time = np.arange(eye_data.shape[0])/samplerate
+    eye_closed_mask = np.zeros(eye_data.shape, dtype='bool')
+
+    # Detect when the eyes are closed -- oculomatic specific
+    for eye_idx in range(eye_data.shape[1]):
+        
+        # Find where value changes from one sample to next
+        diff = abs(np.diff(eye_data[:,eye_idx], axis=0))
+        step_size = np.min(diff[diff > 0])
+        change = diff > step_thr*step_size
+        change = np.insert(change, 0, True)
+        change_idx = np.where(change)[0]
+        
+        # Count the length of the gaps between those changes
+        repetitions = np.diff(change_idx)
+        repetitions = np.insert(repetitions, 0, True)
+
+        # Mask anything that is longer than a predetermined length
+        suspicious = repetitions > int(samplerate*t_closed_min)
+        suspicious_idx = change_idx[suspicious]
+        durations = repetitions[suspicious]
+        for idx in range(len(suspicious_idx)):
+            idx_end = suspicious_idx[idx]
+            idx_start = idx_end - durations[idx]
+            eye_closed_mask[idx_start:idx_end,eye_idx] = 1
+            
+    return eye_closed_mask

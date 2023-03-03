@@ -661,6 +661,21 @@ class PesaranLabTests(unittest.TestCase):
         test_data, test_exp, test_mask = peslab.load_ecog_clfp_data(test_ecog_ds250_data_file)
         self.assertEqual(test_data.shape,(10000,62))
 
+class EyeTests(unittest.TestCase):
+
+    def test_load_preproc_eye_data(self):
+
+        pass
+
+    def test_apply_eye_calibration(self):
+
+        pass
+
+    def test_proc_eye_day(self):
+
+        pass
+
+    
 
 if __name__ == "__main__":
     unittest.main()

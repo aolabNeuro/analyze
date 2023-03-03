@@ -480,7 +480,7 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
 def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            time_before, time_after, trial_filter=lambda x:True):
     '''
-    Loads lfp segments (different length for each trial) from a preprocessed HDF file. Trials can
+    Loads lfp data (same length for each trial) from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
     trials are included, for example. The filter is applied to numeric code segments for each trial. 
 

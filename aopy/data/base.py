@@ -5,6 +5,7 @@ import h5py
 import tables
 import os
 import glob
+import re
 import warnings
 import pickle as pkl
 import numpy as np
@@ -57,6 +58,31 @@ def get_preprocessed_filename(subject, te_id, date, data_source):
     '''  
     return f"preproc_{date}_{subject}_{te_id}_{data_source}.hdf"
 
+def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
+    '''
+    Returns the task entry ids that have preprocessed files in the given directory matching
+    the subject, date, and data source given.
+    
+    Args:
+        preproc_dir
+        subject
+        date
+        data_source
+        
+    Returns
+        list of ids
+    '''
+    contents = glob.glob(os.path.join(preproc_dir,subject,f"preproc_{date}_{subject}_*_{data_source}.hdf"))
+    ids = []
+    for file in contents:
+        try:
+            filename = os.path.basename(file)
+            te_id = int(re.match(f"preproc_{date}_{subject}_(\d*)_{data_source}.hdf$", filename).group(1))
+        except AttributeError:
+            return []
+        ids.append(te_id)
+    return ids
+
 def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     '''
     Loads experiment data from a preprocessed file.
@@ -75,26 +101,6 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     preproc_dir = os.path.join(preproc_dir, subject)
     data = load_hdf_group(preproc_dir, filename, 'exp_data')
     metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata')
-    return data, metadata
-
-def load_preproc_eye_data(preproc_dir, subject, te_id, date):
-    '''
-    Loads eye data from a preprocessed file.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-
-    Returns:
-        dict: Dictionary of eye data
-        dict: Dictionary of eye metadata
-    '''
-    filename = get_preprocessed_filename(subject, te_id, date, 'eye')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_group(preproc_dir, filename, 'eye_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata')
     return data, metadata
 
 def load_preproc_broadband_data(preproc_dir, subject, te_id, date):
