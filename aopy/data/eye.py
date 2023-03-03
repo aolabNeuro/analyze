@@ -2,28 +2,8 @@
 import os
 import numpy as np
 
-from .base import get_preprocessed_filename, load_hdf_group, save_hdf, find_preproc_ids_from_day
+from .base import get_preprocessed_filename, load_preproc_eye_data, save_hdf, find_preproc_ids_from_day
 from ..postproc import get_calibrated_eye_data
-
-def load_preproc_eye_data(preproc_dir, subject, te_id, date):
-    '''
-    Loads eye data from a preprocessed file.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-
-    Returns:
-        dict: Dictionary of eye data
-        dict: Dictionary of eye metadata
-    '''
-    filename = get_preprocessed_filename(subject, te_id, date, 'eye')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_group(preproc_dir, filename, 'eye_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata')
-    return data, metadata
 
 def apply_eye_calibration(coeff, preproc_dir, subject, te_id, date):
     '''

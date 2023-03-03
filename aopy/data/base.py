@@ -103,6 +103,26 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata')
     return data, metadata
 
+def load_preproc_eye_data(preproc_dir, subject, te_id, date):
+    '''
+    Loads eye data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+
+    Returns:
+        dict: Dictionary of eye data
+        dict: Dictionary of eye metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'eye')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    data = load_hdf_group(preproc_dir, filename, 'eye_data')
+    metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata')
+    return data, metadata
+
 def load_preproc_broadband_data(preproc_dir, subject, te_id, date):
     '''
     Loads broadband data from a preprocessed file.
