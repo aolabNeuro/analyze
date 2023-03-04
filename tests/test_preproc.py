@@ -820,20 +820,6 @@ class TestPrepareExperiment(unittest.TestCase):
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
         self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
 
-    def test_parse_oculomatic(self):
-        files = {}
-        files['ecube'] = '2021-09-30_BMI3D_te2952'
-        files['hdf'] = 'beig20210930_02_te2952.hdf'
-        data, metadata = parse_oculomatic(data_dir, files)
-
-        self.assertIn('data', data)
-        self.assertIn('samplerate', metadata)
-        self.assertIn('channels', metadata)
-        self.assertIn('labels', metadata)
-
-    def test_detect_noise(self):
-        pass
-
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
@@ -1113,6 +1099,17 @@ class QualityTests(unittest.TestCase):
 
 class OculomaticTests(unittest.TestCase):
     
+    def test_parse_oculomatic(self):
+        files = {}
+        files['ecube'] = '2021-09-30_BMI3D_te2952'
+        files['hdf'] = 'beig20210930_02_te2952.hdf'
+        data, metadata = parse_oculomatic(data_dir, files)
+
+        self.assertIn('data', data)
+        self.assertIn('samplerate', metadata)
+        self.assertIn('channels', metadata)
+        self.assertIn('labels', metadata)
+
     def test_detect_noise(self):
         test_data = np.concatenate((5*np.arange(500), 2496*np.ones(100),5*np.arange(500)))
         test_data = np.expand_dims(test_data, axis=1)
