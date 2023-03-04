@@ -53,6 +53,17 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
 
+    def test_find_preproc_ids_from_day(self):
+        ids = find_preproc_ids_from_day(write_dir, self.subject, self.date, 'exp')
+        self.assertIn(self.id, ids)
+        self.assertEqual(len(ids), 1)
+
+    def test_proc_eye_day(self):
+        self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
+        best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
+        self.assertIsNone(best_id)
+        self.assertCountEqual(te_ids, [6581, 6577])
+
 class OptitrackTests(unittest.TestCase):
         
     def test_load_mocap(self):
@@ -663,19 +674,36 @@ class PesaranLabTests(unittest.TestCase):
 
 class EyeTests(unittest.TestCase):
 
-    def test_load_preproc_eye_data(self):
-
-        pass
-
     def test_apply_eye_calibration(self):
 
-        pass
+        # Create a test hdf file
+        subject = 'test'
+        te_id = 1
+        date = 'calibration'
+        data_source = 'eye'
+        filename = get_preprocessed_filename(subject, te_id, date, data_source)
+        filepath = os.path.join(write_dir, subject, filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        data_dict = {
+            'raw_data': np.array([[0,0], [1,1]])
+        }
+        metadata_dict = {}
+        preproc_dir = os.path.join(write_dir, subject)
+        if not os.path.exists(preproc_dir):
+            os.mkdir(preproc_dir)
+        save_hdf(preproc_dir, filename, data_dict, data_group='/eye_data')
+        save_hdf(preproc_dir, filename, metadata_dict, '/eye_metadata', append=True)
 
-    def test_proc_eye_day(self):
+        # Apply a calibration
+        coeff = np.array([[3,4], [5,6]])
+        apply_eye_calibration(coeff, write_dir, subject, te_id, date)
 
-        pass
-
-    
+        # Check the result
+        eye_data, eye_metadata = load_preproc_eye_data(write_dir, subject, te_id, date)
+        self.assertIn('calibrated_data', eye_data)
+        self.assertIn('coefficients', eye_data)
+        self.assertIn('external_calibration', eye_metadata)    
 
 if __name__ == "__main__":
     unittest.main()

@@ -64,13 +64,13 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     the subject, date, and data source given.
     
     Args:
-        preproc_dir
-        subject
-        date
-        data_source
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        date (str): Date of recording
+        data_source (str): Processed data type (exp, eye, broadband, lfp, etc.)
         
     Returns
-        list of ids
+        list of ids: task entry id for each matching file found in the given folder
     '''
     contents = glob.glob(os.path.join(preproc_dir,subject,f"preproc_{date}_{subject}_*_{data_source}.hdf"))
     ids = []

@@ -10,34 +10,41 @@ def apply_eye_calibration(coeff, preproc_dir, subject, te_id, date):
     Apply eye calibration coefficients to a given preprocessed file.
     
     Args:
-        coeff
-        preproc_dir
-        subject
-        te_id
-        date
+        coeff ((nch,2) array): correlation coefficients to apply
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
     '''
     eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
     eye_data['calibrated_data'] = get_calibrated_eye_data(eye_data['raw_data'], coeff)
     eye_data['coefficients'] = coeff
     eye_metadata['external_calibration'] = True
     preproc_file = get_preprocessed_filename(subject, te_id, date, 'eye')
+    preproc_dir = os.path.join(preproc_dir, subject)
     save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
     save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
-def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9):
+def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False):
     '''
     Finds files from the given subject and date with the best eye calibration and automatically 
     applies it to every recording on that day for that subject. If no good calibration is found,
-    raises a ValueError exception. 
+    raises a ValueError exception.
     
     Args:
-        preproc_dir
-        subject
-        date
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        date (str): Date of recording
         correlation_min (float, optional): correlation below which is unacceptable
+        dry_run (bool, optional): if True, files will not be modified. 
         
     Raises:
         ValueError
+
+    Returns:
+        tuple: tuple containing:
+        | **best_id (int)**: the task entry id with the highest mean absolute value correlation coefficient
+        | **te_ids (list of int)**: the ids to which the coeff were applied
     '''
     
     # Find best calibration from the given subject and date 
@@ -63,10 +70,12 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9):
                          f" for {subject} on {date} (best {best_correlation})")
         
     # Apply that calibration to all the other files
+    te_ids = np.delete(te_ids, np.where(te_ids == best_id)[0])
     print(f"Applying eye calibration from {subject} block {te_id} on {date} (r={best_correlation})"
           f" to {len(te_ids)-1} files...")
+    if dry_run:
+        return best_id, te_ids
+
     for te_id in te_ids:
-        if te_id == best_id:
-            continue
         apply_eye_calibration(best_coeff, preproc_dir, subject, te_id, date)
-    
+    return best_id, te_ids

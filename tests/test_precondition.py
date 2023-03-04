@@ -1,5 +1,7 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
 import unittest
+from aopy.data.base import load_preproc_eye_data
+from aopy.precondition.eye import *
 from aopy.visualization import *
 import matplotlib.pyplot as plt
 from aopy import precondition
@@ -10,6 +12,7 @@ from scipy.signal import freqz
 
 test_dir = os.path.dirname(__file__)
 write_dir = os.path.join(test_dir, 'tmp')
+data_dir = os.path.join(test_dir, 'data')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 docs_dir = os.path.join(os.path.dirname(test_dir),'docs', 'source', '_images')
@@ -393,7 +396,35 @@ class SpikeDetectionTests(unittest.TestCase):
 class EyeTests(unittest.TestCase):
 
     def test_detect_saccades(self):
-        pass
+        preproc_dir = data_dir
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        
+        eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        calibrated_eye_data = eye_data['calibrated_data']
+        samplerate = eye_metadata['samplerate']
+
+        onset, duration, distance = detect_saccades(calibrated_eye_data[:,:2], samplerate, debug=True, debug_window=(0, 5))
+        savefig(docs_dir, 'detect_saccades.png')
+        plt.close()
+
+        plt.figure()
+        plt.hist(1000*duration)
+        plt.xlabel('Duration (ms)')
+        plt.figure()
+        plt.hist(distance)
+        plt.xlabel('Distance (cm)')
+        savefig(docs_dir, 'detect_saccades_hist.png')
+        plt.close()
+
+        plt.figure()
+        plt.scatter(1000*duration, distance)
+        plt.xlabel('Duration (ms)')
+        plt.ylabel('Distance (cm)')
+        savefig(docs_dir, 'detect_saccades_scatter.png')
+        plt.close()
+
 
 if __name__ == "__main__":
     unittest.main()

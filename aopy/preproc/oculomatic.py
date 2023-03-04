@@ -69,25 +69,29 @@ def parse_oculomatic(data_dir, files, samplerate=480, debug=True):
 
 def detect_noise(eye_data, samplerate, step_thr=3, t_closed_min=0.1):
     '''
-    Detect noise in oculomatic eye data.
+    Detect noise in oculomatic eye data. Searches for repeated data which indicates
+    that the subject's eyes were closed and returns a mask for each eye. Uses the
+    minimum step size in the data to estimate when the voltage has "changed" versus
+    when it is fluctuating because of measurement noise.
     
     Args:
-        eye_data (): unfiltered raw or calibrated eye position data
-        samplerate
-        t_closed_min
+        eye_data ((nt,nch) array): unfiltered raw or calibrated eye position data
+        samplerate (float): sampling rate of the eye data
+        step_thr (float, optional): multiple of the minimum step size to use as a threshold for 
+            detecting changing values in the eye data
+        t_closed_min (float, optional): number of seconds the data must remain unchanged to be
+            included in the eye closed mask
         
     Returns:
-        eye_closed_mask
+        (nt, nch) eye_closed_mask: boolean mask, True for each eye when it was probably closed.
     '''
-    
-    time = np.arange(eye_data.shape[0])/samplerate
     eye_closed_mask = np.zeros(eye_data.shape, dtype='bool')
 
     # Detect when the eyes are closed -- oculomatic specific
     for eye_idx in range(eye_data.shape[1]):
         
         # Find where value changes from one sample to next
-        diff = abs(np.diff(eye_data[:,eye_idx], axis=0))
+        diff = abs(np.diff(eye_data[:,eye_idx]))
         step_size = np.min(diff[diff > 0])
         change = diff > step_thr*step_size
         change = np.insert(change, 0, True)

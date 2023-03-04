@@ -4,10 +4,12 @@ from aopy import preproc
 from aopy import analysis
 from aopy.preproc import *
 from aopy.preproc.bmi3d import *
+from aopy.preproc import oculomatic
 from aopy.preproc import quality
 from aopy.data import *
 import numpy as np
 import unittest
+
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -1108,6 +1110,19 @@ class QualityTests(unittest.TestCase):
         sat_data_mask, sat_data_mask_all_ch = quality.saturated_data_detection(self.data, self.samplerate)
         self.assertEqual(sat_data_mask.shape, (self.data.shape[0],))
         self.assertEqual(np.count_nonzero(sat_data_mask), 0)
+
+class OculomaticTests(unittest.TestCase):
+    
+    def test_detect_noise(self):
+        test_data = np.concatenate((5*np.arange(500), 2496*np.ones(100),5*np.arange(500)))
+        test_data = np.expand_dims(test_data, axis=1)
+        samplerate = 1000
+        eye_closed_mask = oculomatic.detect_noise(test_data, samplerate)
+        
+        expected_mask = np.concatenate((np.zeros(500), np.ones(100), np.zeros(500)))
+        expected_mask = np.expand_dims(expected_mask, axis=1)
+        np.testing.assert_allclose(eye_closed_mask, expected_mask)
+
 
 if __name__ == "__main__":
     unittest.main()
