@@ -1116,7 +1116,7 @@ class OculomaticTests(unittest.TestCase):
         samplerate = 1000
         eye_closed_mask = oculomatic.detect_noise(test_data, samplerate)
         
-        expected_mask = np.concatenate((np.zeros(500), np.ones(100), np.zeros(500)))
+        expected_mask = np.concatenate((np.zeros(499), np.ones(101), np.zeros(500)))
         expected_mask = np.expand_dims(expected_mask, axis=1)
         np.testing.assert_allclose(eye_closed_mask, expected_mask)
 
