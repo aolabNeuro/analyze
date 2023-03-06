@@ -550,10 +550,20 @@ def downsample(data, old_samplerate, new_samplerate):
         data (nt, ...): timeseries data to be downsampled. Can be 1D or 2D.
         old_samplerate (float): the current sampling rate of the data
         new_samplerate (float): the desired sampling rate of the downsampled data
+        
+    Returns:
+        (nt, ...) downsampled data
     '''
     assert new_samplerate < old_samplerate
     assert data.ndim < 3 # doesn't work for more than 2 dimensions
 
+    # Check if the downsample factor will be an integer, otherwise we find a common divisor
+    if old_samplerate % new_samplerate != 0:
+        lcm = np.lcm(old_samplerate, new_samplerate) # least common multiple
+        print(f"Upsampling first to {lcm} Hz")
+        upsampled = np.repeat(data, lcm/old_samplerate, axis=0)
+        return downsample(upsampled, lcm, new_samplerate)
+        
     old_samples = data.shape[0]
     downsample_factor = int(old_samplerate/new_samplerate)
 
