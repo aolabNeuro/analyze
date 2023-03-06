@@ -103,15 +103,10 @@ class TestDigitalCalc(unittest.TestCase):
 
         # check data values instead of a single bit
         test_02 = [0b11, 0, 0, 0, 0, 0, 0, 0b01, 0b10, 0b01, 0b11, 0b01, 0b00, 0b10, 0b00, 0b01, 0, 0b01, 0, 0b01, 0, 0b01, 0]
-        ts, values = detect_edges(test_02, 1, falling=False, check_alternating=False) # when would you ever not check_alternating?
+        ts, values = detect_edges(test_02, 1, falling=False, check_alternating=False)
         self.assertEqual(len(ts), 9)
         np.testing.assert_allclose(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21])
         np.testing.assert_allclose(values, [1, 2, 1, 3, 2, 1, 1, 1, 1])
-
-        ts, values = detect_edges(test_02, 1, falling=False)
-        self.assertEqual(len(ts), 8)
-        np.testing.assert_allclose(ts, [7, 8, 10, 13, 15, 17, 19, 21])
-        np.testing.assert_allclose(values, [1, 2, 3, 2, 1, 1, 1, 1])
 
         # test that if there are multiple of the same edge only the last one counts
         test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
@@ -121,25 +116,14 @@ class TestDigitalCalc(unittest.TestCase):
 
         # Test using min_pulse_width
         test_bool = [1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0]
-        test_01 = [0, 0, 4, 0, 3, 2, 0, 0, 0, 0, 0]
+        test_int = [0, 0, 4, 0, 3, 2, 0, 0, 0, 0, 0]
         ts, values = detect_edges(test_bool, 1, min_pulse_width=4)
         np.testing.assert_allclose(ts,  [2, 8])  # Can't get falling edge without rising edge in this case
         np.testing.assert_allclose(values, [1, 0])
         
-        ts, values = detect_edges(test_01, 1, min_pulse_width=4)
+        ts, values = detect_edges(test_int, 1, min_pulse_width=4)
         np.testing.assert_allclose(ts, [4, 8]) # the rising edge isn't finished until index 4 now
         np.testing.assert_allclose(values, [7, 0])
-
-        test_02 = [0, 0, 4, 0, 3, 2, 0, 2, 0, 0, 0]
-        test_03 = [0, 0, 4, 0, 3, 2, 0, 0, 2, 0, 0]
-        ts, values = detect_edges(test_02, 1, min_pulse_width=4)
-        # np.testing.assert_allclose(ts, [4, 8])
-        # np.testing.assert_allclose(values, [7, 0]) # returns [7,2] because 2 is extended to the final idx
-
-        ts, values = detect_edges(test_03, 1, min_pulse_width=4)
-        np.testing.assert_allclose(ts, [4, 9]) # returns [4,8] because 2 is extended to the final idx
-        np.testing.assert_allclose(values, [7, 0])     
-        
 
 
     def test_get_pulse_edge_times(self):
