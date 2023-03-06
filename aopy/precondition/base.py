@@ -543,8 +543,9 @@ def bin_spike_times(spike_times, time_before, time_after, bin_width):
 def downsample(data, old_samplerate, new_samplerate):
     '''
     Downsample by averaging. Computes a downsample factor based on old_samplerate/new_samplerate.
-    Pads data to be a multiple of the downsample factor, then averages blocks into the new
-    samples. 
+    If the downsample factor is fractional, then first upsamples to the least common multiple of 
+    the two sampling rates. Finally, pads data to be a multiple of the downsample factor and 
+    averages blocks into the new samples. 
 
     Args:
         data (nt, ...): timeseries data to be downsampled. Can be 1D or 2D.
