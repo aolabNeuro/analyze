@@ -666,7 +666,13 @@ class TestPrepareExperiment(unittest.TestCase):
         end_states = [239] 
         trial_states, trial_idx = get_trial_segments(events['code'], events['timestamp'], start_states, end_states)
         self.assertEqual(len(trial_states), 10)
-    
+
+        # Test a file with no sync events to make sure we're not breaking things
+        files['hdf'] = 'beig20210930_02_te2952.hdf'
+        files['ecube'] = '2021-09-30_BMI3D_te2952'
+        data, metadata = parse_bmi3d(data_dir, files) # with ecube data
+        self.assertEqual(len(data['sync_events']), 3)
+
     def test_parse_bmi3d_v8(self):
         pass
 
@@ -815,12 +821,6 @@ class TestPrepareExperiment(unittest.TestCase):
         # filename = utils.save_test_signal_ecube(analog_data, data_dir, 1, datasource='AnalogPanel')
 
         # There is a pause bug that should be corrected
-        data, metadata = parse_bmi3d(data_dir, files) # with ecube data
-        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
-
-        # Test a file with no sync events to make sure we're not breaking things
-        files['hdf'] = 'beig20221002_09_te6890.hdf'
-        files['ecube'] = '2022-10-02_BMI3D_te6890'
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
         self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
 

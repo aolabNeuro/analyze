@@ -258,9 +258,9 @@ datasets here as they become available.
    * - `beig20210929_02_te2949.hdf`
      - BMI3D data - eyetracking test
    * - `2021-09-30_BMI3D_te2952`
-     - eCube data - another eyetracking test
+     - eCube data - another eyetracking test with 0 trials
    * - `beig20210930_02_te2952.hdf`
-     - BMI3D data - another eyetracking test
+     - BMI3D data - another eyetracking test with 0 trials
    * - `2021-12-13_BMI3D_te3498`
      - eCube data - sync version 7
    * - `beig20221002_09_te6890.hdf`
