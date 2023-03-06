@@ -388,6 +388,29 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(max_erp.shape[0], len(event_times)) 
         self.assertEqual(max_erp.shape[1], nch) 
 
+    def test_calc_corr2_map(self):
+        # Test correlation map
+        data1 = np.zeros((10,10))
+        data2 = np.zeros(data1.shape)
+        for irow in range(5):
+            data1[irow,:3] = np.arange(3)
+            data2[irow,:3] = np.arange(3)
+
+            NCC, _ = aopy.analysis.calc_corr2_map(data1, data2, 3, False)
+        
+        expected_NCC = np.zeros(data1.shape)
+        expected_NCC[:6,:4] = 1
+        np.testing.assert_allclose(NCC, expected_NCC)
+
+        # Test shifts
+        data2_shifted = np.roll(data2, 2, axis=0)
+
+        NCC2, shifts = aopy.analysis.calc_corr2_map(data1,data2_shifted, 3, True)
+        np.testing.assert_allclose(NCC2, expected_NCC)
+        self.assertEqual(shifts[0], -2)
+        self.assertEqual(shifts[1], 0)
+
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):
