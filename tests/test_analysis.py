@@ -390,37 +390,42 @@ class CalcTests(unittest.TestCase):
 
     def test_calc_corr2_map(self):
         # Test correlation map
-        data1 = np.zeros((10,10))
-        data2 = np.zeros(data1.shape)
-        for irow in range(5):
-            data1[irow,:3] = np.arange(3)+1
-            data2[irow,:3] = np.arange(3)+1
+        nrows = 11
+        ncols = 11
+        data1 = np.ones((nrows,ncols))
+        data2 = np.ones(data1.shape)
+        knlsz = 3
+        nrows_changed = 5
+        ncols_changed = 3
+        for irow in range(nrows_changed):
+            data2[irow,:ncols_changed] = np.arange(ncols_changed)+2
 
-        NCC, _ = aopy.analysis.calc_corr2_map(data1, data2, 3, False)
+        NCC, _ = aopy.analysis.calc_corr2_map(data1, data2, knlsz, False)
         
-        expected_NCC = np.zeros(data1.shape)
-        expected_NCC[:6,:4] = 1
-        np.testing.assert_allclose(NCC, expected_NCC)
+        knl_offset = int((knlsz-1)/2)
+        # # Check that everyone after the changed rows gives corr=1
+        self.assertAlmostEqual(np.sum(NCC[int(nrows_changed+knl_offset):,0]), int((nrows-(nrows_changed+knl_offset))), 3)
+        # Check that everyone after the changed col gives corr=1
+        self.assertAlmostEqual(np.sum(NCC[0,int(ncols_changed+knl_offset):]), int((ncols-(ncols_changed+knl_offset))), 3)
 
         # Test shifts
         data2_shifted = np.roll(data2, 2, axis=0)
 
-        NCC2, shifts = aopy.analysis.calc_corr2_map(data1,data2_shifted, 3, True)
-        np.testing.assert_allclose(NCC2, expected_NCC)
+        NCC2, shifts = aopy.analysis.calc_corr2_map(data2,data2_shifted, 3, True)
+        np.testing.assert_allclose(NCC2, np.ones((nrows, ncols)))
         self.assertEqual(shifts[0], -2)
         self.assertEqual(shifts[1], 0)
 
-        fig, [ax1, ax2, ax3, ax4] = plt.subplots(1,4, figsize=(14,3))
+        # Plot for example figure 
+        fig, [ax1, ax2, ax4] = plt.subplots(1,3, figsize=(12,3))
         im1 = ax1.pcolor(data1)
         ax1.set(title='Data 1')
         plt.colorbar(im1, ax=ax1)
-        im2 = ax2.pcolor(data2_shifted)
+        im2 = ax2.pcolor(data2)
         ax2.set(title='Data 2')
         plt.colorbar(im2, ax=ax2)
-        im3 = ax3.pcolor(data2)
-        ax3.set(title='Aligned Data 2')
-        plt.colorbar(im3, ax=ax3)
-        im4 = ax4.pcolor(NCC2)
+
+        im4 = ax4.pcolor(NCC)
         ax4.set(title='NCC')
         plt.colorbar(im4, ax=ax4)
         fig.tight_layout()

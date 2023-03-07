@@ -873,10 +873,8 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     maps by finding the location of the peak of the 2D correlation function. Note, if these shifts are unexpectedly high, there
     is likely not high enough correlation between the datamaps and alignment should not be used. This function uses 0-padding for all
     edge conditions and replaces input NaN values with 0 to calculate the correlation map. After the correlation map is calculated,
-    all values were NaN in the input data are again set to NaN.
-
-    The figure below shows two sample misaligned dataset. The third panel shows the aligned data and the right (NCC) panel shows the 
-    correlation map between data1 and the aligned data2 dataset.
+    all values were NaN in the input data are again set to NaN. If a window of data has all 0's, the NCC is set to nan. 
+    Note, the worst correlation in the example image is not at the edge of the image because of zero padding.
 
     .. image:: _images/calc_corr2_map.png
 
@@ -895,7 +893,6 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     # Make sure knlsz is odd
     if knlsz % 2 == 0:
         print('Warning: Kernel size (knlsz) is even in calc_corr2_map')
-
 
     NCC = np.zeros((data1.shape))
     data_sz = data1.shape[0]
@@ -937,7 +934,7 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
 
             # If either data subset is all 0's set the NCC to 0
             if np.linalg.norm(data_subset1)==0 or np.linalg.norm(data_subset2)==0:
-                NCC[xx - start_idx, yy - start_idx]
+                NCC[xx - start_idx, yy - start_idx] = np.nan
             else:
                 data_subset1 /= np.linalg.norm(data_subset1)
                 data_subset2 /= np.linalg.norm(data_subset2)
