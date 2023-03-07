@@ -5,6 +5,7 @@ from aopy.data import *
 from aopy.data import peslab
 from aopy.data import optitrack
 from aopy.data import bmi3d
+from aopy.postproc.base import get_calibrated_eye_data
 from aopy.visualization import *
 from aopy import preproc
 import unittest
@@ -319,7 +320,18 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         cls.subject = 'test'
         cls.te_id = 3498
         cls.date = '2021-12-13'
-        preproc.proc_single(data_dir, files, os.path.join(write_dir, cls.subject), cls.subject, cls.te_id, cls.date, ['exp', 'eye', 'lfp'], overwrite=True)
+        preproc_dir = os.path.join(write_dir, cls.subject)
+        preproc.proc_single(data_dir, files, preproc_dir, cls.subject, cls.te_id, cls.date, ['exp', 'eye', 'lfp'], overwrite=True)
+
+        # For eye data we need to additionally make a 'calibrated_data' entry
+        coeff = np.repeat([[0,0]],4,axis=1)
+        eye_data, eye_metadata = load_preproc_eye_data(write_dir, cls.subject, cls.te_id, cls.date)
+        eye_data['calibrated_data'] = get_calibrated_eye_data(eye_data['raw_data'], coeff)
+        eye_data['coefficients'] = coeff
+        eye_metadata['external_calibration'] = True
+        preproc_file = get_preprocessed_filename(cls.subject, cls.te_id, cls.date, 'eye')
+        save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
+        save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
     def test_get_kinematic_segments(self):
 
@@ -343,7 +355,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.figure()
         visualization.plot_trajectories(trajs[:2], bounds=bounds)
         figname = 'get_eye_trajectories.png'
-        visualization.savefig(write_dir, figname) # expect a bunch of noise
+        visualization.savefig(write_dir, figname) # expect zeros
         plt.close()
 
         # Plot hand trajectories - expect same 9 trials but hand kinematics.

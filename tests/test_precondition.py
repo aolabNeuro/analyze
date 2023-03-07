@@ -252,6 +252,27 @@ class FilterTests(unittest.TestCase):
         self.assertEqual(data_ds.shape, (10, 2))
         self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
 
+        # Test non-integer downsample factor
+        data_ds = precondition.downsample(data, 100, 13)
+        self.assertEqual(data_ds.shape, (13, 2))
+        self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
+
+        # Test large data with large upsampling rate
+        data = np.arange(1e7)
+        samplerate = 25000
+        ds_samplerate = 100
+        tic = time.perf_counter()
+        data_ds = precondition.downsample(data, samplerate, ds_samplerate)
+        toc = time.perf_counter()
+        print(f"Downsampling {len(data)/samplerate:0.2f} seconds of data from {samplerate} to {ds_samplerate} hz took {toc-tic:0.2f} seconds")
+
+        ds_samplerate = 120
+        tic = time.perf_counter()
+        data_ds = precondition.downsample(data, samplerate, ds_samplerate)
+        toc = time.perf_counter()
+        print(f"Downsampling {len(data)/samplerate:0.2f} seconds of data from {samplerate} to {ds_samplerate} hz took {toc-tic:0.2f} seconds")
+
+
     def test_filter_lfp(self):
         
         test_data = np.random.uniform(size=(100000,2))
