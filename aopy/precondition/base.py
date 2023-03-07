@@ -543,17 +543,30 @@ def bin_spike_times(spike_times, time_before, time_after, bin_width):
 def downsample(data, old_samplerate, new_samplerate):
     '''
     Downsample by averaging. Computes a downsample factor based on old_samplerate/new_samplerate.
-    Pads data to be a multiple of the downsample factor, then averages blocks into the new
-    samples. 
+    If the downsample factor is fractional, then first upsamples to the least common multiple of 
+    the two sampling rates. Finally, pads data to be a multiple of the downsample factor and 
+    averages blocks into the new samples. 
 
     Args:
         data (nt, ...): timeseries data to be downsampled. Can be 1D or 2D.
-        old_samplerate (float): the current sampling rate of the data
-        new_samplerate (float): the desired sampling rate of the downsampled data
+        old_samplerate (int): the current sampling rate of the data
+        new_samplerate (int): the desired sampling rate of the downsampled data
+        
+    Returns:
+        (nt, ...) downsampled data
     '''
-    assert new_samplerate < old_samplerate
-    assert data.ndim < 3 # doesn't work for more than 2 dimensions
+    assert new_samplerate < old_samplerate, "New sampling rate must be less than old sampling rate"
+    assert data.ndim < 3, "Downsample doesn't work for more than 2 dimensions"
+    assert int(old_samplerate) == old_samplerate, "Input samplerates must be integers"
+    assert int(new_samplerate) == new_samplerate, "Input samplerates must be integers"
 
+    # Check if the downsample factor will be an integer, otherwise we find a common divisor
+    if old_samplerate % new_samplerate != 0:
+        lcm = np.lcm(int(old_samplerate), int(new_samplerate)) # least common multiple
+        print(f"Upsampling first to {lcm} Hz")
+        upsampled = np.repeat(data, lcm/old_samplerate, axis=0)
+        return downsample(upsampled, lcm, new_samplerate)
+        
     old_samples = data.shape[0]
     downsample_factor = int(old_samplerate/new_samplerate)
 
