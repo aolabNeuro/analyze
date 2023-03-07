@@ -393,10 +393,10 @@ class CalcTests(unittest.TestCase):
         data1 = np.zeros((10,10))
         data2 = np.zeros(data1.shape)
         for irow in range(5):
-            data1[irow,:3] = np.arange(3)
-            data2[irow,:3] = np.arange(3)
+            data1[irow,:3] = np.arange(3)+1
+            data2[irow,:3] = np.arange(3)+1
 
-            NCC, _ = aopy.analysis.calc_corr2_map(data1, data2, 3, False)
+        NCC, _ = aopy.analysis.calc_corr2_map(data1, data2, 3, False)
         
         expected_NCC = np.zeros(data1.shape)
         expected_NCC[:6,:4] = 1
@@ -409,6 +409,24 @@ class CalcTests(unittest.TestCase):
         np.testing.assert_allclose(NCC2, expected_NCC)
         self.assertEqual(shifts[0], -2)
         self.assertEqual(shifts[1], 0)
+
+        fig, [ax1, ax2, ax3, ax4] = plt.subplots(1,4, figsize=(14,3))
+        im1 = ax1.pcolor(data1)
+        ax1.set(title='Data 1')
+        plt.colorbar(im1, ax=ax1)
+        im2 = ax2.pcolor(data2_shifted)
+        ax2.set(title='Data 2')
+        plt.colorbar(im2, ax=ax2)
+        im3 = ax3.pcolor(data2)
+        ax3.set(title='Aligned Data 2')
+        plt.colorbar(im3, ax=ax3)
+        im4 = ax4.pcolor(NCC2)
+        ax4.set(title='NCC')
+        plt.colorbar(im4, ax=ax4)
+        fig.tight_layout()
+    
+        filename = 'calc_corr2_map.png'
+        aopy.visualization.savefig(docs_dir, filename)
 
 
 class CurveFittingTests(unittest.TestCase):

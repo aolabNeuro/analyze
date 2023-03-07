@@ -875,6 +875,11 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     edge conditions and replaces input NaN values with 0 to calculate the correlation map. After the correlation map is calculated,
     all values were NaN in the input data are again set to NaN.
 
+    The figure below shows two sample misaligned dataset. The third panel shows the aligned data and the right (NCC) panel shows the 
+    correlation map between data1 and the aligned data2 dataset.
+
+    .. image:: _images/calc_corr2_map.png
+
     Args:
         data1 (nrow, ncol): First input data array. Used as baseline if map alignment is required.
         data2 (nrow, ncol): Second input data array. Shifted to match the baseline if map alignment is required
@@ -883,10 +888,15 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
 
     Returns:
         tuple: Tuple containing:
-            | **NCC (nrow, ncol):** Spatial correlation map
+            | **NCC (nrow, ncol):** Spatial correlation map (NCC: normalized correlatoin coefficient)
             | **shifts (tuple):** Contains (row_shifts, col_shifts)
     '''
     
+    # Make sure knlsz is odd
+    if knlsz % 2 == 0:
+        print('Warning: Kernel size (knlsz) is even in calc_corr2_map')
+
+
     NCC = np.zeros((data1.shape))
     data_sz = data1.shape[0]
     
@@ -910,7 +920,7 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
         shifts = (row_shift, col_shift)
     else:
         data2_align = data2
-        shifts = None
+        shifts = (0,0)
     
     # Pad data
     data1_pad = np.pad(data1, int((knlsz-1)/2), mode='constant')
@@ -918,6 +928,7 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     
     start_idx = int((knlsz-1)/2)
     end_idx = int(data_sz + (knlsz-1)/2)
+    middle_ncc_idx = int(2*(knlsz-1)/2)
     for xx in range(start_idx, end_idx):
         for yy in range(start_idx,end_idx):
             # Normalize input arrays based on the norm
@@ -930,7 +941,7 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
             else:
                 data_subset1 /= np.linalg.norm(data_subset1)
                 data_subset2 /= np.linalg.norm(data_subset2)
-                NCC[xx - start_idx, yy - start_idx] = np.max(scipy.signal.correlate2d(data_subset1,data_subset2))
+                NCC[xx - start_idx, yy - start_idx] = scipy.signal.correlate2d(data_subset1,data_subset2)[middle_ncc_idx, middle_ncc_idx]
     
     # Replace NaNs in correlation map
     NCC[nan_idx1] = np.nan
