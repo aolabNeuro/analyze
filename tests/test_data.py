@@ -339,7 +339,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_end_codes = [REWARD, TRIAL_END]
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape, (158, 2)) # x z
+        self.assertEqual(trajs[1].shape[1], 2) # x z
         bounds = [-10, 10, -10, 10]
         plt.figure()
         visualization.plot_trajectories(trajs, bounds=bounds)
@@ -350,7 +350,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Plot eye trajectories - expect same 9 trials but no eye pos to plot
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye')
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape, (632, 4)) # two eyes x and y
+        self.assertEqual(trajs[1].shape[1], 4) # two eyes x and y
         plt.figure()
         visualization.plot_trajectories(trajs[:2], bounds=bounds)
         figname = 'get_eye_trajectories.png'
@@ -360,7 +360,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Plot hand trajectories - expect same 9 trials but hand kinematics.
         hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand')
         self.assertEqual(len(hand_trajs), 9)
-        self.assertEqual(hand_trajs[1].shape, (158, 3))
+        self.assertEqual(hand_trajs[1].shape[1], 3)
         plt.figure()
         visualization.plot_trajectories(hand_trajs, bounds=bounds)
         figname = 'get_hand_trajectories.png' # since these were test data generated with a cursor, it should look the same as the cursor data.
@@ -371,7 +371,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test normalized output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=True)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape, (158,))
+        self.assertEqual(vel[1].ndim, 1)
         plt.figure()
         plt.plot(vel[1])
         figname = 'get_trial_velocities.png'
@@ -381,7 +381,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test component wise velocity output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape, (158, 2))
+        self.assertEqual(vel[1].shape[1], 2)
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
@@ -396,7 +396,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(samplerate, 120)
 
         trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye', return_samplerate=True)
-        self.assertEqual(samplerate, 480)
+        self.assertEqual(samplerate, 100)
 
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]

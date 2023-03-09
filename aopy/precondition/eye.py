@@ -4,13 +4,54 @@ import matplotlib.pyplot as plt
 from ..precondition import downsample, mt_lowpass_filter
 from ..utils import derivative, detect_edges
 
-def detect_saccades(eye_pos, samplerate, downsamplerate=480, lowpass_freq=30, taper_len=0.05, 
-                    num_sd=1.5, intersaccade_min=0.02, max_saccade_duration=0.15, 
-                    debug=False, debug_window=(0, 2)):
+def filter_eye(eye_pos, samplerate, downsamplerate=100, lowpass_freq=30, taper_len=0.05, pad_t=1.0):
     '''
-    Detect saccades from eye position data. Starts with lowpass filtering of the position, then thresholding
-    of the acceleration, ensuring that saccades are spaced by some minimum intersaccade time, and finally 
-    only considering events with both positive and negative crossings within the minimum saccade time. Optional
+    Filter and downsample eye data.
+
+    Args:
+        eye_pos (nt, nch): eye position data, e.g. from oculomatic
+        samplerate (float): original sampling rate of the eye data
+        downsamplerate (float, optional): sampling rate at which to return eye data
+        lowpass_freq (float, optional): low cutoff frequency to limit analysis of saccades
+        taper_len (float, optional): length of tapers to use in multitaper lowpass filter
+        pad_t (float, optional): time in seconds to pad the ends of the eye data before filtering
+    '''
+    # Lowpass filter
+    n_pad = int(pad_t*samplerate)
+    eye_pos = np.pad(eye_pos, ((n_pad,n_pad),(0,0)), mode='edge')
+    eye_pos = mt_lowpass_filter(eye_pos, lowpass_freq, taper_len, samplerate)
+    eye_pos = eye_pos[n_pad:-n_pad,:]
+
+    # Downsample
+    if samplerate > downsamplerate:
+        eye_pos = downsample(eye_pos, samplerate, downsamplerate)
+
+    return eye_pos
+    
+
+def convert_pos_to_accel(eye_pos, samplerate):
+    '''
+    Differentiate twice to get acceleration from eye position.
+
+    Args:
+        eye_pos (nt, nch): eye position data, e.g. from oculomatic
+        samplerate (float): sampling rate of the eye data
+    
+    Returns:
+        (nt, nch) array: eye acceleration
+    '''
+    time = np.arange(eye_pos.shape[0])/samplerate
+    velocity = derivative(time, eye_pos, norm=True)
+    accel = derivative(time, velocity, norm=False)
+
+    return accel
+
+def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=0.02, 
+                    max_saccade_duration=0.15, debug=False, debug_window=(0, 2)):
+    '''
+    Detect saccades from eye kinematics data. Uses thresholding of the kinematics to find putative saccades, 
+    then ensures that saccades are spaced by some minimum intersaccade time, and finally 
+    only considers events with both positive and negative crossings within the minimum saccade time. Optional
     plots can be generated showing threshold crossings in position, velocity, and acceleration.
 
     Example:
@@ -22,11 +63,8 @@ def detect_saccades(eye_pos, samplerate, downsamplerate=480, lowpass_freq=30, ta
         .. image:: _images/detect_saccades_scatter.png
     
     Args:
-        eye_pos (nt, nch): eye position data, e.g. from oculomatic
+        eye_kinematics (nt, nch): eye kinematics data, e.g. velocity or acceleration for one eye
         samplerate (float): sampling rate of the eye data
-        downsamplerate (float, optional): sampling rate at which to do saccade analysis 
-        lowpass_freq (float, optional): low cutoff frequency to limit analysis of saccades
-        taper_len (float, optional): length of tapers to use in multitaper lowpass filter
         num_sd (float, optional): number of standard deviations above zero to threshold acceleration
         intersaccade_min (float, optional): minimum time (in seconds) allowed between saccade onsets
         max_saccade_duration (float, optional): maximum time (in seconds) that a saccade can take
@@ -38,44 +76,23 @@ def detect_saccades(eye_pos, samplerate, downsamplerate=480, lowpass_freq=30, ta
         | **onset (nsaccade):** onset time (in seconds) of each detected saccade
         | **duration (nsaccade):** duration (in seconds) of each detected saccade
         | **distance (nsaccade):** distance (same units as eye_pos) of each detected saccade
-    '''
-    # Downsample
-    if samplerate > downsamplerate:
-        if debug:
-            print(f"downsampling from {samplerate} to {downsamplerate}")
-        eye_pos = downsample(eye_pos, samplerate, downsamplerate)
-        samplerate = downsamplerate
 
-    # Lowpass filter
-    n_pad = int(1.0*samplerate)
-    eye_pos = np.pad(eye_pos, ((n_pad,n_pad),(0,0)), mode='edge')
-    eye_pos = mt_lowpass_filter(eye_pos, lowpass_freq, taper_len, samplerate)
-    eye_pos = eye_pos[n_pad:-n_pad,:]
-    
-    # Differentiate twice to get acceleration
-    time = np.arange(eye_pos.shape[0])/samplerate
-    velocity = derivative(time, eye_pos, norm=True)
-    accel = derivative(time, velocity, norm=False)
+    '''
+    assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), "Threshold must be in the form (positive thr, negative thr)"
+    assert intersaccade_min < max_saccade_duration, "Max saccade duration must be longer than the minimum intersaccade interval"
+    if samplerate != 100:
+        print("Warning: this function works best with eye data that has been low-pass filtered below 30 Hz")
+
+    eye_accel = convert_pos_to_accel(eye_pos, samplerate)
 
     # Set an appropritate threshold to detect saccades
-    baseline_mean = np.mean(accel)
-    baseline_std = np.std(accel)
-    thr = np.mean(baseline_mean) + num_sd*baseline_std
-    saccade_onset_time, _ = detect_edges(accel > thr, samplerate, rising=True, falling=False)
-    saccade_offset_time, _ = detect_edges(accel < -thr, samplerate, rising=False, falling=True)
-
-    if debug:
-        debug_idx = (int(debug_window[0]*samplerate), int(debug_window[1]*samplerate))
-        fig, ax = plt.subplots(3,1)
-        ax[0].plot(time[debug_idx[0]:debug_idx[1]], eye_pos[debug_idx[0]:debug_idx[1]])
-        ax[1].plot(time[debug_idx[0]:debug_idx[1]], velocity[debug_idx[0]:debug_idx[1]])
-        ax[2].plot(time[debug_idx[0]:debug_idx[1]], accel[debug_idx[0]:debug_idx[1]])
-        ax[0].set_ylabel('position (cm)')
-        ax[1].set_ylabel('velocity (cm/s)')
-        ax[2].set_xlabel('time (s)')
-        ax[2].set_ylabel('accel cm/s^2')
-        ax[2].plot([debug_window[0],debug_window[1]], [thr, thr], '--')
-        ax[2].plot([debug_window[0],debug_window[1]], [-thr, -thr], '--')
+    if thr is None:
+        baseline_mean = np.mean(eye_accel)
+        baseline_std = np.std(eye_accel)
+        thr = np.mean(baseline_mean) + num_sd*baseline_std
+        thr = (thr, -thr)
+    saccade_onset_time, _ = detect_edges(eye_accel > thr[0], samplerate, rising=True, falling=False)
+    saccade_offset_time, _ = detect_edges(eye_accel < thr[1], samplerate, rising=False, falling=True)
 
     if saccade_onset_time.size == 0 or saccade_offset_time.size == 0:
         return [], [], []
@@ -99,19 +116,30 @@ def detect_saccades(eye_pos, samplerate, downsamplerate=480, lowpass_freq=30, ta
             duration.append(offset_time - t)
             distance.append(
                 np.linalg.norm(eye_pos[int(t*samplerate),:] - 
-                               eye_pos[int(offset_time*samplerate)])
+                               eye_pos[int(offset_time*samplerate),:])
             ) # distance is the deviation of the saccade in space (in cm)
     onset = np.array(onset)
     duration = np.array(duration)
     distance = np.array(distance)
 
     if debug:
+        debug_idx = (int(debug_window[0]*samplerate), int(debug_window[1]*samplerate))
+        time = np.arange(len(eye_pos))/samplerate
+        fig, ax = plt.subplots(2,1)
+        ax[0].plot(time[debug_idx[0]:debug_idx[1]], eye_pos[debug_idx[0]:debug_idx[1]])
+        ax[1].plot(time[debug_idx[0]:debug_idx[1]], eye_accel[debug_idx[0]:debug_idx[1]])
+        ax[0].set_ylabel('position (cm)')
+        ax[1].set_xlabel('time (s)')
+        ax[1].set_ylabel('accel cm/s^2')
+        ax[1].plot([debug_window[0],debug_window[1]], [thr[0], thr[0]], '--')
+        ax[1].plot([debug_window[0],debug_window[1]], [thr[1], thr[1]], '--')
+        
         debug_idx = (onset > debug_window[0]) & (onset < debug_window[1])
         onset_debug = onset[debug_idx]
         duration_debug = duration[debug_idx]
         for o, d in zip(onset_debug, duration_debug):
-            ax[2].plot([o, o], [-thr, thr], 'g--')
-            ax[2].plot([o+d, o+d], [-thr, thr], 'r--')
+            ax[1].plot([o, o], [thr[0], thr[1]], 'g--')
+            ax[1].plot([o+d, o+d], [thr[0], thr[1]], 'r--')
 
     return onset, duration, distance
         

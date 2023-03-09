@@ -2,7 +2,7 @@ from .. import precondition
 from .. import data as aodata
 import numpy as np
 
-def parse_oculomatic(data_dir, files, samplerate=480, debug=True):
+def parse_oculomatic(data_dir, files, samplerate=1000, debug=True):
     """
     Loads eye data from ecube and hdf data. 
     
@@ -18,7 +18,7 @@ def parse_oculomatic(data_dir, files, samplerate=480, debug=True):
     Args:
         data_dir (str): folder containing the data you want to load
         files (dict): a dictionary that has 'ecube' as the key
-        samplerate (float, optional): sampling rate to output in Hz. Default 480. 
+        samplerate (float, optional): sampling rate to output in Hz. Default 1000. 
         debug (bool, optional): prints debug information
 
     Returns:
@@ -52,6 +52,7 @@ def parse_oculomatic(data_dir, files, samplerate=480, debug=True):
     analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'], channels=eye_channels)
     raw_samplerate = analog_metadata['samplerate']
     downsample_data = precondition.downsample(analog_data, raw_samplerate, samplerate)
+    eye_metadata['raw_samplerate'] = raw_samplerate
     eye_metadata['samplerate'] = samplerate
     eye_metadata['n_samples'] = downsample_data.shape[0]
     

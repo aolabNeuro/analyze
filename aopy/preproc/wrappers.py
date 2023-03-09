@@ -4,6 +4,7 @@ from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
+from ..precondition import eye
 from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
 from ..data import load_preproc_lfp_data, load_preproc_broadband_data, load_preproc_eye_data
 import os
@@ -234,6 +235,12 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
     eye_data = eye_data['data']
+
+    # Filter
+    eye_data = eye.filter_eye(eye_data, eye_metadata['samplerate'], downsamplerate=100, lowpass_freq=30)
+    eye_metadata['samplerate'] = 100
+    eye_metadata['low_cut'] = 30
+    eye_metadata['n_samples'] = eye_data.shape[0]
 
     try:
         # Calibrate the eye data

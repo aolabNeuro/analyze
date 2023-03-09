@@ -395,17 +395,79 @@ class SpikeDetectionTests(unittest.TestCase):
 
 class EyeTests(unittest.TestCase):
 
-    def test_detect_saccades(self):
+    @classmethod
+    def setUpClass(cls):
         preproc_dir = data_dir
         subject = 'beignet'
         te_id = 5974
         date = '2022-07-01'
         
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
-        calibrated_eye_data = eye_data['calibrated_data']
-        samplerate = eye_metadata['samplerate']
+        cls.calibrated_eye_data = eye_data['calibrated_data']
+        cls.samplerate = eye_metadata['samplerate']
 
-        onset, duration, distance = detect_saccades(calibrated_eye_data[:,:2], samplerate, debug=True, debug_window=(0, 5))
+    def test_filter_eye(self):
+        orig = self.calibrated_eye_data
+        t_orig = np.arange(len(orig))/self.samplerate
+        data_filt = filter_eye(orig, self.samplerate, downsamplerate=100)
+        samplerate = 100
+
+        le_orig = orig[:,:2]
+        le_filt = data_filt[:,:2]
+        t = np.arange(len(le_filt))/self.samplerate
+        self.assertNotEqual(self.samplerate, samplerate)
+        fig, ax = plt.subplots(4,1)
+        ax[0].plot(t_orig, le_orig)
+        plot_freq_domain_amplitude(1e-6*le_orig, self.samplerate, ax=ax[1])
+        ax[1].set_ylim(0,1)
+        ax[1].set_xlim(1,1000)
+        ax[2].plot(t, le_filt)
+        plot_freq_domain_amplitude(1e-6*le_filt, samplerate, ax=ax[3])
+        ax[3].set_ylim(0,1)
+        ax[3].set_xlim(1,1000)
+        savefig(docs_dir, 'filter_eye.png')
+
+        self.assertEqual(data_filt.shape[1], orig.shape[1])
+        self.assertEqual(le_filt.shape[1], le_orig.shape[1])
+
+
+    def test_convert_pos_to_accel(self):
+        pos = self.calibrated_eye_data[:,:2]
+        accel = convert_pos_to_accel(pos, self.samplerate)
+        fig, ax = plt.subplots(4,1)
+        plot_timeseries(1e-6*pos, self.samplerate, ax=ax[0])        
+        plot_freq_domain_amplitude(1e-6*pos, self.samplerate, ax=ax[1])
+        ax[1].set_ylabel('pos')
+
+        plot_timeseries(1e-6*accel, self.samplerate, ax=ax[2])        
+        plot_freq_domain_amplitude(1e-6*accel, self.samplerate, ax=ax[3])
+        ax[1].set_ylabel('accel')
+        savefig(docs_dir, 'convert_pos_to_accel_nofilter.png')
+
+        # Important to low-pass filter before computing acceleration
+        pos_filt = filter_eye(pos, self.samplerate, downsamplerate=100)
+        samplerate = 100
+        accel = convert_pos_to_accel(pos, samplerate)
+        fig, ax = plt.subplots(4,1)
+        plot_timeseries(1e-6*pos, self.samplerate, ax=ax[0])        
+        ax[0].set_ylabel('pos')
+        plot_freq_domain_amplitude(1e-6*pos, self.samplerate, ax=ax[1])
+        ax[1].set_ylabel('pos')
+        ax[1].set_ylim(0,1)
+        ax[1].set_xlim(1,1000)
+
+        plot_timeseries(1e-6*accel, samplerate, ax=ax[2])        
+        ax[2].set_ylabel('pos')
+        plot_freq_domain_amplitude(1e-6*accel, samplerate, ax=ax[3])
+        ax[3].set_ylabel('accel')
+        ax[3].set_xlim(1,1000)
+        savefig(docs_dir, 'convert_pos_to_accel_filter.png')
+
+    def test_detect_saccades(self):
+        le_data_filt = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=100)
+        samplerate = 100
+
+        onset, duration, distance = detect_saccades(le_data_filt, samplerate, debug=True, debug_window=(0, 5))
         savefig(docs_dir, 'detect_saccades.png')
         plt.close()
 
