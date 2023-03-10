@@ -1,4 +1,5 @@
-from ..preproc.base import get_data_segments, get_trial_segments, interp_timestamps2timeseries, trial_align_data
+import traceback
+from ..preproc.base import get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
@@ -6,7 +7,8 @@ import os
 import numpy as np
 import h5py
 import tables
-
+import pandas as pd
+from tqdm.auto import tqdm
 
 ############
 # Raw data #
@@ -565,3 +567,80 @@ def get_source_files(preproc_dir, subject, te_id, date):
     '''
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
+
+def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
+                  include_eyedata=False, include_lfp=False):
+    '''
+    Concatenate trials from across experiments. Experiments are given as lists of subjects, task entry
+    ids, and dates. Each list must be the same length. Trials are defined by intervals between the given
+    trial start and end codes. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        trial_start_codes (list): list of numeric codes representing the start of a trial
+        trial_end_codes (list): list of numeric codes representing the end of a trial
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        include_eyedata (bool, optional): If True, includes eye trajectories in addition to cursor
+            trajectories. Defaults to False.
+        include_lfp (bool, optional): If True, includes lfp segments in addition to cursor
+            trajectories. Defaults to False.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+    '''
+    if df is None:
+        df = pd.DataFrame()
+
+    entries = list(zip(subjects, dates, ids))
+    for subject, date, te in tqdm(entries): 
+
+        # Load data from bmi3d hdf 
+        try:
+            data, metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            continue
+        event_codes = data['events']['code']
+        event_times = data['events']['timestamp']
+
+        # Trial aligned event codes and event times
+        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
+
+        # Get cursor position 
+        cursor_traj, cursor_seg = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                         datatype='cursor')
+        cursor_seg = cursor_seg.tolist()
+
+        # Get eye trajectories 
+        eye_traj = [None] * len(tr_seg)
+        eye_seg = [None] * len(tr_seg)
+        if include_eyedata:
+            try:
+                eye_traj, eye_seg = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                           datatype = 'eye')
+                eye_seg = eye_seg.tolist()
+            except:
+                print(f"No eye data from {te}")
+                
+        lfp_seg = [None] * len(tr_seg)
+        if include_lfp:
+            lfp_seg = get_lfp_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes)
+            lfp_seg = lfp_seg.tolist()
+                    
+        # Include empty eye and lfp segments if they aren't included
+        df = pd.concat([df,pd.DataFrame({'entry': te, 
+                                         'date': date, 
+                                         'event_codes': tr_seg,
+                                         'event_times': tr_t, 
+                                         'cursor_traj': cursor_traj, 
+                                         'cursor_seg': cursor_seg,
+                                         'eye_traj': list(eye_traj), 
+                                         'eye_seg': list(eye_seg),
+                                         'lfp_seg': list(lfp_seg),
+                                        })], ignore_index=True)
+    
+    return df

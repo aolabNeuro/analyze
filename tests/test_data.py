@@ -434,6 +434,24 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(files['ecube'], 'ecube/2022-07-01_BMI3D_te5974')
         self.assertEqual(raw_data_dir, '/data/raw')
 
+    def test_concat_trials(self):
+
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+        trial_start_codes = [80]
+        trial_end_codes = [239]
+        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
+                  include_eyedata=False, include_lfp=False)
+        self.assertEqual(len(df), 18)
+        
+        plt.figure()
+        bounds = [-10, 10, -10, 10]
+        visualization.plot_trajectories(df['cursor_traj'].to_numpy(), bounds=bounds)
+        figname = 'concat_trials.png' # should look very similar to get_trial_aligned_trajectories.png
+        visualization.savefig(write_dir, figname)
+
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
