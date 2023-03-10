@@ -442,15 +442,21 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_start_codes = [80]
         trial_end_codes = [239]
         df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
-                  include_eyedata=False, include_lfp=False)
+                           include_handdata=False, include_eyedata=False)
         self.assertEqual(len(df), 18)
         
         plt.figure()
         bounds = [-10, 10, -10, 10]
-        visualization.plot_trajectories(df['cursor_traj'].to_numpy(), bounds=bounds)
+        visualization.plot_trajectories(df['cursor'].to_numpy(), bounds=bounds)
         figname = 'concat_trials.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(write_dir, figname)
 
+        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
+                           include_handdata=True, include_eyedata=True)
+        self.assertEqual(len(df), 18)
+        self.assertEqual(df['cursor'].iloc[0].shape[1], 2) # should have 2 cursor axes     
+        self.assertEqual(df['hand'].iloc[0].shape[1], 3) # should have 3 hand axes 
+        self.assertEqual(df['eye'].iloc[0].shape[1], 4) # should have 4 eye axes
 
 class TestMatlab(unittest.TestCase):
     

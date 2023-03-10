@@ -569,7 +569,7 @@ def get_source_files(preproc_dir, subject, te_id, date):
     return exp_metadata['source_files'], exp_metadata['source_dir']
 
 def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
-                  include_eyedata=False, include_lfp=False):
+                  include_handdata=False, include_eyedata=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of subjects, task entry
     ids, and dates. Each list must be the same length. Trials are defined by intervals between the given
@@ -583,9 +583,9 @@ def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_en
         trial_start_codes (list): list of numeric codes representing the start of a trial
         trial_end_codes (list): list of numeric codes representing the end of a trial
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        include_eyedata (bool, optional): If True, includes eye trajectories in addition to cursor
+        include_handdata (bool, optional): If True, includes hand trajectories in addition to cursor
             trajectories. Defaults to False.
-        include_lfp (bool, optional): If True, includes lfp segments in addition to cursor
+        include_eyedata (bool, optional): If True, includes eye trajectories in addition to cursor
             trajectories. Defaults to False.
 
     Returns:
@@ -610,37 +610,25 @@ def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_en
         # Trial aligned event codes and event times
         tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
 
-        # Get cursor position 
-        cursor_traj, cursor_seg = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+        # Get data segments 
+        cursor_traj, _ = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
                                                          datatype='cursor')
-        cursor_seg = cursor_seg.tolist()
-
-        # Get eye trajectories 
+        hand_traj = [None] * len(tr_seg)
+        if include_handdata:
+            hand_traj, _ = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                  datatype='hand')
         eye_traj = [None] * len(tr_seg)
-        eye_seg = [None] * len(tr_seg)
         if include_eyedata:
-            try:
-                eye_traj, eye_seg = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
-                                                           datatype = 'eye')
-                eye_seg = eye_seg.tolist()
-            except:
-                print(f"No eye data from {te}")
-                
-        lfp_seg = [None] * len(tr_seg)
-        if include_lfp:
-            lfp_seg = get_lfp_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes)
-            lfp_seg = lfp_seg.tolist()
-                    
-        # Include empty eye and lfp segments if they aren't included
+            eye_traj, _ = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                 datatype='eye') 
+            
         df = pd.concat([df,pd.DataFrame({'entry': te, 
                                          'date': date, 
                                          'event_codes': tr_seg,
                                          'event_times': tr_t, 
-                                         'cursor_traj': cursor_traj, 
-                                         'cursor_seg': cursor_seg,
-                                         'eye_traj': list(eye_traj), 
-                                         'eye_seg': list(eye_seg),
-                                         'lfp_seg': list(lfp_seg),
+                                         'cursor': cursor_traj, 
+                                         'hand': hand_traj, 
+                                         'eye': eye_traj, 
                                         })], ignore_index=True)
     
     return df
