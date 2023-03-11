@@ -468,6 +468,16 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(df['hand'].iloc[0].shape[1], 3) # should have 3 hand axes 
         self.assertEqual(df['eye'].iloc[0].shape[1], 4) # should have 4 eye axes
 
+    def test_concat_trials_center_out(self):
+
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+
+        df = concat_trials_center_out(write_dir, subjects, ids, dates, df=None, include_center_target=True,
+                  include_handdata=False, include_eyedata=False)
+        self.assertEqual(len(df), 18) # should be the same df as above
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):

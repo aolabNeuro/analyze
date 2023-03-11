@@ -2,7 +2,7 @@ import traceback
 from ..preproc.base import get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles
-from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
+from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, config_dir
 import os
 import numpy as np
 import h5py
@@ -646,3 +646,47 @@ def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_en
                                         })], ignore_index=True)
     
     return df
+
+def concat_trials_center_out(preproc_dir, subjects, ids, dates, df=None, include_center_target=True,
+                  include_handdata=False, include_eyedata=False):
+    '''
+    Wrapper around concat_trials() specifically for center-out experiments.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        include_center_target (bool, optional): If True, trials begin after the cursor enters
+            the center target. Otherwise trials begin after the go cue. Default True.
+        include_handdata (bool, optional): If True, includes hand trajectories in addition to cursor
+            trajectories. Defaults to False.
+        include_eyedata (bool, optional): If True, includes eye trajectories in addition to cursor
+            trajectories. Defaults to False.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+    '''
+    # Use default "trial" definition
+    params_file = os.path.join(config_dir, 'task_codes.yaml')
+    task_codes = yaml_read(params_file)[0]        
+    trial_end_codes = [task_codes['TRIAL_END']]
+    reward_codes = [task_codes['REWARD']]
+    
+    if include_center_target:
+        trial_start_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']]
+        penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+        target_codes = [task_codes['CENTER_TARGET_ON']] + task_codes['PERIPHERAL_TARGET_ON']
+    else:
+        trial_start_codes = [task_codes['CENTER_TARGET_OFF']]
+        penalty_codes = [task_codes['TIMEOUT_PENALTY']]
+        target_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']] + task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'] 
+    
+    # Concatenate trials
+    df = concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, target_codes, 
+                       reward_codes, penalty_codes, df=df, 
+                       include_handdata=include_handdata, include_eyedata=include_eyedata)
+    
+    return df
+        
