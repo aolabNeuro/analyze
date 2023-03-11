@@ -441,9 +441,18 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = [self.date, self.date]
         trial_start_codes = [80]
         trial_end_codes = [239]
-        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
+        target_codes = range(81,89)
+        reward_codes = [48]
+        penalty_codes = [64]
+        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
+                           target_codes, reward_codes, penalty_codes, df=None, 
                            include_handdata=False, include_eyedata=False)
         self.assertEqual(len(df), 18)
+        self.assertTrue(np.all(df['target_idx'] < 9))
+        expected_reward = np.ones(len(df))
+        expected_reward[-2:] = 0
+        expected_reward[-11:-9] = 0
+        np.testing.assert_allclose(df['reward'], expected_reward)
         
         plt.figure()
         bounds = [-10, 10, -10, 10]
@@ -451,7 +460,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'concat_trials.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(write_dir, figname)
 
-        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
+        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
+                           target_codes, reward_codes, penalty_codes, df=None, 
                            include_handdata=True, include_eyedata=True)
         self.assertEqual(len(df), 18)
         self.assertEqual(df['cursor'].iloc[0].shape[1], 2) # should have 2 cursor axes     

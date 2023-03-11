@@ -568,8 +568,8 @@ def get_source_files(preproc_dir, subject, te_id, date):
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
 
-def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, df=None, 
-                  include_handdata=False, include_eyedata=False):
+def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, target_codes, 
+                  reward_codes, penalty_codes, df=None, include_handdata=False, include_eyedata=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of subjects, task entry
     ids, and dates. Each list must be the same length. Trials are defined by intervals between the given
@@ -582,6 +582,9 @@ def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_en
         dates (list of str): Date for each recording
         trial_start_codes (list): list of numeric codes representing the start of a trial
         trial_end_codes (list): list of numeric codes representing the end of a trial
+        target_codes (list): ordered list of numeric codes representing the possible target indices
+        reward_codes (list): list of numeric codes representing rewards
+        penalty_codes (list): list of numeric codes representing penalties
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
         include_handdata (bool, optional): If True, includes hand trajectories in addition to cursor
             trajectories. Defaults to False.
@@ -611,24 +614,35 @@ def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_en
         tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
 
         # Get data segments 
-        cursor_traj, _ = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
-                                                         datatype='cursor')
+        cursor_traj = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                         datatype='cursor')[0].tolist()
         hand_traj = [None] * len(tr_seg)
         if include_handdata:
-            hand_traj, _ = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
-                                                  datatype='hand')
+            hand_traj = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                  datatype='hand')[0].tolist()
         eye_traj = [None] * len(tr_seg)
         if include_eyedata:
-            eye_traj, _ = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
-                                                 datatype='eye') 
-            
-        df = pd.concat([df,pd.DataFrame({'entry': te, 
+            eye_traj = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                 datatype='eye')[0].tolist()
+
+        target_idx = [code[np.isin(code, target_codes)][0] - target_codes[0] if np.sum(np.isin(code, target_codes)) == 1 else 0 for code in tr_seg]
+        target_location = get_target_locations(preproc_dir, subject, te, date, target_idx).tolist()
+
+        reward = [np.any(np.isin(reward_codes, ec)) for ec in tr_seg]
+        penalty = [np.any(np.isin(penalty_codes, ec)) for ec in tr_seg]
+        
+        df = pd.concat([df,pd.DataFrame({'subject': subject,
+                                         'te_id': te, 
                                          'date': date, 
                                          'event_codes': tr_seg,
                                          'event_times': tr_t, 
+                                         'reward': reward,
+                                         'penalty': penalty,
+                                         'target_idx': target_idx,
+                                         'target_location': target_location,
                                          'cursor': cursor_traj, 
                                          'hand': hand_traj, 
-                                         'eye': eye_traj, 
+                                         'eye': eye_traj,
                                         })], ignore_index=True)
     
     return df
