@@ -252,6 +252,18 @@ class FilterTests(unittest.TestCase):
         self.assertEqual(data_ds.shape, (10, 2))
         self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
 
+        fs_ds = self.fs/5
+        x_ds = precondition.downsample(self.x, self.fs, fs_ds)
+        fig, ax = plt.subplots(2,1)
+        ax[0].plot(self.t, self.x)
+        ax[0].set_ylabel(f"{self.fs} hz")
+        t_ds = np.arange(len(x_ds))/fs_ds
+        ax[1].plot(t_ds, x_ds)
+        ax[1].set_ylabel(f"{fs_ds} hz")
+        ax[1].set_xlabel("time (s)")
+        filename = 'downsample.png'
+        savefig(docs_dir, filename)
+
         # Test non-integer downsample factor
         data_ds = precondition.downsample(data, 100, 13)
         self.assertEqual(data_ds.shape, (13, 2))
