@@ -1,5 +1,6 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
 import unittest
+from aopy import visualization
 from aopy.visualization import *
 import matplotlib.pyplot as plt
 from aopy import precondition
@@ -254,13 +255,19 @@ class FilterTests(unittest.TestCase):
 
         fs_ds = self.fs/5
         x_ds = precondition.downsample(self.x, self.fs, fs_ds)
-        fig, ax = plt.subplots(2,1)
-        ax[0].plot(self.t, self.x)
-        ax[0].set_ylabel(f"{self.fs} hz")
+        fig, ax = plt.subplots(2,2)
+        ax[0,0].plot(self.t, self.x)
+        ax[0,0].set_ylabel(f"{self.fs} hz")
         t_ds = np.arange(len(x_ds))/fs_ds
-        ax[1].plot(t_ds, x_ds)
-        ax[1].set_ylabel(f"{fs_ds} hz")
-        ax[1].set_xlabel("time (s)")
+        ax[1,0].plot(t_ds, x_ds)
+        ax[1,0].set_ylabel(f"{fs_ds} hz")
+        ax[1,0].set_xlabel("time (s)")
+        visualization.plot_freq_domain_amplitude(1e-6*self.x, self.fs, ax=ax[0,1])
+        ax[0,1].set_xlim(0,5000)
+        ax[0,1].set_xlabel('')
+        visualization.plot_freq_domain_amplitude(1e-6*x_ds, fs_ds, ax=ax[1,1])
+        ax[1,1].set_xlim(0,5000)
+        plt.tight_layout()
         filename = 'downsample.png'
         savefig(docs_dir, filename)
 
