@@ -258,15 +258,19 @@ datasets here as they become available.
    * - `beig20210929_02_te2949.hdf`
      - BMI3D data - eyetracking test
    * - `2021-09-30_BMI3D_te2952`
-     - eCube data - another eyetracking test
+     - eCube data - another eyetracking test with 0 trials
    * - `beig20210930_02_te2952.hdf`
-     - BMI3D data - another eyetracking test
+     - BMI3D data - another eyetracking test with 0 trials
    * - `2021-12-13_BMI3D_te3498`
      - eCube data - sync version 7
    * - `beig20221002_09_te6890.hdf`
      - BMI3D data - a laser only experiment which does not contain any task data
    * - `2022-10-02_BMI3D_te6890`
      - eCube data - sync version 12 - including some real headstage ECoG data, although it is truncated in length
+   * - `beig20230109_15_te7977.hdf`
+     - BMI3D data - tracking task experiment
+   * - `2023-01-09_BMI3D_te7977`
+     - eCube data - sync version 13 - from the above tracking task experiment, including an instance of the "pause bug"
    * - `test20210330_12_te1254.hdf`
      - BMI3D data - sync version 2
    * - `fake ecube data`

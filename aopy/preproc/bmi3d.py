@@ -220,7 +220,7 @@ def _parse_bmi3d_v1(data_dir, files):
         ecube_sync_data = utils.mask_and_shift(digital_data, event_bit_mask)
         ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
             rising=True, falling=False)
-        if np.min(np.diff(ecube_sync_timestamps)) < metadata_dict['sync_pulse_width']:
+        if len(ecube_sync_timestamps) > 2 and np.min(np.diff(ecube_sync_timestamps)) < metadata_dict['sync_pulse_width']:
             print(f"Correcting sync pulse width in {ecube_filename}")
             # There can occasionally be a compression of the pause event that smears it across multiple 
             # digital lines _-‾ and it shows up as multiple events very close together.
