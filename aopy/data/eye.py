@@ -51,6 +51,7 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
     te_ids = find_preproc_ids_from_day(preproc_dir, subject, date, 'eye')
     if len(te_ids) == 0:
         print(f"No preprocessed files found on {date}")
+        return None, []
     best_id = None
     best_coeff = None
     best_correlation = 0
