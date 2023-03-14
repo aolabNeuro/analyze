@@ -8,6 +8,8 @@ def filter_eye(eye_pos, samplerate, downsamplerate=100, lowpass_freq=30, taper_l
     '''
     Filter and downsample eye data.
 
+    .. image:: _images/proc_oculomatic_freq.png
+
     Args:
         eye_pos (nt, nch): eye position data, e.g. from oculomatic
         samplerate (float): original sampling rate of the eye data
@@ -27,7 +29,22 @@ def filter_eye(eye_pos, samplerate, downsamplerate=100, lowpass_freq=30, taper_l
         eye_pos = downsample(eye_pos, samplerate, downsamplerate)
 
     return eye_pos
+
+def convert_pos_to_velocity(eye_pos, samplerate):
+    '''
+    Differentiate twice to get acceleration from eye position.
+
+    Args:
+        eye_pos (nt, nch): eye position data, e.g. from oculomatic
+        samplerate (float): sampling rate of the eye data
     
+    Returns:
+        (nt, nch) array: eye velocity
+    '''
+    time = np.arange(eye_pos.shape[0])/samplerate
+    velocity = derivative(time, eye_pos, norm=True)
+
+    return velocity    
 
 def convert_pos_to_accel(eye_pos, samplerate):
     '''
@@ -40,8 +57,8 @@ def convert_pos_to_accel(eye_pos, samplerate):
     Returns:
         (nt, nch) array: eye acceleration
     '''
+    velocity = convert_pos_to_velocity(eye_pos, samplerate)
     time = np.arange(eye_pos.shape[0])/samplerate
-    velocity = derivative(time, eye_pos, norm=True)
     accel = derivative(time, velocity, norm=False)
 
     return accel

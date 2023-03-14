@@ -234,13 +234,8 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
+    eye_mask = eye_data['mask']
     eye_data = eye_data['data']
-
-    # Filter
-    eye_data = eye.filter_eye(eye_data, eye_metadata['samplerate'], downsamplerate=100, lowpass_freq=30)
-    eye_metadata['samplerate'] = 100
-    eye_metadata['low_cut'] = 30
-    eye_metadata['n_samples'] = eye_data.shape[0]
 
     try:
         # Calibrate the eye data
@@ -255,6 +250,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
 
         calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
         eye_dict = {
+            'eye_closed_mask': eye_mask,
             'raw_data': eye_data,
             'calibrated_data': calibrated_eye_data,
             'coefficients': coeff,
@@ -326,7 +322,7 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
         files (dict): dictionary of filenames indexed by system
         result_filename (str): where to store the processed result
         overwrite (bool, optional): whether to remove existing processed files if they exist
-        batchsize (float, optional): time in seconds for each batch to be processed into lfp
+        max_memory_gb (float, optional): max memory used to load binary data at one time
         filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
     Returns:
         None
