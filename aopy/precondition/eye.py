@@ -109,8 +109,10 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
         | **distance (nsaccade):** distance (same units as eye_pos) of each detected saccade
 
     '''
-    assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), "Threshold must be in the form (positive thr, negative thr)"
-    assert intersaccade_min < max_saccade_duration, "Max saccade duration must be longer than the minimum intersaccade interval"
+    assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), "Threshold must be in the form" 
+    " (positive thr, negative thr)"
+    assert (intersaccade_min is None) or intersaccade_min < max_saccade_duration, "Max saccade"
+    " duration must be longer than the minimum intersaccade interval"
     if samplerate != 100:
         print("Warning: this function works best with eye data that has been low-pass filtered below 30 Hz")
 
@@ -132,7 +134,10 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
     onset = []
     duration = []
     distance = []
+    prev_offset = 0
     for t in saccade_onset_time:
+        if intersaccade_min and t < prev_offset + intersaccade_min:
+            continue # ignore saccades within intersaccade_min of the last saccade
         nearby_offset = np.where((saccade_offset_time >= t + min_saccade_duration) & 
                                  (saccade_offset_time < t + max_saccade_duration))[0]
         if len(nearby_offset):
@@ -144,30 +149,6 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
                                eye_pos[int(offset_time*samplerate),:])
             ) # distance is the deviation of the saccade in space (in cm)
             prev_offset = offset_time
-    onset_ = np.array(onset)
-    duration_ = np.array(duration)
-    distance_ = np.array(distance)
-
-    # Enforce the intersaccade minimum
-    onset = []
-    duration = []
-    distance = []
-    offset = np.array([o + d for o, d in zip(onset_, duration_)])
-    intersaccade = np.insert(onset_[1:]-offset[:-1], 0, intersaccade_min)
-    for idx in range(len(onset_)):
-        if intersaccade[idx] < intersaccade_min and duration[-1] + duration_[idx] < max_saccade_duration:
-            # Saccade is part of previous one
-            duration[-1] += duration_[idx]
-            distance[-1] += distance_[idx]
-        elif len(duration) > 0 and duration[-1] + duration_[idx] >= max_saccade_duration:
-            # Saccade is too close but can't be part of this one, skip
-            pass
-        else:
-            # New saccade 
-            onset.append(onset_[idx])
-            duration.append(duration_[idx])
-            distance.append(distance_[idx])
-
     onset = np.array(onset)
     duration = np.array(duration)
     distance = np.array(distance)

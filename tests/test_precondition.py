@@ -474,10 +474,10 @@ class EyeTests(unittest.TestCase):
         savefig(docs_dir, 'detect_saccades.png')
         plt.close()
 
-        self.assertTrue(np.all(duration < 0.15)) # max saccade duration
+        self.assertTrue(np.all(duration < 0.16)) # max saccade duration
+        self.assertTrue(np.all(duration > 0.015)) # min saccade duration
         offset = np.array([o + d for o, d in zip(onset, duration)])
-        print(onset[1:]-offset[:-1])
-        np.testing.assert_allclose(np.ones(len(offset)-1), onset[1:]-offset[:-1] > 0.02) # intersaccade min
+        self.assertTrue(np.any(onset[1:]-offset[:-1] <= 0.02)) # intersaccade min by default is not set
 
         plt.figure()
         plt.hist(1000*duration)
@@ -494,6 +494,11 @@ class EyeTests(unittest.TestCase):
         plt.ylabel('Distance (cm)')
         savefig(docs_dir, 'detect_saccades_scatter.png')
         plt.close()
+
+        onset, duration, distance = detect_saccades(le_data_filt, samplerate, intersaccade_min=0.02)
+        offset = np.array([o + d for o, d in zip(onset, duration)])
+        self.assertTrue(np.all(onset[1:]-offset[:-1] > 0.02)) # intersaccade min
+
 
 
 if __name__ == "__main__":
