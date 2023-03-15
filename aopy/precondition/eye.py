@@ -143,8 +143,9 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
     distance = np.array(distance)
 
     if debug:
-        debug_idx = (int(debug_window[0]*samplerate), int(debug_window[1]*samplerate))
         time = np.arange(len(eye_pos))/samplerate
+        debug_window = (debug_window[0], min(debug_window[1], time[-1]))
+        debug_idx = (int(debug_window[0]*samplerate), int(debug_window[1]*samplerate))
         fig, ax = plt.subplots(2,1)
         ax[0].plot(time[debug_idx[0]:debug_idx[1]], eye_pos[debug_idx[0]:debug_idx[1]])
         ax[1].plot(time[debug_idx[0]:debug_idx[1]], eye_accel[debug_idx[0]:debug_idx[1]])
