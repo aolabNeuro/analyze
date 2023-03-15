@@ -474,6 +474,11 @@ class EyeTests(unittest.TestCase):
         savefig(docs_dir, 'detect_saccades.png')
         plt.close()
 
+        self.assertTrue(np.all(duration < 0.15)) # max saccade duration
+        offset = np.array([o + d for o, d in zip(onset, duration)])
+        print(onset[1:]-offset[:-1])
+        np.testing.assert_allclose(np.ones(len(offset)-1), onset[1:]-offset[:-1] > 0.02) # intersaccade min
+
         plt.figure()
         plt.hist(1000*duration)
         plt.xlabel('Duration (ms)')

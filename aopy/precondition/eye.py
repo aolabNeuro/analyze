@@ -66,14 +66,24 @@ def convert_pos_to_accel(eye_pos, samplerate):
 
     return accel
 
-def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=0.02, 
-                    max_saccade_duration=0.15, debug=False, debug_window=(0, 2)):
+def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=None, 
+                    min_saccade_duration=0.015, max_saccade_duration=0.16, 
+                    debug=False, debug_window=(0, 2)):
     '''
-    Detect saccades from eye kinematics data. Uses thresholding of the kinematics to find putative saccades, 
-    then ensures that saccades are spaced by some minimum intersaccade time, and finally 
-    only considers events with both positive and negative crossings within the minimum saccade time. Optional
-    plots can be generated showing threshold crossings in position, velocity, and acceleration.
+    Detect saccades from eye kinematics data. Uses thresholding of the kinematics 
+    to find putative saccades, then ensures that saccades are spaced by some 
+    minimum intersaccade time, and finally only considers events with both positive 
+    and negative crossings within the minimum saccade time. Optional plots can be 
+    generated showing threshold crossings in position, velocity, and acceleration.
 
+    Minimum and maximum saccade durations can be enforced to remove events that are 
+    biologically implausible. Default minimum and maximum saccade durations from 
+    Dorr et al., 2010 https://doi.org/10.1167/10.10.28
+    
+    A minimum intersaccade interval can also be set to prevent the categorization 
+    of potential overshoot components as saccadic events. Default intersaccade 
+    minimum from Sinn & Engbert, 2016 https://doi.org/10.1016/j.visres.2015.05.012 
+    
     Example:
 
         Detecting saccades on the first 5 seconds of test data from beignet block 5974 (included in /tests/data/beignet)
@@ -86,8 +96,9 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
         eye_kinematics (nt, nch): eye kinematics data, e.g. velocity or acceleration for one eye
         samplerate (float): sampling rate of the eye data
         num_sd (float, optional): number of standard deviations above zero to threshold acceleration
-        intersaccade_min (float, optional): minimum time (in seconds) allowed between saccade onsets
-        max_saccade_duration (float, optional): maximum time (in seconds) that a saccade can take
+        intersaccade_min (float, optional): minimum time (in seconds) allowed between saccades (from offset to next onset)
+        min_saccade_duration (float, optional): minimum time (in seconds) that a saccade can take (inclusive)
+        max_saccade_duration (float, optional): maximum time (in seconds) that a saccade can take (exclusive)
         debug (bool, optional): if True, display a figure showing the threshold crossings
         debug_window (tuple, optional): (start, end) time (in seconds) for the debug figure
         
@@ -117,18 +128,12 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
     if saccade_onset_time.size == 0 or saccade_offset_time.size == 0:
         return [], [], []
 
-    # Only consider saccades that aren't immediately preceded by another saccade
-    intersaccade_interval = np.diff(saccade_onset_time) 
-    valid_onset_idx = np.where(intersaccade_interval > intersaccade_min)[0]
-    saccade_onset_idx = np.insert(valid_onset_idx + 1, 0, 0)
-    onset_time = saccade_onset_time[saccade_onset_idx]
-
     # Only consider saccades that have a threshold-crossing offset
     onset = []
     duration = []
     distance = []
-    for t in onset_time:
-        nearby_offset = np.where((saccade_offset_time > t) & 
+    for t in saccade_onset_time:
+        nearby_offset = np.where((saccade_offset_time >= t + min_saccade_duration) & 
                                  (saccade_offset_time < t + max_saccade_duration))[0]
         if len(nearby_offset):
             offset_time = saccade_offset_time[nearby_offset[0]]
@@ -138,6 +143,31 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
                 np.linalg.norm(eye_pos[int(t*samplerate),:] - 
                                eye_pos[int(offset_time*samplerate),:])
             ) # distance is the deviation of the saccade in space (in cm)
+            prev_offset = offset_time
+    onset_ = np.array(onset)
+    duration_ = np.array(duration)
+    distance_ = np.array(distance)
+
+    # Enforce the intersaccade minimum
+    onset = []
+    duration = []
+    distance = []
+    offset = np.array([o + d for o, d in zip(onset_, duration_)])
+    intersaccade = np.insert(onset_[1:]-offset[:-1], 0, intersaccade_min)
+    for idx in range(len(onset_)):
+        if intersaccade[idx] < intersaccade_min and duration[-1] + duration_[idx] < max_saccade_duration:
+            # Saccade is part of previous one
+            duration[-1] += duration_[idx]
+            distance[-1] += distance_[idx]
+        elif len(duration) > 0 and duration[-1] + duration_[idx] >= max_saccade_duration:
+            # Saccade is too close but can't be part of this one, skip
+            pass
+        else:
+            # New saccade 
+            onset.append(onset_[idx])
+            duration.append(duration_[idx])
+            distance.append(distance_[idx])
+
     onset = np.array(onset)
     duration = np.array(duration)
     distance = np.array(distance)
@@ -155,10 +185,13 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
         ax[1].plot([debug_window[0],debug_window[1]], [thr[0], thr[0]], '--')
         ax[1].plot([debug_window[0],debug_window[1]], [thr[1], thr[1]], '--')
         
+        min_max = [np.min(eye_pos[debug_idx[0]:debug_idx[1]]), np.max(eye_pos[debug_idx[0]:debug_idx[1]])]
         debug_idx = (onset > debug_window[0]) & (onset < debug_window[1])
         onset_debug = onset[debug_idx]
         duration_debug = duration[debug_idx]
         for o, d in zip(onset_debug, duration_debug):
+            ax[0].plot([o, o], min_max, 'g--')
+            ax[0].plot([o+d, o+d], min_max, 'r--')
             ax[1].plot([o, o], [thr[0], thr[1]], 'g--')
             ax[1].plot([o+d, o+d], [thr[0], thr[1]], 'r--')
 
