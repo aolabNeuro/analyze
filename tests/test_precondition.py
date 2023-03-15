@@ -425,6 +425,7 @@ class EyeTests(unittest.TestCase):
         plot_freq_domain_amplitude(1e-6*le_filt, samplerate, ax=ax[3])
         ax[3].set_ylim(0,1)
         ax[3].set_xlim(1,1000)
+        plt.tight_layout()
         savefig(docs_dir, 'filter_eye.png')
 
         self.assertEqual(data_filt.shape[1], orig.shape[1])
@@ -442,6 +443,7 @@ class EyeTests(unittest.TestCase):
         plot_timeseries(1e-6*accel, self.samplerate, ax=ax[2])        
         plot_freq_domain_amplitude(1e-6*accel, self.samplerate, ax=ax[3])
         ax[1].set_ylabel('accel')
+        plt.tight_layout()
         savefig(docs_dir, 'convert_pos_to_accel_nofilter.png')
 
         # Important to low-pass filter before computing acceleration
@@ -461,6 +463,7 @@ class EyeTests(unittest.TestCase):
         plot_freq_domain_amplitude(1e-6*accel, samplerate, ax=ax[3])
         ax[3].set_ylabel('accel')
         ax[3].set_xlim(1,1000)
+        plt.tight_layout()
         savefig(docs_dir, 'convert_pos_to_accel_filter.png')
 
     def test_detect_saccades(self):

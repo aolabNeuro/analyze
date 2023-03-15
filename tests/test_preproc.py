@@ -1123,13 +1123,16 @@ class OculomaticTests(unittest.TestCase):
         t_25k = np.arange(len(analog_data))/old_samplerate
         t_1k = np.arange(len(downsample_data))/new_samplerate
 
+        self.assertEqual(old_samplerate, 25000)
+        self.assertEqual(new_samplerate, 100)
+
         t_range = [6,8]
 
         fig,ax = plt.subplots(2,1)
         ax[0].plot(t_25k[int(t_range[0]*old_samplerate):int(t_range[1]*old_samplerate)], analog_data[int(t_range[0]*old_samplerate):int(t_range[1]*old_samplerate),0])
         ax[1].plot(t_1k[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate)], downsample_data[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate),0])
         ax[0].set_ylabel('25khz')
-        ax[1].set_ylabel('1khz')
+        ax[1].set_ylabel('100hz')
         filename =  'proc_oculomatic_downsample.png'
         visualization.savefig(img_dir, filename)
 
@@ -1137,7 +1140,7 @@ class OculomaticTests(unittest.TestCase):
         visualization.plot_freq_domain_amplitude(1e-6*analog_data, old_samplerate, ax=ax[0])
         visualization.plot_freq_domain_amplitude(1e-6*downsample_data, new_samplerate, ax=ax[1])
         ax[0].set_ylabel('25khz')
-        ax[1].set_ylabel('1khz')
+        ax[1].set_ylabel('100hz')
         ax[0].set_ylim(0,1)
         ax[1].set_ylim(0,1)
         ax[0].set_xlim(0,100)
