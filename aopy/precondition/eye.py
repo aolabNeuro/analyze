@@ -17,11 +17,14 @@ def filter_eye(eye_pos, samplerate, downsamplerate=100, lowpass_freq=30, taper_l
         lowpass_freq (float, optional): low cutoff frequency to limit analysis of saccades
         taper_len (float, optional): length of tapers to use in multitaper lowpass filter
         pad_t (float, optional): time in seconds to pad the ends of the eye data before filtering
+
+    Returns:
+        (nt, nch) eye pos: eye position after filtering and downsampling
     '''
     # Lowpass filter
     n_pad = int(pad_t*samplerate)
     eye_pos = np.pad(eye_pos, ((n_pad,n_pad),(0,0)), mode='edge')
-    eye_pos = mt_lowpass_filter(eye_pos, lowpass_freq, taper_len, samplerate)
+    eye_pos = mt_lowpass_filter(eye_pos, lowpass_freq, taper_len, samplerate, verbose=False)
     eye_pos = eye_pos[n_pad:-n_pad,:]
 
     # Downsample
