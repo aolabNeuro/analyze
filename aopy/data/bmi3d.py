@@ -568,12 +568,13 @@ def get_source_files(preproc_dir, subject, te_id, date):
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
 
-def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, target_codes, 
-                  reward_codes, penalty_codes, df=None, include_handdata=False, include_eyedata=False):
+def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
+                           trial_end_codes, target_codes, reward_codes, penalty_codes, 
+                           df=None, include_handdata=False, include_eyedata=False):
     '''
-    Concatenate trials from across experiments. Experiments are given as lists of subjects, task entry
-    ids, and dates. Each list must be the same length. Trials are defined by intervals between the given
-    trial start and end codes. 
+    Concatenate trials from across experiments. Experiments are given as lists of 
+    subjects, task entry ids, and dates. Each list must be the same length. Trials 
+    are defined by intervals between the given trial start and end codes. 
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -582,14 +583,15 @@ def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_en
         dates (list of str): Date for each recording
         trial_start_codes (list): list of numeric codes representing the start of a trial
         trial_end_codes (list): list of numeric codes representing the end of a trial
-        target_codes (list): ordered list of numeric codes representing the possible target indices
+        target_codes (list): ordered list of numeric codes representing the possible 
+            target indices
         reward_codes (list): list of numeric codes representing rewards
         penalty_codes (list): list of numeric codes representing penalties
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        include_handdata (bool, optional): If True, includes hand trajectories in addition to cursor
-            trajectories. Defaults to False.
-        include_eyedata (bool, optional): If True, includes eye trajectories in addition to cursor
-            trajectories. Defaults to False.
+        include_handdata (bool, optional): If True, includes hand trajectories in 
+            addition to cursor trajectories. Defaults to False.
+        include_eyedata (bool, optional): If True, includes eye trajectories in 
+            addition to cursor trajectories. Defaults to False.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
@@ -640,17 +642,21 @@ def concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_en
                                          'penalty': penalty,
                                          'target_idx': target_idx,
                                          'target_location': target_location,
-                                         'cursor': cursor_traj, 
-                                         'hand': hand_traj, 
-                                         'eye': eye_traj,
+                                         'cursor_traj': cursor_traj, 
+                                         'hand_traj': hand_traj, 
+                                         'eye_traj': eye_traj,
                                         })], ignore_index=True)
     
     return df
 
-def concat_trials_center_out(preproc_dir, subjects, ids, dates, df=None, include_center_target=True,
-                  include_handdata=False, include_eyedata=False):
+def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, df=None, 
+                                      include_center_target=True,
+                                      include_handdata=False, include_eyedata=False):
     '''
-    Wrapper around concat_trials() specifically for center-out experiments.
+    Wrapper around tabulate_behavior_data() specifically for center-out experiments. 
+    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
+    assign event codes for trial start, trial end, reward, penalty, and targets. 
+    Trial start can optionally include the center target.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -684,9 +690,10 @@ def concat_trials_center_out(preproc_dir, subjects, ids, dates, df=None, include
         target_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']] + task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'] 
     
     # Concatenate trials
-    df = concat_trials(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, target_codes, 
-                       reward_codes, penalty_codes, df=df, 
-                       include_handdata=include_handdata, include_eyedata=include_eyedata)
+    df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, target_codes, 
+        reward_codes, penalty_codes, df=df, 
+        include_handdata=include_handdata, include_eyedata=include_eyedata)
     
     return df
         

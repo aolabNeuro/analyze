@@ -434,7 +434,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(files['ecube'], 'ecube/2022-07-01_BMI3D_te5974')
         self.assertEqual(raw_data_dir, '/data/raw')
 
-    def test_concat_trials(self):
+    def test_tabulate_behavior_data(self):
 
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
@@ -444,9 +444,10 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         target_codes = range(81,89)
         reward_codes = [48]
         penalty_codes = [64]
-        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-                           target_codes, reward_codes, penalty_codes, df=None, 
-                           include_handdata=False, include_eyedata=False)
+        df = tabulate_behavior_data(
+            write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
+            target_codes, reward_codes, penalty_codes, df=None, 
+            include_handdata=False, include_eyedata=False)
         self.assertEqual(len(df), 18)
         self.assertTrue(np.all(df['target_idx'] < 9))
         expected_reward = np.ones(len(df))
@@ -456,26 +457,28 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         
         plt.figure()
         bounds = [-10, 10, -10, 10]
-        visualization.plot_trajectories(df['cursor'].to_numpy(), bounds=bounds)
+        visualization.plot_trajectories(df['cursor_traj'].to_numpy(), bounds=bounds)
         figname = 'concat_trials.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(write_dir, figname)
 
-        df = concat_trials(write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-                           target_codes, reward_codes, penalty_codes, df=None, 
-                           include_handdata=True, include_eyedata=True)
+        df = tabulate_behavior_data(
+            write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
+            target_codes, reward_codes, penalty_codes, df=None, 
+            include_handdata=True, include_eyedata=True)
         self.assertEqual(len(df), 18)
-        self.assertEqual(df['cursor'].iloc[0].shape[1], 2) # should have 2 cursor axes     
-        self.assertEqual(df['hand'].iloc[0].shape[1], 3) # should have 3 hand axes 
-        self.assertEqual(df['eye'].iloc[0].shape[1], 4) # should have 4 eye axes
+        self.assertEqual(df['cursor_traj'].iloc[0].shape[1], 2) # should have 2 cursor axes     
+        self.assertEqual(df['hand_traj'].iloc[0].shape[1], 3) # should have 3 hand axes 
+        self.assertEqual(df['eye_traj'].iloc[0].shape[1], 4) # should have 4 eye axes
 
-    def test_concat_trials_center_out(self):
+    def test_tabulate_behavior_data_center_out(self):
 
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
-        df = concat_trials_center_out(write_dir, subjects, ids, dates, df=None, include_center_target=True,
-                  include_handdata=False, include_eyedata=False)
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
+                                               include_center_target=True,
+                                               include_handdata=False, include_eyedata=False)
         self.assertEqual(len(df), 18) # should be the same df as above
 
 class TestMatlab(unittest.TestCase):
