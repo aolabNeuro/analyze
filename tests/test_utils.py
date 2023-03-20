@@ -210,6 +210,71 @@ class TestDigitalCalc(unittest.TestCase):
         print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges.T)
 
+    def test_count_repetitions(self):
+        arr1 = [1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 5]
+        arr2 = [1, 1, 1, 1]
+        arr3 = [0]
+        arr4 = []
+        arr5 = [0.1, 0.2, 0.2, 0.3, 0.3, 0.3, 0.4, 0.5, 0.5]
+        
+        np.testing.assert_array_equal(count_repetitions(arr1), (np.array([1, 2, 3, 2, 4]), np.array([0, 1, 3, 6, 8])))
+        np.testing.assert_array_equal(count_repetitions(arr2), (np.array([4]), np.array([0])))
+        np.testing.assert_array_equal(count_repetitions(arr3), (np.array([1]), np.array([0])))
+        np.testing.assert_array_equal(count_repetitions(arr4), (np.array([]), np.array([])))
+        np.testing.assert_array_equal(count_repetitions(arr5, diff_thr=0.05), 
+                                      (np.array([1, 2, 3, 1, 2]), np.array([0, 1, 3, 6, 7])))
+        
+    def test_segment_array(self):
+        arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        categories = [1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 5] 
+        expected_segments = [[0], [1, 2], [3, 4, 5], [6, 7], [8, 9, 10, 11]]
+        expected_categories = [1, 2, 3, 4, 5]
+        
+        segments, cats = segment_array(arr, categories)
+        self.assertEqual(len(segments), len(expected_categories))
+        for i in range(len(segments)):
+            np.testing.assert_array_equal(segments[i], expected_segments[i])
+        np.testing.assert_array_equal(cats, expected_categories)
+
+        # With duplicate_endpoints = True
+        arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        categories = [1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 5] 
+        expected_segments = [[0], [0, 1, 2], [2, 3, 4, 5], [5, 6, 7], [7, 8, 9, 10, 11]]
+        expected_categories = [1, 2, 3, 4, 5]
+        
+        segments, cats = segment_array(arr, categories, duplicate_endpoints=True)
+        print(segments)
+        self.assertEqual(len(segments), len(expected_categories))
+        for i in range(len(segments)):
+            np.testing.assert_array_equal(segments[i], expected_segments[i])
+        np.testing.assert_array_equal(cats, expected_categories)
+
+        # Multidimensional
+        arr = np.array([
+            [0, 0, 0],
+            [1, 1, 0],
+            [2, 2, 0],
+            [3, 3, 0],
+            [4, 2, 0]
+        ])
+        categories = [0, 0, 1, 1, 1] 
+        expected_segments = [
+            np.array([[0, 0, 0],
+                      [1, 1, 0]]), 
+            np.array([[1, 1, 0],
+                      [2, 2, 0],
+                      [3, 3, 0],
+                      [4, 2, 0]])
+        ] 
+        expected_categories = [0, 1]
+        segments, cats = segment_array(arr, categories, duplicate_endpoints=True)
+        self.assertEqual(len(segments), len(expected_categories))
+        for i in range(len(segments)):
+            np.testing.assert_array_equal(segments[i], expected_segments[i])
+            print('is the same?')
+            print(segments[i], expected_segments[i])
+        np.testing.assert_array_equal(cats, expected_categories)
+
 
 class TestMath(unittest.TestCase):
 

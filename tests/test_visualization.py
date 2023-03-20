@@ -374,33 +374,42 @@ class OtherPlottingTests(unittest.TestCase):
 
     def test_color_trajectories(self):
 
-        trajectories =[
-                    np.array([
-                        [0, 0, 0],
-                        [1, 1, 0],
-                        [2, 2, 0],
-                        [3, 3, 0],
-                        [4, 2, 0]
-                    ]),
-                    np.array([
-                        [-1, 1, 0],
-                        [-2, 2, 0],
-                        [-3, 3, 0],
-                        [-3, 4, 0]
-                    ]),
-                    np.array([
-                        [2, 1, 0],
-                        [2, -1, 0],
-                        [3, -5, 0],
-                        [5, -5, 0]
-                    ])
-                ]
+        trajectories = [
+            np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [2, 2, 0],
+                [3, 3, 0],
+                [4, 2, 0]
+            ]),
+            np.array([
+                [-1, 1, 0],
+                [-2, 2, 0],
+                [-3, 3, 0],
+                [-3, 4, 0]
+            ]),
+            np.array([
+                [2, 1, 0],
+                [2, -1, 0],
+                [3, -5, 0],
+                [5, -5, 0]
+            ])
+        ]
         labels = [0, 0, 1]
         colors = ['r', 'b']
         plt.figure()
         color_trajectories(trajectories, labels, colors)
-        filename = 'color_trajectories.png'
-        savefig(write_dir, filename)
+        plt.title('Categorized trajectories')
+        filename = 'color_trajectories_simple.png'
+        savefig(docs_dir, filename)
+
+        # Generate the second plot with segmented trajectories
+        labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
+        fig, ax = plt.subplots()
+        color_trajectories(trajectories, labels_list, colors)
+        plt.title('Segmented trajectories')
+        filename = 'color_trajectories_segmented.png'
+        savefig(docs_dir, filename)
 
     def test_plot_sessions_by_date(self):
         from datetime import date, timedelta

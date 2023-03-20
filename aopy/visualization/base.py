@@ -24,6 +24,7 @@ import pandas as pd
 from .. import postproc
 from .. import analysis
 from ..data import load_chmap
+from .. import utils
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''
@@ -798,15 +799,41 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
             >>> colors = ['r', 'b']
             >>> color_trajectories(trajectories, labels, colors)
 
-        .. image:: _images/color_trajectories.png
+            .. image:: _images/color_trajectories_simple.png
+
+            >>> labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
+            >>> fig = plt.figure()
+            >>> color_trajectories(trajectories, labels_list, colors)
+
+            .. image:: _images/color_trajectories_segmented.png
 
     Args:
-        trajectories (ntrials): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
-        labels (ntrials): integer array of labels for each trajectory. Basically an index for each trajectory
-        colors (ncolors): list of colors. The number of colors should be the same as the number of unique labels.
+        trajectories (ntrials): list of (n, 2) or (n, 3) trajectories where n can 
+            vary across each trajectory
+        labels (ntrials): integer array of labels for each trajectory. Basically an 
+            index for each trajectory
+        colors (ncolors): list of colors. A list of arrays containing the label for 
+            each corresponding trajectory, or a list of lists where each sublist 
+            corresponds to the label for each timepoint in the corresponding trajectory.
+
         ax (plt.Axis, optional): axis to plot the targets on
         **kwargs (dict): other arguments for plot_trajectories(), e.g. bounds
     '''
+
+    # If the labels are in list of lists format, segment the trajectories accordingly
+    if isinstance(labels[0], list) or isinstance(labels[0], np.ndarray):
+        all_trajectories = []
+        all_labels = []
+        for t, l in zip(trajectories, labels):
+            assert len(t) == len(l), "Input labels must be the same length as input trajectories"
+            segmented_trajectories, segmented_labels = utils.segment_array(t, l, duplicate_endpoints=True)
+            all_trajectories += segmented_trajectories
+            all_labels += segmented_labels
+        trajectories = all_trajectories
+        labels = all_labels
+    
+    # Convert the labels to integers for indexing into the color list
+    labels = np.array(labels).astype(int)
 
     # Initialize a cycler with the appropriate colors
     style = plt.cycler(color=[colors[i] for i in labels])
@@ -815,7 +842,7 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     ax.set_prop_cycle(style)
 
     # Use the regular trajectory plotting function
-    plot_trajectories(trajectories, **kwargs)
+    plot_trajectories(trajectories, ax=ax, **kwargs)
 
 def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax=None):
     '''
