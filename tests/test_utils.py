@@ -210,7 +210,20 @@ class TestDigitalCalc(unittest.TestCase):
         print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges.T)
 
+    def test_count_repetitions(self):
+        arr1 = np.array([1, 2, 2, 3, 3, 3, 4, 5, 5])
+        arr2 = np.array([1, 1, 1, 1])
+        arr3 = np.array([1])
+        arr4 = np.array([])
+        arr5 = np.array([0.1, 0.2, 0.2, 0.3, 0.3, 0.3, 0.4, 0.5, 0.5])
 
+        np.testing.assert_array_equal(count_repetitions(arr1), (np.array([1, 2, 3, 1, 2]), np.array([0, 1, 3, 6, 7])))
+        np.testing.assert_array_equal(count_repetitions(arr2), (np.array([4]), np.array([0])))
+        np.testing.assert_array_equal(count_repetitions(arr3), (np.array([1]), np.array([0])))
+        np.testing.assert_array_equal(count_repetitions(arr4), (np.array([]), np.array([])))
+        np.testing.assert_array_equal(count_repetitions(arr1, diff_thr=0.1), 
+                                      (np.array([1, 2, 3, 1, 2]), np.array([0, 1, 3, 6, 7])))
+        
 class TestMath(unittest.TestCase):
 
     def test_derivative(self):

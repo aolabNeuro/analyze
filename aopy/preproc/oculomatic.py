@@ -2,6 +2,7 @@ from ..data.bmi3d import load_ecube_data_chunked
 from ..precondition.eye import filter_eye
 from .. import precondition
 from .. import data as aodata
+from .. import utils
 import numpy as np
 import os
 
@@ -131,24 +132,17 @@ def detect_noise(eye_data, samplerate, min_step=None, step_thr=3, t_closed_min=0
         # Find where value changes from one sample to next
         diff = abs(np.diff(eye_data[:,eye_idx]))
         if min_step is None:
-            step_size = np.min(diff[diff > 0])
+            step_size = step_thr*np.min(diff[diff > 0])
         else:
-            step_size = min_step
-        change = diff > step_thr*step_size
-        change = np.insert(change, 0, True)
-        change_idx = np.where(change)[0]
-        
-        # Count the length of the gaps between those changes
-        repetitions = np.diff(change_idx)
-        repetitions = np.insert(repetitions, 0, True)
-
+            step_size = step_thr*min_step
+        repetitions, repetitions_idx = utils.count_repetitions(eye_data[:,eye_idx], step_size)
         # Mask anything that is longer than a predetermined length
         suspicious = repetitions > int(samplerate*t_closed_min)
-        suspicious_idx = change_idx[suspicious]
+        suspicious_idx = repetitions_idx[suspicious]
         durations = repetitions[suspicious]
         for idx in range(len(suspicious_idx)):
-            idx_end = suspicious_idx[idx]
-            idx_start = idx_end - durations[idx]
+            idx_start = suspicious_idx[idx]
+            idx_end = idx_start + durations[idx]
             eye_closed_mask[idx_start:idx_end,eye_idx] = 1
             
     return eye_closed_mask

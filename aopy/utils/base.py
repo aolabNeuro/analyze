@@ -415,6 +415,38 @@ def copy_edges_forwards(data, n_steps, axis=0):
         edges = edges.T
     return np.squeeze(edges)
 
+def count_repetitions(arr, diff_thr=0):
+    """
+    Counts the number of repetitions in an array. Always counts the first and  
+    last element of the array as different from before and after the array.
+
+    Args:
+        arr (nt,): The input array. Only supports 1d arrays.
+        diff_thr (numeric, optional): Minimum step size in the data.
+
+    Returns:
+        tuple: A tuple of two numpy arrays:
+        | **repetitions (nt,):** Lengths of the repetitions in the input array, 
+        | **change_idx (nt,):** Indices where the repetitions start
+    """
+    assert np.array(arr).ndim == 1, "Only supports 1d arrays"
+    if len(arr) == 0:
+        return [], []
+
+    # Calculate the absolute difference between adjacent elements in the array
+    diff = np.abs(np.diff(arr))
+    change = diff > diff_thr
+    change = np.insert(change, 0, True)
+
+    # Find the indices where the 'change' array is True
+    change_idx = np.where(change)[0]
+
+    # Count the length of the gaps between those changes to find the repetitions
+    change = np.append(change_idx, len(arr))
+    repetitions = np.diff(change)
+
+    return repetitions, change_idx
+
 '''
 Other utils
 '''
