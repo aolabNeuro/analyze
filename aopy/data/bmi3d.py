@@ -233,7 +233,7 @@ def load_ecube_digital(path, data_dir):
             | **metadata (dict):** metadata (see load_ecube_metadata() for details)
     '''
     data = load_ecube_data(os.path.join(path, data_dir), 'DigitalPanel')
-    metadata = load_ecube_metadata(os.path.join(path, data_dir), 'AnalogPanel')
+    metadata = load_ecube_metadata(os.path.join(path, data_dir), 'DigitalPanel')
     return data, metadata
 
 def load_ecube_analog(path, data_dir, channels=None):
