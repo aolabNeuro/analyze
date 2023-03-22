@@ -819,7 +819,7 @@ class SpectrumTests(unittest.TestCase):
         dn = 0.1
         fk = 50
         n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-        f_spec,t_spec,spec = aopy.analysis.tfspec(test_data, n, p, k, fs, dn, fk, pad=2, ref=False)
+        f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(test_data, n, p, k, fs, dn, fk, pad=2, ref=False)
         
         fig,ax=plt.subplots(1,4,figsize=(8,2),tight_layout=True)
         ax[0].plot(t,test_data[:,0],linewidth=0.2)
@@ -834,6 +834,28 @@ class SpectrumTests(unittest.TestCase):
         ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
         ax[3].legend(frameon=False, fontsize=7)
         filename = 'tfspec.png'
+        savefig(docs_dir,filename)
+        
+        NW = 0.075
+        BW = 20
+        n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
+        step = None
+        fk = 1000
+        samplerate = 1000
+        
+        t = np.arange(2*samplerate)/samplerate
+        f0 = 1
+        t1 = 2
+        f1 = 1000
+        data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+
+        fig, ax = plt.subplots(3,1,figsize=(4,6),tight_layout=True)
+        aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+        aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+        f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(data, n, p, k, samplerate, step=step, fk=fk, pad=2, ref=False)
+        pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[2])
+        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+        filename = 'tfr_mt_chirp.png'
         savefig(docs_dir,filename)
         
     def test_tfr_wavelets(self):

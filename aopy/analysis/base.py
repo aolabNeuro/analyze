@@ -634,7 +634,7 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
 
             fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
             
-        .. image:: _images/tfr_cwt_chirp.png
+        .. image:: _images/tfr_cwt_50_200.png
 
     '''
     freqs = np.flip(freqs)/samplerate
@@ -702,17 +702,17 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
 
     return fxx, txx, Sxx
 
-def tfspec(X, n, p, k, fs, dn=None, fk=None, pad=2, ref=True):
+def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True):
     '''
-    Compute multitaper estimate from multichannel signal input. This code is Pesaran lab code.
+    Compute multitaper time-frequency estimate from multichannel signal input. This code is adapted from the Pesaran lab `tfspec`.    
     
     Args:
-        X (nt, nch): time series array
+        ts_data (nt, nch): time series array
         n (int): window length in seconds
         p (int): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
         fs (float): sampling rate
-        dn (float): window step. Defaults to dn = n/10.
+        step (float): window step. Defaults to step = n/10.
         fk (float): frequency range to return in Hz ([0, fk]). Defaults to fs/2.
         pad (int):  padding factor for the FFT. This should be 1 or a multiple of 2.
                     For N=500, if pad=1, we pad the FFT to 512 points.
@@ -729,49 +729,86 @@ def tfspec(X, n, p, k, fs, dn=None, fk=None, pad=2, ref=True):
         f (n_freq): frequency axis for spectrogram
         t (n_time): time axis for spectrogram
         spec (n_freq,n_time,nch): multitaper spectrogram estimate
+        
+    Examples:
+        
+        .. code-block:: python
 
+            fig, ax = plt.subplots(3,1,figsize=(4,6))
+
+            NW = 0.075
+            BW = 20
+            n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
+            step = None
+            fk = 1000
+            samplerate = 1000
+            
+            t = np.arange(2*samplerate)/samplerate
+            f0 = 1
+            t1 = 2
+            f1 = 1000
+            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+
+            fig, ax = plt.subplots(3,1,figsize=(4,6),tight_layout=True)
+            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+            f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(data, n, p, k, samplerate, step=step, fk=fk, pad=2, ref=False)
+            pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[2])
+            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+            
+        .. image:: _images/tfr_mt_chirp.png
+        
+    See Also:
+        :func:`~aopy.analysis.calc_cwt_tfr`
     '''   
+    
     def nextpow2(x):
         #   Next higher power of 2.
         #   NEXTPOW2(N) returns the first P such that 2.^P >= abs(N).
         #   It is often useful for finding the nearest power of two sequence length for FFT operations.
         return 1 if x == 0 else math.ceil(math.log2(x))
     
-    if X.ndim == 1: X = np.reshape(X,(-1,1))
-    if X.shape[1] == 1: ref = False
-    if dn == None: dn = n/10
-    if fk == None: fk = fs/2
+    if ts_data.ndim == 1:
+        ts_data = np.reshape(ts_data,(-1,1))
+    if ts_data.shape[1] == 1:
+        ref = False
+    if step == None:
+        step = n/10
+    if fk == None:
+        fk = fs/2
         
-    X = X.T
-    nch,nt = X.shape
+    ts_data = ts_data.T
+    nch,nt = ts_data.shape
     fk = np.array([0,fk])
     tapers, _ = dpsschk(n*fs, p, k)
     
-    N = tapers.shape[0]
-    dn = int(np.floor(dn*fs))
-    nf = np.max([256,pad*2**nextpow2(N+1)])
-    nfk = np.floor(fk/fs*nf)
-    nwin = int(np.floor((nt-N)/dn))
-    f = np.linspace(fk[0],fk[1],int(np.diff(nfk)))
+    win_size = tapers.shape[0] # window size (data points of tapers)
+    step_size = int(np.floor(step*fs)) # step size
+    nf = np.max([256,pad*2**nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
+    nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
+    nwin = int(np.floor((nt-win_size)/step_size)) # number of windows
+    f = np.linspace(fk[0],fk[1],int(np.diff(nfk))) # frequency axis for spectrogram
 
-    spec = np.zeros((nch,nwin,int(np.diff(nfk))),dtype = 'complex_')
-    for win in range(nwin):
+    spec = np.zeros((int(np.diff(nfk)),nwin,nch))
+    for iwin in range(nwin):
         if ref:
-            mX = np.sum(X[:,dn*win:dn*win+N],axis=0,keepdims=True)/nch # Mean across channels for that window
-            tmp = (X[:,dn*win:dn*win+N]-np.tile(mX[0,:],(nch,1))).T # Subtract mean from data            
+            m_data = np.sum(ts_data[:,step_size*iwin:step_size*iwin+win_size],axis=0)/nch # Mean across channels for that window
+            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]-m_data).T # Subtract mean from data           
         else:
-            tmp = (X[:,dn*win:dn*win+N]).T
+            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]).T
         
-        for ich in range(nch):
-            Xk = fft(tapers*np.tile(tmp[:,ich],(k,1)).T, nf, axis=0)
-            Xk = Xk[int(nfk[0]):int(nfk[1]),:]
-            spec[ich,win,:] = (np.sum(Xk*Xk.conj(),axis=1)/k).T
-    spec = spec.real.T
+        # Compute power for each taper
+        power = 0
+        for ik in range(k):
+            tapers_ik = tapers[:,ik].reshape(-1,1) # keep the dimension for broadcast
+            fk_data = fft(tapers_ik*win_data, nf, axis=0) # tapers_ik.shape:(win_size,1), win_data.shape:(win_size,nch)
+            fk_data = fk_data[int(nfk[0]):int(nfk[1]),:] # extract a part of frequency components
+            power += fk_data*fk_data.conj()
+        power = power/k # average power across number of tapers.   
+        spec[:,iwin,:] = power.real  # Power is already real at this time, but still have 0j part.
     
-    t = np.arange(nwin)*dn + n/2 # Center of each window is time axis
+    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
     
-
-
     return f, t, spec
 
 def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
