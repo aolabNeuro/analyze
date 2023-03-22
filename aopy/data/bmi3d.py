@@ -1,12 +1,14 @@
-from ..preproc.base import get_data_segments, get_trial_segments, interp_timestamps2timeseries, trial_align_data
+import traceback
+from ..preproc.base import get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles
-from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
+from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, config_dir
 import os
 import numpy as np
 import h5py
 import tables
-
+import pandas as pd
+from tqdm.auto import tqdm
 
 ############
 # Raw data #
@@ -565,3 +567,133 @@ def get_source_files(preproc_dir, subject, te_id, date):
     '''
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
+
+def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
+                           trial_end_codes, target_codes, reward_codes, penalty_codes, 
+                           df=None, include_handdata=False, include_eyedata=False):
+    '''
+    Concatenate trials from across experiments. Experiments are given as lists of 
+    subjects, task entry ids, and dates. Each list must be the same length. Trials 
+    are defined by intervals between the given trial start and end codes. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        trial_start_codes (list): list of numeric codes representing the start of a trial
+        trial_end_codes (list): list of numeric codes representing the end of a trial
+        target_codes (list): ordered list of numeric codes representing the possible 
+            target indices
+        reward_codes (list): list of numeric codes representing rewards
+        penalty_codes (list): list of numeric codes representing penalties
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        include_handdata (bool, optional): If True, includes hand trajectories in 
+            addition to cursor trajectories. Defaults to False.
+        include_eyedata (bool, optional): If True, includes eye trajectories in 
+            addition to cursor trajectories. Defaults to False.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+    '''
+    if df is None:
+        df = pd.DataFrame()
+
+    entries = list(zip(subjects, dates, ids))
+    for subject, date, te in tqdm(entries): 
+
+        # Load data from bmi3d hdf 
+        try:
+            data, metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            continue
+        event_codes = data['events']['code']
+        event_times = data['events']['timestamp']
+
+        # Trial aligned event codes and event times
+        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
+
+        # Get data segments 
+        cursor_traj = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                         datatype='cursor')[0].tolist()
+        hand_traj = [None] * len(tr_seg)
+        if include_handdata:
+            hand_traj = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                  datatype='hand')[0].tolist()
+        eye_traj = [None] * len(tr_seg)
+        if include_eyedata:
+            eye_traj = get_kinematic_segments(preproc_dir, subject, te, date, trial_start_codes, trial_end_codes, 
+                                                 datatype='eye')[0].tolist()
+
+        target_idx = [code[np.isin(code, target_codes)][0] - target_codes[0] if np.sum(np.isin(code, target_codes)) == 1 else 0 for code in tr_seg]
+        target_location = get_target_locations(preproc_dir, subject, te, date, target_idx).tolist()
+
+        reward = [np.any(np.isin(reward_codes, ec)) for ec in tr_seg]
+        penalty = [np.any(np.isin(penalty_codes, ec)) for ec in tr_seg]
+        
+        df = pd.concat([df,pd.DataFrame({'subject': subject,
+                                         'te_id': te, 
+                                         'date': date, 
+                                         'event_codes': tr_seg,
+                                         'event_times': tr_t, 
+                                         'reward': reward,
+                                         'penalty': penalty,
+                                         'target_idx': target_idx,
+                                         'target_location': target_location,
+                                         'cursor_traj': cursor_traj, 
+                                         'hand_traj': hand_traj, 
+                                         'eye_traj': eye_traj,
+                                        })], ignore_index=True)
+    
+    return df
+
+def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, df=None, 
+                                      include_center_target=True,
+                                      include_handdata=False, include_eyedata=False):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for center-out experiments. 
+    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
+    assign event codes for trial start, trial end, reward, penalty, and targets. 
+    Trial start can optionally include the center target.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        include_center_target (bool, optional): If True, trials begin after the cursor enters
+            the center target. Otherwise trials begin after the go cue. Default True.
+        include_handdata (bool, optional): If True, includes hand trajectories in addition to cursor
+            trajectories. Defaults to False.
+        include_eyedata (bool, optional): If True, includes eye trajectories in addition to cursor
+            trajectories. Defaults to False.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+    '''
+    # Use default "trial" definition
+    params_file = os.path.join(config_dir, 'task_codes.yaml')
+    task_codes = yaml_read(params_file)[0]        
+    trial_end_codes = [task_codes['TRIAL_END']]
+    reward_codes = [task_codes['REWARD']]
+    
+    if include_center_target:
+        trial_start_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']]
+        penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+        target_codes = [task_codes['CENTER_TARGET_ON']] + task_codes['PERIPHERAL_TARGET_ON']
+    else:
+        trial_start_codes = [task_codes['CENTER_TARGET_OFF']]
+        penalty_codes = [task_codes['TIMEOUT_PENALTY']]
+        target_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']] + task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'] 
+    
+    # Concatenate trials
+    df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, target_codes, 
+        reward_codes, penalty_codes, df=df, 
+        include_handdata=include_handdata, include_eyedata=include_eyedata)
+    
+    return df
+        

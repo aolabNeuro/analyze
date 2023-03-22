@@ -2,6 +2,7 @@
 import unittest
 from aopy.data.base import load_preproc_eye_data
 from aopy.precondition.eye import *
+from aopy import visualization
 from aopy.visualization import *
 import matplotlib.pyplot as plt
 from aopy import precondition
@@ -254,6 +255,45 @@ class FilterTests(unittest.TestCase):
         data_ds = precondition.downsample(data, 100, 10)
         self.assertEqual(data_ds.shape, (10, 2))
         self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
+
+        fs_ds = self.fs/5
+        x_ds = precondition.downsample(self.x, self.fs, fs_ds)
+        fig, ax = plt.subplots(2,2)
+        ax[0,0].plot(self.t, self.x)
+        ax[0,0].set_ylabel(f"{self.fs} hz")
+        t_ds = np.arange(len(x_ds))/fs_ds
+        ax[1,0].plot(t_ds, x_ds)
+        ax[1,0].set_ylabel(f"{fs_ds} hz")
+        ax[1,0].set_xlabel("time (s)")
+        visualization.plot_freq_domain_amplitude(1e-6*self.x, self.fs, ax=ax[0,1])
+        ax[0,1].set_xlim(0,5000)
+        ax[0,1].set_xlabel('')
+        visualization.plot_freq_domain_amplitude(1e-6*x_ds, fs_ds, ax=ax[1,1])
+        ax[1,1].set_xlim(0,5000)
+        plt.tight_layout()
+        filename = 'downsample.png'
+        savefig(docs_dir, filename)
+
+        # Test non-integer downsample factor
+        data_ds = precondition.downsample(data, 100, 13)
+        self.assertEqual(data_ds.shape, (13, 2))
+        self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
+
+        # Test large data with large upsampling rate
+        data = np.arange(1e7)
+        samplerate = 25000
+        ds_samplerate = 100
+        tic = time.perf_counter()
+        data_ds = precondition.downsample(data, samplerate, ds_samplerate)
+        toc = time.perf_counter()
+        print(f"Downsampling {len(data)/samplerate:0.2f} seconds of data from {samplerate} to {ds_samplerate} hz took {toc-tic:0.2f} seconds")
+
+        ds_samplerate = 120
+        tic = time.perf_counter()
+        data_ds = precondition.downsample(data, samplerate, ds_samplerate)
+        toc = time.perf_counter()
+        print(f"Downsampling {len(data)/samplerate:0.2f} seconds of data from {samplerate} to {ds_samplerate} hz took {toc-tic:0.2f} seconds")
+
 
     def test_filter_lfp(self):
         

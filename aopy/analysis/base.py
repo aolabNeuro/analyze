@@ -867,3 +867,80 @@ def interp_multichannel(x):
     return x
 
 
+def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
+    '''
+    This function creates a map showning the local correlation between two input datamaps. If specified, it also aligns the input
+    maps by finding the location of the peak of the 2D correlation function. Note, if these shifts are unexpectedly high, there
+    is likely not high enough correlation between the datamaps and alignment should not be used. This function uses 0-padding for all
+    edge conditions and replaces input NaN values with 0 to calculate the correlation map. After the correlation map is calculated,
+    all values were NaN in the input data are again set to NaN. If a window of data has all 0's, the NCC is set to nan. 
+    Note, the worst correlation in the example image is not at the edge of the image because of zero padding.
+
+    .. image:: _images/calc_corr2_map.png
+
+    Args:
+        data1 (nrow, ncol): First input data array. Used as baseline if map alignment is required.
+        data2 (nrow, ncol): Second input data array. Shifted to match the baseline if map alignment is required
+        knlsz (int): Length of the kernel window in units of data points. The kernel is a square so each side will have the lenght specified here. This value should always be odd.
+        align_maps (bool): Whether or not to align maps.
+
+    Returns:
+        tuple: Tuple containing:
+            | **NCC (nrow, ncol):** Spatial correlation map (NCC: normalized correlatoin coefficient)
+            | **shifts (tuple):** Contains (row_shifts, col_shifts)
+    '''
+    
+    # Make sure knlsz is odd
+    if knlsz % 2 == 0:
+        print('Warning: Kernel size (knlsz) is even in calc_corr2_map')
+
+    NCC = np.zeros((data1.shape))
+    data_sz = data1.shape[0]
+    
+    # Get nan value locations 
+    nan_idx1 = np.isnan(data1)
+    nan_idx2 = np.isnan(data2)
+    
+    # Replace NaNs with 0s so correlation doesn't output NaN
+    data1[nan_idx1] = 0
+    data2[nan_idx2] = 0
+    
+    # Get maxidx of 2D spatial correlation matrix to ensure data maps are aligned.
+    if align_maps:
+        corr = scipy.signal.correlate2d(data1/np.linalg.norm(data1), data2/np.linalg.norm(data2), 
+                                        boundary='fill', mode='same')
+        irow, icol = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
+        row_shift = int(irow - (data1.shape[0]-1)/2)
+        col_shift = int(icol - (data1.shape[1]-1)/2)
+        data2_align = np.roll(data2, row_shift, axis=0)
+        data2_align = np.roll(data2_align, col_shift, axis=1)
+        shifts = (row_shift, col_shift)
+    else:
+        data2_align = data2
+        shifts = (0,0)
+    
+    # Pad data
+    data1_pad = np.pad(data1, int((knlsz-1)/2), mode='constant')
+    data2_pad = np.pad(data2_align, int((knlsz-1)/2), mode='constant')
+    
+    start_idx = int((knlsz-1)/2)
+    end_idx = int(data_sz + (knlsz-1)/2)
+    middle_ncc_idx = int(2*(knlsz-1)/2)
+    for xx in range(start_idx, end_idx):
+        for yy in range(start_idx,end_idx):
+            # Normalize input arrays based on the norm
+            data_subset1 = data1_pad[(xx-start_idx):(xx+start_idx+1),(yy-start_idx):(yy+start_idx+1)]
+            data_subset2 = data2_pad[(xx-start_idx):(xx+start_idx+1),(yy-start_idx):(yy+start_idx+1)]
+
+            # If either data subset is all 0's set the NCC to 0
+            if np.linalg.norm(data_subset1)==0 or np.linalg.norm(data_subset2)==0:
+                NCC[xx - start_idx, yy - start_idx] = np.nan
+            else:
+                data_subset1 /= np.linalg.norm(data_subset1)
+                data_subset2 /= np.linalg.norm(data_subset2)
+                NCC[xx - start_idx, yy - start_idx] = scipy.signal.correlate2d(data_subset1,data_subset2)[middle_ncc_idx, middle_ncc_idx]
+    
+    # Replace NaNs in correlation map
+    NCC[nan_idx1] = np.nan
+    
+    return NCC, shifts

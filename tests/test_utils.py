@@ -1,3 +1,4 @@
+import time
 from aopy.utils import *
 from aopy.visualization import plot_timeseries, savefig
 import os
@@ -108,6 +109,11 @@ class TestDigitalCalc(unittest.TestCase):
         np.testing.assert_allclose(ts, [7, 8, 9, 10, 13, 15, 17, 19, 21])
         np.testing.assert_allclose(values, [1, 2, 1, 3, 2, 1, 1, 1, 1])
 
+        ts, values = detect_edges(test_02, 1, falling=False)
+        self.assertEqual(len(ts), 8)
+        np.testing.assert_allclose(ts, [7, 8, 10, 13, 15, 17, 19, 21])
+        np.testing.assert_allclose(values, [1, 2, 3, 2, 1, 1, 1, 1])
+
         # test that if there are multiple of the same edge only the last one counts
         test_valid = [0, 0, 3, 0, 3, 2, 2, 0, 1, 7, 3, 2, 2, 0]
         ts, values = detect_edges(test_valid, 1)
@@ -115,16 +121,25 @@ class TestDigitalCalc(unittest.TestCase):
         np.testing.assert_allclose(values, [3, 0, 3, 0, 7, 0])
 
         # Test using min_pulse_width
-        test_bool = [1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0]
-        test_int = [0, 0, 4, 0, 3, 2, 0, 0, 0, 0, 0]
+        test_bool = [1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0] # Note the first 1 doesn't count as an edge!
         ts, values = detect_edges(test_bool, 1, min_pulse_width=4)
-        np.testing.assert_allclose(ts,  [2, 8])  # Can't get falling edge without rising edge in this case
-        np.testing.assert_allclose(values, [1, 0])
+        np.testing.assert_allclose(ts,  [1, 2, 8])  # Can't get falling edge without rising edge in this case
+        np.testing.assert_allclose(values, [0, 1, 0])
         
-        ts, values = detect_edges(test_int, 1, min_pulse_width=4)
+        test_01 = [0, 0, 4, 0, 3, 2, 0, 0, 0, 0, 0, 0]
+        ts, values = detect_edges(test_01, 1, min_pulse_width=4)
         np.testing.assert_allclose(ts, [4, 8]) # the rising edge isn't finished until index 4 now
         np.testing.assert_allclose(values, [7, 0])
 
+        test_02 = [0, 0, 4, 0, 3, 2, 0, 2, 0, 0, 0, 0]
+        ts, values = detect_edges(test_02, 1, min_pulse_width=4)
+        np.testing.assert_allclose(ts, [4, 11]) # falling edge extended to 11
+        np.testing.assert_allclose(values, [7, 0])
+
+        test_03 = [0, 0, 4, 0, 3, 2, 0, 0, 0, 2, 0, 0]
+        ts, values = detect_edges(test_03, 1, min_pulse_width=4)
+        np.testing.assert_allclose(ts, [4, 8, 9]) # new rising edge at the end
+        np.testing.assert_allclose(values, [7, 0, 2])    
 
     def test_get_pulse_edge_times(self):
         # see test_data:E3vFrameTests
@@ -184,13 +199,13 @@ class TestDigitalCalc(unittest.TestCase):
             [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0],
             [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1],
         ])
-        out = copy_edges_forwards(test_edges, 1)
+        out = copy_edges_forwards(test_edges, 1, truncate_edges=True)
         np.testing.assert_allclose(out, expected_edges[0])
 
-        out = copy_edges_forwards(test_edges, 2)
+        out = copy_edges_forwards(test_edges, 2, truncate_edges=True)
         np.testing.assert_allclose(out, expected_edges[1])
 
-        out = copy_edges_forwards(test_edges, 3)
+        out = copy_edges_forwards(test_edges, 3, truncate_edges=True)
         np.testing.assert_allclose(out, expected_edges[2])
 
         # Test with 2D array
@@ -202,28 +217,118 @@ class TestDigitalCalc(unittest.TestCase):
             [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0, 0],
             [0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0]
         ])
-        out = copy_edges_forwards(test_edges, 1, axis=1)
+        out = copy_edges_forwards(test_edges, 1, axis=1, truncate_edges=True)
         print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges)
 
-        out = copy_edges_forwards(test_edges.T, 1, axis=0) # check axis=0 as well
+        out = copy_edges_forwards(test_edges.T, 1, axis=0, truncate_edges=True) # check axis=0 as well
         print(out.astype(int))
         np.testing.assert_allclose(out, expected_edges.T)
 
-    def test_count_repetitions(self):
-        arr1 = np.array([1, 2, 2, 3, 3, 3, 4, 5, 5])
-        arr2 = np.array([1, 1, 1, 1])
-        arr3 = np.array([1])
-        arr4 = np.array([])
-        arr5 = np.array([0.1, 0.2, 0.2, 0.3, 0.3, 0.3, 0.4, 0.5, 0.5])
+        # Test with no truncation
+        test_edges = np.array([1, 0, 1, 0, 1, 1, 0, 0, 0, 0, 0])
+        expected_edges = np.array([1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0])
+        out = copy_edges_forwards(test_edges, 1, truncate_edges=False)
+        print(out.astype(int))
+        np.testing.assert_allclose(out, expected_edges)
 
-        np.testing.assert_array_equal(count_repetitions(arr1), (np.array([1, 2, 3, 1, 2]), np.array([0, 1, 3, 6, 7])))
+        test_edges = np.array([
+            [0, 1, 0, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0],
+            [0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0]
+        ])
+        expected_edges = np.array([
+            [0, 1, 1, 0, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 0, 0],
+            [0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 0]
+        ])
+        out = copy_edges_forwards(test_edges, 1, axis=1, truncate_edges=False)
+        print(out.astype(int))
+        np.testing.assert_allclose(out, expected_edges)
+
+        out = copy_edges_forwards(test_edges.T, 1, axis=0, truncate_edges=False) # check axis=0 as well
+        print(out.astype(int))
+        np.testing.assert_allclose(out, expected_edges.T)
+
+        # Test super long sequence with lots of edges
+        test_edges = np.random.randint(10000, size=(25000*60,10)) < 1
+        n_edges = np.count_nonzero(test_edges)
+        n_steps = int(0.003*25000) # 3ms pulse at 25khz
+
+        t0 = time.perf_counter()
+        out = copy_edges_forwards(test_edges, n_steps, truncate_edges=False, copy_per_step=True)
+        t1 = time.perf_counter()
+        print(f"Copy-per-step method takes {t1-t0:0.2f} seconds on {n_edges} edges")
+
+        t0 = time.perf_counter()
+        out = copy_edges_forwards(test_edges, n_steps, truncate_edges=False, copy_per_step=False)
+        t1 = time.perf_counter()
+        print(f"Default method takes {t1-t0:0.2f} seconds on {n_edges} edges")
+
+    def test_count_repetitions(self):
+        arr1 = [1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 5]
+        arr2 = [1, 1, 1, 1]
+        arr3 = [0]
+        arr4 = []
+        arr5 = [0.1, 0.2, 0.2, 0.3, 0.3, 0.3, 0.4, 0.5, 0.5]
+        
+        np.testing.assert_array_equal(count_repetitions(arr1), (np.array([1, 2, 3, 2, 4]), np.array([0, 1, 3, 6, 8])))
         np.testing.assert_array_equal(count_repetitions(arr2), (np.array([4]), np.array([0])))
         np.testing.assert_array_equal(count_repetitions(arr3), (np.array([1]), np.array([0])))
         np.testing.assert_array_equal(count_repetitions(arr4), (np.array([]), np.array([])))
-        np.testing.assert_array_equal(count_repetitions(arr1, diff_thr=0.1), 
+        np.testing.assert_array_equal(count_repetitions(arr5, diff_thr=0.05), 
                                       (np.array([1, 2, 3, 1, 2]), np.array([0, 1, 3, 6, 7])))
         
+    def test_segment_array(self):
+        arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        categories = [1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 5] 
+        expected_segments = [[0], [1, 2], [3, 4, 5], [6, 7], [8, 9, 10, 11]]
+        expected_categories = [1, 2, 3, 4, 5]
+        
+        segments, cats = segment_array(arr, categories)
+        self.assertEqual(len(segments), len(expected_categories))
+        for i in range(len(segments)):
+            np.testing.assert_array_equal(segments[i], expected_segments[i])
+        np.testing.assert_array_equal(cats, expected_categories)
+
+        # With duplicate_endpoints = True
+        arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+        categories = [1, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 5] 
+        expected_segments = [[0], [0, 1, 2], [2, 3, 4, 5], [5, 6, 7], [7, 8, 9, 10, 11]]
+        expected_categories = [1, 2, 3, 4, 5]
+        
+        segments, cats = segment_array(arr, categories, duplicate_endpoints=True)
+        print(segments)
+        self.assertEqual(len(segments), len(expected_categories))
+        for i in range(len(segments)):
+            np.testing.assert_array_equal(segments[i], expected_segments[i])
+        np.testing.assert_array_equal(cats, expected_categories)
+
+        # Multidimensional
+        arr = np.array([
+            [0, 0, 0],
+            [1, 1, 0],
+            [2, 2, 0],
+            [3, 3, 0],
+            [4, 2, 0]
+        ])
+        categories = [0, 0, 1, 1, 1] 
+        expected_segments = [
+            np.array([[0, 0, 0],
+                      [1, 1, 0]]), 
+            np.array([[1, 1, 0],
+                      [2, 2, 0],
+                      [3, 3, 0],
+                      [4, 2, 0]])
+        ] 
+        expected_categories = [0, 1]
+        segments, cats = segment_array(arr, categories, duplicate_endpoints=True)
+        self.assertEqual(len(segments), len(expected_categories))
+        for i in range(len(segments)):
+            np.testing.assert_array_equal(segments[i], expected_segments[i])
+            print('is the same?')
+            print(segments[i], expected_segments[i])
+        np.testing.assert_array_equal(cats, expected_categories)
+
+
 class TestMath(unittest.TestCase):
 
     def test_derivative(self):
