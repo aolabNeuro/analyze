@@ -430,6 +430,74 @@ def copy_edges_forwards(data, n_steps, truncate_edges=False, copy_per_step=False
         return np.squeeze(edges)
     return np.squeeze(edges | data)
 
+def count_repetitions(arr, diff_thr=0):
+    """
+    Counts the number of repetitions in an array. Always counts the first and  
+    last element of the array as different from before and after the array.
+
+    Args:
+        arr (nt,): The input array. Only supports 1d arrays.
+        diff_thr (numeric, optional): Minimum step size in the data.
+
+    Returns:
+        tuple: A tuple of two numpy arrays:
+        | **repetitions (nt,):** Lengths of the repetitions in the input array, 
+        | **change_idx (nt,):** Indices where the repetitions start
+    """
+    assert np.array(arr).ndim == 1, "Only supports 1d arrays"
+    if len(arr) == 0:
+        return [], []
+
+    # Calculate the absolute difference between adjacent elements in the array
+    diff = np.abs(np.diff(arr))
+    change = diff > diff_thr
+    change = np.insert(change, 0, True)
+
+    # Find the indices where the 'change' array is True
+    change_idx = np.where(change)[0]
+
+    # Count the length of the gaps between those changes to find the repetitions
+    change = np.append(change_idx, len(arr))
+    repetitions = np.diff(change)
+
+    return repetitions, change_idx
+
+
+def segment_array(arr, category, duplicate_endpoints=False):
+    '''
+    Segments an array into subarrays based on a corresponding category array.
+
+    Args:
+        arr (nt,): The array to segment.
+        category (nt,): An array of the same length as `arr` containing a 
+            category label for each element in the corresponding array.
+        duplicate_endpoints (bool, optional): if True, each subsequent subarray
+            will start with the last element of the preceding subarray.
+
+    Returns:
+        tuple: Tuple containing:
+        | **segments (list of arrays):**
+            A list of subarrays of `arr`, where each subarray corresponds to a unique
+            value in `category`.
+        | **segmented_category (list of arrays):**
+            An array of the same length as `segments`, where each element corresponds to
+            the category label for the corresponding subarray in `segments`.
+    '''
+    run_arr, idx = count_repetitions(category)
+    end_indices = np.cumsum(run_arr)
+    if duplicate_endpoints:
+        segments = []
+        start_idx = 0
+        for end_idx in end_indices:
+            if start_idx == 0:
+                segments.append(arr[:end_idx])
+            else:
+                segments.append(arr[start_idx-1:end_idx])
+            start_idx = end_idx
+    else:
+        segments = np.split(arr, end_indices[:-1])
+    return segments, [category[i] for i in idx]
+
 '''
 Other utils
 '''

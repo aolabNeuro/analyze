@@ -434,6 +434,53 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(files['ecube'], 'ecube/2022-07-01_BMI3D_te5974')
         self.assertEqual(raw_data_dir, '/data/raw')
 
+    def test_tabulate_behavior_data(self):
+
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+        trial_start_codes = [80]
+        trial_end_codes = [239]
+        target_codes = range(81,89)
+        reward_codes = [48]
+        penalty_codes = [64]
+        df = tabulate_behavior_data(
+            write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
+            target_codes, reward_codes, penalty_codes, df=None, 
+            include_handdata=False, include_eyedata=False)
+        self.assertEqual(len(df), 18)
+        self.assertTrue(np.all(df['target_idx'] < 9))
+        expected_reward = np.ones(len(df))
+        expected_reward[-2:] = 0
+        expected_reward[-11:-9] = 0
+        np.testing.assert_allclose(df['reward'], expected_reward)
+        
+        plt.figure()
+        bounds = [-10, 10, -10, 10]
+        visualization.plot_trajectories(df['cursor_traj'].to_numpy(), bounds=bounds)
+        figname = 'concat_trials.png' # should look very similar to get_trial_aligned_trajectories.png
+        visualization.savefig(write_dir, figname)
+
+        df = tabulate_behavior_data(
+            write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
+            target_codes, reward_codes, penalty_codes, df=None, 
+            include_handdata=True, include_eyedata=True)
+        self.assertEqual(len(df), 18)
+        self.assertEqual(df['cursor_traj'].iloc[0].shape[1], 2) # should have 2 cursor axes     
+        self.assertEqual(df['hand_traj'].iloc[0].shape[1], 3) # should have 3 hand axes 
+        self.assertEqual(df['eye_traj'].iloc[0].shape[1], 4) # should have 4 eye axes
+
+    def test_tabulate_behavior_data_center_out(self):
+
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
+                                               include_center_target=True,
+                                               include_handdata=False, include_eyedata=False)
+        self.assertEqual(len(df), 18) # should be the same df as above
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):

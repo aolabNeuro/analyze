@@ -388,6 +388,52 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(max_erp.shape[0], len(event_times)) 
         self.assertEqual(max_erp.shape[1], nch) 
 
+    def test_calc_corr2_map(self):
+        # Test correlation map
+        nrows = 11
+        ncols = 11
+        data1 = np.ones((nrows,ncols))
+        data2 = np.ones(data1.shape)
+        knlsz = 3
+        nrows_changed = 5
+        ncols_changed = 3
+        for irow in range(nrows_changed):
+            data2[irow,:ncols_changed] = np.arange(ncols_changed)+2
+
+        NCC, _ = aopy.analysis.calc_corr2_map(data1, data2, knlsz, False)
+        
+        knl_offset = int((knlsz-1)/2)
+        # # Check that everyone after the changed rows gives corr=1
+        self.assertAlmostEqual(np.sum(NCC[int(nrows_changed+knl_offset):,0]), int((nrows-(nrows_changed+knl_offset))), 3)
+        # Check that everyone after the changed col gives corr=1
+        self.assertAlmostEqual(np.sum(NCC[0,int(ncols_changed+knl_offset):]), int((ncols-(ncols_changed+knl_offset))), 3)
+
+        # Test shifts
+        data2_shifted = np.roll(data2, 2, axis=0)
+
+        NCC2, shifts = aopy.analysis.calc_corr2_map(data2,data2_shifted, 3, True)
+        np.testing.assert_allclose(NCC2, np.ones((nrows, ncols)))
+        self.assertEqual(shifts[0], -2)
+        self.assertEqual(shifts[1], 0)
+
+        # Plot for example figure 
+        fig, [ax1, ax2, ax4] = plt.subplots(1,3, figsize=(12,3))
+        im1 = ax1.pcolor(data1)
+        ax1.set(title='Data 1')
+        plt.colorbar(im1, ax=ax1)
+        im2 = ax2.pcolor(data2)
+        ax2.set(title='Data 2')
+        plt.colorbar(im2, ax=ax2)
+
+        im4 = ax4.pcolor(NCC)
+        ax4.set(title='NCC')
+        plt.colorbar(im4, ax=ax4)
+        fig.tight_layout()
+    
+        filename = 'calc_corr2_map.png'
+        aopy.visualization.savefig(docs_dir, filename)
+
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):

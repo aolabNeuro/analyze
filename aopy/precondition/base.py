@@ -547,6 +547,8 @@ def downsample(data, old_samplerate, new_samplerate):
     the two sampling rates. Finally, pads data to be a multiple of the downsample factor and 
     averages blocks into the new samples. 
 
+    .. image:: _images/downsample.png
+
     Args:
         data (nt, ...): timeseries data to be downsampled. Can be 1D or 2D.
         old_samplerate (int): the current sampling rate of the data
