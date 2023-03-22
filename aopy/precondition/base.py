@@ -183,7 +183,7 @@ def convert_taper_parameters(n, w):
         warnings.warn("K is less than 1, try increasing the taper length or the half-bandwidth")
     return n, p, k
 
-def mt_lowpass_filter(data, lowcut, taper_len, fs, **kwargs):
+def mt_lowpass_filter(data, lowcut, taper_len, fs, verbose=True, **kwargs):
     '''
     Wrapper around mtfilter that auto-generates [n, p, k] and f0 parameters 
     based on the lowpass of interest, length of the tapers, and the sampling 
@@ -194,6 +194,7 @@ def mt_lowpass_filter(data, lowcut, taper_len, fs, **kwargs):
         lowcut (float): low-pass cutoff frequency
         taper_len (float): length of the tapers (in seconds) 
         fs (float): sampling rate of the data
+        verbose (bool, optional): if True, print out the n, k parameters.
         kwargs (dict): additional keyword-arguments to pass to mtfilter
 
     Returns:
@@ -201,11 +202,12 @@ def mt_lowpass_filter(data, lowcut, taper_len, fs, **kwargs):
     '''
     n, p, k = convert_taper_parameters(taper_len, lowcut)
     f0 = 0
-    print(f"Using {k} tapers of length {n:.4f} s")
+    if verbose:
+        print(f"Using {k} tapers of length {n:.4f} s")
     return mtfilter(data, n, p, k, fs, f0, **kwargs)
 
 
-def mt_bandpass_filter(data, band, taper_len, fs, **kwargs):
+def mt_bandpass_filter(data, band, taper_len, fs, verbose=True, **kwargs):
     '''
     Wrapper around mtfilter that auto-generates [n, p, k] and f0 parameters based on the band of interest,
     length of the tapers, and the sampling rate. See :func:`~aopy.precondition.mtfilter` for more details.
@@ -215,6 +217,7 @@ def mt_bandpass_filter(data, band, taper_len, fs, **kwargs):
         band ((2,) tuple): low and high frequencies to band-pass
         taper_len (float): length of the tapers (in seconds) 
         fs (float): sampling rate of the data
+        verbose (bool, optional): if True, print out the n, k parameters.
         kwargs (dict): additional keyword-arguments to pass to mtfilter
 
     Returns:
@@ -223,7 +226,8 @@ def mt_bandpass_filter(data, band, taper_len, fs, **kwargs):
     '''
     n, p, k = convert_taper_parameters(taper_len, (band[1]-band[0])/2)
     f0 = np.mean(band)
-    print(f"Using {k} tapers of length {n:.4f} s")
+    if verbose:
+        print(f"Using {k} tapers of length {n:.4f} s")
     return mtfilter(data, n, p, k, fs, f0, **kwargs)
 
 

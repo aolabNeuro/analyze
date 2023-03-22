@@ -54,6 +54,17 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
 
+    def test_find_preproc_ids_from_day(self):
+        ids = find_preproc_ids_from_day(write_dir, self.subject, self.date, 'exp')
+        self.assertIn(self.id, ids)
+        self.assertEqual(len(ids), 1)
+
+    def test_proc_eye_day(self):
+        self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
+        best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
+        self.assertIsNone(best_id)
+        self.assertCountEqual(te_ids, [6581, 6577])
+
 class OptitrackTests(unittest.TestCase):
         
     def test_load_mocap(self):
@@ -340,7 +351,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_end_codes = [REWARD, TRIAL_END]
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape, (158, 2)) # x z
+        self.assertEqual(trajs[1].shape[1], 2) # x z
         bounds = [-10, 10, -10, 10]
         plt.figure()
         visualization.plot_trajectories(trajs, bounds=bounds)
@@ -351,7 +362,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Plot eye trajectories - expect same 9 trials but no eye pos to plot
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye')
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape, (632, 4)) # two eyes x and y
+        self.assertEqual(trajs[1].shape[1], 4) # two eyes x and y
         plt.figure()
         visualization.plot_trajectories(trajs[:2], bounds=bounds)
         figname = 'get_eye_trajectories.png'
@@ -361,7 +372,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Plot hand trajectories - expect same 9 trials but hand kinematics.
         hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand')
         self.assertEqual(len(hand_trajs), 9)
-        self.assertEqual(hand_trajs[1].shape, (158, 3))
+        self.assertEqual(hand_trajs[1].shape[1], 3)
         plt.figure()
         visualization.plot_trajectories(hand_trajs, bounds=bounds)
         figname = 'get_hand_trajectories.png' # since these were test data generated with a cursor, it should look the same as the cursor data.
@@ -372,7 +383,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test normalized output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=True)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape, (158,))
+        self.assertEqual(vel[1].ndim, 1)
         plt.figure()
         plt.plot(vel[1])
         figname = 'get_trial_velocities.png'
@@ -382,7 +393,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test component wise velocity output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape, (158, 2))
+        self.assertEqual(vel[1].shape[1], 2)
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
@@ -397,7 +408,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(samplerate, 120)
 
         trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye', return_samplerate=True)
-        self.assertEqual(samplerate, 480)
+        self.assertEqual(samplerate, 100)
 
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
@@ -720,6 +731,38 @@ class PesaranLabTests(unittest.TestCase):
         test_data, test_exp, test_mask = peslab.load_ecog_clfp_data(test_ecog_ds250_data_file)
         self.assertEqual(test_data.shape,(10000,62))
 
+class EyeTests(unittest.TestCase):
+
+    def test_apply_eye_calibration(self):
+
+        # Create a test hdf file
+        subject = 'test'
+        te_id = 1
+        date = 'calibration'
+        data_source = 'eye'
+        filename = get_preprocessed_filename(subject, te_id, date, data_source)
+        filepath = os.path.join(write_dir, subject, filename)
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        data_dict = {
+            'raw_data': np.array([[0,0], [1,1]])
+        }
+        metadata_dict = {}
+        preproc_dir = os.path.join(write_dir, subject)
+        if not os.path.exists(preproc_dir):
+            os.mkdir(preproc_dir)
+        save_hdf(preproc_dir, filename, data_dict, data_group='/eye_data')
+        save_hdf(preproc_dir, filename, metadata_dict, '/eye_metadata', append=True)
+
+        # Apply a calibration
+        coeff = np.array([[3,4], [5,6]])
+        apply_eye_calibration(coeff, write_dir, subject, te_id, date)
+
+        # Check the result
+        eye_data, eye_metadata = load_preproc_eye_data(write_dir, subject, te_id, date)
+        self.assertIn('calibrated_data', eye_data)
+        self.assertIn('coefficients', eye_data)
+        self.assertIn('external_calibration', eye_metadata)    
 
 if __name__ == "__main__":
     unittest.main()

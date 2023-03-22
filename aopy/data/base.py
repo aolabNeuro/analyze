@@ -5,6 +5,7 @@ import h5py
 import tables
 import os
 import glob
+import re
 import warnings
 import pickle as pkl
 import numpy as np
@@ -56,6 +57,31 @@ def get_preprocessed_filename(subject, te_id, date, data_source):
         str: filename
     '''  
     return f"preproc_{date}_{subject}_{te_id}_{data_source}.hdf"
+
+def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
+    '''
+    Returns the task entry ids that have preprocessed files in the given directory matching
+    the subject, date, and data source given.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        date (str): Date of recording
+        data_source (str): Processed data type (exp, eye, broadband, lfp, etc.)
+        
+    Returns
+        list of ids: task entry id for each matching file found in the given folder
+    '''
+    contents = glob.glob(os.path.join(preproc_dir,subject,f"preproc_{date}_{subject}_*_{data_source}.hdf"))
+    ids = []
+    for file in contents:
+        try:
+            filename = os.path.basename(file)
+            te_id = int(re.match(f"preproc_{date}_{subject}_(\d*)_{data_source}.hdf$", filename).group(1))
+        except AttributeError:
+            return []
+        ids.append(te_id)
+    return ids
 
 def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     '''

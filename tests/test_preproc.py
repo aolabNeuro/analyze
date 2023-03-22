@@ -4,10 +4,12 @@ from aopy import preproc
 from aopy import analysis
 from aopy.preproc import *
 from aopy.preproc.bmi3d import *
+from aopy.preproc import oculomatic
 from aopy.preproc import quality
 from aopy.data import *
 import numpy as np
 import unittest
+
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -824,17 +826,6 @@ class TestPrepareExperiment(unittest.TestCase):
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
         self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
 
-    def test_parse_oculomatic(self):
-        files = {}
-        files['ecube'] = '2021-09-30_BMI3D_te2952'
-        files['hdf'] = 'beig20210930_02_te2952.hdf'
-        data, metadata = parse_oculomatic(data_dir, files)
-
-        self.assertIn('data', data)
-        self.assertIn('samplerate', metadata)
-        self.assertIn('channels', metadata)
-        self.assertIn('labels', metadata)
-
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
@@ -1111,6 +1102,80 @@ class QualityTests(unittest.TestCase):
         sat_data_mask, sat_data_mask_all_ch = quality.saturated_data_detection(self.data, self.samplerate)
         self.assertEqual(sat_data_mask.shape, (self.data.shape[0],))
         self.assertEqual(np.count_nonzero(sat_data_mask), 0)
+
+class OculomaticTests(unittest.TestCase):
+    
+    def test_parse_oculomatic(self):
+        files = {}
+        files['ecube'] = '2021-09-30_BMI3D_te2952'
+        files['hdf'] = 'beig20210930_02_te2952.hdf'
+        data, metadata = parse_oculomatic(data_dir, files)
+
+        self.assertIn('data', data)
+        self.assertIn('mask', data)
+        self.assertIn('samplerate', metadata)
+        self.assertIn('channels', metadata)
+        self.assertIn('labels', metadata)
+
+        eye_channels = metadata['channels']
+        data_path = metadata['source']
+        analog_metadata = aodata.load_ecube_metadata(data_path, 'AnalogPanel')
+        analog_data = analog_metadata['voltsperbit']*aodata.load_ecube_data(data_path, 'AnalogPanel', channels=eye_channels)
+
+        old_samplerate = metadata['raw_samplerate']
+        new_samplerate = metadata['samplerate']
+        downsample_data = data['data']
+
+        t_25k = np.arange(len(analog_data))/old_samplerate
+        t_1k = np.arange(len(downsample_data))/new_samplerate
+
+        self.assertEqual(old_samplerate, 25000)
+        self.assertEqual(new_samplerate, 100)
+
+        t_range = [6,8]
+
+        fig,ax = plt.subplots(2,1)
+        ax[0].plot(t_25k[int(t_range[0]*old_samplerate):int(t_range[1]*old_samplerate)], analog_data[int(t_range[0]*old_samplerate):int(t_range[1]*old_samplerate),0])
+        ax[1].plot(t_1k[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate)], downsample_data[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate),0])
+        ax[0].set_ylabel('25khz')
+        ax[1].set_ylabel('100hz')
+        filename =  'proc_oculomatic_downsample.png'
+        visualization.savefig(img_dir, filename)
+
+        fig,ax = plt.subplots(2,1)
+        visualization.plot_freq_domain_amplitude(1e-6*analog_data, old_samplerate, ax=ax[0])
+        visualization.plot_freq_domain_amplitude(1e-6*downsample_data, new_samplerate, ax=ax[1])
+        ax[0].set_ylabel('25khz')
+        ax[1].set_ylabel('100hz')
+        ax[0].set_ylim(0,1)
+        ax[1].set_ylim(0,1)
+        ax[0].set_xlim(0,100)
+        ax[1].set_xlim(0,100)
+        filename =  'proc_oculomatic_freq.png'
+        visualization.savefig(img_dir, filename)
+
+
+    def test_detect_noise(self):
+        test_data = np.array([1,2,3,4,5,7,7,7,7,5,4,3,2,1])
+        test_data = np.expand_dims(test_data, axis=1)
+        samplerate = 10
+        eye_closed_mask = oculomatic.detect_noise(test_data, samplerate, min_step=0, step_thr=1)
+        
+        expected_mask = np.concatenate((np.zeros(5), np.ones(4), np.zeros(5)))
+        expected_mask = np.expand_dims(expected_mask, axis=1)
+        np.testing.assert_allclose(eye_closed_mask, expected_mask)
+
+        data_path = os.path.join(data_dir, '2021-09-29_BMI3D_te2949')
+        eye_channels = [10, 11, 8, 9]
+        analog_metadata = aodata.load_ecube_metadata(data_path, 'AnalogPanel')
+        analog_data = load_ecube_data(data_path, 'AnalogPanel', channels=eye_channels)
+
+        eye_closed_mask = oculomatic.detect_noise(analog_data, analog_metadata['samplerate'], min_step=4, step_thr=2)
+        plt.figure()
+        plt.matshow(eye_closed_mask, aspect='auto')
+        filename =  'proc_oculomatic_mask.png'
+        visualization.savefig(img_dir, filename)
+
 
 if __name__ == "__main__":
     unittest.main()

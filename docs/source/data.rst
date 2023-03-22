@@ -22,3 +22,15 @@ Peslab
 
 .. automodule:: aopy.data.peslab
     :members:
+
+Optitrack
+^^^^^^^^^
+
+.. automodule:: aopy.data.optitrack
+    :members:
+
+Eye
+^^^
+
+.. automodule:: aopy.data.eye
+    :members:
