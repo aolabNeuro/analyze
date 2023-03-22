@@ -813,7 +813,7 @@ class SpectrumTests(unittest.TestCase):
         test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2])
         test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2])
         
-        NW = 1
+        NW = 2
         BW = 1
         fs = num_points/T
         dn = 0.1
@@ -832,7 +832,7 @@ class SpectrumTests(unittest.TestCase):
         ax[3].plot(f_spec,spec[:,10,0],'-',label='ch 1')
         ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
         ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
-        ax[3].legend(frameon=False, fontsize=7)
+        ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
         filename = 'tfspec.png'
         savefig(docs_dir,filename)
         
