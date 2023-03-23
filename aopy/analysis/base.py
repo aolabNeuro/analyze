@@ -757,6 +757,39 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True):
             fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
             
         .. image:: _images/tfr_mt_chirp.png
+            
+        .. code-block:: python
+            T = 5
+            t = np.linspace(0,T,num_points)
+            test_data = np.zeros((t.shape[0],2))
+            test_data[:,0] = 1.5*np.sin(2*np.pi*10*t)
+            test_data[:,1] = 2*np.cos(2*np.pi*30*t)
+            test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2])
+            test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2])
+    
+            NW = 2
+            BW = 1
+            fs = num_points/T
+            dn = 0.1
+            fk = 50
+            n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
+            f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(test_data, n, p, k, fs, dn, fk, pad=2, ref=False)
+
+            fig,ax=plt.subplots(1,4,figsize=(8,2),tight_layout=True)
+            ax[0].plot(t,test_data[:,0],linewidth=0.2)
+            ax[0].plot(t,test_data[:,1],linewidth=0.2)
+            ax[0].set(xlabel='Time (s)',ylabel='Amplitude',title='Signals')
+            ax[1].imshow((spec[:,:,0]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
+            ax[1].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch1)')
+            ax[2].imshow((spec[:,:,1]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
+            ax[2].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch2)')
+            ax[3].plot(f_spec,spec[:,10,0],'-',label='ch 1')
+            ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
+            ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
+            ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
+            
+        .. image:: _images/tfspec.png
+
         
     See Also:
         :func:`~aopy.analysis.calc_cwt_tfr`
