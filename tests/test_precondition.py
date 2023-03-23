@@ -309,6 +309,13 @@ class FilterTests(unittest.TestCase):
         self.assertEqual(filt.shape, test_data.shape)
         self.assertNotAlmostEqual(np.mean(test_data), np.mean(filt), places=3) # After filtering these should be different
 
+    def test_filter_kinematics(self):
+        fs = 100
+        fn = lambda x: precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)
+        HelperFunctions.test_filter(fn, fs=fs, T=5, freq=[1,3,30], a=[5, 2, 0.5], noise=0.2)
+        fname = 'filter_kinematics.png'
+        savefig(docs_dir, fname)
+
 
 class SpikeDetectionTests(unittest.TestCase):
         

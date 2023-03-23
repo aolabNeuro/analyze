@@ -1,5 +1,7 @@
 import traceback
-from ..preproc.base import get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, trial_align_data
+
+from .. import precondition
+from ..preproc.base import get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, config_dir
@@ -346,6 +348,55 @@ def load_bmi3d_root_metadata(data_dir, filename):
 #####################
 # Preprocessed data #
 #####################
+def get_interp_kinematics(exp_data, datatype='cursor', samplerate=100):
+    '''
+    Gets interpolated and filtered kinematic data from preprocessed experiment 
+    data to the desired sampling rate. Cursor kinematics are returned in 
+    screen coordinates, while hand kinematics are returned in their original
+    coordinate system (i.e. optitrack).
+
+    Examples:
+        
+        .. code-block:: python
+        
+            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, 'test',  3498, '2021-12-13')
+            cursor_interp = get_interp_kinematics(exp_data, datatype='cursor', samplerate=100)
+            hand_interp = get_interp_kinematics(exp_data, datatype='hand', samplerate=100)
+
+            plt.figure()
+            visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
+        
+        .. image:: _images/get_interp_cursor.png
+       
+        .. code-block:: python
+
+            plt.figure()
+            ax = plt.axes(projection='3d')
+            visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
+
+        .. image:: _images/get_interp_hand.png
+
+    Args:
+        exp_data (dict): A dictionary containing the experiment data.
+        datatype (str, optional): The type of kinematic data to interpolate. 
+            Either 'cursor' or 'hand'. Defaults to 'cursor'.
+        samplerate (float, optional): The desired output sampling rate in Hz. 
+            Defaults to 100.
+
+    Returns:
+        data_time (ns, ...): Kinematic data interpolated and filtered 
+            to the desired sampling rate.
+    '''
+    if datatype == 'hand':
+        data_cycles = exp_data['clean_hand_position']
+    elif datatype == 'cursor':
+        data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
+    clock = exp_data['clock']['timestamp_sync']
+    data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
+                                        upsamplerate=10000, append_time=10)
+    data_time = precondition.filter_kinematics(data_time, samplerate)
+    return data_time
+
 def get_velocity_segments(*args, norm=True, **kwargs):
     '''
     Estimates velocity from cursor position, then finds the trial segments for velocity using 
@@ -409,9 +460,21 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
 
     if datatype == 'cursor':
+        if 'cursor_interp' not in data:
+            metadata['cursor_interp_samplerate'] = 100
+            data['cursor_interp'] = get_interp_kinematics(
+                data, datatype='cursor', 
+                samplerate=metadata['cursor_interp_samplerate']
+            )
         raw_kinematics = data['cursor_interp']
         samplerate = metadata['cursor_interp_samplerate']
     elif datatype == 'hand':
+        if 'hand_interp' not in data:
+            metadata['hand_interp_samplerate'] = 100
+            data['hand_interp'] = get_interp_kinematics(
+                data, datatype='hand', 
+                samplerate=metadata['hand_interp_samplerate']
+            )
         raw_kinematics = data['hand_interp']
         samplerate = metadata['hand_interp_samplerate']
     elif datatype == 'eye':

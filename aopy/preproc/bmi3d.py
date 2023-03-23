@@ -4,7 +4,8 @@
 import warnings
 import numpy as np
 import os
-
+from datetime import datetime
+from importlib.metadata import version
 import pandas as pd
 
 from .. import precondition
@@ -15,7 +16,7 @@ from .. import visualization
 from ..postproc import get_source_files
 from ..precondition import downsample
 from ..utils import detect_edges
-from .base import get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries
+from .base import get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries, sample_timestamped_data
 
 def decode_event(dictionary, value):
     '''
@@ -120,9 +121,16 @@ def parse_bmi3d(data_dir, files):
         print("Warning: this bmi3d sync version is untested!")
         data, metadata = _parse_bmi3d_v1(data_dir, files)
         metadata['bmi3d_parser'] = 1
+    
+    # Keep track of the software version
+    metadata['bmi3d_preproc_date'] = datetime.now()
+    try:
+        metadata['bmi3d_preproc_version'] = version('aopy')
+    except:
+        metadata['bmi3d_preproc_version'] = 'unknown'
+    metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
 
     # Standardize the parsed variable names and perform some error checking
-    metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
     return _prepare_bmi3d_v1(data, metadata)
 
 def _parse_bmi3d_v0(data_dir, files):
@@ -293,7 +301,14 @@ def _parse_bmi3d_v1(data_dir, files):
             'analog_voltsperbit': metadata['voltsperbit']
         })
 
-        # Laser sensor (A2)
+        # Laser sensors
+        if 'qwalor_sensor_dch' in metadata_dict:
+            laser_trigger_bit_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_sensor_dch'])
+            laser_trigger_data = utils.mask_and_shift(digital_data, laser_trigger_bit_mask)
+            laser_trigger_timestamps, laser_trigger_values = utils.detect_edges(laser_trigger_data, digital_samplerate, rising=True, falling=True)
+            laser_trigger = np.empty((len(laser_trigger_timestamps),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
+            laser_trigger['timestamp'] = laser_trigger_timestamps
+            laser_trigger['value'] = laser_trigger_values
         if 'qwalor_sensor_ach' in metadata_dict:
             laser_sensor_data = ecube_analog[:, metadata_dict['qwalor_sensor_ach']]
             data_dict['laser_sensor'] = laser_sensor_data
@@ -439,24 +454,18 @@ def _prepare_bmi3d_v1(data, metadata):
     else:
         warnings.warn("No sync events present, using bmi3d events instead")
 
+    data.update({
+        'task': task,
+        'clock': corrected_clock,
+        'events': corrected_events,
+    })
+
     # Also put some information about the reward system
     if 'reward_system' in data and 'reward_system' in metadata['features']:
         metadata['has_reward_system'] = True
     else:
         metadata['has_reward_system'] = False
 
-    # And interpolated cursor kinematics
-    if 'timestamp_sync' in corrected_clock.dtype.names and isinstance(task, np.ndarray) and 'cursor' in task.dtype.names:
-        cursor_data_cycles = task['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
-        clock = corrected_clock['timestamp_sync']
-        assert cursor_data_cycles.shape[0] == len(clock), f"Cursor data and clock should have the same number of cycles ({cursor_data_cycles.shape[0]} vs {len(clock)})"
-        time = np.arange(int((clock[-1] + 10)*metadata['analog_samplerate']))/metadata['analog_samplerate']
-        cursor_data_time, _ = interp_timestamps2timeseries(clock, cursor_data_cycles, sampling_points=time, interp_kind='linear')
-        cursor_samplerate = metadata['fps']
-        cursor_data_time = downsample(cursor_data_time, metadata['analog_samplerate'], cursor_samplerate)
-        data['cursor_interp'] = cursor_data_time
-        metadata['cursor_interp_samplerate'] = cursor_samplerate
-  
     # In some versions of BMI3D, hand position contained erroneous data
     # caused by `np.empty()` instead of `np.nan`. The 'clean_hand_position' 
     # replaces these bad data with `np.nan`.
@@ -467,22 +476,14 @@ def _prepare_bmi3d_v1(data, metadata):
 
     # Interpolate clean hand kinematics
     if 'timestamp_sync' in corrected_clock.dtype.names and 'clean_hand_position' in data:
-        hand_data_cycles = data['clean_hand_position']
-        cursor_data_cycles = task['cursor']
-        clock = corrected_clock['timestamp_sync']
-        samplerate = metadata['analog_samplerate']
-        time = np.arange(int((clock[-1] + 10)*samplerate))/samplerate
-        hand_data_time, _ = interp_timestamps2timeseries(clock, hand_data_cycles, sampling_points=time, interp_kind='linear')
-        hand_samplerate = metadata['fps']
-        hand_data_time = downsample(hand_data_time, metadata['analog_samplerate'], hand_samplerate)
-        data['hand_interp'] = hand_data_time
-        metadata['hand_interp_samplerate'] = hand_samplerate
+        metadata['hand_interp_samplerate'] = 100
+        data['hand_interp'] = aodata.get_interp_kinematics(data, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
 
-    data.update({
-        'task': task,
-        'clock': corrected_clock,
-        'events': corrected_events,
-    })
+    # And interpolated cursor kinematics
+    if 'timestamp_sync' in corrected_clock.dtype.names and isinstance(task, np.ndarray) and 'cursor' in task.dtype.names:
+        metadata['cursor_interp_samplerate'] = 100
+        data['cursor_interp'] = aodata.get_interp_kinematics(data, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
+        
     return data, metadata
 
 def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_powers, sensor_data, samplerate, sensor_voltsperbit, 
@@ -610,28 +611,50 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
     
     exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     
-    # Get the laser event timing from BMI3D's sync events
-    events = exp_data['sync_events']['event'] 
-    event_times = exp_data['sync_events']['timestamp']
-    times = event_times[events == b'TRIAL_START']
-    min_isi = np.min(np.diff(times))
-    if 'search_radius' not in kwargs:
-        kwargs['search_radius'] = min_isi/2 # look for sensor measurements up to half the minimum ISI away
+     # Load the trigger data if it's not already in the bmi3d data
+    if 'laser_trigger' not in exp_data:
+        files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
+        hdf_filepath = os.path.join(data_dir, files['hdf'])
+        if not os.path.exists(hdf_filepath):
+            raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
+        exp_data, exp_metadata = parse_bmi3d(data_dir, files)
+    
+    if 'laser_trigger' in exp_data:
 
-    # Get width and power from the 'trials' data
-    if 'bmi3d_trials' in exp_data:
-        trials = exp_data['bmi3d_trials']
-        powers = trials['power'][:len(times)]
-        edges = trials['edges'][:len(times)]
-        widths = np.array([t[1] - t[0] for t in edges])
-        thr_width=0.001
-        thr_power=0.05
-    else:
-        # Can't use the exp data as ground truth, so just load the analog sensor data
-        widths = np.zeros((len(times),))
-        powers = np.zeros((len(times),))
-        thr_width = 999
+        # Use the digital trigger as the ground truth of timing
+        timestamps = exp_data['laser_trigger']['timestamp']
+        values = exp_data['laser_trigger']['value']
+        times = timestamps[values == 1]
+        widths = timestamps[values == 0] - times
+        powers = np.zeros((len(times),)) # Don't assume anything about power by default
+        thr_width = 0.001
         thr_power = 1
+    
+    else:
+
+        # Some older experiments didn't have laser trigger data. Instead,
+        # get the laser event timing from BMI3D's sync events
+        events = exp_data['sync_events']['event'] 
+        event_times = exp_data['sync_events']['timestamp']
+        times = event_times[events == b'TRIAL_START']
+        min_isi = np.min(np.diff(times))
+        if 'search_radius' not in kwargs:
+            kwargs['search_radius'] = min_isi/2 # look for sensor measurements up to half the minimum ISI away
+
+        # Get width and power from the 'trials' data
+        if 'bmi3d_trials' in exp_data:
+            trials = exp_data['bmi3d_trials']
+            powers = trials['power'][:len(times)]
+            edges = trials['edges'][:len(times)]
+            widths = np.array([t[1] - t[0] for t in edges])
+            thr_width=0.001
+            thr_power=0.05
+        else:
+            # Can't use the exp data as ground truth, so just load the analog sensor data
+            widths = np.zeros((len(times),))
+            powers = np.zeros((len(times),))
+            thr_width = 999
+            thr_power = 1
 
     # Load the sensor data if it's not already in the bmi3d data
     if 'laser_sensor' not in exp_data:

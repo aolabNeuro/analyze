@@ -150,6 +150,42 @@ class DigitalCalcTests(unittest.TestCase):
         np.testing.assert_allclose(timeseries, expected_timeseries)
         np.testing.assert_allclose(new_samplepts, input_samplepts)
 
+    def test_sample_timestamped_data(self):
+        np.random.seed(0)
+        duration = 4
+        freq = 5
+        samplerate = 1000
+        ground_truth_data = utils.generate_multichannel_test_signal(duration*2, samplerate, 2, freq, 1)
+        
+        fps = 120
+        nt = fps*duration
+        framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
+        drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
+        timestamps = np.arange(nt)/fps + framerate_error + drift
+        samples = (timestamps * samplerate).astype(int)
+
+        frame_data = ground_truth_data[samples,:]
+        interp_samplerate = 100
+        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
+
+        fig, ax = plt.subplots(2,1)
+        visualization.plot_timeseries(1e-6*frame_data[:,0], fps, ax=ax[0])
+        visualization.plot_timeseries(1e-6*interp_data[:,0], interp_samplerate, ax=ax[0])
+        ax[0].set_title(f'{freq} Hz signal')
+        ax[0].set_ylabel('pos (cm)')
+        ax[0].legend(['without sampling', 'with sampling'])
+
+        visualization.plot_freq_domain_amplitude(1e-6*frame_data[:,0], fps, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(1e-6*interp_data[:,0], interp_samplerate, ax=ax[1])
+        ax[1].set_xscale('linear')
+        ax[1].set_xlim(0,30)
+        ax[1].set_ylabel('Peak amplitude')
+        plt.tight_layout()
+
+        filename = 'sample_timestamped_data.png'
+        visualization.savefig(img_dir, filename)
+        
+
 class EventFilterTests(unittest.TestCase):
 
     def test_trial_align_events(self):
@@ -969,9 +1005,14 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # This other preprocessed file does contain laser sensor data. Response on ch. 36
         te_id = 6577
+
+        # files = {}
+        # files['hdf'] = '/Users/leoscholl/raw/hdf/test20220819_16_te6577.hdf'
+        # files['ecube'] = '/Users/leoscholl/raw/ecube/2022-08-19_BMI3D_te6577'
+        # proc_exp('', files, data_dir, 'test/preproc_2022-08-19_test_6577_exp.hdf')
+
         trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
-
 
         print(trial_powers)
 

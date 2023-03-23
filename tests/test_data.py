@@ -17,6 +17,7 @@ from matplotlib.testing.compare import compare_images
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 test_filepath = os.path.join(data_dir, "short headstage test")
@@ -343,6 +344,27 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         preproc_file = get_preprocessed_filename(cls.subject, cls.te_id, cls.date, 'eye')
         save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
+
+    def test_get_interp_kinematics(self):
+        exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
+        cursor_interp = get_interp_kinematics(exp_data, datatype='cursor', samplerate=100)
+        hand_interp = get_interp_kinematics(exp_data, datatype='hand', samplerate=100)
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+
+        self.assertEqual(len(cursor_interp), len(hand_interp))
+
+        plt.figure()
+        visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
+        filename = 'get_interp_cursor.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
+        filename = 'get_interp_hand.png'
+        visualization.savefig(docs_dir, filename)
 
     def test_get_kinematic_segments(self):
 
