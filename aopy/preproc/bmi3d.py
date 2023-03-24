@@ -284,16 +284,16 @@ def _parse_bmi3d_v1(data_dir, files):
         # Analog cursor out (A3, A4) since version 11
         if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
             cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'], metadata_dict['cursor_z_ach']]]
+            cursor_analog = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
+            cursor_analog_samplerate = 100
+            cursor_analog = precondition.downsample(cursor_analog, analog_samplerate, cursor_analog_samplerate)
             max_voltage = 3.34 # using teensy 3.6
             cursor_analog_cm = ((cursor_analog * metadata['voltsperbit']) - max_voltage/2) / metadata_dict['cursor_out_gain']
-            filt_out, freq = precondition.butterworth_filter_data(cursor_analog_cm, analog_samplerate, [metadata_dict['fps']], filter_type='lowpass', order=3)
-            cursor_analog_cm_filt = filt_out[0]
             data_dict.update({
                 'cursor_analog_volts': cursor_analog,
                 'cursor_analog_cm': cursor_analog_cm,
-                'cursor_analog_cm_filt': cursor_analog_cm_filt,
             })
-            metadata_dict['cursor_analog_samplerate'] = analog_samplerate
+            metadata_dict['cursor_analog_samplerate'] = cursor_analog_samplerate
 
         metadata_dict.update({
             'digital_samplerate': digital_samplerate,
@@ -302,13 +302,14 @@ def _parse_bmi3d_v1(data_dir, files):
         })
 
         # Laser sensors
-        if 'qwalor_sensor_dch' in metadata_dict:
-            laser_trigger_bit_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_sensor_dch'])
+        if 'qwalor_trigger_dch' in metadata_dict:
+            laser_trigger_bit_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_trigger_dch'])
             laser_trigger_data = utils.mask_and_shift(digital_data, laser_trigger_bit_mask)
             laser_trigger_timestamps, laser_trigger_values = utils.detect_edges(laser_trigger_data, digital_samplerate, rising=True, falling=True)
             laser_trigger = np.empty((len(laser_trigger_timestamps),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
             laser_trigger['timestamp'] = laser_trigger_timestamps
             laser_trigger['value'] = laser_trigger_values
+            data_dict['laser_trigger'] = laser_trigger
         if 'qwalor_sensor_ach' in metadata_dict:
             laser_sensor_data = ecube_analog[:, metadata_dict['qwalor_sensor_ach']]
             data_dict['laser_sensor'] = laser_sensor_data
@@ -611,16 +612,17 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
     
     exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     
-     # Load the trigger data if it's not already in the bmi3d data
-    if 'laser_trigger' not in exp_data:
-        files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
-        hdf_filepath = os.path.join(data_dir, files['hdf'])
-        if not os.path.exists(hdf_filepath):
-            raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
-        exp_data, exp_metadata = parse_bmi3d(data_dir, files)
-    
-    if 'laser_trigger' in exp_data:
+     
+    if 'qwalor_trigger_dch' in exp_metadata:
 
+        # Load the trigger data if it's not already in the bmi3d data
+        if 'laser_trigger' not in exp_data:
+            files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
+            hdf_filepath = os.path.join(data_dir, files['hdf'])
+            if not os.path.exists(hdf_filepath):
+                raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
+            exp_data, exp_metadata = parse_bmi3d(data_dir, files)
+        
         # Use the digital trigger as the ground truth of timing
         timestamps = exp_data['laser_trigger']['timestamp']
         values = exp_data['laser_trigger']['value']

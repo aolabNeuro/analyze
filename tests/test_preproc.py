@@ -827,7 +827,7 @@ class TestPrepareExperiment(unittest.TestCase):
         filename = 'parse_bmi3d_cursor_trajectories_interp_v11.png'
         visualization.savefig(write_dir, filename)
 
-        trajectories = get_data_segments(data['cursor_analog_cm_filt'], trial_times, metadata['cursor_interp_samplerate'])
+        trajectories = get_data_segments(data['cursor_analog_cm'], trial_times, metadata['cursor_interp_samplerate'])
         plt.figure()
         visualization.plot_trajectories(trajectories, bounds)
         trials = data['bmi3d_trials']
@@ -1005,18 +1005,16 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # This other preprocessed file does contain laser sensor data. Response on ch. 36
         te_id = 6577
-
-        # files = {}
-        # files['hdf'] = '/Users/leoscholl/raw/hdf/test20220819_16_te6577.hdf'
-        # files['ecube'] = '/Users/leoscholl/raw/ecube/2022-08-19_BMI3D_te6577'
-        # proc_exp('', files, data_dir, 'test/preproc_2022-08-19_test_6577_exp.hdf')
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        self.assertIn('laser_sensor', exp_data.keys())
+        self.assertNotIn('qwalor_trigger_dch', exp_metadata.keys())
+        self.assertNotIn('laser_trigger', exp_data.keys())
 
         trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
 
         print(trial_powers)
 
-        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
         
         # Plot lfp response
@@ -1058,6 +1056,70 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         plt.hist(trial_powers, 20)
         visualization.savefig(write_dir, 'laser_powers.png') # Should be all 0.5
+
+        # Another file, with digital and analog data
+        subject = 'affi'
+        te_id = 8844
+        date = '2023-03-22'
+
+        # Preprocess the raw data
+        # files = {}
+        # files['hdf'] = '/Users/leoscholl/raw/hdf/affi20230322_17_te8844.hdf'
+        # files['ecube'] = '/Users/leoscholl/raw/ecube/2023-03-22_BMI3D_te8844'
+        # os.remove(os.path.join(data_dir, 'affi/preproc_2023-03-22_affi_8844_exp.hdf'))
+        # proc_exp('', files, data_dir, 'affi/preproc_2023-03-22_affi_8844_exp.hdf', overwrite=True)
+        # exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+        # # Make the lfp file only contain 8 channels
+        # lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+        # lfp_data = lfp_data[:,:8]
+        # os.remove(os.path.join(data_dir, 'affi/preproc_2023-03-22_affi_8844_lfp.hdf'))
+        # print('lfp data', lfp_data.nbytes)
+        # save_hdf(data_dir, 'affi/preproc_2023-03-22_affi_8844_lfp.hdf', {'lfp_data': lfp_data})
+        # save_hdf(data_dir, 'affi/preproc_2023-03-22_affi_8844_lfp.hdf', lfp_metadata, "/lfp_metadata", append=True)
+        
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        self.assertIn('qwalor_trigger_dch', exp_metadata.keys())
+        self.assertIn('laser_trigger', exp_data.keys())
+
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
+
+        print(trial_powers)
+
+        lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+        
+        # Plot lfp response
+        ch = 1
+        samplerate = lfp_metadata['lfp_samplerate']
+        erp = analysis.calc_erp(lfp_data, trial_times, time_before, time_after, samplerate)
+        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=0)
+        t = 1000*(np.arange(erp_voltage.shape[0])/samplerate - time_before)
+        ch_data = 1e6*lfp_metadata['voltsperbit']*erp_voltage[:,ch]
+        plt.figure()
+        plt.plot(t, ch_data)
+        plt.plot([0,0], [-3, 0], 'k--')
+        visualization.savefig(write_dir, 'lfp_aligned_laser_dch_trigger.png')
+        
+        # Also plot the individual trials
+        plt.figure()
+        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,:,ch].T, ylabel='trials')
+        im.set_clim(-100,100)
+        visualization.savefig(img_dir, 'laser_aligned_lfp_dch_trigger.png')
+        
+        # And compare to the sensor data
+        sensor_data = exp_data['laser_sensor']
+        sensor_voltsperbit = exp_metadata['analog_voltsperbit']
+        samplerate = exp_metadata['analog_samplerate']
+
+        plt.figure()
+        ds_data = precondition.downsample(sensor_data, samplerate, 1000)
+        ds_data = ds_data - np.mean(ds_data)
+        analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
+        print(analog_erp.shape)
+        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
+        im.set_clim(-0.01,0.01)
+        visualization.savefig(img_dir, 'laser_aligned_sensor_dch_trigger.png')
 
 class ProcTests(unittest.TestCase):
 
