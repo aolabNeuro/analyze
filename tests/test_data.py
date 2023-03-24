@@ -424,10 +424,10 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test the samplerate return option
         trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, return_samplerate=True)
-        self.assertEqual(samplerate, 120)
+        self.assertEqual(samplerate, 100)
 
         trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand', return_samplerate=True)
-        self.assertEqual(samplerate, 120)
+        self.assertEqual(samplerate, 100)
 
         trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye', return_samplerate=True)
         self.assertEqual(samplerate, 100)
