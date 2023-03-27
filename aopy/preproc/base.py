@@ -5,6 +5,7 @@
 import numpy as np
 from scipy import interpolate
 
+from .. import utils
 from .. import precondition
 from .. import analysis
 
@@ -271,6 +272,26 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
     data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 
+def get_dch_data(digital_data, digital_samplerate, dch):
+    '''
+    Transform digital data stored as integers into timestamps and values corresponding to
+    a single channel or a set of channels.
+
+    Args:
+        digital_data (nt,): timeseries of digital data
+        digital_samplerate (float): sampling rate of the digital data
+        dch (int or list): channel(s) to get data from
+
+    Returns:
+        (nedges,): structured np.ndarray of the form [('timestamp', 'f8'), ('value', 'f8')])
+    '''
+    dch_bit_mask = utils.convert_channels_to_mask(dch)
+    dch_ts_data = utils.mask_and_shift(digital_data, dch_bit_mask)
+    dch_timestamps, dch_values = utils.detect_edges(dch_ts_data, digital_samplerate, rising=True, falling=True)
+    dch_data = np.empty((len(dch_timestamps),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
+    dch_data['timestamp'] = dch_timestamps
+    dch_data['value'] = dch_values
+    return dch_data
 
 '''
 Trial alignment

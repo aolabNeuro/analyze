@@ -16,7 +16,7 @@ from .. import visualization
 from ..postproc import get_source_files
 from ..precondition import downsample
 from ..utils import detect_edges
-from .base import get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries, sample_timestamped_data
+from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries, sample_timestamped_data
 
 def decode_event(dictionary, value):
     '''
@@ -251,18 +251,10 @@ def _parse_bmi3d_v1(data_dir, files):
         sync_clock['timestamp'] = clock_sync_timestamps
 
         # Mask and detect screen sensor events (A5 and D5)
-        clock_measure_bit_mask = utils.convert_channels_to_mask(metadata_dict['screen_measure_dch']) # 1 << 5
-        clock_measure_data_online = utils.mask_and_shift(digital_data, clock_measure_bit_mask)
-        clock_measure_timestamps_online, clock_measure_values_online = utils.detect_edges(clock_measure_data_online, digital_samplerate, rising=True, falling=True)
-        measure_clock_online = np.empty((len(clock_measure_timestamps_online),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
-        measure_clock_online['timestamp'] = clock_measure_timestamps_online
-        measure_clock_online['value'] = clock_measure_values_online
+        measure_clock_online = get_dch_data(digital_data, digital_samplerate, metadata_dict['screen_measure_dch'])
         clock_measure_analog = ecube_analog[:, metadata_dict['screen_measure_ach']] # 5
         clock_measure_digitized = utils.convert_analog_to_digital(clock_measure_analog, thresh=0.5)
-        clock_measure_timestamps_offline, clock_measure_values_offline = utils.detect_edges(clock_measure_digitized, analog_samplerate, rising=True, falling=True)
-        measure_clock_offline = np.empty((len(clock_measure_timestamps_offline),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
-        measure_clock_offline['timestamp'] = clock_measure_timestamps_offline
-        measure_clock_offline['value'] = clock_measure_values_offline
+        measure_clock_offline = get_dch_data(clock_measure_digitized, analog_samplerate, 0)
 
         # And reward system (A0)
         reward_system_analog = ecube_analog[:, metadata_dict['reward_measure_ach']] # 0
@@ -302,17 +294,19 @@ def _parse_bmi3d_v1(data_dir, files):
         })
 
         # Laser sensors
-        if 'qwalor_trigger_dch' in metadata_dict:
-            laser_trigger_bit_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_trigger_dch'])
-            laser_trigger_data = utils.mask_and_shift(digital_data, laser_trigger_bit_mask)
-            laser_trigger_timestamps, laser_trigger_values = utils.detect_edges(laser_trigger_data, digital_samplerate, rising=True, falling=True)
-            laser_trigger = np.empty((len(laser_trigger_timestamps),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
-            laser_trigger['timestamp'] = laser_trigger_timestamps
-            laser_trigger['value'] = laser_trigger_values
-            data_dict['laser_trigger'] = laser_trigger
-        if 'qwalor_sensor_ach' in metadata_dict:
-            laser_sensor_data = ecube_analog[:, metadata_dict['qwalor_sensor_ach']]
-            data_dict['laser_sensor'] = laser_sensor_data
+        possible_ach = ['qwalor_sensor_ach', 'qwalor_ch1_sensor_ach', 'qwalor_ch2_sensor_ach', 
+                        'qwalor_ch3_sensor_ach', 'qwalor_ch4_sensor_ach']
+        possible_dch = ['qwalor_trigger_dch', 'qwalor_ch1_trigger_dch', 'qwalor_ch2_trigger_dch', 
+                        'qwalor_ch3_trigger_dch', 'qwalor_ch4_trigger_dch']
+        for ach in possible_ach:
+            if ach in metadata_dict:
+                sensor_name = ach[:-4]
+                laser_sensor_data = ecube_analog[:, metadata_dict[ach]]
+                data_dict[sensor_name] = laser_sensor_data
+        for dch in possible_dch:
+            if dch in metadata_dict:
+                trigger_name = dch[:-4]
+                data_dict[trigger_name] = get_dch_data(digital_data, digital_samplerate, metadata_dict[dch])
 
     return data_dict, metadata_dict
 
@@ -587,7 +581,8 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
 
     return corrected_times, corrected_widths, corrected_powers, times_not_found, widths_above_thr, powers_above_thr
 
-def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwargs):
+def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwalor_trigger', 
+                          laser_sensor='qwalor_sensor', debug=False, **kwargs):
     '''
     Get the laser trial times, trial widths, and trial powers from the given experiment. Returned
     values are computed from the laser sensor in combination with the expected laser events from
@@ -598,6 +593,8 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        laser_trigger (str, optional): Specifies the name of the digital laser trigger
+        laser_sensor (str, optional): Specifies the name of the analog laser sensor
         kwargs (dict): to be passed to `:func:~aopy.preproc.bmi3d.find_laser_stim_times`
 
     Returns:
@@ -611,12 +608,12 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
     '''
     
     exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    
-     
-    if 'qwalor_trigger_dch' in exp_metadata:
+
+    # Get ground truth timestamps of when the laser should have been turned on
+    if exp_metadata['sync_protocol_version'] > 12:
 
         # Load the trigger data if it's not already in the bmi3d data
-        if 'laser_trigger' not in exp_data:
+        if laser_trigger not in exp_data:
             files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
             hdf_filepath = os.path.join(data_dir, files['hdf'])
             if not os.path.exists(hdf_filepath):
@@ -624,8 +621,8 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
             exp_data, exp_metadata = parse_bmi3d(data_dir, files)
         
         # Use the digital trigger as the ground truth of timing
-        timestamps = exp_data['laser_trigger']['timestamp']
-        values = exp_data['laser_trigger']['value']
+        timestamps = exp_data[laser_trigger]['timestamp']
+        values = exp_data[laser_trigger]['value']
         times = timestamps[values == 1]
         widths = timestamps[values == 0] - times
         powers = np.zeros((len(times),)) # Don't assume anything about power by default
@@ -659,7 +656,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
             thr_power = 1
 
     # Load the sensor data if it's not already in the bmi3d data
-    if 'laser_sensor' not in exp_data:
+    if laser_sensor not in exp_data:
         files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
         hdf_filepath = os.path.join(data_dir, files['hdf'])
         if not os.path.exists(hdf_filepath):
@@ -667,7 +664,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, debug=False, **kwar
         exp_data, exp_metadata = parse_bmi3d(data_dir, files)
 
     # Correct the event timings using the sensor data
-    sensor_data = exp_data['laser_sensor']
+    sensor_data = exp_data[laser_sensor]
     sensor_voltsperbit = exp_metadata['analog_voltsperbit']
     samplerate = exp_metadata['analog_samplerate']   
     return find_laser_stim_times(times, widths, powers, sensor_data, 

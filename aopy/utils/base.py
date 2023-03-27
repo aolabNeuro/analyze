@@ -138,16 +138,10 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     analog_data_scaled = (analog_data - minval)/maxval
 
     # Initialize digital_data
-    digital_data = np.empty(analog_data_scaled.shape) # Default to empty 
-    digital_data[:] = np.nan
+    digital_data = np.zeros(analog_data_scaled.shape, dtype='bool') # Default to zero
 
-    # Set any value less than the threshold to be 0
-    digital_data[analog_data_scaled < thresh] = 0
-
-    # Set any value greater than threshold to be 0
+    # Set any value greater than threshold to be 1
     digital_data[analog_data_scaled >= thresh] = 1
-
-    # Check that there are no nan values in output data
 
     return digital_data
 

@@ -184,6 +184,23 @@ class DigitalCalcTests(unittest.TestCase):
 
         filename = 'sample_timestamped_data.png'
         visualization.savefig(img_dir, filename)
+
+    def test_get_dch_data(self):
+        dig_data = [0, 1, 0, 1, 1, 0]
+        samplerate = 1
+        expected_ts = [1, 2, 3, 5]
+        expected_values = [1, 0, 1, 0]
+        data = get_dch_data(dig_data, samplerate, 0)
+        np.testing.assert_allclose(expected_ts, data['timestamp'])
+        np.testing.assert_allclose(expected_values, data['value'])
+
+        dig_data = [0, 3, 0, 0, 2]
+        samplerate = 1
+        expected_ts = [1, 2, 4]
+        expected_values = [3, 0, 2]
+        data = get_dch_data(dig_data, samplerate, [0,1])
+        np.testing.assert_allclose(expected_ts, data['timestamp'])
+        np.testing.assert_allclose(expected_values, data['value'])
         
 
 class EventFilterTests(unittest.TestCase):
@@ -1010,7 +1027,9 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertNotIn('qwalor_trigger_dch', exp_metadata.keys())
         self.assertNotIn('laser_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+            preproc_dir, subject, te_id, date, laser_trigger='laser_trigger', 
+            laser_sensor='laser_sensor', debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
 
         print(trial_powers)
@@ -1066,7 +1085,7 @@ class TestPrepareExperiment(unittest.TestCase):
         # files = {}
         # files['hdf'] = '/Users/leoscholl/raw/hdf/affi20230322_17_te8844.hdf'
         # files['ecube'] = '/Users/leoscholl/raw/ecube/2023-03-22_BMI3D_te8844'
-        # os.remove(os.path.join(data_dir, 'affi/preproc_2023-03-22_affi_8844_exp.hdf'))
+        # # os.remove(os.path.join(data_dir, 'affi/preproc_2023-03-22_affi_8844_exp.hdf'))
         # proc_exp('', files, data_dir, 'affi/preproc_2023-03-22_affi_8844_exp.hdf', overwrite=True)
         # exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
 
@@ -1080,7 +1099,7 @@ class TestPrepareExperiment(unittest.TestCase):
         
         exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
         self.assertIn('qwalor_trigger_dch', exp_metadata.keys())
-        self.assertIn('laser_trigger', exp_data.keys())
+        self.assertIn('qwalor_trigger', exp_data.keys())
 
         trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
@@ -1108,7 +1127,7 @@ class TestPrepareExperiment(unittest.TestCase):
         visualization.savefig(img_dir, 'laser_aligned_lfp_dch_trigger.png')
         
         # And compare to the sensor data
-        sensor_data = exp_data['laser_sensor']
+        sensor_data = exp_data['qwalor_sensor']
         sensor_voltsperbit = exp_metadata['analog_voltsperbit']
         samplerate = exp_metadata['analog_samplerate']
 
@@ -1120,6 +1139,30 @@ class TestPrepareExperiment(unittest.TestCase):
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
         im.set_clim(-0.01,0.01)
         visualization.savefig(img_dir, 'laser_aligned_sensor_dch_trigger.png')
+
+        # One more file, with no lfp data but it has multiple channels of stimulation using MultiQwalorLaser feature.
+        subject = 'test'
+        te_id = 8940
+        date = '2023-03-27'
+            
+        # Preprocess the raw data
+        # files = {}
+        # files['hdf'] = '/Users/leoscholl/raw/hdf/test20230327_11_te8940.hdf'
+        # files['ecube'] = '/Users/leoscholl/raw/ecube/2023-03-27_BMI3D_te8940'
+        # # os.remove(os.path.join(data_dir, 'test/preproc_2023-03-27_test_8940_exp.hdf'))
+        # proc_exp('', files, data_dir, 'test/preproc_2023-03-27_test_8940_exp.hdf', overwrite=True)
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+        self.assertEqual(exp_metadata['sync_protocol_version'], 13)
+        self.assertIn('qwalor_ch2_trigger_dch', exp_metadata.keys())
+        self.assertIn('qwalor_ch2_trigger', exp_data.keys())
+
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+            preproc_dir, subject, te_id, date, laser_trigger='qwalor_ch2_trigger', 
+            laser_sensor='qwalor_ch2_sensor', debug=True
+        )
+        visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
+
 
 class ProcTests(unittest.TestCase):
 
