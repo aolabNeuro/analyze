@@ -1,7 +1,7 @@
 import traceback
 from ..preproc.base import get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
-from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles
+from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, config_dir
 import os
 import numpy as np
@@ -342,6 +342,35 @@ def load_bmi3d_root_metadata(data_dir, filename):
     '''
     with h5py.File(os.path.join(data_dir, filename), 'r') as f:
         return dict(f['/'].attrs.items())
+
+def get_ecube_digital_input_times(path, data_dir, ch):
+    '''
+    Computes the times when digital input turns on or off in ecube
+    For synchronizing openephys with ecube, use ch=-1.
+    
+    Args:
+    path (str): base directory where ecube data is stored
+    data_dir (str): folder you want to load
+    ch (str): digital channel
+        
+    Returns:
+        tuple: Tuple containing:
+            |** on_times (n_times):** times at which sync line turned on
+            |** off_times (n_times):** times at which sync line turned off    
+    '''
+    
+    # Load ecube digital data
+    digital_data, metadata = load_ecube_digital(path, data_dir)
+    FS = metadata['samplerate']
+    
+    # Convert 64bit information into each channel data
+    digital_data_ch = convert_digital_to_channels(digital_data)
+        
+    # Get on_times and off_times in digital data
+    on_times,_ = detect_edges(digital_data_ch[:,ch], FS, rising=True, falling=False)
+    off_times,_ = detect_edges(digital_data_ch[:,ch], FS, rising=False, falling=True)
+
+    return on_times, off_times
 
 #####################
 # Preprocessed data #

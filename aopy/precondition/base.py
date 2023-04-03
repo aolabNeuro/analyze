@@ -355,6 +355,8 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf
             | **spike_times (list of spike times):**  List of nspike length arrays with each list element corresponding to a channel. Spike times are in seconds.
             | **spike_waveforms (list of waveforms):** List of (nspike, nwf_pts) arrays with each list element corresponding to a channel. Returns NaN if there aren't enough data points to retreive a full waveform.
     '''
+    if spike_filt_data.ndim == 1:
+        spike_filt_data = spike_filt_data.reshape(-1,1)
     nch = spike_filt_data.shape[1]
 
     # Calculate an array of spike times for each channel organized into a list
@@ -390,6 +392,95 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf
                     temp_spike_waveforms[ispike, :] = spike_filt_data[startidx:stopidx,ich]
         
             spike_waveforms.append(temp_spike_waveforms)
+
+    return spike_times, spike_waveforms
+
+def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above_thresh=True,  wf_length=1000, tbefore_wf=200):
+    '''
+    This function is based on detect_spikes and calculates spike times while dividing data into chunks to deal with memory issues.
+    This may work for numpy memmap array
+
+    Args:
+        spike_filt_data (nt,nch): Time series neural data to detect spikes and extract waveforms from.
+        samplerate (float): Sampling rate [Hz]
+        threshold (float): Threshold that input data must cross to indicate a spike for each channel.
+        chunksize (int): Chunk size to process data by chunk
+        above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
+        wf_length (float): Length of waveforms to output :math:`[\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\mu s`
+        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\mu s]`. Defaults to 200 :math:`\mu s`  
+        
+    Returns: 
+        tuple: Tuple containing:
+            | **spike_times (list of spike times):**  List of nspike length arrays with each list element corresponding to a channel. Spike times are in seconds.
+            | **spike_waveforms (list of waveforms):** List of (nspike, nwf_pts) arrays with each list element corresponding to a channel. Returns NaN if there aren't enough data points to retreive a full waveform.
+    '''
+    if spike_filt_data.ndim == 1:
+        spike_filt_data = spike_filt_data.reshape(-1,1)
+        
+    nt,nch = spike_filt_data.shape
+    nchunk = math.ceil(nt/chunksize)
+    chunktime = chunksize/samplerate
+    
+    # Calculate spike times
+    n_samples = 0
+    previous_thresh = np.ones(nch) == 1
+    spike_times = []
+    spike_waveforms =[]
+    
+    for ichunk in range(nchunk):
+        if ichunk == nchunk:
+            data = spike_filt_data[n_samples:,:]
+        else:
+            data = spike_filt_data[n_samples:n_samples+chunksize,:]
+
+        if above_thresh:
+            data_above_thresh_mask = data > threshold
+        else:        
+            data_above_thresh_mask = data < threshold
+
+        # Spike times at each chunk (temp_spike_times: a list of array with different shape)
+
+        for ich in range(nch):
+            spike_times_chunk, _ = utils.detect_edges(data_above_thresh_mask[:,ich], samplerate, rising=True, falling=False)
+            spike_times_chunk = spike_times_chunk + ichunk*chunktime # Take into account chunk time
+            
+            if ichunk == 0:
+                spike_times.append(spike_times_chunk)
+            else:
+                if not previous_thresh[ich]: # Check if the last data of the previous chunk is below threshold
+                    if data_above_thresh_mask[0,ich]:
+                        spike_times_chunk = np.append(ichunk*chunktime, spike_times_chunk)   
+                        
+                spike_times[ich] = np.append(spike_times[ich],spike_times_chunk)
+            
+            # Check if data is below threshold at the last point of the chunk
+            if data_above_thresh_mask[-1,ich]:
+                previous_thresh[ich] = True
+            else:
+                previous_thresh[ich] = False # This is for next chunk
+                
+            # Spike waveforms at each chunk and channel
+            if wf_length is not None:
+                wf_idx_length = math.ceil(samplerate*(wf_length*(1e-6)))
+                nspikes = len(spike_times_chunk)
+
+                spike_waveforms_chunk = np.zeros((nspikes, wf_idx_length))
+                spike_waveforms_chunk[:] = np.nan
+
+                for ispike in range(nspikes):
+                    starttime = spike_times_chunk[ispike]-(tbefore_wf*(1e-6))
+                    startidx = int(np.round(starttime*samplerate, decimals=0))
+                    stopidx = startidx + wf_idx_length
+
+                    if np.logical_and(stopidx < nt, startidx>=0): # Ensure there are enough data points to grab the waveform
+                        spike_waveforms_chunk[ispike, :] = spike_filt_data[startidx:stopidx,ich]
+                
+                if ichunk == 0:
+                    spike_waveforms.append(spike_waveforms_chunk)
+                else:
+                    spike_waveforms[ich] = np.concatenate([spike_waveforms[ich],spike_waveforms_chunk],axis=0)
+            
+        n_samples += chunksize
 
     return spike_times, spike_waveforms
 
