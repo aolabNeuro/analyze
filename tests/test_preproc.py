@@ -1176,6 +1176,49 @@ class OculomaticTests(unittest.TestCase):
         filename =  'proc_oculomatic_mask.png'
         visualization.savefig(img_dir, filename)
 
+class NeuropixelSyncTests(unittest.TestCase):
+    
+    def test_sync_neuropixel_ecube(self):
+        record_dir = '2023-03-26_Neuropixel_te8921'
+        ecube_files = '2023-03-26_BMI3D_te8921'
+
+        # For AP data
+        data, metadata = load_neuropixel_data(data_dir, record_dir, 'ap', port_number=1)
+        raw_timestamps = np.arange(data.samples.shape[0])/metadata['sample_rate']
+
+        # get on_times and off_times when sync line come
+        on_times_np,off_times_np = get_neuropixel_digital_input_times(data_dir, record_dir, 'ap', port_number=1)
+        on_times_ecube,off_times_ecube = get_ecube_digital_input_times(data_dir, ecube_files, ch=-1)
+
+        # get barcode on_times 
+        barcode_ontimes_np, _ = extract_barcodes_from_times(on_times_np,off_times_np)
+        barcode_ontimes_ecube, _ = extract_barcodes_from_times(on_times_ecube,off_times_ecube)
+
+        # if sychronization works, the time when the first barcode turns on in openephys is converted to the time when the first barcode turns on in ecube
+        sync_timestamps, _ = sync_neuropixel_ecube(raw_timestamps, on_times_np, off_times_np, on_times_ecube, off_times_ecube, bar_duration=0.017)
+        raw_first_barcode_on_idx = np.where(raw_timestamps == barcode_ontimes_np[0])[0]
+        raw_last_barcode_on_idx = np.where(raw_timestamps == barcode_ontimes_np[-1])[0]
+        self.assertEqual(sync_timestamps[raw_first_barcode_on_idx], barcode_ontimes_ecube[0])
+        self.assertEqual(sync_timestamps[raw_last_barcode_on_idx], barcode_ontimes_ecube[-1])    
+
+        # For LFP data
+        data, metadata = load_neuropixel_data(data_dir, record_dir, 'lfp', port_number=1)
+        raw_timestamps = np.arange(data.samples.shape[0])/metadata['sample_rate']
+
+        # get on_times and off_times when sync line come
+        on_times_np,off_times_np = get_neuropixel_digital_input_times(data_dir, record_dir, 'lfp', port_number=1)
+        on_times_ecube,off_times_ecube = get_ecube_digital_input_times(data_dir, ecube_files, ch=-1)
+
+        # get barcode on_times 
+        barcode_ontimes_np, _ = extract_barcodes_from_times(on_times_np,off_times_np)
+        barcode_ontimes_ecube, _ = extract_barcodes_from_times(on_times_ecube,off_times_ecube)
+
+        # if sychronization works, the time when the first barcode turns on in openephys is converted to the time when the first barcode turns on in ecube
+        sync_timestamps, _ = sync_neuropixel_ecube(raw_timestamps, on_times_np, off_times_np, on_times_ecube, off_times_ecube, bar_duration=0.017)
+        raw_first_barcode_on_idx = np.where(raw_timestamps == barcode_ontimes_np[0])[0]
+        raw_last_barcode_on_idx = np.where(raw_timestamps == barcode_ontimes_np[-1])[0]
+        self.assertEqual(sync_timestamps[raw_first_barcode_on_idx], barcode_ontimes_ecube[0])
+        self.assertEqual(sync_timestamps[raw_last_barcode_on_idx], barcode_ontimes_ecube[-1])     
 
 if __name__ == "__main__":
     unittest.main()

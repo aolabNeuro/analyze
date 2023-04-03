@@ -375,6 +375,26 @@ class SpikeDetectionTests(unittest.TestCase):
 
         print('Spike detection on 250,000 samples by 256ch takes ' + str(round(stop-start, 3)) + ' sec')
 
+    def test_spike_times_chunk(self):
+        data = np.array(((0,0,1),(4,3,1),(0,3,-1),(4,0,1),(0,1,0),(4,1,4),(0,2,1),(3,5,1)))
+        threshold_values = np.array((0.5, 0.5, 0.5))
+        spike_times, wfs1 = precondition.detect_spikes(data, 10, threshold_values, above_thresh=True, wf_length=None)
+        spike_times_chunk, wfs2 = precondition.detect_spikes_chunk(data, 10, threshold_values, chunksize=2, above_thresh=True, wf_length=None)
+        for ich in range(3):
+            np.testing.assert_allclose(spike_times[ich],spike_times_chunk[ich])
+        
+        # different chunk size
+        spike_times, wfs1 = precondition.detect_spikes(data, 10, threshold_values, above_thresh=True, wf_length=None)
+        spike_times_chunk, wfs2 = precondition.detect_spikes_chunk(data, 10, threshold_values, chunksize=3, above_thresh=True, wf_length=None)
+        for ich in range(3):
+            np.testing.assert_allclose(spike_times[ich],spike_times_chunk[ich])
+
+        # above_threshold = false
+        spike_times, wfs1 = precondition.detect_spikes(data, 10, threshold_values, above_thresh=False, wf_length=None)
+        spike_times_chunk, wfs2 = precondition.detect_spikes_chunk(data, 10, threshold_values, chunksize=2, above_thresh=False, wf_length=None)
+        for ich in range(3):
+            np.testing.assert_allclose(spike_times[ich],spike_times_chunk[ich]) 
+            
     def test_filter_spike_times_fast(self):
         data = np.array(((0,0),(1,1),(0,0),(1,0),(0,0),(1,1)))
         threshold = np.array((0.5,0.5))

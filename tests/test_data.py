@@ -222,6 +222,55 @@ class BMI3DTests(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: bmi3d.load_bmi3d_hdf_table(data_dir, testfile, 'nonexistent_table'))
 
+    def test_get_neuropixel_digital_input_times(self):
+        ecube_files = '2023-03-26_BMI3D_te8921'
+        on_times,off_times = get_ecube_digital_input_times(data_dir, ecube_files, -1)
+        self.assertTrue(all(np.diff(on_times)>0))
+        self.assertTrue(all(off_times - on_times)>0)
+        self.assertTrue(any(np.diff(on_times)>30))
+
+class NeuropixelTest(unittest.TestCase):
+    
+    def test_load_neuropixel_data(self):
+        record_dir = '2023-03-26_Neuropixel_te8921'
+        # AP data
+        data,metadata = load_neuropixel_data(data_dir, record_dir, 'ap', port_number=1)
+        self.assertEqual(data.samples.shape[1], metadata['num_channels'])
+        self.assertEqual(metadata['sample_rate'], 30000)
+        self.assertEqual(metadata['xpos'].shape[0], metadata['ypos'].shape[0])
+        # LFP data
+        data,metadata = load_neuropixel_data(data_dir, record_dir, 'lfp', port_number=1)
+        self.assertEqual(data.samples.shape[1], metadata['num_channels'])
+        self.assertEqual(metadata['sample_rate'], 2500)
+        self.assertEqual(metadata['xpos'].shape[0], metadata['ypos'].shape[0])
+           
+    def test_load_neuropixel_configuration(self):
+        record_dir = '2023-03-26_Neuropixel_te8921'
+        port_num = 1
+        config = load_neuropixel_configuration(data_dir, record_dir, port_number=port_num)
+        nch = config['channel'].shape[0]
+        self.assertEqual(config['xpos'].shape[0], nch)
+        self.assertEqual(config['xpos'].shape[0], config['ypos'].shape[0])
+        self.assertEqual(config['port'], port_num)
+        
+    def test_load_neuropixel_event(self):
+        record_dir = '2023-03-26_Neuropixel_te8921'
+        # AP data
+        events = load_neuropixel_event(data_dir, record_dir, 'ap', port_number=1)
+        self.assertTrue(all(np.diff(events['sample_number'])>0)) # sample numbers should increaseb monotonically
+        self.assertTrue(all(events['stream_name'] == b'ProbeA-AP'))
+        # LFP data
+        events = load_neuropixel_event(data_dir, record_dir, 'lfp', port_number=1)
+        self.assertTrue(all(np.diff(events['sample_number'])>0)) # sample numbers should increaseb monotonically
+        self.assertTrue(all(events['stream_name'] == b'ProbeA-LFP'))
+           
+    def test_get_neuropixel_digital_input_times(self):
+        record_dir = '2023-03-26_Neuropixel_te8921'
+        on_times,off_times = get_neuropixel_digital_input_times(data_dir, record_dir, 'ap', port_number=1)
+        self.assertTrue(all(np.diff(on_times)>0)) # on_times should increaseb monotonically
+        self.assertTrue(all(off_times - on_times)>0) # on_times precede off_times
+        self.assertTrue(any(np.diff(on_times)>30)) # whether there is a 30s inteval between on_times
+           
 class HDFTests(unittest.TestCase):
 
     def test_save_hdf(self):
