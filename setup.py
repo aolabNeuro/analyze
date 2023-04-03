@@ -24,7 +24,8 @@ install_requires = [
     'Pillow',
     'seaborn',
     'pyyaml',
-    'tqdm'
+    'tqdm',
+    'open-ephys-python-tools'
 ]
 
 setuptools.setup(
