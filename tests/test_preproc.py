@@ -1184,7 +1184,7 @@ class NeuropixelSyncTests(unittest.TestCase):
 
         # For AP data
         data, metadata = load_neuropixel_data(data_dir, record_dir, 'ap', port_number=1)
-        raw_timestamps = np.arange(data.samples.shape[0])/metadata['sample_rate']
+        raw_timestamps = np.arange(data.sample_numbers.shape[0])/metadata['sample_rate']
 
         # get on_times and off_times when sync line come
         on_times_np,off_times_np = get_neuropixel_digital_input_times(data_dir, record_dir, 'ap', port_number=1)
@@ -1203,7 +1203,7 @@ class NeuropixelSyncTests(unittest.TestCase):
 
         # For LFP data
         data, metadata = load_neuropixel_data(data_dir, record_dir, 'lfp', port_number=1)
-        raw_timestamps = np.arange(data.samples.shape[0])/metadata['sample_rate']
+        raw_timestamps = np.arange(data.sample_numbers.shape[0])/metadata['sample_rate']
 
         # get on_times and off_times when sync line come
         on_times_np,off_times_np = get_neuropixel_digital_input_times(data_dir, record_dir, 'lfp', port_number=1)

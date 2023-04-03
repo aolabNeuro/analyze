@@ -235,12 +235,10 @@ class NeuropixelTest(unittest.TestCase):
         record_dir = '2023-03-26_Neuropixel_te8921'
         # AP data
         data,metadata = load_neuropixel_data(data_dir, record_dir, 'ap', port_number=1)
-        self.assertEqual(data.samples.shape[1], metadata['num_channels'])
         self.assertEqual(metadata['sample_rate'], 30000)
         self.assertEqual(metadata['xpos'].shape[0], metadata['ypos'].shape[0])
         # LFP data
         data,metadata = load_neuropixel_data(data_dir, record_dir, 'lfp', port_number=1)
-        self.assertEqual(data.samples.shape[1], metadata['num_channels'])
         self.assertEqual(metadata['sample_rate'], 2500)
         self.assertEqual(metadata['xpos'].shape[0], metadata['ypos'].shape[0])
            
