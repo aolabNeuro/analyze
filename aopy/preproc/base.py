@@ -382,8 +382,8 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
     
     Returns:
         tuple: tuple containing:
-            | **trial_aligned (ntrial, nt):** trial aligned timestamps
-            | **trial_indices (ntrial, nt):** indices into timestamps in the same shape as trial_aligned
+            | **trial_aligned (list of ntrial):** trial aligned timestamps
+            | **trial_indices (list of ntrial):** indices into timestamps in the same shape as trial_aligned
     '''
     trial_aligned = []
     trial_indices = []
@@ -398,6 +398,52 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
         trial_indices.append(np.where(trial_idx)[0])
     return trial_aligned, trial_indices
 
+def trial_align_timestamps(timestamps, trigger_times, time_before, time_after, subtract=True):
+    '''
+    Splits timestamps whose intervals are equal into chunks triggered by trial start times
+
+    Args:
+        timestamps (nt): timestamps with common difference like [1,2,3,4,5] to be trial aligned
+        trigger_times (ntrial): times on which trials are aligned
+        time_before (float): time to include before the triggered time
+        time_after (float): time to include after the triggered time
+        subtract (bool, optional): whether the start of each trial should be set to 0
+    
+    Returns:
+        tuple: tuple containing:
+            | **trial_aligned (ntr, nt):** trial aligned timestamps
+            | **trial_indices (ntr, nt):** indices into timestamps in the same shape as trial_aligned
+    '''
+
+    dur = time_after + time_before
+    dt = timestamps[1] - timestamps[0]
+    n_samples = int(np.round(dur/dt))
+    trigger_times = np.array(trigger_times)
+
+    # Look for valid trigger times
+    max_trigger_time = timestamps[-1] - time_after
+    min_trigger_time = timestamps[0] + time_before
+    valid_idx = (trigger_times >= min_trigger_time) & (trigger_times <= max_trigger_time)
+    valid_trigger_times = trigger_times[valid_idx]
+
+    # Initialize array
+    trial_aligned_timestamps = np.zeros((len(valid_trigger_times), n_samples))*np.nan
+    trial_indices = np.zeros((len(valid_trigger_times), n_samples), dtype=int)
+    
+    for idx, t in enumerate(valid_trigger_times):
+        # Get trial-start and end indices
+        t0 = t - time_before
+        idx_start = np.where(timestamps>=t0)[0][0]
+        idx_end = idx_start + n_samples
+        
+        # Get trial_aligned_timestamps and indices
+        trial_aligned_timestamps[idx,:] = timestamps[idx_start:idx_end]
+        trial_indices[idx,:] = np.arange(idx_start,idx_end)
+
+        if subtract:
+            trial_aligned_timestamps[idx,:] -= t
+            
+    return trial_aligned_timestamps, trial_indices
 
 def get_trial_segments(events, times, start_events, end_events):
     '''
