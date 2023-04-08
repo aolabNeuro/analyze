@@ -554,7 +554,7 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     for i in range(len(target_indices)):
         trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
         locations.append(trials['target'][trial_idx][[0,2,1]])
-    return np.array(locations)
+    return np.round(np.array(locations),2)
 
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
