@@ -558,7 +558,7 @@ def plot_circles(circle_positions, circle_radius, circle_color='b', bounds=None,
     if bounds is not None: set_bounds(bounds, ax)
 
 
-def plot_trajectories(trajectories, bounds=None, ax=None):
+def plot_trajectories(trajectories, bounds=None, ax=None, **kwargs):
     '''
     Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
 
@@ -590,6 +590,7 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
         trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
         ax (plt.Axis, optional): axis to plot the targets on
+        kwargs (dict): keyword arguments to pass to the plt.plot function
    '''
     if ax is None:
         ax = plt.gca()
@@ -598,11 +599,11 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     try:
         ax.set_zlabel('z')
         for path in trajectories:
-            ax.plot(*path.T)
+            ax.plot(*path.T, **kwargs)
         ax.set_box_aspect((1, 1, 1))
     except:
         for path in trajectories:
-            ax.plot(path[:, 0], path[:, 1])
+            ax.plot(path[:, 0], path[:, 1], **kwargs)
         ax.set_aspect('equal', adjustable='box')
 
     if bounds is not None: set_bounds(bounds, ax)
@@ -905,33 +906,41 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     if not axinput:
         fig.tight_layout()
         
-def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], linecolor=[0,0,0], box_width = 0.5, ax=None):
+def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='k', box_width=0.5, ax=None):
     '''
     This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
 
     .. image:: _images/boxplot_example.png
 
     Args:
-        data (n1, n2): Data to plot. A different boxplot is created for each column of this variable.
-        plt_xaxis (n2): X-axis locations to plot the boxplot of each column
+        data (ncol): Data to plot. A different boxplot is created for each entry of the list.
+        plt_xaxis (ncol): X-axis locations or labels to plot the boxplot of each column
         trendline (bool): If a line should be used to connect boxplots
-        facecolor (list or word):
-        linecolor (list or word):
+        facecolor (color): Color of the box faces. Can be any input that pyplot interprets as a color.
+        linecolor (color): Color of the connecting lines.
         ax (axes handle): Axes to plot
     '''
     if ax is None:
         ax = plt.gca()
+        
+    if np.ndim(data) > 1:
+        data = [data[:,i] for i in range(data.shape[1])]
 
     if trendline:
-        ax.plot(plt_xaxis, np.nanmedian(data, axis=0), color=facecolor)
+        ax.plot(plt_xaxis, np.nanmedian(data, axis=1), color=facecolor)
     
     for featidx, ifeat in enumerate(plt_xaxis):
-        temp_data = data[:,featidx]
+        temp_data = data[featidx]
+        try:
+            int(ifeat)
+        except:
+            ifeat = featidx
         ax.boxplot(temp_data[~np.isnan(temp_data)], 
             positions=np.array([ifeat]), patch_artist=True, widths=box_width, 
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
+    ax.set_xticklabels(plt_xaxis)
 
 def advance_plot_color(ax, n):
     '''
