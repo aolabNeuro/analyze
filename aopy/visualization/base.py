@@ -87,9 +87,9 @@ def plot_timeseries(data, samplerate, ax=None):
 
     time = np.arange(np.shape(data)[0]) / samplerate
     for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:, ch] * 1e6)
+        ax.plot(time, data[:, ch])
     ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Voltage (uV)')
+    ax.set_ylabel('Voltage (V)')
 
 def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
@@ -116,12 +116,12 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
         ax = plt.gca()
     non_negative_freq, data_ampl = analysis.calc_freq_domain_amplitude(data, samplerate, rms)
     for ch in range(np.shape(data_ampl)[1]):
-        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
+        ax.semilogx(non_negative_freq, data_ampl[:,ch])
     ax.set_xlabel('Frequency (Hz)')
     if rms:
-        ax.set_ylabel('RMS amplitude (uV)')
+        ax.set_ylabel('RMS amplitude (V)')
     else:
-        ax.set_ylabel('Peak amplitude (uV)')
+        ax.set_ylabel('Peak amplitude (V)')
 
 def get_data_map(data, x_pos, y_pos):
     '''
