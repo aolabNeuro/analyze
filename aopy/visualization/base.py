@@ -4,7 +4,6 @@
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import matplotlib.dates as mdates
 from matplotlib import cm
 
@@ -21,7 +20,6 @@ import pandas as pd
 from tqdm import tqdm
 import pandas as pd
 
-from .. import postproc
 from .. import analysis
 from ..data import load_chmap
 from .. import utils
@@ -429,151 +427,6 @@ def plot_raster(data, cue_bin=None, ax=None):
     
     if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
-
-def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
-    '''
-    Save an animation using ffmpeg
-
-    Args:
-        animation (pyplot.Animation): animation to save
-        base_dir (str): directory to write
-        filename (str): should end in '.mp4'
-        dpi (float): resolution of the video file
-        savefig_kwargs (kwargs, optional): arguments to pass to savefig
-    '''
-    filepath = os.path.join(base_dir, filename)
-    animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
-
-
-def showanim(animation):
-    '''
-    Display an animation in a python notebook
-
-    Args:
-        animation (pyplot.Animation): animation to display
-    '''
-    from IPython.display import HTML  # not a required package
-    HTML(animation.to_html5_video())
-
-
-def animate_events(events, times, fps, xy=(0.3, 0.3), fontsize=30, color='g'):
-    '''
-    Silly function to plot events as text, frame by frame in an animation
-
-    Args:
-        events (list): list of event names or numbers
-        times (list): timestamps of each event
-        fps (float): sampling rate to animate
-        xy (tuple, optional): (x, y) coorindates of the left bottom corner of each event label, from 0 to 1.
-        fontsize (float, optional): size to draw the event labels
-
-    Returns:
-        matplotlib.animation.FuncAnimation: animation object
-    '''
-    frame_events, event_names = postproc.sample_events(events, times, fps)
-
-    def display_text(num, events, names, note):
-        display = names[events[num, :] == 1]
-        if len(display) > 0:
-            note.set_text(display[0])  # note if simultaneous events occur, we just print the first
-
-    fig, ax = plt.subplots(1, 1)
-    note = ax.annotate("", xy, fontsize=fontsize, color=color)
-    plt.axis('off')
-    return FuncAnimation(fig, display_text, frames=frame_events.shape[0],
-                         interval=round(1000 / fps),
-                         fargs=(frame_events, event_names, note))
-
-
-def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
-                          axis_labels=['x', 'y', 'z']):
-    '''
-    Draws a trajectory moving through 3D space at the given sampling rate and with a
-    fixed maximum number of points visible at a time.
-
-    Args:
-        trajectory (n, 3): matrix of n points
-        samplerate (float): sampling rate of the trajectory data
-        history (int, optional): maximum number of points visible at once
-    '''
-
-    fig = plt.figure()
-    ax = plt.subplot(111, projection='3d')
-
-    line, = ax.plot(trajectory[0, 0], trajectory[0, 1], trajectory[0, 2], color=color)
-
-    ax.set_xlim((np.nanmin(trajectory[:, 0]), np.nanmax(trajectory[:, 0])))
-    ax.set_xlabel(axis_labels[0])
-
-    ax.set_ylim((np.nanmin(trajectory[:, 1]), np.nanmax(trajectory[:, 1])))
-    ax.set_ylabel(axis_labels[1])
-
-    ax.set_zlim((np.nanmin(trajectory[:, 2]), np.nanmax(trajectory[:, 2])))
-    ax.set_zlabel(axis_labels[2])
-
-    def draw(num):
-        length = min(num, history)
-        start = num - length
-        line.set_data(trajectory[start:num, 0], trajectory[start:num, 1])
-        line.set_3d_properties(trajectory[start:num, 2])
-        return line,
-
-    return FuncAnimation(fig, draw, frames=trajectory.shape[0],
-                         init_func=lambda: None, interval=1000. / samplerate)
-
-def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
-    '''
-    Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
-    for each timepoint you want to animate, then put them into a list and feed them to this
-    function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
-
-    Example:
-        ::
-        
-            samplerate = 20
-            duration = 5
-            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
-            data_map = []
-            for frame in range(duration*samplerate):
-                t = np.linspace(-1, 1, 100) + float(frame)/samplerate
-                c = np.sin(t)
-                data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
-
-            filename = 'spatial_map_animation.mp4'
-            ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
-            saveanim(ani, write_dir, filename)
-
-        .. raw:: html
-
-            <video controls src="_static/spatial_map_animation.mp4"></video>
-
-    Args:
-        data_map (nt): array of 2d maps
-        x (list): list of x positions
-        y (list): list of y positions
-        samplerate (float): rate of the data_map samples
-        cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
-    '''
-
-    # Plotting subroutine
-    def plotdata(i):
-        im.set_data(data_map[i])
-        return im
-
-    # Initial plot
-    fig, ax = plt.subplots()
-    im = plot_spatial_map(data_map[0], x, y, ax=ax, cmap=cmap)
-
-    # Change the color limits
-    min_c = np.min(np.array(data_map))
-    max_c = np.max(np.array(data_map))
-    im.set_clim(min_c, max_c)
-        
-    # Create animation
-    ani = FuncAnimation(fig, plotdata, frames=len(data_map),
-                            interval=1000./samplerate)
-
-    return ani
 
 def set_bounds(bounds, ax=None):
     '''
