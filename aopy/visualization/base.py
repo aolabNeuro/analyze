@@ -448,7 +448,8 @@ def set_bounds(bounds, ax=None):
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
 
-def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):    
+def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, 
+                 origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
@@ -482,9 +483,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         target_positions = np.unique(target_positions,axis=0)
 
     if isinstance(alpha,float):
-        alpha = alpha * np.ones(target_positions.shape[0])
+        alpha = alpha * np.ones(len(target_positions))
     else:
-        assert len(alpha) == target_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
+        assert len(alpha) == len(target_positions), "list of alpha values must be equal in length to the list of targets."
 
     if ax is None:
         ax = plt.gca()
@@ -492,7 +493,7 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
     if unique_only:
         target_positions = np.unique(target_positions,axis=0)
 
-    for i in range(0, target_positions.shape[0]):
+    for i in range(len(target_positions)):
 
         # Pad the vector to make sure it is length 3
         pos = np.zeros((3,))
@@ -504,26 +505,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         else:
             target_color = 'b'
 
-        # Plot in 3D or 2D
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        try:
-            ax.set_zlabel('z')
-            u = np.linspace(0, 2 * np.pi, 100)
-            v = np.linspace(0, np.pi, 100)
-            x = pos[0] + target_radius * np.outer(np.cos(u), np.sin(v))
-            y = pos[1] + target_radius * np.outer(np.sin(u), np.sin(v))
-            z = pos[2] + target_radius * np.outer(np.ones(np.size(u)), np.cos(v))
-            ax.plot_surface(x, y, z, alpha=alpha[i], color=target_color)
-            ax.set_box_aspect((1, 1, 1))
-        except:
-            target = plt.Circle((pos[0], pos[1]),
-                                radius=target_radius, alpha=alpha[i], color=target_color)
-            ax.add_artist(target)
-            ax.set_aspect('equal', adjustable='box')
-    if bounds is not None: set_bounds(bounds, ax)
+        plot_circles([pos], target_radius, target_color, bounds, alpha[i], ax, unique_only=False)
 
-def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
+def plot_circles(circle_positions, circle_radius, circle_color='b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
     '''
     Add circles to an axis. Works for 2D and 3D axes
 
@@ -541,14 +525,14 @@ def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=Non
         circle_positions = np.unique(circle_positions,axis=0)
 
     if isinstance(alpha,float):
-        alpha = alpha * np.ones(circle_positions.shape[0])
+        alpha = alpha * np.ones(len(circle_positions))
     else:
-        assert len(alpha) == circle_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
+        assert len(alpha) == len(circle_positions), "list of alpha values must be equal in length to the list of cricles."
 
     if ax is None:
         ax = plt.gca()
 
-    for i in range(0, circle_positions.shape[0]):
+    for i in range(0, len(circle_positions)):
 
         # Pad the vector to make sure it is length 3
         pos = np.zeros((3,))
