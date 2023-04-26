@@ -154,10 +154,26 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
 
 def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_positions, target_radius, 
                        bounds, cursor_radius=0.5, eye_radius=0.25,
-                       cursor_color='blue', eye_color='#800080'):
+                       cursor_color='blue', eye_color='purple'):
     '''
-    
+    Draws an animation of two trajectories with static targets. The colors and endpoint radii of the
+    two trajectories can be specified along with the position and radius of the targets. Targets are
+    colored automatically according to :func:`~aopy.visualization.plot_targets`.
 
+    Args:
+        cursor_trajectory ((nt, ndim) array): Cursor positions over time for 2D or 3D trajectories.
+        eye_trajectory ((nt, ndim) array): Eye positions over time for 2D or 3D trajectories.
+        samplerate (float): The sampling rate of the trajectories in Hz.
+        target_positions ((ntargets, ndim) array): Array of target positions for 2D or 3D targets.
+        target_radius (float): Radius of the targets.
+        bounds (tuple): Boundaries of the plot area. See :func:`~aopy.visualization.plot_targets`.
+        cursor_radius (float, optional): Radius of the cursor endpoint. Default is 0.5.
+        eye_radius (float, optional): Radius of the eye endpoint. Default is 0.25.
+        cursor_color (plt.color, optional): Color of the cursor trajectory. Default is 'blue'.
+        eye_color (plt.color, optional): Color of the eye trajectory. Default is 'purple'.
+
+    Returns:
+        None
     '''
     assert len(cursor_trajectory) == len(eye_trajectory), "Cursor and Eye trajectories must have the same length"
 
@@ -171,13 +187,12 @@ def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_pos
     # # Initial plot
     fig, ax = plt.subplots(1, 1)
     plot_targets(target_positions, target_radius, bounds=bounds, ax=ax)
-    cur = plt.Circle(cursor_trajectory[i], radius=cursor_radius, alpha=0.5, color=cursor_color)
-    eye = plt.Circle(eye_trajectory[i], radius=eye_radius, alpha=0.5, color=eye_color)
+    cur = plt.Circle(cursor_trajectory[0], radius=cursor_radius, alpha=0.5, color=cursor_color)
+    eye = plt.Circle(eye_trajectory[0], radius=eye_radius, alpha=0.5, color=eye_color)
     ax.add_artist(cur)
     ax.add_artist(eye)
-    cur_line, = plt.plot(*cursor_trajectory[:i+1].T, color=cursor_color)
-    eye_line, = plt.plot(*eye_trajectory[:i+1].T, color=eye_color)
-
+    cur_line, = plt.plot(*cursor_trajectory[:1].T, color=cursor_color)
+    eye_line, = plt.plot(*eye_trajectory[:1].T, color=eye_color)
 
     # Create animation
     ani = FuncAnimation(fig, plotdata, 
