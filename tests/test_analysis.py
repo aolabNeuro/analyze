@@ -991,7 +991,7 @@ class BehaviorMetricsTests(unittest.TestCase):
         start_evt = 0
         end_events = [3, 6]
         reward_evt = 3
-        expected_success_perc = np.ones(ntrials-window_size+1)*(1/3)
+        expected_success_perc = np.ones(ntrials)*(1/3)
         success_perc = aopy.analysis.calc_success_percent(events, start_evt, end_events, reward_evt, window_size=window_size)
         np.testing.assert_allclose(success_perc, expected_success_perc)
 
@@ -1025,7 +1025,7 @@ class BehaviorMetricsTests(unittest.TestCase):
         start_evt = 0
         end_events = [3, 6]
         reward_evt = 3
-        expected_success_rate = np.ones(ntrials-window_size+1)*(1/5)
+        expected_success_rate = np.ones(ntrials)*(1/5)
         success_perc = aopy.analysis.calc_success_rate(events,event_times, start_evt, end_events, reward_evt, window_size=window_size)
         print(success_perc)
         np.testing.assert_allclose(success_perc, expected_success_rate)
