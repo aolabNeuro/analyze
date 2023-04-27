@@ -441,6 +441,26 @@ def calc_sem(data, axis=None):
 
     return SEM
 
+def calc_rolling_average(data, window_size=11):
+    """
+    Computes the rolling average of a 1D array using a convolutional kernel.
+
+    Args:
+        data (nt): The 1D array of data to compute the rolling average for.
+        window_size (int): The size of the kernel in number of samples. Must be odd.
+    
+    Returns:
+        (nt,) array: The rolling average of the input data.
+    """
+    assert window_size % 2 == 1, "Kernel size must be odd."
+    
+    kernel = np.ones(window_size) / window_size
+    data_convolved = np.convolve(data, kernel, mode='same')
+    mid_kernel_idx = math.floor(window_size/2)
+    data_convolved[:mid_kernel_idx] = data_convolved[mid_kernel_idx]
+    data_convolved[-mid_kernel_idx:] = data_convolved[-(mid_kernel_idx+1)]
+    return data_convolved
+
 def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
     '''
     Calculates mean absolute correlation between acq_data across channels with the same distance between them.

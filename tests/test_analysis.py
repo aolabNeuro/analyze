@@ -312,6 +312,12 @@ class CalcTests(unittest.TestCase):
         SEM = aopy.analysis.calc_sem(data, axis=(0,2))
         np.testing.assert_allclose(SEM, np.nanstd(data, axis=(0,2))/np.sqrt(18) )
 
+    def test_calc_rolling_average(self):
+        data = np.array([1, 2, 3, 4, 5])
+        kernel_size = 3
+        data_convolved = aopy.analysis.calc_rolling_average(data, kernel_size)
+        np.testing.assert_array_almost_equal(data_convolved, np.array([2., 2., 3., 4., 4.]))
+
     def test_calc_corr_over_elec_distance(self):
         acq_data = np.array([[1, 2, 3], [4, 5, 6]])
         acq_ch = np.array([1, 2])
