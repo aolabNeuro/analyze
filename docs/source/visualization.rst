@@ -7,5 +7,12 @@ Code for general neural data plotting (raster plots, multi-channel field potenti
 API
 ---
 
+Base
+~~~~
 .. automodule:: aopy.visualization.base
+    :members:
+
+Animation
+~~~~~~~~~
+.. automodule:: aopy.visualization.animation
     :members:

@@ -160,6 +160,12 @@ def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_pos
     two trajectories can be specified along with the position and radius of the targets. Targets are
     colored automatically according to :func:`~aopy.visualization.plot_targets`.
 
+    Example:
+
+        .. raw:: html
+
+            <video controls src="_static/test_anim.mp4"></video>
+
     Args:
         cursor_trajectory ((nt, ndim) array): Cursor positions over time for 2D or 3D trajectories.
         eye_trajectory ((nt, ndim) array): Eye positions over time for 2D or 3D trajectories.
