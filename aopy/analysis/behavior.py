@@ -3,9 +3,10 @@
 # Behavioral metrics code, e.g. trajectory path lengths, eye movement analysis, success rate, etc.
 
 import numpy as np
-from .. import preproc
 from scipy import signal
 
+from .base import calc_rolling_average
+from .. import preproc
 
 '''
 Behavioral metrics 
@@ -63,9 +64,7 @@ def calc_success_percent_trials(trial_success, window_size=None):
 
     # Otherwise, compute rolling success percent
     else:
-        filter_array = np.ones(window_size)
-        success_per_window = signal.convolve(trial_success, filter_array, mode='valid', method='direct')
-        success_percent = success_per_window/window_size
+        success_percent = calc_rolling_average(trial_success, window_size)
 
     return success_percent
 
@@ -126,9 +125,8 @@ def calc_success_rate_trials(trial_success, trial_time, window_size=None):
         acq_time = np.sum(trial_time)
 
     else:
-        nsuccess = success_perc*window_size
-        filter_array = np.ones(window_size)
-        acq_time = signal.convolve(trial_time, filter_array, mode='valid', method='direct')
+        nsuccess = success_perc
+        acq_time = calc_rolling_average(trial_time, window_size)
     
     success_rate = nsuccess / acq_time
 
