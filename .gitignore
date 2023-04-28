@@ -8,6 +8,7 @@ tests/tmp
 docs/source/_build
 docs/_build
 build/
+dist/
 htmlcov
 docs/source/examples/.ipynb_checkpoints
 .idea/
