@@ -545,16 +545,16 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
         "Please update your code.", DeprecationWarning, stacklevel=2)
         
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    try:
-        trials = data['trials']
-    except:
-        trials = data['bmi3d_trials']
-    locations = []
-    for i in range(len(target_indices)):
-        trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
-        locations.append(trials['target'][trial_idx][[0,2,1]])
-    return np.round(np.array(locations),2)
+    # data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    # try:
+    #     trials = data['trials']
+    # except:
+    #     trials = data['bmi3d_trials']
+    # locations = []
+    # for i in range(len(target_indices)):
+    #     trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
+    #     locations.append(trials['target'][trial_idx][[0,2,1]])
+    return get_target_locations(preproc_dir, subject, te_id, date, target_indices)
 
 def get_source_files(preproc_dir, subject, te_id, date):
     '''

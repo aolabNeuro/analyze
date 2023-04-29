@@ -548,7 +548,7 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
             locations[i,:] = trials['target'][trial_idx[0]][[0,2,1]] # use x,y,z format
         else:
             raise ValueError(f"Target index {target_indices[i]} not found")
-    return np.round(locations,2)
+    return np.round(locations,4)
 
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
