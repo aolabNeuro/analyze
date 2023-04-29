@@ -9,6 +9,7 @@ from .. import precondition
 from ..preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
 from ..utils import derivative
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
+import data
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
@@ -554,7 +555,7 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     # for i in range(len(target_indices)):
     #     trial_idx = np.where(trials['index'] == target_indices[i])[0][0]
     #     locations.append(trials['target'][trial_idx][[0,2,1]])
-    return get_target_locations(preproc_dir, subject, te_id, date, target_indices)
+    return data.bmi3d.get_target_locations(preproc_dir, subject, te_id, date, target_indices)
 
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
