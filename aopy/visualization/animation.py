@@ -22,16 +22,19 @@ def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
     animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
 
 
-def showanim(animation):
+def showanim(animation, closeanim=True):
     '''
     Display an animation in a python notebook
 
     Args:
         animation (pyplot.Animation): animation to display
+        closeanim (bool, optional): also close the animation figure to avoid showing a static plot
     '''
     from IPython import display # not a required package
     html = display.HTML(animation.to_html5_video())
     display.display(html)
+    if closeanim:
+        plt.close()
 
 def animate_events(events, times, fps, xy=(0.3, 0.3), fontsize=30, color='g'):
     '''
