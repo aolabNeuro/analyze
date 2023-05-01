@@ -29,9 +29,9 @@ def showanim(animation):
     Args:
         animation (pyplot.Animation): animation to display
     '''
-    from IPython.display import HTML  # not a required package
-    HTML(animation.to_html5_video())
-
+    from IPython import display # not a required package
+    html = display.HTML(animation.to_html5_video())
+    display.display(html)
 
 def animate_events(events, times, fps, xy=(0.3, 0.3), fontsize=30, color='g'):
     '''
