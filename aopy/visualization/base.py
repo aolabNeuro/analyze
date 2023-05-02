@@ -4,7 +4,6 @@
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import matplotlib.dates as mdates
 from matplotlib import cm
 
@@ -21,7 +20,6 @@ import pandas as pd
 from tqdm import tqdm
 import pandas as pd
 
-from .. import postproc
 from .. import analysis
 from ..data import load_chmap
 from .. import utils
@@ -89,9 +87,9 @@ def plot_timeseries(data, samplerate, ax=None):
 
     time = np.arange(np.shape(data)[0]) / samplerate
     for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:, ch] * 1e6)
+        ax.plot(time, data[:, ch])
     ax.set_xlabel('Time (s)')
-    ax.set_ylabel('Voltage (uV)')
+    ax.set_ylabel('Voltage (V)')
 
 def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     '''
@@ -118,12 +116,12 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
         ax = plt.gca()
     non_negative_freq, data_ampl = analysis.calc_freq_domain_amplitude(data, samplerate, rms)
     for ch in range(np.shape(data_ampl)[1]):
-        ax.semilogx(non_negative_freq, data_ampl[:,ch]*1e6) # convert to microvolts
+        ax.semilogx(non_negative_freq, data_ampl[:,ch])
     ax.set_xlabel('Frequency (Hz)')
     if rms:
-        ax.set_ylabel('RMS amplitude (uV)')
+        ax.set_ylabel('RMS amplitude (V)')
     else:
-        ax.set_ylabel('Peak amplitude (uV)')
+        ax.set_ylabel('Peak amplitude (V)')
 
 def get_data_map(data, x_pos, y_pos):
     '''
@@ -430,151 +428,6 @@ def plot_raster(data, cue_bin=None, ax=None):
     if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
-def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
-    '''
-    Save an animation using ffmpeg
-
-    Args:
-        animation (pyplot.Animation): animation to save
-        base_dir (str): directory to write
-        filename (str): should end in '.mp4'
-        dpi (float): resolution of the video file
-        savefig_kwargs (kwargs, optional): arguments to pass to savefig
-    '''
-    filepath = os.path.join(base_dir, filename)
-    animation.save(filepath, dpi=dpi, savefig_kwargs=savefig_kwargs)
-
-
-def showanim(animation):
-    '''
-    Display an animation in a python notebook
-
-    Args:
-        animation (pyplot.Animation): animation to display
-    '''
-    from IPython.display import HTML  # not a required package
-    HTML(animation.to_html5_video())
-
-
-def animate_events(events, times, fps, xy=(0.3, 0.3), fontsize=30, color='g'):
-    '''
-    Silly function to plot events as text, frame by frame in an animation
-
-    Args:
-        events (list): list of event names or numbers
-        times (list): timestamps of each event
-        fps (float): sampling rate to animate
-        xy (tuple, optional): (x, y) coorindates of the left bottom corner of each event label, from 0 to 1.
-        fontsize (float, optional): size to draw the event labels
-
-    Returns:
-        matplotlib.animation.FuncAnimation: animation object
-    '''
-    frame_events, event_names = postproc.sample_events(events, times, fps)
-
-    def display_text(num, events, names, note):
-        display = names[events[num, :] == 1]
-        if len(display) > 0:
-            note.set_text(display[0])  # note if simultaneous events occur, we just print the first
-
-    fig, ax = plt.subplots(1, 1)
-    note = ax.annotate("", xy, fontsize=fontsize, color=color)
-    plt.axis('off')
-    return FuncAnimation(fig, display_text, frames=frame_events.shape[0],
-                         interval=round(1000 / fps),
-                         fargs=(frame_events, event_names, note))
-
-
-def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
-                          axis_labels=['x', 'y', 'z']):
-    '''
-    Draws a trajectory moving through 3D space at the given sampling rate and with a
-    fixed maximum number of points visible at a time.
-
-    Args:
-        trajectory (n, 3): matrix of n points
-        samplerate (float): sampling rate of the trajectory data
-        history (int, optional): maximum number of points visible at once
-    '''
-
-    fig = plt.figure()
-    ax = plt.subplot(111, projection='3d')
-
-    line, = ax.plot(trajectory[0, 0], trajectory[0, 1], trajectory[0, 2], color=color)
-
-    ax.set_xlim((np.nanmin(trajectory[:, 0]), np.nanmax(trajectory[:, 0])))
-    ax.set_xlabel(axis_labels[0])
-
-    ax.set_ylim((np.nanmin(trajectory[:, 1]), np.nanmax(trajectory[:, 1])))
-    ax.set_ylabel(axis_labels[1])
-
-    ax.set_zlim((np.nanmin(trajectory[:, 2]), np.nanmax(trajectory[:, 2])))
-    ax.set_zlabel(axis_labels[2])
-
-    def draw(num):
-        length = min(num, history)
-        start = num - length
-        line.set_data(trajectory[start:num, 0], trajectory[start:num, 1])
-        line.set_3d_properties(trajectory[start:num, 2])
-        return line,
-
-    return FuncAnimation(fig, draw, frames=trajectory.shape[0],
-                         init_func=lambda: None, interval=1000. / samplerate)
-
-def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
-    '''
-    Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
-    for each timepoint you want to animate, then put them into a list and feed them to this
-    function. See also :func:`aopy.visualization.show_anim` and :func:`aopy.visualization.save_anim`
-
-    Example:
-        ::
-        
-            samplerate = 20
-            duration = 5
-            x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
-            data_map = []
-            for frame in range(duration*samplerate):
-                t = np.linspace(-1, 1, 100) + float(frame)/samplerate
-                c = np.sin(t)
-                data_map.append(get_data_map(c, x_pos.reshape(-1), y_pos.reshape(-1)))
-
-            filename = 'spatial_map_animation.mp4'
-            ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
-            saveanim(ani, write_dir, filename)
-
-        .. raw:: html
-
-            <video controls src="_static/spatial_map_animation.mp4"></video>
-
-    Args:
-        data_map (nt): array of 2d maps
-        x (list): list of x positions
-        y (list): list of y positions
-        samplerate (float): rate of the data_map samples
-        cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
-    '''
-
-    # Plotting subroutine
-    def plotdata(i):
-        im.set_data(data_map[i])
-        return im
-
-    # Initial plot
-    fig, ax = plt.subplots()
-    im = plot_spatial_map(data_map[0], x, y, ax=ax, cmap=cmap)
-
-    # Change the color limits
-    min_c = np.min(np.array(data_map))
-    max_c = np.max(np.array(data_map))
-    im.set_clim(min_c, max_c)
-        
-    # Create animation
-    ani = FuncAnimation(fig, plotdata, frames=len(data_map),
-                            interval=1000./samplerate)
-
-    return ani
-
 def set_bounds(bounds, ax=None):
     '''
     Sets the x, y, and z limits according to the given bounds
@@ -595,7 +448,8 @@ def set_bounds(bounds, ax=None):
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
 
-def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin=(0, 0, 0), ax=None, unique_only=True):    
+def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, 
+                 origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
     Add targets to an axis. If any targets are at the origin, they will appear 
     in a different color (magenta). Works for 2D and 3D axes
@@ -629,9 +483,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         target_positions = np.unique(target_positions,axis=0)
 
     if isinstance(alpha,float):
-        alpha = alpha * np.ones(target_positions.shape[0])
+        alpha = alpha * np.ones(len(target_positions))
     else:
-        assert len(alpha) == target_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
+        assert len(alpha) == len(target_positions), "list of alpha values must be equal in length to the list of targets."
 
     if ax is None:
         ax = plt.gca()
@@ -639,7 +493,7 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
     if unique_only:
         target_positions = np.unique(target_positions,axis=0)
 
-    for i in range(0, target_positions.shape[0]):
+    for i in range(len(target_positions)):
 
         # Pad the vector to make sure it is length 3
         pos = np.zeros((3,))
@@ -651,26 +505,9 @@ def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, origin
         else:
             target_color = 'b'
 
-        # Plot in 3D or 2D
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        try:
-            ax.set_zlabel('z')
-            u = np.linspace(0, 2 * np.pi, 100)
-            v = np.linspace(0, np.pi, 100)
-            x = pos[0] + target_radius * np.outer(np.cos(u), np.sin(v))
-            y = pos[1] + target_radius * np.outer(np.sin(u), np.sin(v))
-            z = pos[2] + target_radius * np.outer(np.ones(np.size(u)), np.cos(v))
-            ax.plot_surface(x, y, z, alpha=alpha[i], color=target_color)
-            ax.set_box_aspect((1, 1, 1))
-        except:
-            target = plt.Circle((pos[0], pos[1]),
-                                radius=target_radius, alpha=alpha[i], color=target_color)
-            ax.add_artist(target)
-            ax.set_aspect('equal', adjustable='box')
-    if bounds is not None: set_bounds(bounds, ax)
+        plot_circles([pos], target_radius, target_color, bounds, alpha[i], ax, unique_only=False)
 
-def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
+def plot_circles(circle_positions, circle_radius, circle_color='b', bounds=None, alpha=0.5, ax=None, unique_only=True):    
     '''
     Add circles to an axis. Works for 2D and 3D axes
 
@@ -688,14 +525,14 @@ def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=Non
         circle_positions = np.unique(circle_positions,axis=0)
 
     if isinstance(alpha,float):
-        alpha = alpha * np.ones(circle_positions.shape[0])
+        alpha = alpha * np.ones(len(circle_positions))
     else:
-        assert len(alpha) == circle_positions.shape[0], "list of alpha values must be equal in length to the list of targets."
+        assert len(alpha) == len(circle_positions), "list of alpha values must be equal in length to the list of cricles."
 
     if ax is None:
         ax = plt.gca()
 
-    for i in range(0, circle_positions.shape[0]):
+    for i in range(0, len(circle_positions)):
 
         # Pad the vector to make sure it is length 3
         pos = np.zeros((3,))
@@ -721,7 +558,7 @@ def plot_circles(circle_positions, circle_radius, circle_color = 'b', bounds=Non
     if bounds is not None: set_bounds(bounds, ax)
 
 
-def plot_trajectories(trajectories, bounds=None, ax=None):
+def plot_trajectories(trajectories, bounds=None, ax=None, **kwargs):
     '''
     Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
 
@@ -753,6 +590,7 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
         trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
         ax (plt.Axis, optional): axis to plot the targets on
+        kwargs (dict): keyword arguments to pass to the plt.plot function
    '''
     if ax is None:
         ax = plt.gca()
@@ -761,11 +599,11 @@ def plot_trajectories(trajectories, bounds=None, ax=None):
     try:
         ax.set_zlabel('z')
         for path in trajectories:
-            ax.plot(*path.T)
+            ax.plot(*path.T, **kwargs)
         ax.set_box_aspect((1, 1, 1))
     except:
         for path in trajectories:
-            ax.plot(path[:, 0], path[:, 1])
+            ax.plot(path[:, 0], path[:, 1], **kwargs)
         ax.set_aspect('equal', adjustable='box')
 
     if bounds is not None: set_bounds(bounds, ax)
@@ -1068,33 +906,41 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     if not axinput:
         fig.tight_layout()
         
-def plot_boxplots(data, plt_xaxis, trendline=True, facecolor=[0.5, 0.5, 0.5], linecolor=[0,0,0], box_width = 0.5, ax=None):
+def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='k', box_width=0.5, ax=None):
     '''
     This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
 
     .. image:: _images/boxplot_example.png
 
     Args:
-        data (n1, n2): Data to plot. A different boxplot is created for each column of this variable.
-        plt_xaxis (n2): X-axis locations to plot the boxplot of each column
+        data (ncol): Data to plot. A different boxplot is created for each entry of the list.
+        plt_xaxis (ncol): X-axis locations or labels to plot the boxplot of each column
         trendline (bool): If a line should be used to connect boxplots
-        facecolor (list or word):
-        linecolor (list or word):
+        facecolor (color): Color of the box faces. Can be any input that pyplot interprets as a color.
+        linecolor (color): Color of the connecting lines.
         ax (axes handle): Axes to plot
     '''
     if ax is None:
         ax = plt.gca()
+        
+    if np.ndim(data) > 1:
+        data = [data[:,i] for i in range(data.shape[1])]
 
     if trendline:
-        ax.plot(plt_xaxis, np.nanmedian(data, axis=0), color=facecolor)
+        ax.plot(plt_xaxis, np.nanmedian(data, axis=1), color=facecolor)
     
     for featidx, ifeat in enumerate(plt_xaxis):
-        temp_data = data[:,featidx]
+        temp_data = data[featidx]
+        try:
+            int(ifeat)
+        except:
+            ifeat = featidx
         ax.boxplot(temp_data[~np.isnan(temp_data)], 
             positions=np.array([ifeat]), patch_artist=True, widths=box_width, 
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
+    ax.set_xticklabels(plt_xaxis)
 
 def advance_plot_color(ax, n):
     '''

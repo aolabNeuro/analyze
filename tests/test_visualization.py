@@ -280,6 +280,20 @@ class AnimationTests(unittest.TestCase):
         ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
         saveanim(ani, write_dir, filename)
 
+    def test_animate_cursor_eye(self):
+        cursor_trajectory = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
+        eye_trajectory = np.array([[1, 0], [1, 2], [1, 2], [4, 5], [4, 5], [6, 6]])
+        samplerate = 0.5
+        target_positions = [np.array([0,0]), np.array([5,5])]
+        bounds = (-10, 10, -10, 10, 0, 0)
+        target_radius = 1.5
+
+        ani = animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_positions, target_radius, 
+                        bounds)
+        
+        aopy.visualization.saveanim(ani, docs_dir, 'test_anim.mp4')
+                
+
 class OtherPlottingTests(unittest.TestCase):
 
     def test_plot_targets(self):
