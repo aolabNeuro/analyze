@@ -7,6 +7,7 @@ from scipy import signal
 
 from .base import calc_rolling_average
 from .. import preproc
+from .. import postproc
 
 '''
 Behavioral metrics 
@@ -146,6 +147,61 @@ def compute_path_length_per_trajectory(trajectory):
     path_length = np.sum(lengths)
     return path_length
 
+def compute_movement_stats(trajectory, target_position, rotation_axis=np.array([1, 0]), error_axis=1, 
+                           return_all_stats=False):
+    """
+    Computes movement statistics of a trajectory relative to a target position. 
+
+    Args:
+        trajectory (nt, 2): The trajectory coordinates for each point in time. 
+        target_position (2,): Target position coordinates.
+        rotation_axis ((2,) array, optional): The axis onto which movement will be
+            projected to calculate error. Defaults to np.array([1, 0]).
+        error_axis (int, optional): axis (after rotation) along which to compute the error 
+            statistics. Default 1.
+
+    Returns:
+        tuple: A tuple containing:
+            |**mean (float):** The mean error of the trajectory relative to the target position.
+            |**std (float):** The variance of the error of the trajectory relative to the target position.
+            |**auc (float):** The area under the curve ofthe trajectory relative to the target position.
+        additionally, with return_all_stats=True: 
+            |**abs_mean (float):** The mean of the absolute value of the trajectory error.
+            |**abs_min (float):** The minimum absolute trajectory error.
+            |**abs_max (float):** The maximum absolute trajectory error.
+            |**abs_auc (float):** The area under the curve of the absolute value of the trajectory error.
+            |**sign (float):** 1 if the maximum positive value is bigger than the maximum negative value. -1 otherwise.
+            |**signed_min (float):** The minimum value if the sign is 1, otherwise the maximum value of the trajectory error.
+            |**signed_max (float):** The maximum value if the sign is 1, otherwise the minimum value of the trajectory error.
+            |**signed_abs_mean (float):** The sign multiplied by the absolute value of the mean trajectory error.
+        
+    """
+    assert np.count_nonzero(target_position) > 0, "Please check target position. Must be non-zero"
+
+    rotated_traj = postproc.rotate_spatial_data(trajectory, rotation_axis, target_position)
+    dist_ts = np.array(rotated_traj)[:, error_axis]
+    
+    # Statistics of the error axis
+    mean = np.mean(dist_ts)
+    std = np.std(dist_ts)
+    auc = np.sum(dist_ts)
+
+    if not return_all_stats:
+        return (mean, std, auc)
+    
+    # Unsigned statistics
+    abs_mean = np.mean(np.abs(dist_ts))
+    abs_min = np.min(np.abs(dist_ts))
+    abs_max = np.max(np.abs(dist_ts))
+    abs_auc = np.sum(np.abs(dist_ts))
+
+    # Signed statistics
+    sign = -1 if abs(np.min(dist_ts)) > abs(np.max(dist_ts)) else 1 # bigger negative or positive?
+    signed_min = np.min(dist_ts) if sign == 1 else np.max(dist_ts)
+    signed_max = np.max(dist_ts) if sign == 1 else np.min(dist_ts)
+    signed_abs_mean = sign * abs_mean
+    
+    return (mean, std, auc, abs_mean, abs_min, abs_max, abs_auc, sign, signed_min, signed_max, signed_abs_mean)
 
 def time_to_target(event_codes, event_times, target_codes=list(range(81, 89)) , go_cue_code=32 , reward_code=48):
     '''
