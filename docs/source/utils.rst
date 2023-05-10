@@ -11,3 +11,6 @@ API
 
 .. automodule:: aopy.utils.base
     :members:
+
+.. automodule:: aopy.utils.memory
+    :members:
