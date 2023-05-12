@@ -15,3 +15,7 @@ Examples:
 .. toctree::
 
     examples/screen_latency_calculations.ipynb
+
+.. toctree::
+
+    examples/memory_limit_example.ipynb
