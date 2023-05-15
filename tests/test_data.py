@@ -478,6 +478,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
         locs = get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices)
         self.assertEqual(locs.shape, (9, 3))
+        self.assertEqual(len(str(locs[1][0])), 6)
 
         # If you supply an invalid target index it should raise an error
         target_indices = np.array([10])

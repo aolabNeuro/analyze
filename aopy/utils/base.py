@@ -2,7 +2,6 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
-import platform
 import numpy as np
 import re
 from datetime import datetime
@@ -826,3 +825,4 @@ def sync_timestamp_offline(timestamp, on_times, on_times_main):
     sync_timestamp = (timestamp - on_times[0]) * scaling + on_times_main[0]
     
     return sync_timestamp, scaling
+

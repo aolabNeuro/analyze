@@ -145,3 +145,11 @@ Documentation in progress.
 .. code-block:: python
 
     aopy.data.peslab
+
+Memory Limits
+-------------
+
+When working on shared resources, e.g. lab servers, please make use of the :ref:`aopy.utils.memory<Memory>` module
+to manage hardware memory limits. 
+
+See :ref:`this example<Setting memory limits>` for details.

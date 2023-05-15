@@ -30,7 +30,7 @@ install_requires = [
 
 setuptools.setup(
     name="aopy",
-    version="0.3.0",
+    version="0.6.0",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",
