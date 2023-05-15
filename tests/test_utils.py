@@ -411,5 +411,28 @@ class MemoryTests(unittest.TestCase):
         a = np.ones((1000000,100))
         print(f"allocated {a.nbytes/1e9} GB")
 
+class TestSynchronization(unittest.TestCase):
+    
+    def test_get_first_last_times(self):
+        barcode_ontimes = np.array([35.2, 66.3, 95.2, 125.1, 156.5, 186.4])
+        barcode_ontimes_main = np.array([65.1, 96.3, 124.5, 155.2])
+        barcode = [14256, 13556, 32364, 23425, 43525, 23534]
+        barcode_main = [13556, 32364, 23425, 43525]
+
+        first_last_times,first_last_times_main = get_first_last_times(barcode_ontimes, barcode_ontimes_main, barcode, barcode_main)
+        self.assertEqual(first_last_times.shape[0], 2)
+        self.assertEqual(first_last_times_main.shape[0], 2)
+        
+    def test_sync_timestamp_offline(self):
+        timestamps = np.arange(100)
+        on_times = [10,90] # the first and last times sync pulses come 
+        on_times_main = [12,93] # the first and last times sync pulses come to the main stream
+        sync_timestamp,scaling = sync_timestamp_offline(timestamps, on_times, on_times_main)
+        
+        # if synchronization works, on_times in the first stream are converted to on_times_main in the main stream
+        self.assertEqual(sync_timestamp[10], 12)
+        self.assertEqual(sync_timestamp[90], 93)
+        self.assertEqual(scaling, (93-12)/(90-10))
+        
 if __name__ == "__main__":
     unittest.main()
