@@ -6,14 +6,15 @@ import xml.etree.ElementTree as ETree
 
 def load_neuropixel_configuration(data_dir, data_folder, ex_idx = 0, port_number = 1):
     '''
-    Get neuropixel probe information from xml condiguration files made by OpenEphys
+    get neuropixel probe information from xml condiguration files made by OpenEphys
+    channel number and electrode x pos is sorded in the order of y pos when saved by openephys
     This function also sorts x pos and y pos in the order of channel number
     
     Args:
     data_dir (str): where to find the file
     data_folder (str): the xml file that describes neuropixel probe configuration
     ex_idx (int): experiment idx. This is usually 0.
-    port_number ()
+    port_number (int): port number which a probe connected to. natural number from 1 to 4.
     
     Returns:
     config (dict) : dictionary thet contains electrode configuration
@@ -85,6 +86,7 @@ def load_neuropixel_data(data_dir, data_folder, datatype, node_idx=0, ex_idx=0, 
     metadata['slot'] = config['slot']
     metadata['port'] = config['port']
     metadata['dock'] = config['dock']
+    metadata['channel'] = config['channel']
     metadata['ch_bank'] = config['ch_bank']
     metadata['xpos'] = config['xpos']
     metadata['ypos'] = config['ypos']
@@ -164,7 +166,7 @@ def load_neuropixel_event(data_dir, data_folder, datatype, node_idx=0, ex_idx=0,
 def get_neuropixel_digital_input_times(data_dir, data_folder, datatype, node_idx=0, ex_idx=0, port_number=1):
     '''
     Computes the times when sync line come to the degital channel in openephys.
-    Note that openephys recodings doesn't always begin with 0 time index.
+    Openephys recodings doesn't always begin with 0 time index.
     
     Args:
     data_dir (str): data directory where the data files are located

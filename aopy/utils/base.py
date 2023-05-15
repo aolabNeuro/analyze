@@ -805,7 +805,7 @@ def get_first_last_times(barcode_on_times, barcode_on_times_main, barcode, barco
     first_last_times = barcode_on_times[first_last_idx]
     first_last_times_main = barcode_on_times_main[first_last_idx_main]
     
-    return first_last_times, first_last_times_main
+    return first_last_times,first_last_times_main
 
 def sync_timestamp_offline(timestamp, on_times, on_times_main):
     '''
