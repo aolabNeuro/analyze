@@ -38,5 +38,5 @@ Eye
 Neuropixel
 ^^^
 
-.. automodule:: aopy.data.Neuropixel
+.. automodule:: aopy.data.neuropixel
     :members:
