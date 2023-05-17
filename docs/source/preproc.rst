@@ -555,7 +555,7 @@ Optitrack
     :members:
 
 Neuropixel
-^^^^^^^^^
+^^^^^^^^^^
 
 .. automodule:: aopy.preproc.neuropixel
     :members:
