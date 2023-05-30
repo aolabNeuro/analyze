@@ -277,7 +277,7 @@ def _parse_bmi3d_v1(data_dir, files):
         if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
             cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'], metadata_dict['cursor_z_ach']]]
             cursor_analog = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
-            cursor_analog_samplerate = 100
+            cursor_analog_samplerate = 1000
             cursor_analog = precondition.downsample(cursor_analog, analog_samplerate, cursor_analog_samplerate)
             max_voltage = 3.34 # using teensy 3.6
             cursor_analog_cm = ((cursor_analog * metadata['voltsperbit']) - max_voltage/2) / metadata_dict['cursor_out_gain']
@@ -471,12 +471,12 @@ def _prepare_bmi3d_v1(data, metadata):
 
     # Interpolate clean hand kinematics
     if 'timestamp_sync' in corrected_clock.dtype.names and 'clean_hand_position' in data:
-        metadata['hand_interp_samplerate'] = 100
+        metadata['hand_interp_samplerate'] = 1000
         data['hand_interp'] = aodata.get_interp_kinematics(data, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
 
     # And interpolated cursor kinematics
     if 'timestamp_sync' in corrected_clock.dtype.names and isinstance(task, np.ndarray) and 'cursor' in task.dtype.names:
-        metadata['cursor_interp_samplerate'] = 100
+        metadata['cursor_interp_samplerate'] = 1000
         data['cursor_interp'] = aodata.get_interp_kinematics(data, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
         
     return data, metadata

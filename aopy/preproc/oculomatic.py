@@ -6,7 +6,7 @@ from .. import utils
 import numpy as np
 import os
 
-def parse_oculomatic(data_dir, files, samplerate=100, max_memory_gb=1.0, debug=True, **filter_kwargs):
+def parse_oculomatic(data_dir, files, samplerate=1000, max_memory_gb=1.0, debug=True, **filter_kwargs):
     """
     Loads eye data from ecube and hdf data. 
 

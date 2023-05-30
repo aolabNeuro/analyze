@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from ..precondition import downsample, mt_lowpass_filter
 from ..utils import derivative, detect_edges
 
-def filter_eye(eye_pos, samplerate, downsamplerate=100, lowpass_freq=30, taper_len=0.05, pad_t=1.0):
+def filter_eye(eye_pos, samplerate, downsamplerate=1000, lowpass_freq=30, taper_len=0.05, pad_t=1.0):
     '''
     Filter and downsample eye data.
 

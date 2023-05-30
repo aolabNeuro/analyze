@@ -1276,7 +1276,7 @@ class OculomaticTests(unittest.TestCase):
         t_1k = np.arange(len(downsample_data))/new_samplerate
 
         self.assertEqual(old_samplerate, 25000)
-        self.assertEqual(new_samplerate, 100)
+        self.assertEqual(new_samplerate, 1000)
 
         t_range = [6,8]
 
@@ -1285,6 +1285,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].plot(t_1k[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate)], downsample_data[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate),0])
         ax[0].set_ylabel('25khz')
         ax[1].set_ylabel('100hz')
+        plt.tight_layout()
         filename =  'proc_oculomatic_downsample.png'
         visualization.savefig(img_dir, filename)
 
@@ -1297,6 +1298,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].set_ylim(0,1)
         ax[0].set_xlim(0,100)
         ax[1].set_xlim(0,100)
+        plt.tight_layout()
         filename =  'proc_oculomatic_freq.png'
         visualization.savefig(img_dir, filename)
 
