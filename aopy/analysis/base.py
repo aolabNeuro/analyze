@@ -443,7 +443,10 @@ def calc_sem(data, axis=None):
 
 def calc_rolling_average(data, window_size=11):
     """
-    Computes the rolling average of a 1D array using a convolutional kernel.
+    Computes the rolling average of a 1D array using a convolutional kernel. The
+    first and last valid datapoint (fully overlapping with the kernel) are copied
+    backwards and forwards, respectively, such that the size of the output is the
+    same as the size of the input.
 
     Args:
         data (nt): The 1D array of data to compute the rolling average for.

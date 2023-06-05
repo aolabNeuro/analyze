@@ -46,5 +46,13 @@ KFDecoder
 AccLLR
 ^^^^^^
 
+Code for determining the latency of responses to stimulation based on the paper:
+
+Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times 
+in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. 
+doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8. https://pubmed.ncbi.nlm.nih.gov/20884767/
+
+Main function: :func:`~aopy.analysis.accllr.calc_accllr_st`
+
 .. automodule:: aopy.analysis.accllr
     :members:
