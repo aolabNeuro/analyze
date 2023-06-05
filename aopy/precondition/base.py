@@ -720,3 +720,50 @@ def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, butt
     window = [low_pass, high_pass]
     b, a = butter(buttord, window, btype='bandpass', fs=samplerate)
     return filtfilt(b, a, broadband_data, axis=0)
+
+def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
+    '''
+    Low-pass filter kinematics data to below 15 Hz by default. 
+    Filter parameters taken from Bradberry, et al., 2009 
+    https://doi.org/10.1016/j.neuroimage.2009.06.023 
+
+    Args:
+        kinematic_data (nt, ...): raw hand data, e.g.
+        samplerate (float): sampling rate of the raw data
+        low_cut (float, optional): cutoff frequency for low-pass filter. Defaults to 15 Hz
+        buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
+
+    Returns:
+        (nt, ...): filtered kinematics data
+
+    Examples:
+
+        .. code-block:: python
+
+            fs = 100
+            x_single, t = utils.generate_test_signal(T=5, fs, 1, 5)
+            x_noise, t = utils.generate_test_signal(T=5, fs=fs, freq=[1,3,30], a=[5, 2, 0.5], noise=0.2)
+            x_filt = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)
+            fig, ax = plt.subplot_mosaic([['A', 'B'],['C', 'C']])
+        
+            ax['A'].plot(t, x_noise, label='Noisy signal')
+            ax['A'].plot(t, x_filt, label='Filtered signal')
+            ax['A'].set_xlabel('time (seconds)')
+            
+            x_filt_simple = filt_fun(x_single)
+            ax['B'].plot(t, x_single, label=f'{freq[0]} Hz signal')
+            ax['B'].plot(t, x_filt_simple, label='Filtered signal')
+            ax['B'].set_xlabel('time (seconds)')
+
+            f_noise, psd_noise = analysis.get_psd_welch(x_noise, fs)
+            f_filt, psd_filt = analysis.get_psd_welch(x_filt, fs)
+            ax['C'].semilogy(f_noise, psd_noise, label='Noisy signal')
+            ax['C'].semilogy(f_filt, psd_filt, label='Filtered signal')
+            ax['C'].set_xlabel('frequency (Hz)')
+            ax['C'].set_ylabel('PSD')
+
+        .. image:: _images/filter_kinematics.png
+    '''
+    b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
+    filtered_data = filtfilt(b, a, kinematic_data, axis=0)
+    return filtered_data

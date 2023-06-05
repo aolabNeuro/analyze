@@ -150,6 +150,59 @@ class DigitalCalcTests(unittest.TestCase):
         np.testing.assert_allclose(timeseries, expected_timeseries)
         np.testing.assert_allclose(new_samplepts, input_samplepts)
 
+    def test_sample_timestamped_data(self):
+        np.random.seed(0)
+        duration = 4
+        freq = 5
+        samplerate = 1000
+        ground_truth_data = utils.generate_multichannel_test_signal(duration*2, samplerate, 2, freq, 1)
+        
+        fps = 120
+        nt = fps*duration
+        framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
+        drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
+        timestamps = np.arange(nt)/fps + framerate_error + drift
+        samples = (timestamps * samplerate).astype(int)
+
+        frame_data = ground_truth_data[samples,:]
+        interp_samplerate = 100
+        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
+
+        fig, ax = plt.subplots(2,1)
+        visualization.plot_timeseries(1e-6*frame_data[:,0], fps, ax=ax[0])
+        visualization.plot_timeseries(1e-6*interp_data[:,0], interp_samplerate, ax=ax[0])
+        ax[0].set_title(f'{freq} Hz signal')
+        ax[0].set_ylabel('pos (cm)')
+        ax[0].legend(['without sampling', 'with sampling'])
+
+        visualization.plot_freq_domain_amplitude(1e-6*frame_data[:,0], fps, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(1e-6*interp_data[:,0], interp_samplerate, ax=ax[1])
+        ax[1].set_xscale('linear')
+        ax[1].set_xlim(0,30)
+        ax[1].set_ylabel('Peak amplitude')
+        plt.tight_layout()
+
+        filename = 'sample_timestamped_data.png'
+        visualization.savefig(img_dir, filename)
+
+    def test_get_dch_data(self):
+        dig_data = [0, 1, 0, 1, 1, 0]
+        samplerate = 1
+        expected_ts = [1, 2, 3, 5]
+        expected_values = [1, 0, 1, 0]
+        data = get_dch_data(dig_data, samplerate, 0)
+        np.testing.assert_allclose(expected_ts, data['timestamp'])
+        np.testing.assert_allclose(expected_values, data['value'])
+
+        dig_data = [0, 3, 0, 0, 2]
+        samplerate = 1
+        expected_ts = [1, 2, 4]
+        expected_values = [3, 0, 2]
+        data = get_dch_data(dig_data, samplerate, [0,1])
+        np.testing.assert_allclose(expected_ts, data['timestamp'])
+        np.testing.assert_allclose(expected_values, data['value'])
+        
+
 class EventFilterTests(unittest.TestCase):
 
     def test_trial_align_events(self):
@@ -791,7 +844,7 @@ class TestPrepareExperiment(unittest.TestCase):
         filename = 'parse_bmi3d_cursor_trajectories_interp_v11.png'
         visualization.savefig(write_dir, filename)
 
-        trajectories = get_data_segments(data['cursor_analog_cm_filt'], trial_times, metadata['cursor_interp_samplerate'])
+        trajectories = get_data_segments(data['cursor_analog_cm'], trial_times, metadata['cursor_interp_samplerate'])
         plt.figure()
         visualization.plot_trajectories(trajectories, bounds)
         trials = data['bmi3d_trials']
@@ -969,13 +1022,18 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # This other preprocessed file does contain laser sensor data. Response on ch. 36
         te_id = 6577
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
-        visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        self.assertIn('laser_sensor', exp_data.keys())
+        self.assertNotIn('qwalor_trigger_dch', exp_metadata.keys())
+        self.assertNotIn('laser_trigger', exp_data.keys())
 
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+            preproc_dir, subject, te_id, date, laser_trigger='laser_trigger', 
+            laser_sensor='laser_sensor', debug=True)
+        visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
 
         print(trial_powers)
 
-        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
         
         # Plot lfp response
@@ -1017,6 +1075,94 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         plt.hist(trial_powers, 20)
         visualization.savefig(write_dir, 'laser_powers.png') # Should be all 0.5
+
+        # Another file, with digital and analog data
+        subject = 'affi'
+        te_id = 8844
+        date = '2023-03-22'
+
+        # Preprocess the raw data
+        # files = {}
+        # files['hdf'] = '/Users/leoscholl/raw/hdf/affi20230322_17_te8844.hdf'
+        # files['ecube'] = '/Users/leoscholl/raw/ecube/2023-03-22_BMI3D_te8844'
+        # # os.remove(os.path.join(data_dir, 'affi/preproc_2023-03-22_affi_8844_exp.hdf'))
+        # proc_exp('', files, data_dir, 'affi/preproc_2023-03-22_affi_8844_exp.hdf', overwrite=True)
+        # exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+        # # Make the lfp file only contain 8 channels
+        # lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+        # lfp_data = lfp_data[:,:8]
+        # os.remove(os.path.join(data_dir, 'affi/preproc_2023-03-22_affi_8844_lfp.hdf'))
+        # print('lfp data', lfp_data.nbytes)
+        # save_hdf(data_dir, 'affi/preproc_2023-03-22_affi_8844_lfp.hdf', {'lfp_data': lfp_data})
+        # save_hdf(data_dir, 'affi/preproc_2023-03-22_affi_8844_lfp.hdf', lfp_metadata, "/lfp_metadata", append=True)
+        
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        self.assertIn('qwalor_trigger_dch', exp_metadata.keys())
+        self.assertIn('qwalor_trigger', exp_data.keys())
+
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
+
+        print(trial_powers)
+
+        lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+        
+        # Plot lfp response
+        ch = 1
+        samplerate = lfp_metadata['lfp_samplerate']
+        erp = analysis.calc_erp(lfp_data, trial_times, time_before, time_after, samplerate)
+        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=0)
+        t = 1000*(np.arange(erp_voltage.shape[0])/samplerate - time_before)
+        ch_data = 1e6*lfp_metadata['voltsperbit']*erp_voltage[:,ch]
+        plt.figure()
+        plt.plot(t, ch_data)
+        plt.plot([0,0], [-3, 0], 'k--')
+        visualization.savefig(write_dir, 'lfp_aligned_laser_dch_trigger.png')
+        
+        # Also plot the individual trials
+        plt.figure()
+        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,:,ch].T, ylabel='trials')
+        im.set_clim(-100,100)
+        visualization.savefig(img_dir, 'laser_aligned_lfp_dch_trigger.png')
+        
+        # And compare to the sensor data
+        sensor_data = exp_data['qwalor_sensor']
+        sensor_voltsperbit = exp_metadata['analog_voltsperbit']
+        samplerate = exp_metadata['analog_samplerate']
+
+        plt.figure()
+        ds_data = precondition.downsample(sensor_data, samplerate, 1000)
+        ds_data = ds_data - np.mean(ds_data)
+        analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
+        print(analog_erp.shape)
+        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
+        im.set_clim(-0.01,0.01)
+        visualization.savefig(img_dir, 'laser_aligned_sensor_dch_trigger.png')
+
+        # One more file, with no lfp data but it has multiple channels of stimulation using MultiQwalorLaser feature.
+        subject = 'test'
+        te_id = 8940
+        date = '2023-03-27'
+            
+        # Preprocess the raw data
+        # files = {}
+        # files['hdf'] = '/Users/leoscholl/raw/hdf/test20230327_11_te8940.hdf'
+        # files['ecube'] = '/Users/leoscholl/raw/ecube/2023-03-27_BMI3D_te8940'
+        # # os.remove(os.path.join(data_dir, 'test/preproc_2023-03-27_test_8940_exp.hdf'))
+        # proc_exp('', files, data_dir, 'test/preproc_2023-03-27_test_8940_exp.hdf', overwrite=True)
+        exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+        self.assertEqual(exp_metadata['sync_protocol_version'], 13)
+        self.assertIn('qwalor_ch2_trigger_dch', exp_metadata.keys())
+        self.assertIn('qwalor_ch2_trigger', exp_data.keys())
+
+        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+            preproc_dir, subject, te_id, date, laser_trigger='qwalor_ch2_trigger', 
+            laser_sensor='qwalor_ch2_sensor', debug=True
+        )
+        visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
+
 
 class ProcTests(unittest.TestCase):
 
@@ -1130,7 +1276,7 @@ class OculomaticTests(unittest.TestCase):
         t_1k = np.arange(len(downsample_data))/new_samplerate
 
         self.assertEqual(old_samplerate, 25000)
-        self.assertEqual(new_samplerate, 100)
+        self.assertEqual(new_samplerate, 1000)
 
         t_range = [6,8]
 
@@ -1139,6 +1285,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].plot(t_1k[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate)], downsample_data[int(t_range[0]*new_samplerate):int(t_range[1]*new_samplerate),0])
         ax[0].set_ylabel('25khz')
         ax[1].set_ylabel('100hz')
+        plt.tight_layout()
         filename =  'proc_oculomatic_downsample.png'
         visualization.savefig(img_dir, filename)
 
@@ -1151,6 +1298,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].set_ylim(0,1)
         ax[0].set_xlim(0,100)
         ax[1].set_xlim(0,100)
+        plt.tight_layout()
         filename =  'proc_oculomatic_freq.png'
         visualization.savefig(img_dir, filename)
 

@@ -5,6 +5,8 @@
 import numpy as np
 from scipy import interpolate
 
+from .. import utils
+from .. import precondition
 from .. import analysis
 
 '''
@@ -238,6 +240,58 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     timeseries = f_interp(sampling_points)
 
     return timeseries, sampling_points
+
+def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, append_time=0):
+    '''
+    Convert irregularly spaced data into a timeseries at the given samplerate. 
+    First interpolates the data (by default to 100 times the samplerate), then
+    downsamples to the given samplerate. Optionally adds extra time at the end
+    of the timeseries.
+
+    Args:
+        data (nt, ...): A numpy array of shape (nt, ...) containing the data to 
+            be sampled. The first dimension must represent the time index.
+        timestamps (nt,): The timestamp (in seconds) for each data point in data.
+        samplerate (float): The desired output sampling rate in Hz.
+        upsamplerate (float, optional): The upsampling rate to use for interpolation. 
+            Defaults to 100 times the samplerate.
+        append_time (float, optional): The amount of extra time to add at the end 
+            of the timeseries, in seconds. Defaults to 0.
+
+    Returns:
+        (ns, ...): cursor_data_time containing the sampled data.
+    '''
+    assert len(data) == len(timestamps), f"Data and timestamps should "
+    f"have the same number of cycles ({len(data)} vs {len(timestamps)})"
+
+    if upsamplerate is None:
+        upsamplerate = samplerate * 100
+
+    time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear')
+    data_time = precondition.downsample(data_time, upsamplerate, samplerate)
+    return data_time
+
+def get_dch_data(digital_data, digital_samplerate, dch):
+    '''
+    Transform digital data stored as integers into timestamps and values corresponding to
+    a single channel or a set of channels.
+
+    Args:
+        digital_data (nt,): timeseries of digital data
+        digital_samplerate (float): sampling rate of the digital data
+        dch (int or list): channel(s) to get data from
+
+    Returns:
+        (nedges,): structured np.ndarray of the form [('timestamp', 'f8'), ('value', 'f8')])
+    '''
+    dch_bit_mask = utils.convert_channels_to_mask(dch)
+    dch_ts_data = utils.mask_and_shift(digital_data, dch_bit_mask)
+    dch_timestamps, dch_values = utils.detect_edges(dch_ts_data, digital_samplerate, rising=True, falling=True)
+    dch_data = np.empty((len(dch_timestamps),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
+    dch_data['timestamp'] = dch_timestamps
+    dch_data['value'] = dch_values
+    return dch_data
 
 '''
 Trial alignment
