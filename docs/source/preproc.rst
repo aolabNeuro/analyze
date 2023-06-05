@@ -28,7 +28,9 @@ load the various preprocessed datasets directly.
    * - ``exp_metadata``
      - Metadata explaining the experimental data, e.g. information about the subject, date, and experimental parameters
    * - ``eye_data``
-     - The eye data. TODO: Please update!
+     - The eye data, including position and a mask for the eyes being closed.
+   * - ``eye_metadata``
+     - Metadata about the eye tracking, including labels for which channel corresponds to which eye, sampling rate, etc.
    * - ``mocap_data``
      - Motion capture data
    * - ``mocap_metadata``
@@ -45,7 +47,7 @@ Experimental data
 
 **clock**
 
-[shape: (13132,), type: [('time', '<u8'), ('prev_tick', '<f8'), ('timestamp_bmi3d', '<f8'), ('timestamp_sync', '<f8'),  ('timestamp_measure_offline', '<f8'),  ('timestamp_measure_online', '<f8')]]
+[shape: (13132,), type: [('time', '<u8'), ('timestamp_bmi3d', '<f8'), ('timestamp_sync', '<f8'), ('timestamp_measure_online', '<f8'), ('timestamp_measure_offline', '<f8')]]
 
 A record of the time at which each cycle in the bmi state machine loop occurred.
 
@@ -57,16 +59,14 @@ A record of the time at which each cycle in the bmi state machine loop occurred.
      - Contents
    * - ``time`` (unsigned int)
      - Integer cycle number
-   * - ``prev_tick`` (float)
-     - How much time elapsed since the previous frame (measured by bmi3d in ms)
    * - ``timestamp_bmi3d`` (float)
-     - Uncorrected timestamps from bmi3d
+     - Uncorrected timestamps recorded by bmi3d
    * - ``timestamp_sync`` (float)
-     - Uncorrected timestamps sent from bmi3d digital output
+     - Corrected timestamps sent from bmi3d digital output and recorded by eCube digital input. 
    * - ``timestamp_measure_offline`` (float)
-     - Uncorrected timestamps measured from the screen and digitized offline
+     - Corrected timestamps measured from the screen and digitized offline
    * - ``timestamp_measure_online`` (float)
-     - Uncorrected timestamps measured from the screen and digitized online
+     - Corrected timestamps measured from the screen and digitized online
 
 The figure below shows what each timestamp information is captured by each variable. 
 
@@ -81,6 +81,10 @@ From the experiment computer a clock is recorded in three ways:
 The preprocessed ``timestamp_measure_offline`` field should be used for aligning data to things that appear on the screen. However, in some cases
 there may not be anything appearing on the screen, such as when aligning to laser onset or movement kinematics. In these cases, the ``timestamp_sync`` will be
 more accurate.
+
+"Corrected" timestamps have been run through the function :func:`~aopy.preproc.get_measured_clock_timestamps`, which searches for measured timestamps within a given
+radius from a known set of timestamps. For `sync` timestamps, the "known" timestamps are the ones from BMI3D. For `measure` timestamps, the "known" timestamps
+are the `sync` timestamps.
 
 **events**
 
@@ -156,19 +160,54 @@ The above each illustrated with an image of alignment between the events and tar
 
 These are the most reliable benchmark of timing from BMI3D.
 
-**cursor**
+**clean_hand_position**
 
-[type: 'dict']
+[type: '<f8', shape: (52627, 3)]
 
-Contains sampled cursor kinematics (usually 25kHz, see metadata) in three possible flavors:
+Contains raw hand kinematics of each BMI3D cycle but cleaned to include NaNs where appropriate.
+In some versions of BMI3D the hand kinematics contained invalid data when the hand was not well
+tracked.  
 
-#. `cursor_analog_cm` analog voltage converted into screen coordinates
-#. `cursor_analog_cm_filt` lowpass filtered version of the above (to 120Hz)
-#. `cursor_interp` interpolated cursor from HDF data
+**hand_interp**
+
+[type: '<f8', shape: (457255, 3)]
+
+Contains sampled hand kinematics (1000Hz, see `hand_interp_samplerate`) interpolated 
+from the BMI3D hdf file using timing from the eCube digital input.
 
 This can be used as if it were neural data from the eCube. It starts at t=0 and is sampled on the same
-clock as all the other neural data. For interpolated cursor data, the length won't match the length of other
-recorded neural data.
+clock as all the other neural data. The length won't match the length of other recorded neural data.
+
+**cursor_interp**
+
+[type: '<f8', shape: (457255, 2)]
+
+Contains sampled cursor kinematics (1000Hz, see `cursor_interp_samplerate`) interpolated 
+from the BMI3D hdf file using timing from the eCube digital input.
+
+This can be used as if it were neural data from the eCube. It starts at t=0 and is sampled on the same
+clock as all the other neural data. The length won't match the length of other recorded neural data.
+
+**cursor_analog_volts**
+
+[type: '<f8', shape: (448647, 2)]
+
+Contains sampled cursor kinematics (1000Hz, see `cursor_analog_samplerate`) captured from the eCube
+analog input connected to BMI3D analog output.
+
+This can be used as if it were neural data from the eCube. It starts at t=0 and is sampled on the same
+clock as all the other neural data. The length will roughly match the length of other recorded neural data.
+
+**cursor_analog_cm**
+
+[type: '<f8', shape: (448647, 2)]
+
+Contains sampled cursor kinematics (1000Hz, see `cursor_analog_samplerate`) captured from the eCube
+analog input connected to BMI3D analog output, but also scaled to be in units of cm. Can sometimes slightly
+be off scale and is better used as a timing consistency check rather than as raw data. See cursor_interp instead.
+
+This can be used as if it were neural data from the eCube. It starts at t=0 and is sampled on the same
+clock as all the other neural data. The length will roughly match the length of other recorded neural data.
 
 **task**
 
@@ -256,10 +295,36 @@ State of the reward system, measured at the solenoid so it includes manual rewar
 There are several other fields with the prefix ``_bmi3d``. These contain raw data saved by bmi3d which has been 
 preprocessed into the format described above. They are there for debugging purposes.
 
+**qwalor_sensor**
+
+[shape: (11216169,), type: 'int16']
+
+Analog sensor data from the qwalor laser.
+
+**qwalor_trigger**
+
+[shape: (726,), type: [('timestamp', '<f8'), ('value', '<f8')]]
+
+Digital trigger information from the qwalor laser. These timestamps represent timing of the trigger signal that
+turns on and off the laser. The laser, however, may take time to turn on and off, and is measured in ``qwalor_sensor``.
+See also :func:`~aopy.preproc.bmi3d.find_laser_stim_times` and :func:`~aopy.preproc.bmi3d.get_laser_trial_times`.
+
+.. list-table::
+
+    :widths: 25 75
+    :header-rows: 1
+
+    * - Field
+      - Contents
+    * - ``timestamp`` (float)
+      - Time the laser state changed
+    * - ``value`` (bool)
+      - State (on or off) of the laser
+
 Experimental metadata
 ---------------------
 
-The `exp_metadata` dataset contains
+The `exp_metadata` dataset can contain:
 
 .. list-table::
    :widths: 25 75
@@ -277,10 +342,16 @@ The `exp_metadata` dataset contains
      - hdf filename where the raw bmi3d data came from
    * - ``bmi3d_start_time``: (float)
      - timestamp recorded by bmi3d internally when the state machine starts (in ms)
+   * - ``bmi3d_preproc_date``
+     - date the file was preprocessed
+   * - ``bmi3d_preproc_version``
+     - version of aopy used to preprocess the data
    * - ``cursor_bounds``: (float, (6,))
      - (x, -x, z, -z, y, -y) coordinates bounding the cursor (in cm)
    * - ``cursor_color``: (string)
      - color of the cursor
+   * - ``cursor_interp_samplerate`` (float)
+     - sampling rate of the interpolated version of the bmi3d cursor data
    * - ``cursor_radius``: (float)
      - radius of the cursor (in cm)
    * - ``data_files``: (dict)
@@ -309,6 +380,8 @@ The `exp_metadata` dataset contains
      - name of the generator used in the experiment
    * - ``generator_params``: (string)
      - string containing the parameters used to initialize the generator
+   * - ``hand_interp_samplerate`` (float)
+     - sampling rate of the interpolated version of the bmi3d hand data
    * - ``has_measured_timestamps``: (bool)
      - whether the measured_timestamps_online and measured_timestamps_offline fields are available in clock
    * - ``has_reward_system``: (bool)
@@ -411,6 +484,8 @@ The `exp_metadata` dataset contains
      - width of clock and event pulses
    * - ``sync_size``: (float)
      - size of the square used for screen sync (in cm)
+   * - ``sw_version``: (str)
+     - hash of the git version of BMI3D that was used when running the experiment
    * - ``target_color``: (string)
      - name of the color for targets
    * - ``target_radius``: (float)
