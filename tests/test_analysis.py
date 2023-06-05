@@ -1036,6 +1036,32 @@ class BehaviorMetricsTests(unittest.TestCase):
         success_perc = aopy.analysis.calc_success_rate_trials(trial_success, trial_time)
         self.assertEqual(success_perc, 2/1.1)
 
+    def test_compute_movement_error(self):
+        traj = np.array([
+            [0.5, 1.0, 1.5, 2.0, 2.5],
+            [0.5, 0.8, 1.2, 2.0, 2.5]
+        ]).T
+
+        target_position = np.array([1, 0])
+        rotation_axis = np.array([1, 0])
+        
+        dist = aopy.analysis.compute_movement_error(traj, target_position, rotation_axis)
+        np.testing.assert_array_almost_equal(dist, traj[:,1])
+
+        # target_position with all zero values
+        target_position = np.array([0, 0])
+        self.assertRaises(AssertionError, lambda: aopy.analysis.compute_movement_stats(traj, target_position, rotation_axis))
+
+        # target position flipping 180 degrees
+        target_position = np.array([-1, 0])
+        traj = np.array([
+            [-0.5, -1.0, -1.5, -2.0, -2.5],
+            [-0.5, -0.8, -1.2, 0.0, 2.5]
+        ]).T
+                    
+        dist = aopy.analysis.compute_movement_error(traj, target_position, rotation_axis)
+        np.testing.assert_array_almost_equal(dist, -traj[:,1])
+
     def test_compute_movement_stats(self):
         traj = np.array([
             [0.5, 1.0, 1.5, 2.0, 2.5],

@@ -147,7 +147,27 @@ def compute_path_length_per_trajectory(trajectory):
     path_length = np.sum(lengths)
     return path_length
 
-def compute_movement_stats(trajectory, target_position, rotation_axis=np.array([1, 0]), error_axis=1, 
+def compute_movement_error(trajectory, target_position, rotation_vector=np.array([1, 0]), error_axis=1):
+    """
+    Computes movement error of a trajectory relative to the straight line between the origin and a target position. 
+
+    Args:
+        trajectory (nt, 2): The trajectory coordinates for each point in time. 
+        target_position (2,): Target position coordinates.
+        rotation_vector ((2,) array, optional): The vector onto which movement will be
+            projected to calculate error. Defaults to np.array([1, 0]).
+        error_axis (int, optional): axis (after rotation) along which to compute the error 
+            statistics. Default 1.
+
+    Returns:
+        (nt,): The error of the trajectory relative to the target position
+    """
+    assert np.count_nonzero(target_position) > 0, "Please check target position. Must be non-zero"
+
+    rotated_traj = postproc.rotate_spatial_data(trajectory, rotation_vector, target_position)
+    return np.array(rotated_traj)[:, error_axis]
+
+def compute_movement_stats(trajectory, target_position, rotation_vector=np.array([1, 0]), error_axis=1, 
                            return_all_stats=False):
     """
     Computes movement statistics of a trajectory relative to a target position. 
@@ -155,7 +175,7 @@ def compute_movement_stats(trajectory, target_position, rotation_axis=np.array([
     Args:
         trajectory (nt, 2): The trajectory coordinates for each point in time. 
         target_position (2,): Target position coordinates.
-        rotation_axis ((2,) array, optional): The axis onto which movement will be
+        rotation_vector ((2,) array, optional): The vector onto which movement will be
             projected to calculate error. Defaults to np.array([1, 0]).
         error_axis (int, optional): axis (after rotation) along which to compute the error 
             statistics. Default 1.
@@ -176,10 +196,7 @@ def compute_movement_stats(trajectory, target_position, rotation_axis=np.array([
             |**signed_abs_mean (float):** The sign multiplied by the absolute value of the mean trajectory error.
         
     """
-    assert np.count_nonzero(target_position) > 0, "Please check target position. Must be non-zero"
-
-    rotated_traj = postproc.rotate_spatial_data(trajectory, rotation_axis, target_position)
-    dist_ts = np.array(rotated_traj)[:, error_axis]
+    dist_ts = compute_movement_error(trajectory, target_position, rotation_vector, error_axis)
     
     # Statistics of the error axis
     mean = np.mean(dist_ts)
