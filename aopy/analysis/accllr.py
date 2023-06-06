@@ -128,7 +128,9 @@ def calc_accllr_lfp(lfp_altcond, lfp_nullcond, lfp_altcond_lowpass, lfp_nullcond
 # Try using ROC approach from Qiao et al 2020
 def detect_accllr(accllr, upper, lower):
     '''
-    Calculate the probability of upper, lower, and unknown level detections
+    Calculate the probability of upper, lower, and unknown level detections. This
+    version is present only for readability, since it is very slow. See 
+    :func:`~aopy.analysis.accllr.detect_accllr_fast`.
     
     Args:
         accllr (nt, ntrial): the accllr timeseries to test across trials
@@ -510,8 +512,8 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
                    modality, bin_width, nlevels=None, match_selectivity=False, 
                    match_ch=None, noise_sd_step=1, parallel=True):
     '''
-    Calculate accllr selection time for a single channel after matching each channel 
-    for selectivity. Selectivity is defined by the area under the ROC curve. To match 
+    Calculate accllr selection time for a multiple channels with optional selectivity
+    matching. Selectivity is defined by the area under the ROC curve. To match 
     selectivity, we add gaussian noise to channel until selectivity is constant 
     across all channels.
 

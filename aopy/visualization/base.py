@@ -133,7 +133,7 @@ def get_data_map(data, x_pos, y_pos):
         y_pos (nch): list of y positions
 
     Returns:
-        2,n array: map of the data on the given grid
+        (m,n array): map of the data on the grid defined by x_pos and y_pos
     '''
     data = np.reshape(data, -1)
 
@@ -183,8 +183,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
 
     Returns:
         tuple: tuple containing:
-        | *data_map (2,n array):* map of the data on the given grid
-        | *xy (2,n array):* new grid positions to use with this map
+        | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
+        | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
