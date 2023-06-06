@@ -67,7 +67,23 @@ class TestTrajectoryFuncs(unittest.TestCase):
         np.testing.assert_almost_equal(rotated_data2d, goal_rotated_data2d)
         np.testing.assert_almost_equal(rotated_point2d, goal_rotated_point2d)
 
+        # another 180 deg rotation
+        current_axis2d = np.array([1,0])
+        new_axis2d = np.array([-1,0])
+        traj = np.array([
+            [-0.5, -1.0, -1.5, -2.0, -2.5],
+            [-0.5, -0.8, -1.2, 0.0, 2.5]
+        ]).T
+
+        rotated_traj = rotate_spatial_data(traj, new_axis2d, current_axis2d)
+
+        expected_rotated_traj = -traj
+
+        print(traj, np.round(rotated_traj, 5), expected_rotated_traj)
+        np.testing.assert_almost_equal(rotated_traj, expected_rotated_traj)
+
         # -90 deg rotation
+        current_axis2d = np.array([0,1])
         new_axis2d = np.array([-1,0])
 
         rotated_data2d = rotate_spatial_data(spatial_data2d, new_axis2d, current_axis2d)

@@ -71,9 +71,11 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
         return output_spatial_data
 
     # If the angle is exactly 180 degrees, slightly nudge the starting vector by 1e-7
-    elif np.isclose(angle, np.pi, atol = 1e-8):
+    elif (spatial_data.shape[1] == 2) and np.isclose(angle, np.pi, atol = 1e-8):
         current_axis3d = current_axis3d.astype('float64')
-        current_axis3d += 1e-7
+        current_axis3d[:2] += 1e-7
+    elif np.isclose(angle, np.pi, atol = 1e-8):
+        raise ValueError("180 degree rotation cannot be resolved in 3D")
 
     # Calculate unit vector axis to rotate about via cross product
     rotation_axis = np.cross(current_axis3d, new_axis3d)
@@ -95,6 +97,11 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
     # Apply rotation matrix to each point in the trajectory
     output_spatial_data = rotation_matrix @ spatial_data3d.T
     output_spatial_data = output_spatial_data.T
+
+    # Check that we did the correct rotation
+    output_axis = rotation_matrix @ current_axis3d
+    output_axis = output_axis/np.linalg.norm(output_axis)
+    assert np.allclose(output_axis, new_axis3d, atol=1e-4), "Something went wrong!"
 
     # Return trajectories the the same dimensions as the input
     if spatial_data.shape[1] == 2:
