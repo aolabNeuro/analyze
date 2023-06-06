@@ -173,10 +173,10 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     .. math::
     
         R \\in \\mathbb{R}^{nt \\times nch}
-        M \\in \\mathbb{R}^{nt \\times ndim}
-        \\beta \\in \\mathbb{R}^{nch \\times ndim}
-        R = M\\beta^T
-        [\\beta_0 \beta_x \beta_y]^T = (M^T M)^{-1} M^T R
+        M \\in \\mathbb{R}^{nt \\times nkin}
+        \\beta \\in \\mathbb{R}^{nch \\times nkin}
+        M = R \\beta^T
+        [\\beta_0 \\beta_x \\beta_y] = (R^T R)^{-1} R^T M
 
     Args:
         neural_data ((nt, nch) or list of (nt, nch)): Input neural data (:math:`R`) to regress against kinematic activity.
@@ -185,7 +185,7 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
 
     Returns:
         tuple: Tuple containing:
-            | **(nch, ndim):** Subspace (:math:`\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
+            | **(nch, ndim):** Subspace (:math:`\\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
             | **((nt, nch) or list of (nt, ndim)):** Neural data projected onto task relevant subspace
 
     '''
@@ -208,7 +208,8 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
         conc_neural_data -= np.nanmean(conc_neural_data, axis=0)
 
         # Calculate task relevant subspace 
-        task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ conc_neural_data
+        # task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ conc_neural_data
+        task_subspace = np.linalg.pinv(conc_neural_data.T @ conc_neural_data) @ conc_neural_data.T @ conc_kin_data
     
     else:
         # Save original neural data as a list
@@ -225,19 +226,19 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
         conc_kin_data[:,1:] = kin_data
         
         # Calculate task relevant subspace 
-        task_subspace = np.linalg.pinv(conc_kin_data.T @ conc_kin_data) @ conc_kin_data.T @ neural_data_centered
+        task_subspace = np.linalg.pinv(neural_data_centered.T @ neural_data_centered) @ neural_data_centered.T @ conc_kin_data
         ntrials = 1
         
     # Project neural data onto task subspace
     projected_data = []
     
     for itrial in range(ntrials):
-        projected_data.append(neural_data[itrial] @ np.linalg.pinv(task_subspace))
+        projected_data.append(neural_data[itrial] @ task_subspace)
 
     if conc_proj_data:
-        return task_subspace.T, np.vstack(projected_data)
+        return task_subspace, np.vstack(projected_data)
     else:    
-        return task_subspace.T, projected_data
+        return task_subspace, projected_data
 
 '''
 METRIC CALCULATIONS
