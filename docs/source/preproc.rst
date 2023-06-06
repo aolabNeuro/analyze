@@ -422,6 +422,10 @@ The `exp_metadata` dataset can contain:
      - 'cursor' is the only option
    * - ``plant_visible``: (bool)
      - whether or not the endpoint is visible to the subject
+   * - ``rand_start`` (tuple)
+     - (min, max) inter-trial interval duration. Drawn from a uniform distribution between the two.
+   * - ``rand_delay`` (tuple)
+     - (min, max) delay duration. Drawn from a uniform distribution between the two.
    * - ``random_rewards``: (bool)
      - whether reward timing is randomized 
    * - ``record_headstage``: (bool)
