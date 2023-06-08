@@ -136,6 +136,19 @@ class FanoFactorTests(unittest.TestCase):
         np.testing.assert_allclose(unit_mean, np.array([2, 0]))
         np.testing.assert_allclose(unit_var, np.array([0, 0]))
 
+class AlignDynamicsTests(unittest.TestCase):
+    def test_align_latent_dynamics(self):
+        # Generate dummy latent dynamics for testing
+        La = np.random.rand(1000, 10)
+        Lb = np.random.rand(1000, 10)
+
+        # Call the align_latent_dynamics function
+        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La.T, Lb.T)
+
+        # Assert the shapes of the computed correlations
+        assert CCs_unaligned.shape == (10,)
+        assert CCs_aligned.shape == (10,)
+
 class PCATests(unittest.TestCase):
     # test variance accounted for
     def test_get_pca_dimensions(self):
