@@ -8,6 +8,7 @@ import unittest
 
 import os
 import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 from scipy import signal
 
 test_dir = os.path.dirname(__file__)
@@ -139,11 +140,23 @@ class FanoFactorTests(unittest.TestCase):
 class AlignDynamicsTests(unittest.TestCase):
     def test_align_latent_dynamics(self):
         # Generate dummy latent dynamics for testing
-        La = np.random.rand(1000, 10)
-        Lb = np.random.rand(1000, 10)
+        n_samples = 1000
+        n_features_x = 30
+        np.random.seed(0)
+
+        X1 = np.random.randn(n_samples,n_features_x).T  # data format used in Juan's 2020 paper is n_u x n_t # Assume nt is trial concatenated reach segments
+        X2 = np.random.randn(n_samples, n_features_x).T
+
+        X1 = (X1 - np.mean(X1, axis=1, keepdims=True)) / np.std(X1, axis=1, keepdims=True)  # mean across units
+        X2 = (X2 - np.mean(X2, axis=1, keepdims=True)) / np.std(X2, axis=1, keepdims=True)
+
+        # Perform PCA to extract latent dynamics
+        pca = PCA(n_components=10)  # Specify the number of components (1 in this example)
+        La = pca.fit_transform(X1.T).T  # Juan's paper dimensions of projected data is m x T (m = 10 for M1 assumed)
+        Lb = pca.fit_transform(X2.T).T
 
         # Call the align_latent_dynamics function
-        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La.T, Lb.T, False)
+        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La, Lb, False)
 
         # Assert the shapes of the computed correlations
         assert CCs_unaligned.shape == (10,)
@@ -152,11 +165,11 @@ class AlignDynamicsTests(unittest.TestCase):
     def test_align_latent_dynamics_samedata(self):
 
         np.random.seed(42)
-        La = np.random.rand(1000, 10)
+        La = np.random.rand(1000, 10).T
         Lb = La.copy()
 
         # Call the align_latent_dynamics function
-        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La.T, Lb.T, False)
+        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La, Lb, False)
 
         # Assert the shapes of the computed correlations
         assert CCs_unaligned.shape == (10,)
