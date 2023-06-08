@@ -143,11 +143,29 @@ class AlignDynamicsTests(unittest.TestCase):
         Lb = np.random.rand(1000, 10)
 
         # Call the align_latent_dynamics function
-        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La.T, Lb.T)
+        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La.T, Lb.T, False)
 
         # Assert the shapes of the computed correlations
         assert CCs_unaligned.shape == (10,)
         assert CCs_aligned.shape == (10,)
+
+    def test_align_latent_dynamics_samedata(self):
+
+        np.random.seed(42)
+        La = np.random.rand(1000, 10)
+        Lb = La.copy()
+
+        # Call the align_latent_dynamics function
+        CCs_unaligned, CCs_aligned = aopy.analysis.align_latent_dynamics(La.T, Lb.T, False)
+
+        # Assert the shapes of the computed correlations
+        assert CCs_unaligned.shape == (10,)
+        assert CCs_aligned.shape == (10,)
+
+        # Assert that the pairwise correlation for aligned dynamics is approximately 0.99
+        assert np.allclose(CCs_aligned, 0.99, atol=0.01)
+
+
 
 class PCATests(unittest.TestCase):
     # test variance accounted for

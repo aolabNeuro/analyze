@@ -268,7 +268,10 @@ def align_latent_dynamics(La, Lb, return_aligned_dynamics=False):
     CCs_unaligned = np.abs(np.diag(np.corrcoef(La, Lb)[:La.shape[0], La.shape[0]:])) # Pairwise correlations between rows of La and Lb
     CCs_aligned = S
 
-    return CCs_unaligned, CCs_aligned, La_tilde, Lb_tilde if return_aligned_dynamics else CCs_unaligned, CCs_aligned
+    if return_aligned_dynamics:
+        return CCs_unaligned, CCs_aligned, La_tilde.T, Lb_tilde.T
+    else:
+        return CCs_unaligned, CCs_aligned
 
 
 '''
