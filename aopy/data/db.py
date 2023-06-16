@@ -1,5 +1,5 @@
 '''
-Interface between the database methods/models and data analysis code
+Interface between database methods/models and data analysis code
 '''
 import json
 import os
@@ -55,35 +55,9 @@ def get_mc_sessions(subject, date, mc_task_name='manual control', dbname='defaul
     
 def get_bmi_sessions(subject, date, session_name='training', bmi_task_name='bmi control', dbname='default', **kwargs):
     '''
-    Returns list of subject, date, and id for all bmi control sessions on the given date
+    Returns list of entries for all bmi control sessions on the given date
     '''
     return get_sessions(subject, date, session_name=session_name, task_name=bmi_task_name, dbname=dbname, **kwargs)
-
-def group_ids(ids, grouping_fn=lambda te: te.calendar_date):
-    '''
-    Automatically group together a flat list of database IDs
-
-    Parameters
-    ----------
-    ids: iterable
-        iterable of ints representing the ID numbers of TaskEntry objects to group
-    grouping_fn: callable, optional (default=sort by date); call signature: grouping_fn(task_entry)
-        Takes a dbfn.TaskEntry as its only argument and returns a hashable and sortable object
-        by which to group the ids
-    '''
-    keyed_ids = defaultdict(list)
-    for id in ids:
-        te = TaskEntry(id)
-        key = grouping_fn(te)
-        keyed_ids[key].append(id)
-
-    keys = list(keyed_ids.keys())
-    keys.sort()
-
-    grouped_ids = []
-    for date in keys:
-        grouped_ids.append(tuple(keyed_ids[date]))
-    return grouped_ids
 
 
 '''
@@ -193,3 +167,28 @@ def get_preprocessed_sources(entry):
     sources.append('eye')
     
     return sources
+
+def group_entries(entries, grouping_fn=lambda te: te.calendar_date):
+    '''
+    Automatically group together a flat list of database IDs
+
+    Parameters
+    ----------
+    ids: iterable
+        iterable of ints representing the ID numbers of TaskEntry objects to group
+    grouping_fn: callable, optional (default=sort by date); call signature: grouping_fn(task_entry)
+        Takes a dbfn.TaskEntry as its only argument and returns a hashable and sortable object
+        by which to group the ids
+    '''
+    keyed_ids = defaultdict(list)
+    for te in entries:
+        key = grouping_fn(te)
+        keyed_ids[key].append(id)
+
+    keys = list(keyed_ids.keys())
+    keys.sort()
+
+    grouped_ids = []
+    for date in keys:
+        grouped_ids.append(tuple(keyed_ids[date]))
+    return grouped_ids
