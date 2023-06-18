@@ -4,6 +4,7 @@ import sys
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
+import matplotlib.pyplot as plt
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
 def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5):
@@ -39,6 +40,60 @@ def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_
     bad_ch_mask = norm_psd_var <= low_var_θ
 
     return bad_ch_mask
+
+
+def screenBadECoGchannels(data, th=0.05, numsd=5.0, debug=False, verbose=True):
+    '''
+    Detect badchannels. This code is originally Amy's code in pesaran lab.
+    This function has 2 steps. In the 1st step, it detects tentative bad channels whose SD is less than th or more than 1-th in CDF
+    In the 2nd step, it extracts bad channels from tentative bad channels by finding conditions where (SD - median of SD) is outside numsd*SD[~badch]
+    
+    Args:
+        data (nt, nch): neural data
+        th (float, optional): threshold to detect bad channels for 1st screening
+        numsd (float, optional): number of standard deviations above zero to detect bad channels for 2nd screening
+        debug (bool, optional): if True, display a figure showing the threshold crossings
+        verbose (bool, optional): if True, print bad channels
+        
+    Returns:
+        bad_ch (nch) : logical array indicating bad channels
+    '''
+    
+    assert th > 0 and th < 1, "Threshold must be between 0 and 1"
+    assert numsd > 0, "numsd must be more than 0"
+    
+    sd = np.std(data, axis=0)
+    med_sd = np.median(sd)
+    
+    nbins = 10000#data.shape[1]
+    hist, bins = np.histogram(sd, nbins)
+    
+    CDF = np.cumsum(hist)/np.sum(hist)
+    bottom = bins[np.where(CDF<th)[0][-1]]
+    top = bins[np.where(CDF>1-th)[0][0]]
+    bad_ch = (sd < bottom) | (sd > top)
+    
+    inrange = np.abs(sd - med_sd) <= numsd*np.std(sd[~bad_ch], ddof=1)
+    bad_ch = bad_ch & ~inrange;
+    
+    if debug:
+        fig,ax = plt.subplots(1,3,figsize=(15,4),tight_layout=True)
+        ax[0].plot(bins[:-1],CDF)
+        ax[0].plot([top,top],[0,1],'r--')
+        ax[0].plot([bottom,bottom],[0,1],'r--')
+        ax[0].set(xlabel='SD',ylabel='CDF')
+        ax[1].plot(bins[:-1],hist)
+        ax[1].set(xlabel='SD',ylabel='# channels')
+        ax[2].plot(sd,'.')
+        ax[2].plot(np.where(bad_ch)[0], sd[bad_ch], 'r*')
+        ax[2].set(ylabel='SD',xlabel='# channels')
+        plt.show()
+    
+    if verbose:
+        print(f'Bad channels : {np.where(bad_ch)[0]}')
+        print(f'The number of bad channels : {np.sum(bad_ch)}')
+        
+    return bad_ch
 
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
