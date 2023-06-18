@@ -1231,6 +1231,14 @@ class QualityTests(unittest.TestCase):
         )
         self.assertEqual(bad_ch.shape, (8,))
         # self.assertEqual(np.count_nonzero(bad_ch), 64)
+        
+    def test_screenBadECoGchannels(self):
+        test_data = np.random.normal(10,0.5,(10000, 200))
+        test_data[0, 10] = 25
+        test_data[5, 150] = 30
+        bad_ch = screenBadECoGchannels(test_data, th=0.1, numsd=5.0, debug=True, verbose=True)
+        self.assertEqual(np.where(bad_ch)[0][0], 10)
+        self.assertEqual(np.where(bad_ch)[0][0], 150)
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
