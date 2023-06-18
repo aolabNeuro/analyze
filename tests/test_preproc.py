@@ -1240,7 +1240,7 @@ class QualityTests(unittest.TestCase):
         test_data[5, 150] = 30
         bad_ch = screenBadECoGchannels(test_data, th=0.05, numsd=5.0, debug=False, verbose=False)
         self.assertEqual(np.where(bad_ch)[0][0], 10)
-        self.assertEqual(np.where(bad_ch)[0][0], 150)
+        self.assertEqual(np.where(bad_ch)[0][1], 150)
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
