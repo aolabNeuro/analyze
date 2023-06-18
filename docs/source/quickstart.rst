@@ -6,14 +6,9 @@ Getting Started:
 Installation
 ------------
 
-Clone the repo from github, then install. If you are planning to make changes, use the -e flag to install
-in editable mode rather than installing a fixed version.
-
 ::
 
-    > git clone https://github.com/aolabNeuro/analyze.git
-    > cd analyze
-    > pip install -e .
+    > pip install aolab-aopy
 
 Overview of functions
 ---------------------
