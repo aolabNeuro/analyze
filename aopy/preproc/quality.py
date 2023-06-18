@@ -7,7 +7,7 @@ import scipy.signal as sps
 import matplotlib.pyplot as plt
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
-def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5):
+def bad_channel_detection(data, srate, num_th=3., lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5):
     """bad_channel_detection
 
     Checks input [nt, nch] data array channel quality
@@ -15,6 +15,7 @@ def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_
     Args:
         data (nt, nch): numpy array of data
         srate (int): sample rate
+        num_th (float, optional): Constant to adjust threshold. Defaults to 3.
         lf_c (int, optional): low frequency cutoff. Defaults to 100.
         sg_win_t (numeric, optional): spectrogram window length. Defaults to 8.
         sg_over_t (numeric, optional): spectrogram overlap length. Defaults to 4.
@@ -36,7 +37,7 @@ def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_
 
     psd_var = np.var(Sxx_low_psd,axis=0)
     norm_psd_var = psd_var/npla.norm(psd_var)
-    low_var_θ = np.mean(norm_psd_var)/3
+    low_var_θ = np.mean(norm_psd_var)/num_th
     bad_ch_mask = norm_psd_var <= low_var_θ
 
     return bad_ch_mask
@@ -57,6 +58,17 @@ def screenBadECoGchannels(data, th=0.05, numsd=5.0, debug=False, verbose=True):
         
     Returns:
         bad_ch (nch) : logical array indicating bad channels
+
+    Examples:
+        
+        .. code-block:: python
+        
+        test_data = np.random.normal(10,0.5,(10000, 200))
+        test_data[0, 10] = 25
+        test_data[5, 150] = 30
+        bad_ch = screenBadECoGchannels(test_data, th=0.05, numsd=5.0, debug=True, verbose=False)
+        
+        .. image:: _images/screenBadECoGchannels.png
     '''
     
     assert th > 0 and th < 1, "Threshold must be between 0 and 1"
@@ -65,7 +77,7 @@ def screenBadECoGchannels(data, th=0.05, numsd=5.0, debug=False, verbose=True):
     sd = np.std(data, axis=0)
     med_sd = np.median(sd)
     
-    nbins = 10000#data.shape[1]
+    nbins = 10000
     hist, bins = np.histogram(sd, nbins)
     
     CDF = np.cumsum(hist)/np.sum(hist)
@@ -74,7 +86,7 @@ def screenBadECoGchannels(data, th=0.05, numsd=5.0, debug=False, verbose=True):
     bad_ch = (sd < bottom) | (sd > top)
     
     inrange = np.abs(sd - med_sd) <= numsd*np.std(sd[~bad_ch], ddof=1)
-    bad_ch = bad_ch & ~inrange;
+    bad_ch = bad_ch & ~inrange
     
     if debug:
         fig,ax = plt.subplots(1,3,figsize=(15,4),tight_layout=True)
