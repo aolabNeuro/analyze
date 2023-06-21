@@ -1291,8 +1291,8 @@ class OculomaticTests(unittest.TestCase):
         visualization.savefig(img_dir, filename)
 
         fig,ax = plt.subplots(2,1)
-        visualization.plot_freq_domain_amplitude(1e-6*analog_data, old_samplerate, ax=ax[0])
-        visualization.plot_freq_domain_amplitude(1e-6*downsample_data, new_samplerate, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(analog_data, old_samplerate, ax=ax[0])
+        visualization.plot_freq_domain_amplitude(downsample_data, new_samplerate, ax=ax[1])
         ax[0].set_ylabel('25khz')
         ax[1].set_ylabel('100hz')
         ax[0].set_ylim(0,1)
