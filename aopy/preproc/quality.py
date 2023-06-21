@@ -79,21 +79,22 @@ def detect_bad_ch_outliers(data, nbins=10000, thr=0.05, numsd=5.0, debug=False, 
     thr2 = numsd*np.std(sd[~bad_ch1], ddof=1)
     sd_from_med = np.abs(sd - med_sd)
     inrange = sd_from_med <= thr2
-    bad_ch = bad_ch1 & ~inrange;
+    bad_ch = bad_ch1 & ~inrange
     
     if debug:
         fig,ax = plt.subplots(1,2,figsize=(11,4),tight_layout=True)
         ax[0].plot(bins[:-1],CDF)
+        ax[0].scatter(bins[np.where(CDF<thr)[0]],CDF[CDF<thr],c='g',s=1,label='bad_ch (1st screening)')
+        ax[0].scatter(bins[np.where(CDF>1-thr)[0]],CDF[CDF>1-thr],c='g',s=1)
         ax[0].plot([top,top],[0,1],'r--', label='threshold (1st screening)')
         ax[0].plot([bottom,bottom],[0,1],'r--')
         ax[0].set(xlabel='SD',ylabel='CDF',title='1st screening')
         ax[0].legend()
         ax[1].plot(sd_from_med,'.')
         ax[1].plot([0,nch],[thr2,thr2],'r--', label='threshold (2nd screening)')
-        ax[1].plot([0,nch],[-thr2,-thr2],'r--')
-        ax[1].plot(np.where(bad_ch1)[0], sd_from_med[bad_ch1], 'b.',label='bad_ch (1st screening)')
+        ax[1].plot(np.where(bad_ch1)[0], sd_from_med[bad_ch1], 'g.',label='bad_ch (1st screening)')
         ax[1].plot(np.where(bad_ch)[0], sd_from_med[bad_ch], 'r*', label='bad_ch (2nd screening)')
-        ax[1].set(ylabel='SD - median of SD',xlabel='# channels',title='2nd screening')
+        ax[1].set(ylabel='abs(SD-median of SD)',xlabel='# channels',title='2nd screening')
         ax[1].legend()
     
     if verbose:
