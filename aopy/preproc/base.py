@@ -268,7 +268,7 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
         upsamplerate = samplerate * 100
 
     time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
-    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrap_values=(timestamps[0], timestamps[-1]))
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrap_values=(data[0], data[-1]))
     data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 
