@@ -170,14 +170,14 @@ class DigitalCalcTests(unittest.TestCase):
         interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
 
         fig, ax = plt.subplots(2,1)
-        visualization.plot_timeseries(1e-6*frame_data[:,0], fps, ax=ax[0])
-        visualization.plot_timeseries(1e-6*interp_data[:,0], interp_samplerate, ax=ax[0])
+        visualization.plot_timeseries(frame_data[:,0], fps, ax=ax[0])
+        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[0])
         ax[0].set_title(f'{freq} Hz signal')
         ax[0].set_ylabel('pos (cm)')
         ax[0].legend(['without sampling', 'with sampling'])
 
-        visualization.plot_freq_domain_amplitude(1e-6*frame_data[:,0], fps, ax=ax[1])
-        visualization.plot_freq_domain_amplitude(1e-6*interp_data[:,0], interp_samplerate, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(frame_data[:,0], fps, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(interp_data[:,0], interp_samplerate, ax=ax[1])
         ax[1].set_xscale('linear')
         ax[1].set_xlim(0,30)
         ax[1].set_ylabel('Peak amplitude')

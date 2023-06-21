@@ -186,8 +186,10 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     To calculate the new points from 'samplerate' this function creates sample points with the same range as 'timestamps' (timestamps[0], timestamps[-1]).
     Either the 'samplerate' or 'sampling_points' optional argument must be used. If neither are filled, the function will display a warning and return nothing.
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
-    The optional argument 'interp_kind' corresponds to 'kind' and 'extrap_values' corresponds to 'fill_values' in scipy.interpolate.interp1d.
-    More information about 'extrap_values' can be found on the scipy.interpolate.interp1d documentation page. 
+    The optional argument 'interp_kind' corresponds to 'kind'. The optional argument 'extrapolate' determines whether timepoints falling outside the 
+    range of the input timestamps should be extrapolated or not. If not, they are copied from the first and last valid values, depending on whether they
+    appear at the beginnin or end of the timeseries, respectively.
+    Enforces monotonicity of the input timestamps by removing timestamps and their associated values that do not increase.
 
     Example:
         ::
@@ -226,6 +228,9 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     # Check that timestamps are monotonic
     if not np.all(np.diff(timestamps) > 0):
         print("Warning: Input timemeseries is not monotonic")
+        tmask = np.insert(np.diff(timestamps) > 0, 0, True)
+        timestamps = timestamps[tmask]
+        timestamp_values = timestamp_values[tmask]
 
     # Check for sampling points information
     if samplerate is None and sampling_points is None:
@@ -245,6 +250,11 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=fill_value, bounds_error=False, axis=0)
     timeseries = f_interp(sampling_points)
 
+    print(sampling_points)
+    print(timestamps)
+    print(timestamp_values)
+    print(timeseries)
+    print(fill_value)
     assert np.count_nonzero(np.isnan(timeseries)) == 0, f"{np.count_nonzero(np.isnan(timeseries))} NaNs present in output -- something has gone wrong!"
 
     return timeseries, sampling_points
