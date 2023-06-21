@@ -154,18 +154,19 @@ class DigitalCalcTests(unittest.TestCase):
         np.random.seed(0)
         duration = 4
         freq = 5
-        samplerate = 1000
+        samplerate = 25000
         ground_truth_data = utils.generate_multichannel_test_signal(duration*2, samplerate, 2, freq, 1)
         
         fps = 120
         nt = fps*duration
+        offset = 0.1 # timestamps start strictly after time zero
         framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
         drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
-        timestamps = np.arange(nt)/fps + framerate_error + drift
+        timestamps = offset + np.arange(nt)/fps + framerate_error + drift
         samples = (timestamps * samplerate).astype(int)
 
         frame_data = ground_truth_data[samples,:]
-        interp_samplerate = 100
+        interp_samplerate = 1000
         interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
 
         fig, ax = plt.subplots(2,1)

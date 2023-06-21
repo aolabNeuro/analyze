@@ -236,7 +236,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
         sampling_points = np.arange(timestamps[0], timestamps[-1]+(1/samplerate), 1/samplerate)
 
     # Interpolate
-    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values, axis=0)
+    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values, bounds_error=False, axis=0)
     timeseries = f_interp(sampling_points)
 
     return timeseries, sampling_points
@@ -268,7 +268,7 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
         upsamplerate = samplerate * 100
 
     time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
-    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear')
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrap_values=(timestamps[0], timestamps[-1]))
     data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 
