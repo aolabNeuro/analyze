@@ -250,11 +250,6 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=fill_value, bounds_error=False, axis=0)
     timeseries = f_interp(sampling_points)
 
-    print(sampling_points)
-    print(timestamps)
-    print(timestamp_values)
-    print(timeseries)
-    print(fill_value)
     assert np.count_nonzero(np.isnan(timeseries)) == 0, f"{np.count_nonzero(np.isnan(timeseries))} NaNs present in output -- something has gone wrong!"
 
     return timeseries, sampling_points
