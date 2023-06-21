@@ -14,82 +14,89 @@ import warnings
 '''
 Lookup
 '''
-def get_task_entries(subj=None, date=None, task=None, dbname='default', **kwargs):
-    '''
-    Get all the task entries for a particular date
+DB_TYPE = 'bmi3d'
+BMI3D_DBNAME = 'default'
 
-    Args:
-        subj: string, optional, default=None
-            Specify the beginning of the name of the subject or the full name. If not specified, blocks from all subjects are returned
-        date: multiple types, optional, default=today
-            Query date for blocks. The date can be specified as a datetime.date object, a tuple of (start, end) datetime.date objects,
-            or a 3-tuple of ints (year, month, day).
-        task: string
-            name of task to filter
-        kwargs: dict, optional
-            Additional keyword arguments
-
-    Returns:
-        database entries
-    '''
-    return bmi3d.get_task_entries(subj=subj, date=date, task=task, dbname=dbname, **kwargs)
-
-def get_sessions(subject, date, task_name, session_name=None, exclude_ids=[], filter_fn=lambda x:True, dbname='default'):
+def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, session=None, project=None, 
+                    experimenter=None, has_features=None,
+                    exclude_ids=[], filter_fn=lambda x:True, **kwargs):
     '''
     Returns list of entries for all sessions on the given date
     '''
-    if session_name:
-        entries = get_task_entries(subj=subject, task=task_name, date=date, session=session_name, dbname=dbname)
+    if DB_TYPE == 'bmi3d':
+        if subject:
+            kwargs['subj'] = subject
+        if date:
+            kwargs['date'] = date
+        if task_name:
+            kwargs['task'] = task_name
+        if task_desc:
+            kwargs['entry_name'] = task_desc
+        if session:
+            kwargs['session'] = session
+        if project:
+            kwargs['project'] = project
+        if experimenter:
+            kwargs['experimenter__name'] = experimenter
+        entries = bmi3d.get_task_entries(dbname=BMI3D_DBNAME, **kwargs)
+        if has_features:
+            filter_fn = filter_fn and (lambda x: all([has_feature(x, f) for f in has_features]))
+        if len(entries) == 0:
+            warnings.warn("No entries found")
+            return []
+        return [e for e in entries if filter_fn(e) and e.id not in exclude_ids]
     else:
-        entries = get_task_entries(subj=subject, task=task_name, date=date, dbname=dbname)
-    if len(entries) == 0:
-        warnings.warn("No entries found")
-        return []
-    return [e for e in entries if filter_fn(e) and e.id not in exclude_ids]
+        warnings.warn("Unsupported db type!")
     
-def get_mc_sessions(subject, date, mc_task_name='manual control', dbname='default', **kwargs):
+def lookup_mc_sessions(subject, date, mc_task_name='manual control', **kwargs):
     '''
     Returns list of entries for all bmi control sessions on the given date
     '''
-    return get_sessions(subject, date, task_name=mc_task_name, dbname=dbname, **kwargs)
+    return lookup_sessions(subject, date, task_name=mc_task_name, **kwargs)
     
-def get_bmi_sessions(subject, date, session_name='training', bmi_task_name='bmi control', dbname='default', **kwargs):
+def lookup_bmi_sessions(subject, date, session_name='training', bmi_task_name='bmi control', **kwargs):
     '''
     Returns list of entries for all bmi control sessions on the given date
     '''
-    return get_sessions(subject, date, session_name=session_name, task_name=bmi_task_name, dbname=dbname, **kwargs)
-
+    return lookup_sessions(subject, date, session_name=session_name, task_name=bmi_task_name, **kwargs)
 
 '''
 Paramters
 '''
-def get_subject(entry, dbname='default'):
+def get_subject(entry):
     '''
     Returns name of subject for session.
     Takes TaskEntry object.
     '''
-    return bmi3d.get_subject(entry, dbname=dbname)
+    return bmi3d.get_subject(entry, dbname=BMI3D_DBNAME)
 
-def get_id(entry, dbname='default'):
+def get_id(entry):
     '''
     Returns id for session.
     Takes TaskEntry object.
     '''
-    return bmi3d.get_id(entry, dbname=dbname) # this doesn't exist yet
+    return entry.id
 
-def get_time(entry, dbname='default'):
+def get_time(entry):
     '''
     Returns date for session.
     Takes TaskEntry object.
     '''
-    return bmi3d.get_date(entry, dbname=dbname)
+    return bmi3d.get_date(entry, dbname=BMI3D_DBNAME)
 
-def get_date(entry, dbname='default'):
+def get_date(entry):
     '''
     Returns date for session.
     Takes TaskEntry object.
     '''
-    return bmi3d.get_date(entry, dbname=dbname).date()
+    return bmi3d.get_date(entry, dbname=BMI3D_DBNAME).date()
+
+def get_features(entry):
+    return [f.name for f in entry.feats.all()]
+
+def has_feature(entry, featname):
+    features = get_features(entry)
+    return featname in features
 
 def get_params(entry):
     '''
@@ -103,14 +110,17 @@ def get_param(entry, paramname):
     Returns parameter value.
     Takes TaskEntry object.
     '''
-    return bmi3d.get_params(entry)[paramname]
+    params = bmi3d.get_params(entry)
+    if paramname not in params:
+        return None
+    return params[paramname]
 
-def get_task_name(entry, dbname='default'):
+def get_task_name(entry):
     '''
     Returns name of task used for session.
     Takes TaskEntry object.
     '''
-    return bmi3d.get_task_name(entry, dbname=dbname)
+    return bmi3d.get_task_name(entry, dbname=BMI3D_DBNAME)
 
 def get_notes(entry):
     '''
@@ -168,7 +178,7 @@ def get_preprocessed_sources(entry):
     
     return sources
 
-def group_entries(entries, grouping_fn=lambda te: te.calendar_date):
+def group_entries(entries, grouping_fn=lambda te: get_date(te)):
     '''
     Automatically group together a flat list of database IDs
 
@@ -192,3 +202,8 @@ def group_entries(entries, grouping_fn=lambda te: te.calendar_date):
     for date in keys:
         grouped_ids.append(tuple(keyed_ids[date]))
     return grouped_ids
+
+
+'''
+Filtering
+'''

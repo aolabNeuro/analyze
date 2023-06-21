@@ -836,5 +836,18 @@ class EyeTests(unittest.TestCase):
         self.assertIn('coefficients', eye_data)
         self.assertIn('external_calibration', eye_metadata)    
 
+class DatabaseTests(unittest.TestCase):
+
+    # Create some test
+    @classmethod
+    def setupClass(cls):
+
+        from db.models import Models
+        
+        bmi3d.db_type = 'bmi3d'
+        bmi3d.BMI3D_DBNAME = 'default'
+
+
+
 if __name__ == "__main__":
     unittest.main()

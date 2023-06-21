@@ -25,7 +25,8 @@ install_requires = [
     'seaborn',
     'pyyaml',
     'tqdm',
-    'open-ephys-python-tools'
+    'open-ephys-python-tools',
+    'aolab-bmi3d',
 ]
 
 setuptools.setup(
