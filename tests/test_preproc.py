@@ -1214,6 +1214,7 @@ class QualityTests(unittest.TestCase):
         test_filepath = os.path.join(data_dir, "short headstage test")
         self.data = load_ecube_data(test_filepath, 'Headstages', channels=range(1,9))
         self.samplerate = 25000
+        self.num_th = 3.
         self.lf_c = 100.
         self.win_t = 0.1
         self.over_t = 0.05
@@ -1224,6 +1225,7 @@ class QualityTests(unittest.TestCase):
         bad_ch = quality.bad_channel_detection(
             data = self.data, 
             srate = self.samplerate,
+            num_th = self.num_th,
             lf_c = self.lf_c,
             sg_win_t = self.win_t,
             sg_over_t = self.over_t,
@@ -1231,6 +1233,14 @@ class QualityTests(unittest.TestCase):
         )
         self.assertEqual(bad_ch.shape, (8,))
         # self.assertEqual(np.count_nonzero(bad_ch), 64)
+        
+    def test_screenBadECoGchannels(self):
+        test_data = np.random.normal(10,0.5,(10000, 200))
+        test_data[0, 10] = 25
+        test_data[5, 150] = 30
+        bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=False, verbose=False)
+        self.assertEqual(np.where(bad_ch)[0][0], 10)
+        self.assertEqual(np.where(bad_ch)[0][1], 150)
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
