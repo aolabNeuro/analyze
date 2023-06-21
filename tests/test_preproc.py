@@ -1238,7 +1238,7 @@ class QualityTests(unittest.TestCase):
         test_data = np.random.normal(10,0.5,(10000, 200))
         test_data[0, 10] = 25
         test_data[5, 150] = 30
-        bad_ch = quality.detect_bad_ch_outliers(test_data, th=0.05, numsd=5.0, debug=False, verbose=False)
+        bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=False, verbose=False)
         self.assertEqual(np.where(bad_ch)[0][0], 10)
         self.assertEqual(np.where(bad_ch)[0][1], 150)
 
