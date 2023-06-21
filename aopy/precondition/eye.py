@@ -113,7 +113,7 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
     " (positive thr, negative thr)"
     assert (intersaccade_min is None) or intersaccade_min < max_saccade_duration, "Max saccade"
     " duration must be longer than the minimum intersaccade interval"
-    if samplerate != 100:
+    if samplerate != 1000:
         print("Warning: this function works best with eye data that has been low-pass filtered below 30 Hz")
 
     eye_accel = convert_pos_to_accel(eye_pos, samplerate)
