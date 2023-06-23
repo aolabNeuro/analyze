@@ -800,7 +800,7 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
 
     return fxx, txx, Sxx
 
-def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True):
+def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype='float64'):
     '''
     Compute multitaper time-frequency estimate from multichannel signal input. This code is adapted from the Pesaran lab `tfspec`.    
     
@@ -920,7 +920,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True):
     nwin = int(np.floor((nt-win_size)/step_size)) # number of windows
     f = np.linspace(fk[0],fk[1],int(np.diff(nfk))) # frequency axis for spectrogram
 
-    spec = np.zeros((int(np.diff(nfk)),nwin,nch))
+    spec = np.zeros((int(np.diff(nfk)),nwin,nch), dtype=dtype)
     for iwin in range(nwin):
         if ref:
             m_data = np.sum(ts_data[:,step_size*iwin:step_size*iwin+win_size],axis=0)/nch # Mean across channels for that window

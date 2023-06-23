@@ -4,13 +4,14 @@ from .. import precondition
 from ..preproc.base import get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
-from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, config_dir
+from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read
 import os
 import numpy as np
 import h5py
 import tables
 import pandas as pd
 from tqdm.auto import tqdm
+from importlib.resources import files, as_file
 
 ############
 # Raw data #
@@ -377,7 +378,7 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_kinematics(exp_data, datatype='cursor', samplerate=100):
+def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
@@ -410,7 +411,7 @@ def get_interp_kinematics(exp_data, datatype='cursor', samplerate=100):
         datatype (str, optional): The type of kinematic data to interpolate. 
             Either 'cursor' or 'hand'. Defaults to 'cursor'.
         samplerate (float, optional): The desired output sampling rate in Hz. 
-            Defaults to 100.
+            Defaults to 1000.
 
     Returns:
         data_time (ns, ...): Kinematic data interpolated and filtered 
@@ -767,8 +768,10 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, df=None
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
     '''
     # Use default "trial" definition
-    params_file = os.path.join(config_dir, 'task_codes.yaml')
-    task_codes = yaml_read(params_file)[0]        
+    config_dir = files('aopy').joinpath('config')
+    params_file = as_file(config_dir.joinpath('task_codes.yaml'))
+    with params_file as f:
+        task_codes = yaml_read(f)[0]
     trial_end_codes = [task_codes['TRIAL_END']]
     reward_codes = [task_codes['REWARD']]
     

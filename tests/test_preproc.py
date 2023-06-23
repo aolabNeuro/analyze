@@ -140,13 +140,21 @@ class DigitalCalcTests(unittest.TestCase):
         timeseries, t = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
         self.assertTrue(len(timeseries) > 0)
         self.assertEqual(np.count_nonzero(np.isnan(timeseries)), 0)
+        timestamps = np.array([0,1,1,4])
+        timeseries, t = interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=2)
+        self.assertTrue(len(timeseries) > 0)
+        self.assertEqual(np.count_nonzero(np.isnan(timeseries)), 0)
 
         # Test extrapolate
         timestamps = np.array([1,2,3,4])
         timestamp_values = np.array([100,200,100,300])
-        expected_timeseries = np.array([100,150,200,150,100,200,300, 400, 500])
-        input_samplepts = np.array([1,1.5,2,2.5,3,3.5,4,4.5,5])
-        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts)
+        expected_timeseries = np.array([50, 100,150,200,150,100,200,300, 400, 500])
+        input_samplepts = np.array([0.5,1,1.5,2,2.5,3,3.5,4,4.5,5])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts, extrapolate=True)
+        np.testing.assert_allclose(timeseries, expected_timeseries)
+        np.testing.assert_allclose(new_samplepts, input_samplepts)
+        expected_timeseries = np.array([100, 100,150,200,150,100,200,300, 300,300])
+        timeseries, new_samplepts = interp_timestamps2timeseries(timestamps, timestamp_values, sampling_points=input_samplepts, extrapolate=False)
         np.testing.assert_allclose(timeseries, expected_timeseries)
         np.testing.assert_allclose(new_samplepts, input_samplepts)
 
@@ -154,29 +162,30 @@ class DigitalCalcTests(unittest.TestCase):
         np.random.seed(0)
         duration = 4
         freq = 5
-        samplerate = 1000
+        samplerate = 25000
         ground_truth_data = utils.generate_multichannel_test_signal(duration*2, samplerate, 2, freq, 1)
         
         fps = 120
         nt = fps*duration
+        offset = 0.1 # timestamps start strictly after time zero
         framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
         drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
-        timestamps = np.arange(nt)/fps + framerate_error + drift
+        timestamps = offset + np.arange(nt)/fps + framerate_error + drift
         samples = (timestamps * samplerate).astype(int)
 
         frame_data = ground_truth_data[samples,:]
-        interp_samplerate = 100
+        interp_samplerate = 1000
         interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
 
         fig, ax = plt.subplots(2,1)
-        visualization.plot_timeseries(1e-6*frame_data[:,0], fps, ax=ax[0])
-        visualization.plot_timeseries(1e-6*interp_data[:,0], interp_samplerate, ax=ax[0])
+        visualization.plot_timeseries(frame_data[:,0], fps, ax=ax[0])
+        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[0])
         ax[0].set_title(f'{freq} Hz signal')
         ax[0].set_ylabel('pos (cm)')
         ax[0].legend(['without sampling', 'with sampling'])
 
-        visualization.plot_freq_domain_amplitude(1e-6*frame_data[:,0], fps, ax=ax[1])
-        visualization.plot_freq_domain_amplitude(1e-6*interp_data[:,0], interp_samplerate, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(frame_data[:,0], fps, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(interp_data[:,0], interp_samplerate, ax=ax[1])
         ax[1].set_xscale('linear')
         ax[1].set_xlim(0,30)
         ax[1].set_ylabel('Peak amplitude')
@@ -1214,6 +1223,7 @@ class QualityTests(unittest.TestCase):
         test_filepath = os.path.join(data_dir, "short headstage test")
         self.data = load_ecube_data(test_filepath, 'Headstages', channels=range(1,9))
         self.samplerate = 25000
+        self.num_th = 3.
         self.lf_c = 100.
         self.win_t = 0.1
         self.over_t = 0.05
@@ -1224,6 +1234,7 @@ class QualityTests(unittest.TestCase):
         bad_ch = quality.bad_channel_detection(
             data = self.data, 
             srate = self.samplerate,
+            num_th = self.num_th,
             lf_c = self.lf_c,
             sg_win_t = self.win_t,
             sg_over_t = self.over_t,
@@ -1231,6 +1242,14 @@ class QualityTests(unittest.TestCase):
         )
         self.assertEqual(bad_ch.shape, (8,))
         # self.assertEqual(np.count_nonzero(bad_ch), 64)
+        
+    def test_screenBadECoGchannels(self):
+        test_data = np.random.normal(10,0.5,(10000, 200))
+        test_data[0, 10] = 25
+        test_data[5, 150] = 30
+        bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=False, verbose=False)
+        self.assertEqual(np.where(bad_ch)[0][0], 10)
+        self.assertEqual(np.where(bad_ch)[0][1], 150)
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
@@ -1290,8 +1309,8 @@ class OculomaticTests(unittest.TestCase):
         visualization.savefig(img_dir, filename)
 
         fig,ax = plt.subplots(2,1)
-        visualization.plot_freq_domain_amplitude(1e-6*analog_data, old_samplerate, ax=ax[0])
-        visualization.plot_freq_domain_amplitude(1e-6*downsample_data, new_samplerate, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(analog_data, old_samplerate, ax=ax[0])
+        visualization.plot_freq_domain_amplitude(downsample_data, new_samplerate, ax=ax[1])
         ax[0].set_ylabel('25khz')
         ax[1].set_ylabel('100hz')
         ax[0].set_ylim(0,1)

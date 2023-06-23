@@ -179,15 +179,17 @@ def validate_measurements(expected_values, measured_values, diff_thr):
     corrected_values[diff_above_thr] = expected_values[diff_above_thr]
     return corrected_values, diff_above_thr
 
-def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrap_values='extrapolate'):
+def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrapolate=False):
     '''
     This function uses linear interpolation (scipy.interpolate.interp1d) to convert timestamped data to timeseries data given new sampling points.
     Timestamps must be monotonic. If the timestamps or timestamp_values include a nan, this function ignores the corresponding timestamp value and performs interpolation between the neighboring values.
     To calculate the new points from 'samplerate' this function creates sample points with the same range as 'timestamps' (timestamps[0], timestamps[-1]).
     Either the 'samplerate' or 'sampling_points' optional argument must be used. If neither are filled, the function will display a warning and return nothing.
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
-    The optional argument 'interp_kind' corresponds to 'kind' and 'extrap_values' corresponds to 'fill_values' in scipy.interpolate.interp1d.
-    More information about 'extrap_values' can be found on the scipy.interpolate.interp1d documentation page. 
+    The optional argument 'interp_kind' corresponds to 'kind'. The optional argument 'extrapolate' determines whether timepoints falling outside the 
+    range of the input timestamps should be extrapolated or not. If not, they are copied from the first and last valid values, depending on whether they
+    appear at the beginnin or end of the timeseries, respectively.
+    Enforces monotonicity of the input timestamps by removing timestamps and their associated values that do not increase.
 
     Example:
         ::
@@ -205,7 +207,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
         samplerate (float): Optional argument if new sampling points should be calculated based on the timstamps. Sampling rate of newly sampled output array. [Hz]
         output_array (nt): Optional argument to pass predefined sampling points. 
         interp_kind (str): Optional argument to define the kind of interpolation used. Defaults to 'linear'
-        extrap_values (str, array, or tuple): Optional argument to define how values out of the range of 'timestamps' are fliled. This defaults to extrapolate but a tuple or array can be input to further define these values. ('fill_value' in scipy.interpolate.interp1d)
+        extrapolate (bool): If True, use scipy.interp1d's built-in extrapolate functionality. Otherwise, use the first and last valid data.
 
     Returns:
         tuple: tuple containing:
@@ -226,6 +228,9 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     # Check that timestamps are monotonic
     if not np.all(np.diff(timestamps) > 0):
         print("Warning: Input timemeseries is not monotonic")
+        tmask = np.insert(np.diff(timestamps) > 0, 0, True)
+        timestamps = timestamps[tmask]
+        timestamp_values = timestamp_values[tmask]
 
     # Check for sampling points information
     if samplerate is None and sampling_points is None:
@@ -235,9 +240,17 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     if sampling_points is None:
         sampling_points = np.arange(timestamps[0], timestamps[-1]+(1/samplerate), 1/samplerate)
 
+    # Determine extrapolation values
+    if extrapolate:
+        fill_value = 'extrapolate'
+    else:
+        fill_value = (timestamp_values[0], timestamp_values[-1])
+
     # Interpolate
-    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=extrap_values, axis=0)
+    f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=fill_value, bounds_error=False, axis=0)
     timeseries = f_interp(sampling_points)
+
+    assert np.count_nonzero(np.isnan(timeseries)) == 0, f"{np.count_nonzero(np.isnan(timeseries))} NaNs present in output -- something has gone wrong!"
 
     return timeseries, sampling_points
 
@@ -268,7 +281,7 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
         upsamplerate = samplerate * 100
 
     time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
-    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear')
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False)
     data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 

@@ -1,4 +1,8 @@
 # analyze
-For installing and using the code, see the documentation [on readthedocs](https://analyze.readthedocs.io/en/latest/)
+aopy is a python module for neural data analysis, developed at UW in the lab of Amy Orsborn
 
-For contributing, see the [github](https://github.com/aolabNeuro/analyze/)
+## Installation
+`pip install aolab-aopy`
+
+## Documentation
+See our [readthedocs](https://analyze.readthedocs.io/en/latest/)

@@ -4,9 +4,10 @@ import sys
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
+import matplotlib.pyplot as plt
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
-def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5):
+def bad_channel_detection(data, srate, num_th=3., lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5):
     """bad_channel_detection
 
     Checks input [nt, nch] data array channel quality
@@ -14,13 +15,14 @@ def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_
     Args:
         data (nt, nch): numpy array of data
         srate (int): sample rate
+        num_th (float, optional): Constant to adjust threshold. Defaults to 3.
         lf_c (int, optional): low frequency cutoff. Defaults to 100.
         sg_win_t (numeric, optional): spectrogram window length. Defaults to 8.
         sg_over_t (numeric, optional): spectrogram overlap length. Defaults to 4.
         sg_bw (float, optional): spectrogram time-half-bandwidth product. Defaults to 0.5.
 
     Returns:
-        bad_ch_mask (nch): logical array indicating bad channels
+        bad_ch (nch): logical array indicating bad channels
     """
     
     sg_step_t = sg_win_t - sg_over_t
@@ -35,10 +37,71 @@ def bad_channel_detection(data, srate, lf_c=100., sg_win_t=8., sg_over_t=4., sg_
 
     psd_var = np.var(Sxx_low_psd,axis=0)
     norm_psd_var = psd_var/npla.norm(psd_var)
-    low_var_θ = np.mean(norm_psd_var)/3
-    bad_ch_mask = norm_psd_var <= low_var_θ
+    low_var_θ = np.mean(norm_psd_var)/num_th
+    bad_ch = norm_psd_var >= low_var_θ
 
-    return bad_ch_mask
+    return bad_ch
+
+
+def detect_bad_ch_outliers(data, nbins=10000, thr=0.05, numsd=5.0, debug=False, verbose=True):
+    '''
+    Detect badchannels. This code is originally Amy's code in pesaran lab.
+    This function has 2 steps. In the 1st step, it detects tentative bad channels whose SD is less than th or more than 1-th in CDF
+    In the 2nd step, it extracts bad channels from tentative bad channels by finding conditions where (SD - median of SD) is outside numsd*SD[~badch]
+    
+    Args:
+        data (nt, nch): neural data
+        nbins (int): number of bins to make CDF
+        thr (float, optional): threshold in the CDF to detect bad channels for 1st screening. 0.05 means data outisde 5% or 95% in the CDF is regarded as bad channels.
+        numsd (float, optional): number of standard deviations above zero to detect bad channels for 2nd screening
+        debug (bool, optional): if True, display a figure showing the threshold crossings
+        verbose (bool, optional): if True, print bad channels
+        
+    Returns:
+        bad_ch (nch) : logical array indicating bad channels after 2nd screening
+    '''
+    
+    assert thr > 0 and thr < 1, "Threshold must be between 0 and 1"
+    assert numsd > 0, "numsd must be more than 0"
+    
+    sd = np.std(data, axis=0)
+    nch = data.shape[1]
+    med_sd = np.median(sd)
+    
+    # 1st screening
+    hist, bins = np.histogram(sd, nbins)
+    CDF = np.cumsum(hist)/np.sum(hist)
+    bottom = bins[np.where(CDF<thr)[0][-1]]
+    top = bins[np.where(CDF>1-thr)[0][0]]
+    bad_ch1 = (sd < bottom) | (sd > top)
+    
+    # 2nd screening
+    thr2 = numsd*np.std(sd[~bad_ch1], ddof=1)
+    sd_from_med = np.abs(sd - med_sd)
+    inrange = sd_from_med <= thr2
+    bad_ch = bad_ch1 & ~inrange
+    
+    if debug:
+        fig,ax = plt.subplots(1,2,figsize=(11,4),tight_layout=True)
+        ax[0].plot(bins[:-1],CDF)
+        ax[0].scatter(bins[np.where(CDF<thr)[0]],CDF[CDF<thr],c='g',s=1,label='bad_ch (1st screening)')
+        ax[0].scatter(bins[np.where(CDF>1-thr)[0]],CDF[CDF>1-thr],c='g',s=1)
+        ax[0].plot([top,top],[0,1],'r--', label='threshold (1st screening)')
+        ax[0].plot([bottom,bottom],[0,1],'r--')
+        ax[0].set(xlabel='SD',ylabel='CDF',title='1st screening')
+        ax[0].legend()
+        ax[1].plot(sd_from_med,'.')
+        ax[1].plot([0,nch],[thr2,thr2],'r--', label='threshold (2nd screening)')
+        ax[1].plot(np.where(bad_ch1)[0], sd_from_med[bad_ch1], 'g.',label='bad_ch (1st screening)')
+        ax[1].plot(np.where(bad_ch)[0], sd_from_med[bad_ch], 'r*', label='bad_ch (2nd screening)')
+        ax[1].set(ylabel='abs(SD-median of SD)',xlabel='# channels',title='2nd screening')
+        ax[1].legend()
+    
+    if verbose:
+        print(f'Bad channels : {np.where(bad_ch)[0]}')
+        print(f'The number of bad channels : {np.sum(bad_ch)}')
+        
+    return bad_ch
 
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
