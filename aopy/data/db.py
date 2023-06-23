@@ -95,6 +95,24 @@ class BMI3DTaskEntry():
         self.dbname = dbname
         self.record = task_entry
 
+    def __repr__(self):
+        '''
+        Call __repr__ on the database record
+
+        Returns:
+            str: repr
+        '''
+        return repr(self.record)
+    
+    def __str__(self):
+        '''
+        Call __str__ on the database record
+
+        Returns:
+            str: str
+        '''
+        return str(self.record)
+
     @property
     def id(self):
         '''
@@ -193,6 +211,8 @@ class BMI3DTaskEntry():
         Returns:
             str: task description
         '''
+        if self.record.entry_name is None:
+            return ''
         return self.record.entry_name
 
     @property
@@ -203,7 +223,11 @@ class BMI3DTaskEntry():
         Returns:
             float: duration
         '''
-        return bmi3d.get_length(self.record)
+        try:
+            report = json.loads(self.record.report)
+            return report['runtime']
+        except:
+            return 0.0
         
     @property
     def n_trials(self):
@@ -213,7 +237,16 @@ class BMI3DTaskEntry():
         Returns:
             int: number of rewarded trials
         '''
-        return bmi3d.get_completed_trials(self.record)
+        try:
+            report = json.loads(self.record.report)
+        except: 
+            return 0
+        rewards = report['n_success_trials']
+        total = report['n_trials']
+        if rewards == 0:
+            return total # in the case of laser or flash trials, no rewards
+        
+        return rewards
 
     def get_decoder(self):
         '''
