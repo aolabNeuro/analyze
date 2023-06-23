@@ -377,7 +377,7 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_kinematics(exp_data, datatype='cursor', samplerate=100):
+def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
@@ -410,7 +410,7 @@ def get_interp_kinematics(exp_data, datatype='cursor', samplerate=100):
         datatype (str, optional): The type of kinematic data to interpolate. 
             Either 'cursor' or 'hand'. Defaults to 'cursor'.
         samplerate (float, optional): The desired output sampling rate in Hz. 
-            Defaults to 100.
+            Defaults to 1000.
 
     Returns:
         data_time (ns, ...): Kinematic data interpolated and filtered 
