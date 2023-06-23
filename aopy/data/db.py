@@ -38,7 +38,7 @@ def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, ses
             kwargs['project'] = project
         if experimenter:
             kwargs['experimenter__name'] = experimenter
-        entries = [TaskEntry(e) for e in bmi3d.get_task_entries(dbname=BMI3D_DBNAME, **kwargs)]
+        entries = [BMI3DTaskEntry(e) for e in bmi3d.get_task_entries(dbname=BMI3D_DBNAME, **kwargs)]
         if has_features:
             filter_fn = filter_fn and (lambda x: all([x.has_feature(f) for f in has_features]))
         if len(entries) == 0:
@@ -48,17 +48,31 @@ def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, ses
     else:
         warnings.warn("Unsupported db type!")
     
+def lookup_flash_sessions(subject, date, mc_task_name='manual control', **kwargs):
+    '''
+    Returns list of entries for all flash sessions on the given date
+    '''
+    filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' in te.task_desc)
+    return lookup_sessions(subject, date, task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+
 def lookup_mc_sessions(subject, date, mc_task_name='manual control', **kwargs):
     '''
+    Returns list of entries for all manual control sessions on the given date
+    '''
+    filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' not in te.task_desc)
+    return lookup_sessions(subject, date, task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+
+def lookup_tracking_sessions(subject, date, tracking_task_name='tracking task', **kwargs):
+    '''
+    Returns list of entries for all tracking sessions on the given date
+    '''
+    return lookup_sessions(subject, date, task_name=tracking_task_name, **kwargs)
+
+def lookup_bmi_sessions(subject, date, bmi_task_name='bmi control', **kwargs):
+    '''
     Returns list of entries for all bmi control sessions on the given date
     '''
-    return lookup_sessions(subject, date, task_name=mc_task_name, **kwargs)
-    
-def lookup_bmi_sessions(subject, date, session_name='training', bmi_task_name='bmi control', **kwargs):
-    '''
-    Returns list of entries for all bmi control sessions on the given date
-    '''
-    return lookup_sessions(subject, date, session_name=session_name, task_name=bmi_task_name, **kwargs)
+    return lookup_sessions(subject, date, task_name=bmi_task_name, **kwargs)
 
 '''
 Paramters
@@ -70,139 +84,220 @@ class BMI3DTaskEntry():
     the same methods without needing to modfiy their database model.
     '''
 
-    def __init__(self, task_entry=None, dbname='default', **kwargs):
+    def __init__(self, task_entry, dbname='default', **kwargs):
         '''
+        Constructor
+
+        Args:
+            task_entry (TaskEntry): a database task entry from BMI3D
+            dbname (str, optional): name of the database to connect to. Defaults to 'default'.
         '''
         self.dbname = dbname
         self.record = task_entry
 
     @property
     def id(self):
+        '''
+        Task entry id
+
+        Returns:
+            int: entry id
+        '''
         return self.record.id
-    
+        
     @property
-    def params(self):
-        return self.record.task_params
-    
-    @property
-    def time(self):
+    def datetime(self):
+        '''
+        Time and date
+
+        Returns:
+            datetime.datetime: time and date
+        '''
         return self.record.date
     
     @property
     def date(self):
-        self.record.date.date()
+        '''
+        Date
+
+        Returns:
+            datetime.date: date
+        '''
+        return self.record.date.date()
 
     @property
     def notes(self):
+        '''
+        Notes
+
+        Returns:
+            str: notes
+        '''
         return self.record.notes
         
     @property
     def subject(self):
+        '''
+        Subject name
+
+        Returns:
+            str: subject name
+        '''
         return self.record.subject.name
     
     @property
-    def decoder_record(self):
-        # Load decoder record
-        if 'decoder' in self.params:
-            self.decoder_record = models.Decoder.objects.using(self.record._state.db).get(pk=self.params['decoder'])
-        elif 'bmi' in self.params:
-            self.decoder_record = models.Decoder.objects.using(self.record._state.db).get(pk=self.params['bmi'])
-        else: # Try direct lookup
-            try:
-                self.decoder_record = models.Decoder.objects.using(self.record._state.db).get(entry_id=self.id)
-            except:
-                self.decoder_record = None
-
-        # Load the event log (report)
-        try:
-            self.report = json.loads(self.record.report)
-        except:
-            self.report = ''
-
-    @property
     def features(self):
+        '''
+        List of features that were enabled during recording
+
+        Returns:
+            list: enabled features
+        '''
         return [f.name for f in self.record.feats.all()]
 
-    def has_feature(self, featname):
-        return featname in self.features
-
     @property
-    def params(self):
+    def task_params(self):
         '''
-        Returns a dict of all task params for session.
-        Takes TaskEntry object.
+        All task parameters
+
+        Returns:
+            dict: task params
         '''
         return self.record.task_params
 
     @property
     def sequence_params(self):
+        '''
+        All sequence parameters, e.g. `ntargets` or `target_radius`
+
+        Returns:
+            dict: sequence params
+        '''
         return self.record.sequence_params
 
-    def get_param(self, paramname):
+    @property
+    def task_name(self):
         '''
-        Returns parameter value.
-        Takes TaskEntry object.
+        Task name, e.g. `manual control`
+
+        Returns:
+            str: task name
         '''
-        params = self.params
+        return bmi3d.get_task_name(self.record, dbname=self.dbname)
+
+    @property
+    def task_desc(self):
+        '''
+        Task description, e.g. `flash`
+
+        Returns:
+            str: task description
+        '''
+        return self.record.entry_name
+
+    @property
+    def duration(self):
+        '''
+        Duration of recording in seconds
+
+        Returns:
+            float: duration
+        '''
+        return bmi3d.get_length(self.record)
+        
+    @property
+    def n_trials(self):
+        '''
+        Number of rewarded trials
+
+        Returns:
+            int: number of rewarded trials
+        '''
+        return bmi3d.get_completed_trials(self.record)
+
+    def get_decoder(self):
+        '''
+        Fetch the decoder object from the database, if there is one.
+
+        Returns:
+            Decoder: decoder object (type depends on which decoder is being loaded)
+        '''
+        return bmi3d.get_decoder(self.record, dbname=self.dbname)
+    
+    def get_decoder_record(self):
+        '''
+        Fetch the database models.Decoder record for this recording, if there is one.
+
+        Returns:
+            models.Decoder: decoder record
+        '''
+        return bmi3d.get_decoder_entry(self.record, dbname=self.dbname)
+
+    def has_feature(self, featname):
+        '''
+        Check whether a feature was included in this recording
+
+        Args:
+            featname (str): name of the feature to check
+
+        Returns:
+            bool: whether or not the feature was enabled
+        '''
+        return featname in self.features
+
+    def get_task_param(self, paramname):
+        '''
+        Get a specific task parameter
+
+        Args:
+            paramname (str): name of the parameter to get
+
+        Returns:
+            object: parameter value
+        '''
+        params = self.task_params
         if paramname not in params:
             return None
         return params[paramname]
     
     def get_sequence_param(self, paramname):
         '''
-        Returns parameter value.
-        Takes TaskEntry object.
+        Get a specific sequence parameter
+
+        Args:
+            paramname (str): name of the parameter to get
+
+        Returns:
+            object: parameter value
         '''
         params = self.sequence_params
         if paramname not in params:
             return None
         return params[paramname]
 
-    @property
-    def task_name(self):
+    def get_raw_files(self, system_subfolders=None):
         '''
-        Returns name of task used for session.
-        Takes TaskEntry object.
-        '''
-        return bmi3d.get_task_name(self.record, dbname=self.dbname)
-
-    @property
-    def notes(self):
-        '''
-        Returns notes for session.
-        Takes TaskEntry object.
-        '''
-        return self.record.notes
-
-    @property
-    def length(self):
-        '''
-        Returns length of session in seconds.
-        Takes TaskEntry object.
-        '''
-        return bmi3d.get_length(self.record)
-        
-    @property
-    def raw_files(self, system_subfolders=None):
-        '''
-        Gets the raw data files associated with each task entry 
+        Gets the raw data files associated with this task entry 
         
         Args:
-            entry (TaskEntry): recording to find raw files for 
             system_subfolders (dict, optional): dictionary of system subfolders where the 
-            data for that system is located. If None, defaults to the system name
+                data for that system is located. If None, defaults to the system name
         
         Returns: 
             files : list of (system, filepath) for each datafile associated with this task entry 
         '''
         return bmi3d.get_rawfiles_for_taskentry(self.record, system_subfolders=system_subfolders)
 
-    @property
-    def preprocessed_sources(self):
+    def get_preprocessed_sources(self):
         '''
-        Returns a list of datasource names that should be preprocessed for the given entry
+        Returns a list of datasource names that should be preprocessed for this task entry. Always
+        includes experiment data (`exp`) and eye data (`eye`), and additionally includes broadband,
+        lfp, and spike data if there are associated datafiles with appropriate neural data.
+
+        Returns:
+            list: preprocessed sources for this task entry
         '''
-        params = self.params
+        params = self.task_params
         sources = ['exp']
         if 'record_headstage' in params and params['record_headstage']:
             sources.append('broadband')
@@ -244,8 +339,3 @@ def group_entries(entries, grouping_fn=lambda te: te.date):
     for date in keys:
         grouped_ids.append(tuple(keyed_ids[date]))
     return grouped_ids
-
-
-'''
-Filtering
-'''
