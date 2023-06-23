@@ -179,7 +179,7 @@ def validate_measurements(expected_values, measured_values, diff_thr):
     corrected_values[diff_above_thr] = expected_values[diff_above_thr]
     return corrected_values, diff_above_thr
 
-def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrapolate=True):
+def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrapolate=False):
     '''
     This function uses linear interpolation (scipy.interpolate.interp1d) to convert timestamped data to timeseries data given new sampling points.
     Timestamps must be monotonic. If the timestamps or timestamp_values include a nan, this function ignores the corresponding timestamp value and performs interpolation between the neighboring values.
