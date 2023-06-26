@@ -2,20 +2,24 @@
 Interface between database methods/models and data analysis code
 '''
 import json
-import os
-import datetime
+import sys
 from collections import defaultdict
+import warnings
+import traceback
 try:
     from db import dbfunctions as bmi3d
 except:
-    pass
-import warnings
+    warnings.warn("Database not configured")
+    traceback.print_exc()
 
 '''
 Lookup
 '''
-DB_TYPE = 'bmi3d'
-BMI3D_DBNAME = 'default'
+
+# Some global variable shenanigans.
+this = sys.modules[__name__]
+this.DB_TYPE = 'bmi3d' # can be modified with `db.DB_TYPE` after `from aopy.data import db``
+this.BMI3D_DBNAME = 'default' # can be modified with `db.BMI3D_DBNAME` after `from aopy.data import db`
 
 def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, session=None, project=None, 
                     experimenter=None, has_features=None,
@@ -23,7 +27,7 @@ def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, ses
     '''
     Returns list of entries for all sessions on the given date
     '''
-    if DB_TYPE == 'bmi3d':
+    if this.DB_TYPE == 'bmi3d':
         if subject:
             kwargs['subj'] = subject
         if date:
@@ -38,8 +42,10 @@ def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, ses
             kwargs['project'] = project
         if experimenter:
             kwargs['experimenter__name'] = experimenter
-        entries = [BMI3DTaskEntry(e) for e in bmi3d.get_task_entries(dbname=BMI3D_DBNAME, **kwargs)]
-        if has_features:
+        entries = [BMI3DTaskEntry(e) for e in bmi3d.get_task_entries(dbname=this.BMI3D_DBNAME, **kwargs)]
+        if has_features and not isinstance(has_features, list):
+            filter_fn = filter_fn and (lambda x: x.has_feature(has_features))
+        elif has_features:
             filter_fn = filter_fn and (lambda x: all([x.has_feature(f) for f in has_features]))
         if len(entries) == 0:
             warnings.warn("No entries found")
@@ -47,6 +53,7 @@ def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, ses
         return [e for e in entries if filter_fn(e) and e.id not in exclude_ids]
     else:
         warnings.warn("Unsupported db type!")
+        return []
     
 def lookup_flash_sessions(subject, date, mc_task_name='manual control', **kwargs):
     '''
@@ -62,7 +69,7 @@ def lookup_mc_sessions(subject, date, mc_task_name='manual control', **kwargs):
     filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' not in te.task_desc)
     return lookup_sessions(subject, date, task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
 
-def lookup_tracking_sessions(subject, date, tracking_task_name='tracking task', **kwargs):
+def lookup_tracking_sessions(subject, date, tracking_task_name='tracking', **kwargs):
     '''
     Returns list of entries for all tracking sessions on the given date
     '''
@@ -75,7 +82,7 @@ def lookup_bmi_sessions(subject, date, bmi_task_name='bmi control', **kwargs):
     return lookup_sessions(subject, date, task_name=bmi_task_name, **kwargs)
 
 '''
-Paramters
+Database objects
 '''
 class BMI3DTaskEntry():
     '''
@@ -94,6 +101,12 @@ class BMI3DTaskEntry():
         '''
         self.dbname = dbname
         self.record = task_entry
+        self.id = self.record.id
+        self.datetime = self.record.date
+        self.date = self.record.date.date()
+        self.subject = self.record.subject.name
+        self.session = self.record.session
+        self.project = self.record.project
 
     def __repr__(self):
         '''
@@ -112,37 +125,19 @@ class BMI3DTaskEntry():
             str: str
         '''
         return str(self.record)
-
-    @property
-    def id(self):
-        '''
-        Task entry id
-
-        Returns:
-            int: entry id
-        '''
-        return self.record.id
-        
-    @property
-    def datetime(self):
-        '''
-        Time and date
-
-        Returns:
-            datetime.datetime: time and date
-        '''
-        return self.record.date
     
     @property
-    def date(self):
+    def experimenter(self):
         '''
-        Date
+        Experimenter
 
         Returns:
-            datetime.date: date
+            str: name of the experimenter
         '''
-        return self.record.date.date()
-
+        if self.record.experimenter is None:
+            return ''
+        return self.record.experimenter.name
+    
     @property
     def notes(self):
         '''
@@ -152,17 +147,7 @@ class BMI3DTaskEntry():
             str: notes
         '''
         return self.record.notes
-        
-    @property
-    def subject(self):
-        '''
-        Subject name
 
-        Returns:
-            str: subject name
-        '''
-        return self.record.subject.name
-    
     @property
     def features(self):
         '''
@@ -341,27 +326,33 @@ class BMI3DTaskEntry():
         sources.append('eye')
         
         return sources
+    
+    def get_db_object(self):
+        '''
+        Get the raw database object representing this task entry
+
+        Returns:
+            models.TaskEntry: bmi3d task entry object
+        '''
+        return self.record
 
 '''
 Wrappers
 '''
-def list_entry_details(entries):
-    return zip(*[(te.subject, te.id, te.date) for te in entries])
+def list_entry_details(sessions):
+    return zip(*[(te.subject, str(te.id), str(te.date)) for te in sessions])
 
-def group_entries(entries, grouping_fn=lambda te: te.date):
+def group_entries(sessions, grouping_fn=lambda te: te.date):
     '''
     Automatically group together a flat list of database IDs
 
-    Parameters
-    ----------
-    ids: iterable
-        iterable of ints representing the ID numbers of TaskEntry objects to group
-    grouping_fn: callable, optional (default=sort by date); call signature: grouping_fn(task_entry)
-        Takes a dbfn.TaskEntry as its only argument and returns a hashable and sortable object
-        by which to group the ids
+    Args:
+        sessions (list of task entries): TaskEntry objects to group
+        grouping_fn (callable, optional): grouping_fn(task_entry) takes a TaskEntry as 
+            its only argument and returns a hashable and sortable object by which to group the ids
     '''
     keyed_ids = defaultdict(list)
-    for te in entries:
+    for te in sessions:
         key = grouping_fn(te)
         keyed_ids[key].append(id)
 
