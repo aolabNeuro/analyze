@@ -1343,7 +1343,7 @@ class OculomaticTests(unittest.TestCase):
         filename =  'proc_oculomatic_mask.png'
         visualization.savefig(img_dir, filename)
 
-class NeuropixelSyncTests(unittest.TestCase):
+class NeuropixelTests(unittest.TestCase):
     
     def test_sync_neuropixel_ecube(self):
         record_dir = '2023-03-26_Neuropixel_te8921'
@@ -1385,7 +1385,48 @@ class NeuropixelSyncTests(unittest.TestCase):
         raw_first_barcode_on_idx = np.where(raw_timestamps == barcode_ontimes_np[0])[0]
         raw_last_barcode_on_idx = np.where(raw_timestamps == barcode_ontimes_np[-1])[0]
         self.assertEqual(sync_timestamps[raw_first_barcode_on_idx], barcode_ontimes_ecube[0])
-        self.assertEqual(sync_timestamps[raw_last_barcode_on_idx], barcode_ontimes_ecube[-1])     
+        self.assertEqual(sync_timestamps[raw_last_barcode_on_idx], barcode_ontimes_ecube[-1])
+        
+    def test_concat_neuropixel_within_day(self):
+        # test for concat_neuropixel_within_day
+        subject = 'test'
+        date = '2023-06-27'
+        np_recorddir1 = f'{date}_Neuropixel_{subject}_te0001'
+        np_recorddir2 = f'{date}_Neuropixel_{subject}_te0002'
+        con_dir = os.path.join(data_dir, f'spike_sorting/{date}_Neuropixel_{subject}_kilosort')
+        
+        for i_port in [1,2]:
+            # concatenate data
+            concat_neuropixel_within_day(data_dir, subject, date, data_dir, port_number = i_port)
+            
+            # load each data
+            data1, _ = load_neuropixel_data(data_dir, np_recorddir1,'ap',port_number=i_port)
+            sample_size1 = data1.samples.shape[0]
+            data2, _ = load_neuropixel_data(data_dir, np_recorddir2,'ap',port_number=i_port)
 
+            # Check if the second part in con data is equal to the data2
+            probe_path = os.path.join(con_dir, convert_port_number(i_port))
+            con_data = np.memmap(os.path.join(probe_path,'continuous.dat'), dtype='int16') # load continuous.dat file
+            con_data = con_data.reshape(-1,384)
+            self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
+            self.assertTrue(np.all(con_data[sample_size1:sample_size1+10,:] == data2.samples[:10,:]))
+            
+    def test_ksdata(self):
+        date = '2023-03-26'
+        subject = 'beignet'
+
+        # devide spike times and clusters into each entry data
+        parse_ksdata_entries(data_dir, subject, date, port_number=1)
+        subject = 'beignet'
+        date = '2023-03-26'
+        task_id = '8922'
+        spike_indices, spike_label = load_parsed_ksdata(data_dir, subject, date, task_id, port_number=1)
+        self.assertTrue(np.all(spike_indices>0))
+        self.assertTrue(spike_indices.shape == spike_label.shape)
+        
+        spike_indices_unit = classify_ks_unit(spike_indices, spike_label)
+        self.assertTrue(np.all(spike_indices_unit['0']>0))
+        self.assertTrue(np.all(spike_indices_unit['1']>0))
+            
 if __name__ == "__main__":
     unittest.main()

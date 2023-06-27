@@ -271,7 +271,14 @@ class NeuropixelTest(unittest.TestCase):
         self.assertTrue(all(np.diff(on_times)>0)) # on_times should increaseb monotonically
         self.assertTrue(all(off_times - on_times)>0) # on_times precede off_times
         self.assertTrue(any(np.diff(on_times)>30)) # whether there is a 30s inteval between on_times
-           
+        
+    def test_load_ks_output(self):
+        date = '2023-03-26'
+        subject = 'beignet'
+        ks_output = load_ks_output(data_dir, subject, date, port_number=1, flag='spike')
+        self.assertTrue('spike_indices' in list(ks_output.keys()))
+        self.assertTrue('spike_clusters' in list(ks_output.keys()))
+                
 class HDFTests(unittest.TestCase):
 
     def test_save_hdf(self):
