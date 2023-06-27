@@ -739,3 +739,18 @@ def sync_timestamp_offline(timestamp, on_times, on_times_main):
     
     return sync_timestamp, scaling
 
+def convert_port_number(port_number, datatype='ap'):
+    '''
+    convert port_number to directory name made by openephys
+    
+    Args:
+        port_number (int): port number which a probe connected to. natural number from 1 to 4.
+        datatyoe (str, optional): datatype of neuropixel. 'ap' or 'lfp'
+    
+    Returns:
+        probe_dir (str): Probe directory name that contains AP data
+    '''
+    letter = chr(ord('@')+port_number)
+    probe_dir = f'Neuropix-PXI-100.Probe{letter}-{datatype.upper()}'
+    
+    return probe_dir

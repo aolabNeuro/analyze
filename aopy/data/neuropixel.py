@@ -3,6 +3,8 @@ from open_ephys.analysis import Session
 import glob
 import os
 import xml.etree.ElementTree as ETree
+from ..utils import convert_port_number
+import h5py
 
 def load_neuropixel_configuration(data_dir, data_folder, ex_idx = 0, port_number = 1):
     '''
@@ -195,3 +197,100 @@ def get_neuropixel_digital_input_times(data_dir, data_folder, datatype, node_idx
     off_times = events['sample_number'][events['state']==0]/FS - initial_timestamp
     
     return on_times, off_times
+
+def load_ks_output(preproc_dir, subject, date, port_number=1, flag='spike'):
+    '''
+    load kilosort output preprocessed by kilosort.
+    If falg is 'spike', it loads spike information (spike indices, spike label)
+    If flag is 'template', it loads template informaiton that was used for spike sorting
+    If flag is 'channel', it loads channel mapping information that kilosort used
+    If flag is 'rez', it loads rez.mat file, which contains drift map information
+    
+    Args:
+        preproc_dir (str): preprocessed directory where the files live
+        subject (str): subject name
+        date (str): date of recording (ex. '2023-04-14')
+        port_number (int, optional): port number which a probe connected to. natural number from 1 to 4.
+        flag (str, optional): Which data you load. 'spike','template','channel', or 'rez'
+        
+    Return:
+        kilosort_output (dict): preprocessed data by kilosort
+    '''
+
+    # Get kilosort directory path
+    kilosort_path = os.path.join(preproc_dir, f'spike_sorting/{date}_Neuropixel_{subject}_kilosort')
+    
+    # Get probe data path
+    probe_dir = convert_port_number(port_number)
+    data_path = glob.glob(os.path.join(kilosort_path,f'**/{probe_dir}'),recursive=True)[0]
+    
+    # path for kilosort data
+    if flag == 'spike':
+        spike_times_path = glob.glob(os.path.join(data_path,'**/spike_times.npy'),recursive=True)[0]
+        spike_clusters_path = glob.glob(os.path.join(data_path,'**/spike_clusters.npy'),recursive=True)[0]
+        ks_label_path = glob.glob(os.path.join(data_path,'**/cluster_KSLabel.tsv'),recursive=True)[0]
+        amplitudes_path = glob.glob(os.path.join(data_path,'**/amplitudes.npy'),recursive=True)[0]
+        cluster_amplitude_path = glob.glob(os.path.join(data_path,'**/cluster_Amplitude.tsv'),recursive=True)[0]
+        cluster_group_path = glob.glob(os.path.join(data_path,'**/cluster_group.tsv'),recursive=True)[0]
+    elif flag == 'template':
+        spike_templates_path = glob.glob(os.path.join(data_path,'**/spike_templates.npy'),recursive=True)[0]
+        template_features_path = glob.glob(os.path.join(data_path,'**/template_features.npy'),recursive=True)[0]
+        template_feature_ind_path = glob.glob(os.path.join(data_path,'**/template_feature_ind.npy'),recursive=True)[0]
+        templates_path = glob.glob(os.path.join(data_path,'**/templates.npy'),recursive=True)[0]
+    elif flag == 'channel':
+        channel_map_path = glob.glob(os.path.join(data_path,'**/channel_map.npy'),recursive=True)[0]
+        channel_positions_path = glob.glob(os.path.join(data_path,'**/channel_positions.npy'),recursive=True)[0]
+    elif flag == 'rez':
+        rez_path = glob.glob(os.path.join(data_path,'**/rez.mat'),recursive=True)[0]
+    
+    # load kilsort data
+    kilosort_output = {}
+    if flag == 'spike':
+        kilosort_output['spike_indices'] = np.load(spike_times_path)
+        kilosort_output['spike_clusters'] = np.load(spike_clusters_path)
+        kilosort_output['ks_label'] = np.genfromtxt(ks_label_path,skip_header=1,dtype=h5py.special_dtype(vlen=str))
+        kilosort_output['amplitudes'] = np.load(amplitudes_path)
+        kilosort_output['cluster_amplitude'] = np.genfromtxt(cluster_amplitude_path,skip_header=1,dtype=h5py.special_dtype(vlen=str))
+        kilosort_output['cluster_group'] = np.genfromtxt(cluster_group_path,skip_header=1,dtype=h5py.special_dtype(vlen=str))
+    elif flag == 'template':
+        kilosort_output['spike_templates'] = np.load(spike_templates_path)
+        kilosort_output['template_features'] = np.load(template_features_path)
+        kilosort_output['template_feature_ind'] = np.load(template_feature_ind_path)
+        kilosort_output['templates'] = np.load(templates_path)
+    elif flag == 'channel':
+        kilosort_output['channel_map'] = np.load(channel_map_path)
+        kilosort_output['channel_positions'] = np.load(channel_positions_path)
+    elif flag == 'rez':
+        f = h5py.File(rez_path,'r')
+        kilosort_output = dict(f['rez'])
+    
+    return kilosort_output
+
+def load_parsed_ksdata(preproc_dir, subject, date, te_id, port_number=1):
+    '''
+    load kilosort data (spike indices and clusters) parsed into the task entries
+    This data is not still synchronized
+    
+    Args:
+        preproc_dir (str): preprocessed directory where the files live
+        subject (str): subject name
+        date (str): date of recording
+        te_id (int): block number of Task entry object
+        port_number (int, optional): port number which a probe connected to. natural number from 1 to 4.
+        
+    Returns:
+        spike_indices (nspikes): spike indices detected by kilosort (not spike times)
+        spike_clusters (nspikes): unit label detected  by kilsort
+    '''
+    
+    # Path for loading spikes and clusters
+    preproc_path = os.path.join(preproc_dir, f'spike_sorting/kilosort_{date}_{subject}_{te_id}_np')
+    probe_name = convert_port_number(port_number)
+    spike_path = glob.glob(os.path.join(preproc_path,f'**/{probe_name}/spike_indices_entry.npy'),recursive=True)[0]
+    cluster_path = glob.glob(os.path.join(preproc_path,f'**/{probe_name}/spike_clusters_entry.npy'),recursive=True)[0]
+
+    # Load spikes and clusters
+    spike_indices = np.load(spike_path)
+    spike_clusters = np.load(cluster_path)
+    
+    return spike_indices, spike_clusters
