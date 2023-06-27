@@ -9,18 +9,18 @@ def sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,
     This function is specfic to synchronization between neuropixels and ecube.
     
     Args:
-    raw_timestamp (nt) : raw timestamp that is not synchronized
-    on_times_np (ndarray) : timings when sync line rises to 1 in neruopixel streams
-    off_times_np (ndarray): timings when sync line returns to 0 in neruopixel streams
-    on_times_ecube (ndarray): timings when sync line rises to 1 in ecube streams
-    off_times_ecube (ndarray): timings when sync line returns to 0 in ecube streams
-    bar_duration (float): duration of each bar that is sent to each stream
-    verbose (bool): print barcode times and barcodes for each stream
+        raw_timestamp (nt) : raw timestamp that is not synchronized
+        on_times_np (ndarray) : timings when sync line rises to 1 in neruopixel streams
+        off_times_np (ndarray): timings when sync line returns to 0 in neruopixel streams
+        on_times_ecube (ndarray): timings when sync line rises to 1 in ecube streams
+        off_times_ecube (ndarray): timings when sync line returns to 0 in ecube streams
+        bar_duration (float): duration of each bar that is sent to each stream
+        verbose (bool): print barcode times and barcodes for each stream
     
     Returns:
         tuple: tuple containing:
-            |** sync_timestamps (nt):** synchronized timestamps
-            |** scaling (float):** scaling factor between streams
+            | **sync_timestamps (nt):** synchronized timestamps
+            | **scaling (float):** scaling factor between streams
     '''
     
     while bar_duration >0.001:

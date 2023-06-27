@@ -13,13 +13,13 @@ def load_neuropixel_configuration(data_dir, data_folder, ex_idx = 0, port_number
     This function also sorts x pos and y pos in the order of channel number
     
     Args:
-    data_dir (str): where to find the file
-    data_folder (str): the xml file that describes neuropixel probe configuration
-    ex_idx (int): experiment idx. This is usually 0.
-    port_number (int): port number which a probe connected to. natural number from 1 to 4.
+        data_dir (str): where to find the file
+        data_folder (str): the xml file that describes neuropixel probe configuration
+        ex_idx (int): experiment idx. This is usually 0.
+        port_number (int): port number which a probe connected to. natural number from 1 to 4.
     
     Returns:
-    config (dict) : dictionary thet contains electrode configuration
+        config (dict) : dictionary thet contains electrode configuration
     '''
 
     data_path = os.path.join(data_dir, data_folder)
@@ -57,17 +57,17 @@ def load_neuropixel_data(data_dir, data_folder, datatype, node_idx=0, ex_idx=0, 
     See this link: https://github.com/open-ephys/open-ephys-python-tools/tree/main/src/open_ephys/analysis
     
     Args:
-    data_dir (str): data directory where the data files are located
-    data_folder (str): data folder where 1 experiment data is saved
-    datatype (str): datatype. 'ap' or 'lfp'
-    node_idx (int): record node index. This is usually 0.
-    ex_idx (int): experiment index. This is usually 0.
-    port_number (int): port number which a probe connected to. natural number from 1 to 4. 
+        data_dir (str): data directory where the data files are located
+        data_folder (str): data folder where 1 experiment data is saved
+        datatype (str): datatype. 'ap' or 'lfp'
+        node_idx (int): record node index. This is usually 0.
+        ex_idx (int): experiment index. This is usually 0.
+        port_number (int): port number which a probe connected to. natural number from 1 to 4. 
     
     Returns:
         tuple: Tuple containing:
-            |** rawdata (object):** data object
-            |** metadata (dict):** metadata
+            | **rawdata (object):** data object
+            | **metadata (dict):** metadata
     '''
     
     if datatype == 'ap':
@@ -114,15 +114,15 @@ def load_neuropixel_event(data_dir, data_folder, datatype, node_idx=0, ex_idx=0,
     Load neuropixel's event data saved by openephys, accroding to datatype
     
     Args:
-    data_dir (str): data directory where the data files are located
-    data_folder (str): data folder where 1 experiment data is saved
-    datatype (str): datatype. 'ap' or 'lfp'
-    node_idx (int): record node index. This is usually 0.
-    ex_idx (int): experiment index. This is usually 0.
-    port_number (int): port number which a probe connected to. natural number from 1 to 4. 
+        data_dir (str): data directory where the data files are located
+        data_folder (str): data folder where 1 experiment data is saved
+        datatype (str): datatype. 'ap' or 'lfp'
+        node_idx (int): record node index. This is usually 0.
+        ex_idx (int): experiment index. This is usually 0.
+        port_number (int): port number which a probe connected to. natural number from 1 to 4. 
     
     Returns:
-    events (ndarray) : events data
+        events (ndarray) : events data
     '''
     
     if (datatype != 'ap')&(datatype != 'lfp'):
@@ -171,17 +171,17 @@ def get_neuropixel_digital_input_times(data_dir, data_folder, datatype, node_idx
     Openephys recodings doesn't always begin with 0 time index.
     
     Args:
-    data_dir (str): data directory where the data files are located
-    data_folder (str): data folder where 1 experiment data is saved
-    datatype (str): datatype. 'ap' or 'lfp'
-    node_idx (int): record node index. This is usually 0.
-    ex_idx (int): experiment index. This is usually 0.
-    port_number (int): port number which a probe connected to. Natural number from 1 to 4. 
+        data_dir (str): data directory where the data files are located
+        data_folder (str): data folder where 1 experiment data is saved
+        datatype (str): datatype. 'ap' or 'lfp'
+        node_idx (int): record node index. This is usually 0.
+        ex_idx (int): experiment index. This is usually 0.
+        port_number (int): port number which a probe connected to. Natural number from 1 to 4. 
     
     Returns:
         tuple: Tuple containing:
-            |** on_times (n_times):** times at which sync line turned on
-            |** off_times (n_times):** times at which sync line turned off
+            | **on_times (n_times):** times at which sync line turned on
+            | **off_times (n_times):** times at which sync line turned off
     '''
         
     # Load data and metadata
@@ -279,8 +279,9 @@ def load_parsed_ksdata(preproc_dir, subject, date, te_id, port_number=1):
         port_number (int, optional): port number which a probe connected to. natural number from 1 to 4.
         
     Returns:
-        spike_indices (nspikes): spike indices detected by kilosort (not spike times)
-        spike_clusters (nspikes): unit label detected  by kilsort
+        tuple: Tuple containing:
+            | **spike_indices (nspikes):** spike indices detected by kilosort (not spike times)
+            | **spike_clusters (nspikes):** unit label detected  by kilsort
     '''
     
     # Path for loading spikes and clusters

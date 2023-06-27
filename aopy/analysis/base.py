@@ -824,9 +824,10 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype
                     https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
                        
     Returns:
-        f (n_freq): frequency axis for spectrogram
-        t (n_time): time axis for spectrogram
-        spec (n_freq,n_time,nch): multitaper spectrogram estimate
+        tuple: Tuple containing:
+            | **f (n_freq):** frequency axis for spectrogram
+            | **t (n_time):** time axis for spectrogram
+            | **spec (n_freq,n_time,nch):** multitaper spectrogram estimate
         
     Examples:
         
