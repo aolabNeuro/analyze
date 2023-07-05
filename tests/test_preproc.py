@@ -1424,9 +1424,10 @@ class NeuropixelTests(unittest.TestCase):
 
         # load parsed data
         parsed_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1_{task_id}'
-        spike_indices, spike_label = load_parsed_ksdata(kilosort_dir, parsed_data_dir)
+        spike_indices, spike_label, ks_label = load_parsed_ksdata(kilosort_dir, parsed_data_dir)
         self.assertTrue(np.all(spike_indices>0))
         self.assertTrue(spike_indices.shape == spike_label.shape)
+        self.assertTrue((np.all((ks_label[:,1] == 'mua') | (ks_label[:,1] == 'good'))))
         
         spike_indices_unit = classify_ks_unit(spike_indices, spike_label)
         self.assertTrue(np.all(spike_indices_unit['0']>0))

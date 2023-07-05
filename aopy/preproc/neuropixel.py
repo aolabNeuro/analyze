@@ -1,6 +1,6 @@
 import numpy as np
 from ..utils import extract_barcodes_from_times, get_first_last_times, sync_timestamp_offline, convert_port_number
-from ..data import load_neuropixel_data, load_ks_output
+from ..data import load_neuropixel_data, load_ks_output, get_channel_bank_name
 import os
 import glob
 
@@ -147,7 +147,7 @@ def concat_neuropixel_within_day(np_datadir, kilosort_dir, subject, date, ch_con
     for idx, path in enumerate(data_path):
         np_recorddir = os.path.split(path)[1]
         _, metadata = load_neuropixel_data(np_datadir,np_recorddir,'ap',port_number=port_number)
-        bank_name_list.append(data.get_channel_bank_name(metadata['ch_bank'], ch_config_dir=ch_config_dir))
+        bank_name_list.append(get_channel_bank_name(metadata['ch_bank'], ch_config_dir=ch_config_dir))
     bank_name_list = np.array(bank_name_list)
     unique_bank = np.unique(bank_name_list)
     
