@@ -1419,12 +1419,12 @@ class NeuropixelTests(unittest.TestCase):
         task_id ='8922'
         kilosort_dir = os.path.join(data_dir, 'kilosort')
         concat_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
+        parsed_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1_{task_id}'
         
         # devide spike times and clusters into each entry data
         parse_ksdata_entries(kilosort_dir, concat_data_dir)
 
         # load parsed data
-        parsed_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1_{task_id}'
         spike_indices, spike_label, ks_label = load_parsed_ksdata(kilosort_dir, parsed_data_dir)
         self.assertTrue(np.all(spike_indices>0))
         self.assertTrue(spike_indices.shape == spike_label.shape)
