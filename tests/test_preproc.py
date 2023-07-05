@@ -1394,7 +1394,7 @@ class NeuropixelTests(unittest.TestCase):
         np_recorddir1 = f'{date}_Neuropixel_{subject}_te0001'
         np_recorddir2 = f'{date}_Neuropixel_{subject}_te0002'
         kilosort_dir = os.path.join(data_dir, 'kilosort')
-        concat_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
+        concat_dataname = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
         ch_config_dir = os.path.join(data_dir, 'channel_config_np')
         
         for i_port in [1,2]:
@@ -1407,6 +1407,7 @@ class NeuropixelTests(unittest.TestCase):
             data2, _ = load_neuropixel_data(data_dir, np_recorddir2,'ap',port_number=i_port)
 
             # Check if the second part in con data is equal to the data2
+            concat_data_dir = os.path.join(data_dir, concat_dataname)
             con_data = np.memmap(os.path.join(concat_data_dir,'continuous.dat'), dtype='int16') # load continuous.dat file
             con_data = con_data.reshape(-1,384)
             self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
