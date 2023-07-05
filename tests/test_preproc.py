@@ -1346,7 +1346,7 @@ class OculomaticTests(unittest.TestCase):
 class NeuropixelTests(unittest.TestCase):
     
     def test_sync_neuropixel_ecube(self):
-        record_dir = '2023-03-26_Neuropixel_te8921'
+        record_dir = '2023-03-26_Neuropixel_beignet_te8921'
         ecube_files = '2023-03-26_BMI3D_te8921'
 
         # For AP data
@@ -1389,15 +1389,17 @@ class NeuropixelTests(unittest.TestCase):
         
     def test_concat_neuropixel_within_day(self):
         # test for concat_neuropixel_within_day
-        subject = 'test'
         date = '2023-06-27'
+        subject = 'test'
         np_recorddir1 = f'{date}_Neuropixel_{subject}_te0001'
         np_recorddir2 = f'{date}_Neuropixel_{subject}_te0002'
-        con_dir = os.path.join(data_dir, f'spike_sorting/{date}_Neuropixel_{subject}_kilosort')
+        kilosort_dir = os.path.join(data_dir, 'kilosort')
+        concat_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
+        ch_config_dir = os.path.join(data_dir, 'channel_config_np')
         
         for i_port in [1,2]:
             # concatenate data
-            concat_neuropixel_within_day(data_dir, subject, date, data_dir, port_number = i_port)
+            concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number = 1)
             
             # load each data
             data1, _ = load_neuropixel_data(data_dir, np_recorddir1,'ap',port_number=i_port)
@@ -1405,22 +1407,24 @@ class NeuropixelTests(unittest.TestCase):
             data2, _ = load_neuropixel_data(data_dir, np_recorddir2,'ap',port_number=i_port)
 
             # Check if the second part in con data is equal to the data2
-            probe_path = os.path.join(con_dir, convert_port_number(i_port))
-            con_data = np.memmap(os.path.join(probe_path,'continuous.dat'), dtype='int16') # load continuous.dat file
+            con_data = np.memmap(os.path.join(concat_data_dir,'continuous.dat'), dtype='int16') # load continuous.dat file
             con_data = con_data.reshape(-1,384)
             self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
             self.assertTrue(np.all(con_data[sample_size1:sample_size1+10,:] == data2.samples[:10,:]))
             
-    def test_ksdata(self):
+    def test_parse_and_load_ksdata(self):
         date = '2023-03-26'
         subject = 'beignet'
-
+        task_id ='8922'
+        kilosort_dir = os.path.join(data_dir, 'kilosort')
+        concat_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
+        
         # devide spike times and clusters into each entry data
-        parse_ksdata_entries(data_dir, subject, date, port_number=1)
-        subject = 'beignet'
-        date = '2023-03-26'
-        task_id = '8922'
-        spike_indices, spike_label = load_parsed_ksdata(data_dir, subject, date, task_id, port_number=1)
+        parse_ksdata_entries(kilosort_dir, concat_data_dir)
+
+        # load parsed data
+        parsed_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1_{task_id}'
+        spike_indices, spike_label = load_parsed_ksdata(kilosort_dir, parsed_data_dir)
         self.assertTrue(np.all(spike_indices>0))
         self.assertTrue(spike_indices.shape == spike_label.shape)
         

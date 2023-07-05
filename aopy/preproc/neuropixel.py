@@ -72,32 +72,26 @@ def classify_ks_unit(spike_times, spike_label):
     
     return spike_times_unit
 
-def parse_ksdata_entries(preproc_dir, subject, date, port_number=1):
+def parse_ksdata_entries(kilosort_dir, concat_data_dir):
     '''
-    Parse concatenated data processed by kilosort into the task entries and save relevant data (spike_indices and spike_clusters)
+    Parse concatenated data processed by kilosort into the task entries and save relevant data (spike_indices, spike_clusters, and ks_label)
     
     Args:
-        preproc_dir (str): preprocessed directory where the files live
-        subject (str): subject name
-        date (str): date (str): date of recording (ex. '2023-04-14')
-        node_idx (int, optional): record node index. This is usually 0
-        ex_idx (int, optional): experiment index. This is usually 0
-        port_number (int, optional): port number which a probe connected to. natural number from 1 to 4.
+        kilosort_dir (str): kilosort directory (ex. '/data/preprocessed/kilosort')
+        concat_data_dir (str): data directory that contains concatenated data and kilosort_output (ex. '2023-06-30_Neuropixel_ks_affi_bottom_port1')
         
     Returns
         None
     '''
+    
     # Load kilosort data
-    kilosort_output = load_ks_output(preproc_dir, subject, date, port_number=port_number, flag='spike')
+    kilosort_output = load_ks_output(kilosort_dir, concat_data_dir, flag='spike')
     spike_indices = kilosort_output['spike_indices']
     spike_clusters = kilosort_output['spike_clusters']
-
-    # Find path for a task entry corresponding to experiment day
-    probe_name = convert_port_number(port_number)
-    kilosort_path = os.path.join(preproc_dir, f'spike_sorting/{date}_Neuropixel_{subject}_kilosort')
-    data_path = os.path.join(kilosort_path,probe_name)
+    ks_label = kilosort_output['ks_label']
     
     # Load datasize of each entry and filename
+    data_path = os.path.join(kilosort_dir, concat_data_dir)
     datasize_entry = np.load(os.path.join(data_path, 'datasize_entry.npy'))
     task_paths = np.load(os.path.join(data_path, 'task_path.npy'))
 
@@ -118,77 +112,82 @@ def parse_ksdata_entries(preproc_dir, subject, date, port_number=1):
         
         # Make new directory to save parsed data
         taskid = task_paths[idx].split('_')[-1][2:]
-        task_save_path = os.path.join(preproc_dir, f'spike_sorting/kilosort_{date}_{subject}_{taskid}_np')
+        task_save_dir = f'{concat_data_dir}_{taskid}'
+        task_save_path = os.path.join(kilosort_dir, task_save_dir)
         if not os.path.exists(task_save_path):
             os.makedirs(task_save_path)
-            
-        probe_save_path = os.path.join(task_save_path, probe_name)
-        if not os.path.exists(probe_save_path):
-            os.makedirs(probe_save_path)
         
         # save data
-        np.save(os.path.join(probe_save_path, 'spike_indices_entry'), spike_indices_entry)
-        np.save(os.path.join(probe_save_path, 'spike_clusters_entry'), spike_clusters[ientry_idx])
+        np.save(os.path.join(task_save_path, 'spike_indices_entry'), spike_indices_entry)
+        np.save(os.path.join(task_save_path, 'spike_clusters_entry'), spike_clusters[ientry_idx])
+        np.save(os.path.join(task_save_path, 'ks_label'), ks_label.astype('str'))
         
-def concat_neuropixel_within_day(np_datadir, subject, date, preproc_dir, port_number = 1):
+def concat_neuropixel_within_day(np_datadir, kilosort_dir, subject, date, ch_config_dir='/data/channel_config_np', port_number = 1):
     '''
-    concatenate continuous.dat files of different sessions within day and monkey for spike sorting
-    then save the concatenated continuous data into preproc directory with datasize and task id for each task entry.
-    The datasize and task id are used to devide spikes into spikes in each task entry later.
+    concatenate continuous.dat files of different sessions within day and subject
+    then save the concatenated continuous data into kilosort directory with datasize and id of each task entry
     
     Args:
-        np_datadir (str): neuropixel data directory where the data files are located
+        np_datadir (str): neuropixel data directory where the data files are located (ex. '/data/raw/neuropixels')
+        kilosort_dir (str): kilosort directory (ex. '/data/preprocessed/kilosort')
         subject (str): subject name
         date (str): date (str): date of recording (ex. '2023-04-14')
-        preproc_dir (str): preprocessed directory ('ex. /data/preprocessed')
+        ch_config_dir (str, optional): directory that contains the channel configuration file
         port_number (int, optional): port number which a probe connected to. natural number from 1 to 4.
         
     Returns:
         None
     '''
-
-    # Make a new kilosort directory to save data in preproc directory
-    kilosort_path = os.path.join(preproc_dir, f'spike_sorting/{date}_Neuropixel_{subject}_kilosort')
-    if not os.path.exists(kilosort_path):
-        os.makedirs(kilosort_path)
-
-    # Make a new probe directory to save a different probe data separately in the kilosort directory
-    probe_dir = convert_port_number(port_number)
-    savedir_path = os.path.join(kilosort_path, probe_dir)
-    if not os.path.exists(savedir_path):
-        os.makedirs(savedir_path)
-
     # Find path for task entries within day and subject
     data_path = np.array(glob.glob(os.path.join(np_datadir,f'{date}_Neuropixel_{subject}_te*'),recursive=True))
     data_path = np.sort(data_path) # sort in the order of task_id
-
-    # Load continuous data at each task entry
-    datasize_entry = []
-    file_path = []
+    
+    # Chack which bank for each channel was used
+    bank_name_list = []
     for idx, path in enumerate(data_path):
-        # Find data path for continuous.dat recorded by the same probe
-        continuous_data_path = glob.glob(os.path.join(path,f'**/*{probe_dir}/continuous.dat'),recursive=True)[0]
-
-        # Load continuous data as numpy.memmap
         np_recorddir = os.path.split(path)[1]
-        _, metadata = load_neuropixel_data(np_datadir,np_recorddir,'ap')
-        data = np.memmap(continuous_data_path, dtype='int16')
-        data_reshape = data.reshape(-1,metadata['num_channels'])
+        _, metadata = load_neuropixel_data(np_datadir,np_recorddir,'ap',port_number=port_number)
+        bank_name_list.append(data.get_channel_bank_name(metadata['ch_bank'], ch_config_dir=ch_config_dir))
+    bank_name_list = np.array(bank_name_list)
+    unique_bank = np.unique(bank_name_list)
+    
+    for ibank in unique_bank:
+        # data path that has the same bank information
+        bank_data_path = data_path[bank_name_list == ibank]
+
+        # Make a new directory to save concatenated data by subject, bank, port number
+        savedir_path = os.path.join(kilosort_dir, f'{date}_Neuropixel_ks_{subject}_{ibank}_port{port_number}')
+        if not os.path.exists(savedir_path):
+            os.makedirs(savedir_path)
         
-        file_path.append(np_recorddir)
-        datasize_entry.append(data_reshape.shape[0])
+        datasize_entry = []
+        file_path = []
+        for idx, path in enumerate(bank_data_path):
+            # Find data path for continuous.dat recorded by the same probe
+            probe_dir = convert_port_number(port_number)
+            continuous_data_path = glob.glob(os.path.join(path,f'**/*{probe_dir}/continuous.dat'),recursive=True)[0]
 
-        # Save data
-        if idx == 0:
-            save_filename = 'continuous.dat'
-            f = open(os.path.join(savedir_path,save_filename), 'wb') # save
-            data_reshape.tofile(f)
-            f.close()
-        else:
-            f = open(os.path.join(savedir_path,save_filename), 'a') # append
-            data_reshape.tofile(f)
-            f.close()
+            # Load continuous data as numpy.memmap
+            np_recorddir = os.path.split(path)[1]
+            _, metadata = load_neuropixel_data(np_datadir,np_recorddir,'ap')
+            data = np.memmap(continuous_data_path, dtype='int16')
+            data_reshape = data.reshape(-1,metadata['num_channels'])
 
-    # Save datasize and filename of each entry for preprocessing after spike sorting
-    np.save(os.path.join(savedir_path, 'datasize_entry'), np.array(datasize_entry))
-    np.save(os.path.join(savedir_path, 'task_path'), np.array(file_path))
+            # Store file path and datasize in original data
+            file_path.append(np_recorddir)
+            datasize_entry.append(data_reshape.shape[0])
+
+            # Save data (concatentate data)
+            if idx == 0:
+                save_filename = 'continuous.dat'
+                f = open(os.path.join(savedir_path,save_filename), 'wb') # save
+                data_reshape.tofile(f)
+                f.close()
+            else:
+                f = open(os.path.join(savedir_path,save_filename), 'a') # append
+                data_reshape.tofile(f)
+                f.close()
+
+        # Save datasize and filename of each entry for preprocessing after spike sorting
+        np.save(os.path.join(savedir_path, 'datasize_entry'), np.array(datasize_entry))
+        np.save(os.path.join(savedir_path, 'task_path'), np.array(file_path))

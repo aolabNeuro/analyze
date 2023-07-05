@@ -233,7 +233,7 @@ class BMI3DTests(unittest.TestCase):
 class NeuropixelTest(unittest.TestCase):
     
     def test_load_neuropixel_data(self):
-        record_dir = '2023-03-26_Neuropixel_te8921'
+        record_dir = '2023-03-26_Neuropixel_beignet_te8921'
         # AP data
         data,metadata = load_neuropixel_data(data_dir, record_dir, 'ap', port_number=1)
         self.assertEqual(data.samples.shape[1], metadata['num_channels'])
@@ -246,7 +246,7 @@ class NeuropixelTest(unittest.TestCase):
         self.assertEqual(metadata['xpos'].shape[0], metadata['ypos'].shape[0])
            
     def test_load_neuropixel_configuration(self):
-        record_dir = '2023-03-26_Neuropixel_te8921'
+        record_dir = '2023-03-26_Neuropixel_beignet_te8921'
         port_num = 1
         config = load_neuropixel_configuration(data_dir, record_dir, port_number=port_num)
         nch = config['channel'].shape[0]
@@ -255,7 +255,7 @@ class NeuropixelTest(unittest.TestCase):
         self.assertEqual(config['port'], str(port_num))
         
     def test_load_neuropixel_event(self):
-        record_dir = '2023-03-26_Neuropixel_te8921'
+        record_dir = '2023-03-26_Neuropixel_beignet_te8921'
         # AP data
         events = load_neuropixel_event(data_dir, record_dir, 'ap', port_number=1)
         self.assertTrue(all(np.diff(events['sample_number'])>0)) # sample numbers should increaseb monotonically
@@ -266,7 +266,7 @@ class NeuropixelTest(unittest.TestCase):
         self.assertTrue(all(events['stream_name'] == b'ProbeA-LFP'))
            
     def test_get_neuropixel_digital_input_times(self):
-        record_dir = '2023-03-26_Neuropixel_te8921'
+        record_dir = '2023-03-26_Neuropixel_beignet_te8921'
         on_times,off_times = get_neuropixel_digital_input_times(data_dir, record_dir, 'ap', port_number=1)
         self.assertTrue(all(np.diff(on_times)>0)) # on_times should increaseb monotonically
         self.assertTrue(all(off_times - on_times)>0) # on_times precede off_times
@@ -275,9 +275,18 @@ class NeuropixelTest(unittest.TestCase):
     def test_load_ks_output(self):
         date = '2023-03-26'
         subject = 'beignet'
-        ks_output = load_ks_output(data_dir, subject, date, port_number=1, flag='spike')
+        kilosort_dir = os.path.join(data_dir, 'kilosort')
+        concat_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
+        ks_output = load_ks_output(kilosort_dir, concat_data_dir, flag='spike')
         self.assertTrue('spike_indices' in list(ks_output.keys()))
         self.assertTrue('spike_clusters' in list(ks_output.keys()))
+    
+    def test_chanel_bank_name(self):
+        record_dir = '2023-03-26_Neuropixel_beignet_te8921'
+        ch_config_dir = os.path.join(data_dir, 'channel_config_np')
+        _,metadata = load_neuropixel_data(data_dir, record_dir, 'ap', port_number=1)
+        ch_name = get_channel_bank_name(metadata['ch_bank'], ch_config_dir =ch_config_dir)
+        self.assertEqual(ch_name, 'bottom')
                 
 class HDFTests(unittest.TestCase):
 

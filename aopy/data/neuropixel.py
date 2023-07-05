@@ -198,7 +198,7 @@ def get_neuropixel_digital_input_times(data_dir, data_folder, datatype, node_idx
     
     return on_times, off_times
 
-def load_ks_output(preproc_dir, subject, date, port_number=1, flag='spike'):
+def load_ks_output(kilosort_dir, concat_data_dir, flag='spike'):
     '''
     load kilosort output preprocessed by kilosort.
     If falg is 'spike', it loads spike information (spike indices, spike label)
@@ -207,10 +207,8 @@ def load_ks_output(preproc_dir, subject, date, port_number=1, flag='spike'):
     If flag is 'rez', it loads rez.mat file, which contains drift map information
     
     Args:
-        preproc_dir (str): preprocessed directory where the files live
-        subject (str): subject name
-        date (str): date of recording (ex. '2023-04-14')
-        port_number (int, optional): port number which a probe connected to. natural number from 1 to 4.
+        kilosort_dir (str): kilosort directory (ex. '/data/preprocessed/kilosort')
+        concat_data_dir (str): data directory that contains concatenated data and kilosort_output (ex. '2023-06-30_Neuropixel_ks_affi_bottom_port1')
         flag (str, optional): Which data you load. 'spike','template','channel', or 'rez'
         
     Return:
@@ -218,11 +216,7 @@ def load_ks_output(preproc_dir, subject, date, port_number=1, flag='spike'):
     '''
 
     # Get kilosort directory path
-    kilosort_path = os.path.join(preproc_dir, f'spike_sorting/{date}_Neuropixel_{subject}_kilosort')
-    
-    # Get probe data path
-    probe_dir = convert_port_number(port_number)
-    data_path = glob.glob(os.path.join(kilosort_path,f'**/{probe_dir}'),recursive=True)[0]
+    data_path = os.path.join(kilosort_dir, concat_data_dir)
     
     # path for kilosort data
     if flag == 'spike':
@@ -266,32 +260,55 @@ def load_ks_output(preproc_dir, subject, date, port_number=1, flag='spike'):
     
     return kilosort_output
 
-def load_parsed_ksdata(preproc_dir, subject, date, te_id, port_number=1):
+def load_parsed_ksdata(kilosort_dir, data_dir):
     '''
-    load kilosort data (spike indices and clusters) parsed into the task entries
+    load kilosort data (spike indices, clusters, and label) parsed into the task entries
     This data is not still synchronized
     
     Args:
-        preproc_dir (str): preprocessed directory where the files live
-        subject (str): subject name
-        date (str): date of recording
-        te_id (int): block number of Task entry object
-        port_number (int, optional): port number which a probe connected to. natural number from 1 to 4.
+        kilosort_dir (str): kilosort directory (ex. '/data/preprocessed/kilosort')
+        data_dir (str): data directory that contains parsed data (ex. '2023-06-30_Neuropixel_ks_affi_bottom_port1_9847')
         
     Returns:
-        tuple: Tuple containing:
-            | **spike_indices (nspikes):** spike indices detected by kilosort (not spike times)
-            | **spike_clusters (nspikes):** unit label detected  by kilsort
+        spike_indices (nspikes): spike indices detected by kilosort (not spike times)
+        spike_clusters (nspikes): unit label detected  by kilsort
     '''
     
     # Path for loading spikes and clusters
-    preproc_path = os.path.join(preproc_dir, f'spike_sorting/kilosort_{date}_{subject}_{te_id}_np')
-    probe_name = convert_port_number(port_number)
-    spike_path = glob.glob(os.path.join(preproc_path,f'**/{probe_name}/spike_indices_entry.npy'),recursive=True)[0]
-    cluster_path = glob.glob(os.path.join(preproc_path,f'**/{probe_name}/spike_clusters_entry.npy'),recursive=True)[0]
+    data_path = os.path.join(kilosort_dir, data_dir)
+    spike_path = os.path.join(data_path,'spike_indices_entry.npy')
+    cluster_path = os.path.join(data_path,'spike_clusters_entry.npy')
+    label_path = os.path.join(data_path,'ks_label.npy')
 
     # Load spikes and clusters
     spike_indices = np.load(spike_path)
     spike_clusters = np.load(cluster_path)
+    ks_label = np.load(label_path)
     
-    return spike_indices, spike_clusters
+    return spike_indices, spike_clusters, ks_label
+
+def get_channel_bank_name(ch_bank_data, ch_config_dir ='/data/channel_config_np', filename='channel_bank.npy'):
+    '''
+    Get the information about which channels are used for recording. This function assumes channel configuration is either of below,
+    long-br, middle, long-tr, top, long-tl, long-bl, bottom.
+    
+    Args:
+        ch_bank_data (nch): channel bank information contained in neuropixel
+        ch_config_dir (str, optional): directory that contains the channel configuration file
+        filename (str, optional): filename that includes all bank information.
+        
+    Returns:    
+        chname (str): channel name (long-br, middle, long-tr, top, long-tl, long-bl, bottom)
+    '''
+    data_path = os.path.join(ch_config_dir, filename)
+
+    # Load data about channel configuration
+    ch_bank_info =  np.load(data_path, allow_pickle=True).item()
+    ch_bank_list = list(ch_bank_info.keys())
+
+    # Compare actual data with configuration files to see whch bank of each channel is used.
+    for chname in ch_bank_list:
+        if np.all(ch_bank_info[chname] == ch_bank_data):
+            break
+        
+    return chname
