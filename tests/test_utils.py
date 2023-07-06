@@ -411,7 +411,7 @@ class MemoryTests(unittest.TestCase):
         a = np.ones((1000000,100))
         print(f"allocated {a.nbytes/1e9} GB")
 
-class TestSynchronization(unittest.TestCase):
+class TestNeuropixel(unittest.TestCase):
     
     def test_get_first_last_times(self):
         barcode_ontimes = np.array([35.2, 66.3, 95.2, 125.1, 156.5, 186.4])
@@ -433,6 +433,12 @@ class TestSynchronization(unittest.TestCase):
         self.assertEqual(sync_timestamp[10], 12)
         self.assertEqual(sync_timestamp[90], 93)
         self.assertEqual(scaling, (93-12)/(90-10))
+        
+    def test_convert_port_number(self):
+        probe_dir = convert_port_number(1)
+        self.assertEqual(probe_dir, 'Neuropix-PXI-100.ProbeA-AP')
+        probe_dir = convert_port_number(2)
+        self.assertEqual(probe_dir, 'Neuropix-PXI-100.ProbeB-AP')
         
 if __name__ == "__main__":
     unittest.main()

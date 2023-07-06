@@ -631,21 +631,21 @@ def extract_barcodes_from_times(on_times,off_times,inter_barcode_interval=30,bar
     Read barcodes from timestamped rising and falling edges. This function came from the openephys repository
     
     Notes:
-    ignores first code in prod (ok, but not intended)
-    ignores first on pulse (intended - this is needed to identify that a barcode is starting)
+        ignores first code in prod (ok, but not intended)
+        ignores first on pulse (intended - this is needed to identify that a barcode is starting)
     
     Args:
-    on_times (ndarray): Timestamps of rising edges on the barcode line
-    off_times (ndarray): Timestamps of falling edges on the barcode line
-    inter_barcode_interval (float) : Minimun duration of time between barcodes.
-    bar_duration (float): A value slightly shorter than the expected duration of each bar
-    barcode_duration_ceiling (float) : The maximum duration of a single barcode
-    nbits (int): The bit-depth of each barcode
+        on_times (ndarray): Timestamps of rising edges on the barcode line
+        off_times (ndarray): Timestamps of falling edges on the barcode line
+        inter_barcode_interval (float) : Minimun duration of time between barcodes.
+        bar_duration (float): A value slightly shorter than the expected duration of each bar
+        barcode_duration_ceiling (float) : The maximum duration of a single barcode
+        nbits (int): The bit-depth of each barcode
     
     Returns:
         tuple: tuple containing:
-            |** barcode_start_times (list):** For each detected barcode, the time at which that barcode started
-            |** barcodes (list of int):** For each detected barcode, the value of that barcode as an integer.
+            | **barcode_start_times (list):** For each detected barcode, the time at which that barcode started
+            | **barcodes (list of int):** For each detected barcode, the value of that barcode as an integer.
     """
 
     start_indices = np.diff(on_times)
@@ -690,15 +690,15 @@ def get_first_last_times(barcode_on_times, barcode_on_times_main, barcode, barco
     Get the first and last time when barcodes (sync pulses) come to each stream.
     
     Args: 
-    barcode_on_times (n_times) : the times at which barcode comes to the auxiliary stream
-    barcode_on_times_main (k_times) : the times at which barcode comes to the main stream
-    barcode (n-length list) : Unique barcode number in the auxiliary stream
-    barcode_main (k-length list) : Unique barcode number in the main stream
+        barcode_on_times (n_times) : the times at which barcode comes to the auxiliary stream
+        barcode_on_times_main (k_times) : the times at which barcode comes to the main stream
+        barcode (n-length list) : Unique barcode number in the auxiliary stream
+        barcode_main (k-length list) : Unique barcode number in the main stream
     
     Return:
         tuple: tuple containing:
-            |** first_last_times (2):** barcode on_times that corresponds to the first and last barcode in the recording
-            |** first_last_times (2):** barcode on_times in the main stream that corresponds to the first and last barcode in the recording
+            | **first_last_times (2):** barcode on_times that corresponds to the first and last barcode in the recording
+            | **first_last_times (2):** barcode on_times in the main stream that corresponds to the first and last barcode in the recording
     '''
     
     # Get barcode index that is shared across both streams
@@ -724,14 +724,14 @@ def sync_timestamp_offline(timestamp, on_times, on_times_main):
     Synchroniza timestamps with timestamps in another stream
     
     Args
-    timestamps (nt) : timestamps in the auxiliary stream that should be synchronized to main stream
-    on_time (2) : the first and last times when sync pulses come to the auxiliary stream in the recording
-    on_time_main (2) : the first and last times when sync pulses come to the main stream in the recording
+        timestamps (nt) : timestamps in the auxiliary stream that should be synchronized to main stream
+        on_time (2) : the first and last times when sync pulses come to the auxiliary stream in the recording
+        on_time_main (2) : the first and last times when sync pulses come to the main stream in the recording
     
     Retuen:
         tuple: tuple containing:
-            |** sync_timestamps (nt):** synchronized timestamps
-            |** scaling (float):** scaling factor between streams
+            | **sync_timestamps (nt):** synchronized timestamps
+            | **scaling (float):** scaling factor between streams
     '''
     
     scaling = (on_times_main[-1] - on_times_main[0])/(on_times[-1] - on_times[0])
@@ -739,3 +739,18 @@ def sync_timestamp_offline(timestamp, on_times, on_times_main):
     
     return sync_timestamp, scaling
 
+def convert_port_number(port_number, datatype='ap'):
+    '''
+    convert port_number to directory name made by openephys
+    
+    Args:
+        port_number (int): port number which a probe connected to. natural number from 1 to 4.
+        datatyoe (str, optional): datatype of neuropixel. 'ap' or 'lfp'
+    
+    Returns:
+        probe_dir (str): Probe directory name that contains AP data
+    '''
+    letter = chr(ord('@')+port_number)
+    probe_dir = f'Neuropix-PXI-100.Probe{letter}-{datatype.upper()}'
+    
+    return probe_dir
