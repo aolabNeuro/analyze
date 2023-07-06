@@ -202,8 +202,8 @@ def load_ks_output(kilosort_dir, concat_data_dir, flag='spike'):
     '''
     load kilosort output preprocessed by kilosort.
     If falg is 'spike', it loads spike information (spike indices, spike label)
-    If flag is 'template', it loads template informaiton that was used for spike sorting
-    If flag is 'channel', it loads channel mapping information that kilosort used
+    If flag is 'template', it loads template informaiton that was used for spike sorting in kilosort
+    If flag is 'channel', it loads channel mapping information in kilosort
     If flag is 'rez', it loads rez.mat file, which contains drift map information
     
     Args:
