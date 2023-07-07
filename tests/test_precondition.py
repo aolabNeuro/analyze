@@ -459,7 +459,33 @@ class SpikeDetectionTests(unittest.TestCase):
         self.assertEqual(binned_unit_spikes[3], 300)
         self.assertEqual(time_bins[2], 0.025)
         self.assertEqual(time_bins[3], 0.035)
+        
+    def test_calc_ks_waveforms(self):
+        spike_unit = {}
+        np.random.seed(0)
+        spike_unit['0'] = np.sort(np.random.choice(10000,20,replace=False)) # 20 spikes
+        spike_unit['1'] = np.sort(np.random.choice(10000,20,replace=False)) # 20 spikes
+        templates = np.zeros((2,40,2)) # (n_spikes, n_points, n_channels)
+        templates[0,:,0] = np.exp(-(np.arange(40) - 40)**2 / (2 * 1**2))
+        templates[1,:,1] = np.exp(-(np.arange(40) - 40)**2 / (2 * 1**2))
+        channel_pos = np.array([[0,0],[1,5]])
+        # make test raw data
+        sample_rate = 1
+        sig = 1
+        rawdata = np.zeros((10000,2))
+        for ispike1, ispike2 in zip(spike_unit['0'],spike_unit['1']):
+            x = np.arange(20) + ispike1 -10
+            rawdata[ispike1-10:ispike1+10,0] = np.exp(-(x - ispike1)**2 / (2 * sig**2))
+            x = np.arange(20) + ispike2 -10
+            rawdata[ispike2-10:ispike2+10,1] = 0.5*np.exp(-(x - ispike2)**2 / (2 * sig**2))
 
+        test_waveforms, test_waveforms_ch, test_unit_pos = precondition.calc_ks_waveforms(rawdata, sample_rate, spike_unit, templates, channel_pos, waveforms_nch=2, time_before=30000000., time_after=30000000.)
+        self.assertEqual(test_waveforms['0'].shape,(20,60,2))
+        self.assertTrue(np.all(test_waveforms_ch['0'] == np.array([0,1])))
+        self.assertTrue(np.all(test_waveforms_ch['1'] == np.array([1,0])))
+        self.assertTrue(np.all(test_unit_pos['0'] == np.array([0,0])))
+        self.assertTrue(np.all(test_unit_pos['1'] == np.array([1,5])))
+        
 class EyeTests(unittest.TestCase):
 
     @classmethod
