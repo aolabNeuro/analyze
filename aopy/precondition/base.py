@@ -598,6 +598,62 @@ def bin_spikes(data, fs, bin_width):
     binned_spikes = binned_spikes/bin_width # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes
 
+def calc_ks_waveforms(raw_data, sample_rate, spike_times_unit, templates, channel_pos, waveforms_nch=10, time_before=1000., time_after=1000.):
+    '''
+    Calculate waveforms, waveform channels, and positions of units, using templates from kilosort
+    
+    args:
+        raw_data (nt,nch): time series neural data to detect spikes and extract waveforms from.
+        sample_rate (float): sampling rate (Hz)
+        spike_times_unit (dict): spike times for each unit identified by kilosort
+        templates (n_unit, n_points, nch): templates that kilosort used to detect spikes
+        channel_pos (nch, 2): channel positions
+        waveforms_nch (int, optional): the number of channels with large amplitude of templates
+        time_before (float, optional): time (us) to include before the start of each trial
+        time_after (float, optional): time (us) to include after the start of each trial
+    
+    returns
+        tuple: tuple containing:
+            | **unit_waveforms (dict):** waveforms for each unit. The shape is (nspikes,  m_points, waveforms_nch)
+            | **unit_waveforms_ch (n_unit, waveforms_nch):** large amplitude channels in templates
+            | **unit_pos (dict):** channel positions of each unit
+    '''
+    
+    time_before *= 1e-6
+    time_after *= 1e-6
+    nch = channel_pos.shape[0]
+    duration = int((time_before + time_after)*sample_rate)
+    
+    unit_waveforms_ch = {}
+    unit_waveforms = {}
+    unit_pos = {}
+
+    for iunit, unit in enumerate(spike_times_unit.keys()):
+        # Look at high amplitude channels in templates
+        amp_template_ch = np.zeros(nch)
+        for ich in range(nch):
+            amp_template_ch[ich] = np.max(templates[int(unit),:,ich])-np.min(templates[int(unit),:,ich]) # don't use iunit instead of int(unit)
+
+        # Sort high amplitude channels and save channels and their positions
+        large_amp_ch = np.argsort(amp_template_ch)[::-1][:waveforms_nch]
+        unit_waveforms_ch[f'{unit}'] = large_amp_ch
+        unit_pos[f'{unit}'] = channel_pos[large_amp_ch[0],:]
+
+        # Get waveforms in high amplitude channels for each spike
+        unit_times = spike_times_unit[f'{unit}']
+        waveforms = np.zeros((unit_times.shape[0],duration,waveforms_nch))*np.nan
+        for ispike, unit_time in enumerate(unit_times):
+            start = int((unit_time - time_before)*sample_rate)
+            end = start + duration
+
+            if np.logical_and(end < raw_data.shape[0], start >= 0): # Ensure there are enough data points to grab the waveform
+                for ich, ch in enumerate(large_amp_ch):
+                    waveforms[ispike,:,ich] = raw_data[start:end,ch]
+                    
+        unit_waveforms[f'{unit}'] = waveforms
+        
+    return unit_waveforms, unit_waveforms_ch, unit_pos
+
 def bin_spike_times(spike_times, time_before, time_after, bin_width):
     '''
     Computes binned spikes (spike rate) [spikes/s]. The input data are 1D spike times in seconds.
