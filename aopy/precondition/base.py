@@ -601,6 +601,7 @@ def bin_spikes(data, fs, bin_width):
 def calc_ks_waveforms(raw_data, sample_rate, spike_times_unit, templates, channel_pos, waveforms_nch=10, time_before=1000., time_after=1000.):
     '''
     Calculate waveforms, waveform channels, and positions of units, using templates from kilosort
+    This function does not account for drift correction
     
     args:
         raw_data (nt,nch): time series neural data to detect spikes and extract waveforms from.
