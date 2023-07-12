@@ -2,6 +2,8 @@
 Interface between database methods/models and data analysis code
 '''
 import json
+import os
+import pickle
 import sys
 from collections import defaultdict
 import warnings
@@ -233,14 +235,21 @@ class BMI3DTaskEntry():
         
         return rewards
 
-    def get_decoder(self):
+    def get_decoder(self, decoder_dir=None):
         '''
         Fetch the decoder object from the database, if there is one.
 
         Returns:
             Decoder: decoder object (type depends on which decoder is being loaded)
         '''
-        return bmi3d.get_decoder(self.record, dbname=self.dbname)
+        if decoder_dir is not None:
+            filename = bmi3d.get_decoder_name(self.record)
+            filename = os.path.join(decoder_dir, filename)
+        else:
+            filename = bmi3d.get_decoder_name_full(self.record)
+        dec = pickle.load(open(filename, 'rb'))
+        dec.db_entry = self.get_decoder_record()
+        return dec
     
     def get_decoder_record(self):
         '''
