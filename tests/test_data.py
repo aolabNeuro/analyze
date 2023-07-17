@@ -888,13 +888,21 @@ class DatabaseTests(unittest.TestCase):
 
     def test_lookup_sessions(self):
 
-        # Basic sanity tests
+        # Most basic lookup
+        sessions = db.lookup_sessions(id=1)
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].id, 1)
+        sessions = db.lookup_sessions(id=[1,2])
+        self.assertEqual(len(sessions), 2)
+        self.assertEqual(sessions[1].id, 2)
+
+        # Other sanity tests
         total_sessions = 4
         self.assertEqual(len(db.lookup_sessions()), total_sessions)
-        self.assertEqual(len(db.lookup_mc_sessions("test_subject", "2023-06-26")), 1)
-        self.assertEqual(len(db.lookup_flash_sessions("test_subject", "2023-06-26")), 1)
-        self.assertEqual(len(db.lookup_tracking_sessions("test_subject", "2023-06-26")), 1)
-        self.assertEqual(len(db.lookup_bmi_sessions("test_subject", "2023-06-26")), 1)
+        self.assertEqual(len(db.lookup_mc_sessions()), 1)
+        self.assertEqual(len(db.lookup_flash_sessions()), 1)
+        self.assertEqual(len(db.lookup_tracking_sessions()), 1)
+        self.assertEqual(len(db.lookup_bmi_sessions()), 1)
 
         # Test filtering
         self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
@@ -910,12 +918,6 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sessions[0].project, "test project")
         self.assertEqual(sessions[0].experimenter, "experimenter_1")
         self.assertEqual(str(sessions[0].date), "2023-06-26")
-
-        # Special case - filter by features
-        sessions = db.lookup_sessions(has_features="feat_1")
-        self.assertEqual(len(sessions), 1)
-        sessions = db.lookup_sessions(has_features=["feat_1"])
-        self.assertEqual(len(sessions), 1)
 
         # Special case - filter by id
         sessions = db.lookup_sessions(exclude_ids=[2,3])
@@ -933,8 +935,25 @@ class DatabaseTests(unittest.TestCase):
         self.assertRaises(Exception, db.lookup_sessions)
         db.BMI3D_DBNAME = 'default'
 
+    def test_filter_functions(self):
+        
+        # Filter by features
+        filter_fn = db.filter_has_features("feat_1")
+        sessions = db.lookup_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 1)
+        filter_fn = db.filter_has_features(["feat_1"])
+        sessions = db.lookup_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 1)
+
+        # Filter neural data
+        filter_fn = db.filter_has_neural_data("ecog")
+        sessions = db.lookup_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 0)
+
     def test_BMI3DTaskEntry(self):
-        te = db.lookup_sessions(has_features="feat_1")[0]
+
+        # Test that all the fields work as they should
+        te = db.lookup_sessions(task_desc='task_desc')[0]
         self.assertEqual(te.subject, 'test_subject')
         self.assertEqual(te.experimenter, 'experimenter_1')
         self.assertEqual(te.id, 2)
@@ -959,13 +978,14 @@ class DatabaseTests(unittest.TestCase):
         raw = te.get_db_object()
         self.assertIsNotNone(raw)
 
+        # Test a bmi session and decoder
         te = db.lookup_sessions(task_name="bmi control")[0]
         decoder = te.get_decoder_record()
         self.assertEqual(decoder.name, "test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
     def test_list_entry_details(self):
-        sessions = db.lookup_sessions(has_features="feat_1")
+        sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test_subject'])
         self.assertCountEqual(te_id, ['2'])

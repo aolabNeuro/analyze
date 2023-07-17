@@ -23,32 +23,59 @@ this = sys.modules[__name__]
 this.DB_TYPE = 'bmi3d' # can be modified with `db.DB_TYPE` after `from aopy.data import db``
 this.BMI3D_DBNAME = 'default' # can be modified with `db.BMI3D_DBNAME` after `from aopy.data import db`
 
-def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, session=None, project=None, 
-                    experimenter=None, has_features=None,
-                    exclude_ids=[], filter_fn=lambda x:True, **kwargs):
+def lookup_sessions(id=None, subject=None, date=None, task_name=None, task_desc=None, session=None, project=None, 
+                    experimenter=None, exclude_ids=[], filter_fn=lambda x:True, **kwargs):
     '''
     Returns list of entries for all sessions on the given date
+
+    Args:
+        id (int or list, optional): Lookup sessions with the given ids, if provided.
+        subject (str, optional): Lookup sessions with the given subject, if provided.
+        date (multiple, optional): Lookup sessions from the given date, if provided. Accepts multiple formats:
+            | datetime.date object
+            | (start, end) tuple of datetime.date objects
+            | (start, end) tuple of strings in the format 'YYYY-MM-DD'
+            | (year, month, day) tuple of integers
+        task_name (str, optional): Lookup sessions with the given task name, if provided. Examples include
+            `manual control`, `tracking`, `nothing`, etc.
+        task_desc (str, optional): Lookup sessions with the given task description, if provided. Examples include
+            `flash`, `simple center out`, `resting state`, etc.
+        session (str, optional): Lookup sessions with the given session name, if provided.
+        project (str, optional): Lookup sessions with the given project name, if provided.
+        experimenter (str, optional): Lookup sessions with the given experimenter, if provided.
+        exclude_ids (list, optional): Exclude sessions with matching task entry ids, if provided.
+        filter_fn (function, optional): Additional filtering, of signature `fn(session)->bool. 
+            Defaults to `lambda x:True`.
+        kwargs (dict, optional): optional keyword arguments to pass to database lookup function.
+
+    Returns:
+        list: list of TaskEntry sessions matching the query
     '''
     if this.DB_TYPE == 'bmi3d':
-        if subject:
+        if id is not None and isinstance(id, list):
+            kwargs['pk__in'] = id
+        elif id is not None:
+            kwargs['pk'] = id
+        if subject is not None:
             kwargs['subj'] = subject
-        if date:
+        if date is not None:
             kwargs['date'] = date
-        if task_name:
+        if task_name is not None:
             kwargs['task'] = task_name
-        if task_desc:
+        if task_desc is not None:
             kwargs['entry_name'] = task_desc
-        if session:
+        if session is not None:
             kwargs['session'] = session
-        if project:
+        if project is not None:
             kwargs['project'] = project
-        if experimenter:
+        if experimenter is not None:
             kwargs['experimenter__name'] = experimenter
-        entries = [BMI3DTaskEntry(e) for e in bmi3d.get_task_entries(dbname=this.BMI3D_DBNAME, **kwargs)]
-        if has_features and not isinstance(has_features, list):
-            filter_fn = filter_fn and (lambda x: x.has_feature(has_features))
-        elif has_features:
-            filter_fn = filter_fn and (lambda x: all([x.has_feature(f) for f in has_features]))
+        
+        # Initial lookup, wrapped into BMI3DTaskEntry objects
+        entries = bmi3d.get_task_entries(dbname=this.BMI3D_DBNAME, **kwargs)
+        entries = [BMI3DTaskEntry(e) for e in entries]
+
+        # Additional filtering
         if len(entries) == 0:
             warnings.warn("No entries found")
             return []
@@ -57,31 +84,73 @@ def lookup_sessions(subject=None, date=None, task_name=None, task_desc=None, ses
         warnings.warn("Unsupported db type!")
         return []
     
-def lookup_flash_sessions(subject, date, mc_task_name='manual control', **kwargs):
+def lookup_flash_sessions(mc_task_name='manual control', **kwargs):
     '''
-    Returns list of entries for all flash sessions on the given date
+    Returns list of entries for all flash sessions on the given date.
+    See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
     filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' in te.task_desc)
-    return lookup_sessions(subject, date, task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+    return lookup_sessions(task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
 
-def lookup_mc_sessions(subject, date, mc_task_name='manual control', **kwargs):
+def lookup_mc_sessions(mc_task_name='manual control', **kwargs):
     '''
     Returns list of entries for all manual control sessions on the given date
+    See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
     filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' not in te.task_desc)
-    return lookup_sessions(subject, date, task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+    return lookup_sessions(task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
 
-def lookup_tracking_sessions(subject, date, tracking_task_name='tracking', **kwargs):
+def lookup_tracking_sessions(tracking_task_name='tracking', **kwargs):
     '''
     Returns list of entries for all tracking sessions on the given date
+    See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    return lookup_sessions(subject, date, task_name=tracking_task_name, **kwargs)
+    return lookup_sessions(task_name=tracking_task_name, **kwargs)
 
-def lookup_bmi_sessions(subject, date, bmi_task_name='bmi control', **kwargs):
+def lookup_bmi_sessions(bmi_task_name='bmi control', **kwargs):
     '''
     Returns list of entries for all bmi control sessions on the given date
+    See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    return lookup_sessions(subject, date, task_name=bmi_task_name, **kwargs)
+    return lookup_sessions(task_name=bmi_task_name, **kwargs)
+
+'''
+Filter functions
+'''
+def filter_has_features(features):
+    '''
+    Filter function to select sessions only if they had the given features enabled
+
+    Args:
+        features (list or str): a list of feature names, or a single feature
+
+    Returns:
+        function: a filter function to pass to `lookup_sessions`
+    '''
+    if not isinstance(features, list):
+        filter_fn = lambda x: x.has_feature(features)
+    else:
+        filter_fn = lambda x: all([x.has_feature(f) for f in features])
+    return filter_fn
+
+def filter_has_neural_data(datasource):
+    '''
+    Filter function to select sessions only if they contain neural data recordings
+
+    Args:
+        datasource (str): 'ecog' or 'neuropixel'
+
+    Returns:
+        function: a filter function to pass to `lookup_sessions`
+
+    '''
+    if datasource == 'ecog':
+        return lambda x: x.get_task_param('record_headstage')
+    elif datasource == 'neuropixel':
+        return lambda x: x.has_feature('neuropixel')
+    else:
+        warnings.warn('No datasource matching description')
+        return lambda x: False
 
 '''
 Database objects
@@ -349,6 +418,18 @@ class BMI3DTaskEntry():
 Wrappers
 '''
 def list_entry_details(sessions):
+    '''
+    Returns (subject, te_id, date) for each given session.
+
+    Args:
+        sessions (list of TaskEntry): list of sessions
+
+    Returns:
+        tuple: tuple containing
+            | **subject (list):** list of subject names
+            | **te_id (list):** list of task entry ids
+            | **date (list):** list of dates
+    '''
     return zip(*[(te.subject, str(te.id), str(te.date)) for te in sessions])
 
 def group_entries(sessions, grouping_fn=lambda te: te.date):
@@ -359,11 +440,14 @@ def group_entries(sessions, grouping_fn=lambda te: te.date):
         sessions (list of task entries): TaskEntry objects to group
         grouping_fn (callable, optional): grouping_fn(task_entry) takes a TaskEntry as 
             its only argument and returns a hashable and sortable object by which to group the ids
+
+    Returns:
+        list: list of tuples, each tuple containing a group of sessions
     '''
     keyed_ids = defaultdict(list)
     for te in sessions:
         key = grouping_fn(te)
-        keyed_ids[key].append(id)
+        keyed_ids[key].append(te)
 
     keys = list(keyed_ids.keys())
     keys.sort()
