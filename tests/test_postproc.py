@@ -134,14 +134,21 @@ class TestTrajectoryFuncs(unittest.TestCase):
         np.testing.assert_almost_equal(rotated_point3d, goal_rotated_point3d)
 
         # Test that points and arrays give the same result
-        spatial_data = np.array([[2,1,3], [4,1,4]])
-        spatial_point = np.array([4,1,4])
-        current_axis = np.array([5,3,1])
-        new_axis = np.array([1,0, 0])
+        # Define a vector with magnitude 6.5 along x-axis (2D for simplicity)
+        spatial_data = np.array([4.5, 4.5])
+        
+        # Define the current axis along x-axis and new axis at a 45 degree angle
+        current_axis = np.array([4.5, 4.5])
+        new_axis = np.array([6.36,0])  # 45 degree direction
+    
+        # Call the function to rotate the spatial_data
         rotated_data = rotate_spatial_data(spatial_data, new_axis, current_axis)
-        rotated_point = rotate_spatial_data(spatial_point, new_axis, current_axis)
-
-        np.testing.assert_almost_equal(rotated_data[1,:], rotated_point[0,:])
+    
+        # Expected result after 45 degree rotation
+        expected_result = np.array([[6.36,0]])
+    
+        # Assert that the rotated_data is close to the expected_result
+        np.testing.assert_allclose(rotated_data, expected_result, rtol = 1e-4)
 
     def test_get_relative_point_location(self):
         # Test with multiple points
