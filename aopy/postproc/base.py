@@ -42,6 +42,8 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
 
     Returns:
         output_spatial_data (nt, ndim): new reach trajectory rotated to the new axis
+
+    Updates: July 2023 : updated function to work when new_axis is not a unit vector
     '''
 
     # Check if input data is a single point and enfore that it is a row vector
