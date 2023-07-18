@@ -42,6 +42,8 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
 
     Returns:
         output_spatial_data (nt, ndim): new reach trajectory rotated to the new axis
+
+    Updates: July 2023 : updated function to work when new_axis is not a unit vector
     '''
 
     # Check if input data is a single point and enfore that it is a row vector
@@ -101,7 +103,7 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
     # Check that we did the correct rotation
     output_axis = rotation_matrix @ current_axis3d
     output_axis = output_axis/np.linalg.norm(output_axis)
-    assert np.allclose(output_axis, new_axis3d, atol=1e-4), "Something went wrong!"
+    assert np.allclose(output_axis, new_axis3d/np.linalg.norm(new_axis3d), atol=1e-4), "Something went wrong!"
 
     # Return trajectories the the same dimensions as the input
     if spatial_data.shape[1] == 2:

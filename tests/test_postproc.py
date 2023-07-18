@@ -143,6 +143,16 @@ class TestTrajectoryFuncs(unittest.TestCase):
 
         np.testing.assert_almost_equal(rotated_data[1,:], rotated_point[0,:])
 
+        # Test if target positions in center out rotate correctly
+        unique_targets = np.array([[4.5962, 4.5962],[0., -6.5 ],[-6.5, 0.],[-4.5962, -4.5962],[0., 6.5]])
+        new_axis = np.array([6.5,0])
+
+        for target in unique_targets:
+            current_axis = target.copy()
+            print(target, new_axis, target)
+            rotated_target = rotate_spatial_data(target, new_axis, current_axis)
+            np.allclose(rotated_target, new_axis, atol=1e-6)
+
     def test_get_relative_point_location(self):
         # Test with multiple points
         cursorpos = np.array(((1,1),(1,1),(1,1)))
