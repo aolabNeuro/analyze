@@ -586,3 +586,4 @@ def get_source_files(preproc_dir, subject, te_id, date):
         
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
+
