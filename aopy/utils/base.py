@@ -704,10 +704,18 @@ def get_first_last_times(barcode_on_times, barcode_on_times_main, barcode, barco
     # Get barcode index that is shared across both streams
     index_main = []
     index = []
-    for idx, i_barcode in enumerate(barcode):
-        if i_barcode in barcode_main:
-            index_main.append(barcode_main.index(i_barcode))
-            index.append(idx)
+    
+    if barcode_on_times.shape[0] == barcode_on_times_main.shape[0]:
+        # if shape of barcode timing is same, use the first and last indices
+        index_main.append(0)
+        index_main.append(-1)
+        index.append(0)
+        index.append(-1)
+    else:
+        for idx, i_barcode in enumerate(barcode):
+            if i_barcode in barcode_main:
+                index_main.append(barcode_main.index(i_barcode))
+                index.append(idx)
     
     # Get the indices that correspond to the first and last barcode in the recording
     first_last_idx = [index[0],index[-1]]
