@@ -141,7 +141,7 @@ def get_taskspace_and_nullspace(mapping, task='2DCenterOut'):
         n_a (3 x 3 numpy array): Matrix that projects hand movement into the null space
     '''
     if task == '2DCenterOut':
-        a = mapping[[0,2], :] # rows are cursor and columns are hand
+        a = mapping[[0,2], :] # rows are cursor and columns are hand. taking only hy and hz components of optitrack that correspond to up/down and right/left
     elif task == '1DTracking':
         a = mapping[2,:]
 
@@ -155,7 +155,7 @@ def decompose_hand_movements(hand_data, mapping):
     '''
     Decomposes hand movement into components of movement in the plane of the screen and out of the plane of the screen
     Args:
-        hand_data (2D numpy array): 3D array of hand trajectory data (n_timepoints x 3)
+        hand_data (2D numpy array): 3D array of hand trajectory per trial (n_timepoints x 3) in optitrack space. X - forward/back, Y - up/down, Z - right/left
         mapping (3 x 3 numpy array): Mapping matrix used in experiment. See :func:`get_mapping` for more details . Rows must be cursor and columns must be hand.
 
     Returns:
@@ -163,10 +163,11 @@ def decompose_hand_movements(hand_data, mapping):
     '''
     t_a, n_a = get_taskspace_and_nullspace(mapping)
     hand_data = np.array(hand_data)
+
     hT = np.dot(t_a, hand_data.T)  # 3x2400
     hN = np.dot(n_a, hand_data.T)
 
-    hT_norm = np.mean(np.linalg.norm(hT, axis=0))
-    hN_norm = np.mean(np.linalg.norm(hN, axis=0))
+    hT_norm = np.mean(np.linalg.norm(hT, axis=0)) # gives the magnitude of movement in task space
+    hN_norm = np.mean(np.linalg.norm(hN, axis=0)) # gives the magnitude of movement in null space
 
     return  hT_norm, hN_norm
