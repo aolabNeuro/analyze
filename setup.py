@@ -25,12 +25,13 @@ install_requires = [
     'seaborn',
     'pyyaml',
     'tqdm',
-    'open-ephys-python-tools'
+    'open-ephys-python-tools',
+    'aolab-bmi3d',
 ]
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.6.2",
+    version="0.6.3",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

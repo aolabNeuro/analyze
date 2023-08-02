@@ -5,6 +5,7 @@ from aopy.data import *
 from aopy.data import peslab
 from aopy.data import optitrack
 from aopy.data import bmi3d
+from aopy.data import db
 from aopy.postproc.base import get_calibrated_eye_data
 from aopy.visualization import *
 from aopy import preproc
@@ -13,6 +14,7 @@ import os
 import numpy as np
 import pandas as pd
 from matplotlib.testing.compare import compare_images
+import datetime
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -851,6 +853,172 @@ class EyeTests(unittest.TestCase):
         self.assertIn('calibrated_data', eye_data)
         self.assertIn('coefficients', eye_data)
         self.assertIn('external_calibration', eye_metadata)    
+
+class DatabaseTests(unittest.TestCase):
+
+    # Create some tests - only has to be run once and saved in db/tes
+    @classmethod
+    def setUpClass(cls):
+        db.BMI3D_DBNAME = 'default'
+        db.DB_TYPE = 'bmi3d'
+
+        '''
+        This database contains one subject and one experimenter:
+        - Subject(name="test_subject")
+        - Experimenter(name="experimenter_1")
+        
+        Tasks:
+        - Task(name="manual control")
+        - Task(name="tracking")
+
+        Features:
+        - Feature(name="feat_1")
+
+        Systems:
+        - System(name="test_system", path="", archive="")
+
+        Decoders:
+        - Decoder(name="test_decoder", entry_id=3) # the bmi control entry
+
+        Generators:
+        - Generator(name="test_gen")
+
+        Sequences:
+        - Sequence(name="test_seq", generator_name="test_gen", params='{"seq_param_1": 1}')
+        
+        Entries:
+        - Tracking task entry from 2023-06-26
+        - Manual control entry from 2023-06-26
+            - project = "test project"
+            - session = "test session"
+            - entry_name = "task_desc" 
+            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
+            - feats = [feat_1]
+            - params = '{"task_param_1": 1}'
+        - Flash entry (manual control task) from 2023-06-26
+            - entry_name = "flash"
+            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
+        - BMI entry (bmi control task) from 2023-06-26
+            - params='{"bmi": 0}'
+        ''' 
+
+    def test_lookup_sessions(self):
+
+        # Most basic lookup
+        sessions = db.lookup_sessions(id=1)
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].id, 1)
+        sessions = db.lookup_sessions(id=[1,2])
+        self.assertEqual(len(sessions), 2)
+        self.assertEqual(sessions[1].id, 2)
+
+        # Other sanity tests
+        total_sessions = 4
+        self.assertEqual(len(db.lookup_sessions()), total_sessions)
+        self.assertEqual(len(db.lookup_mc_sessions()), 1)
+        self.assertEqual(len(db.lookup_flash_sessions()), 1)
+        self.assertEqual(len(db.lookup_tracking_sessions()), 1)
+        self.assertEqual(len(db.lookup_bmi_sessions()), 1)
+
+        # Test filtering
+        self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
+        self.assertEqual(len(db.lookup_sessions(subject="test_subject")), total_sessions)
+        sessions = db.lookup_sessions(subject="test_subject", date="2023-06-26", task_name="manual control",
+                                      task_desc="task_desc", session="test session", project="test project",
+                                      experimenter="experimenter_1")
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].task_name, "manual control")
+        self.assertEqual(sessions[0].task_desc, "task_desc")
+        self.assertEqual(sessions[0].subject, "test_subject")
+        self.assertEqual(sessions[0].session, "test session")
+        self.assertEqual(sessions[0].project, "test project")
+        self.assertEqual(sessions[0].experimenter, "experimenter_1")
+        self.assertEqual(str(sessions[0].date), "2023-06-26")
+
+        # Special case - filter by id
+        sessions = db.lookup_sessions(exclude_ids=[2,3])
+        self.assertEqual(len(sessions), 2)
+
+        # Special case - arbitrary filter fn
+        sessions = db.lookup_sessions(filter_fn=lambda x:x.duration > 0)
+        self.assertEqual(len(sessions), 2)
+
+        # Check that changing the db name works
+        db.DB_TYPE = 'unknown'
+        self.assertEqual(len(db.lookup_sessions()), 0)
+        db.DB_TYPE = 'bmi3d'
+        db.BMI3D_DBNAME = 'rig2'
+        self.assertRaises(Exception, db.lookup_sessions)
+        db.BMI3D_DBNAME = 'default'
+
+    def test_filter_functions(self):
+        
+        # Filter by features
+        filter_fn = db.filter_has_features("feat_1")
+        sessions = db.lookup_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 1)
+        filter_fn = db.filter_has_features(["feat_1"])
+        sessions = db.lookup_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 1)
+
+        # Filter neural data
+        filter_fn = db.filter_has_neural_data("ecog")
+        sessions = db.lookup_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 0)
+
+    def test_BMI3DTaskEntry(self):
+
+        # Test that all the fields work as they should
+        te = db.lookup_sessions(task_desc='task_desc')[0]
+        self.assertEqual(te.subject, 'test_subject')
+        self.assertEqual(te.experimenter, 'experimenter_1')
+        self.assertEqual(te.id, 2)
+        self.assertEqual(str(te.date), "2023-06-26")
+        self.assertEqual(type(te.datetime), datetime.datetime)
+        self.assertEqual(te.session, 'test session')
+        self.assertEqual(te.project, 'test project')
+        self.assertEqual(te.task_name, 'manual control')
+        self.assertEqual(te.task_desc, 'task_desc')
+        self.assertEqual(te.notes, '')
+        self.assertEqual(te.duration, 3.0)
+        self.assertEqual(te.n_trials, 1)
+        self.assertEqual(te.features[0], 'feat_1')
+        decoder = te.get_decoder_record()
+        self.assertEqual(decoder, None)
+        self.assertCountEqual(te.task_params.keys(), ['task_param_1'])
+        self.assertEqual(te.get_task_param('task_param_1'), 1)
+        self.assertCountEqual(te.sequence_params.keys(), ['seq_param_1'])
+        self.assertEqual(te.get_sequence_param('seq_param_1'), 1)
+        self.assertCountEqual(te.get_preprocessed_sources(), ['exp', 'eye'])
+        self.assertEqual(len(te.get_raw_files()), 0)
+        raw = te.get_db_object()
+        self.assertIsNotNone(raw)
+
+        # Test a bmi session and decoder
+        te = db.lookup_sessions(task_name="bmi control")[0]
+        decoder = te.get_decoder_record()
+        self.assertEqual(decoder.name, "test_decoder")
+        self.assertRaises(Exception, te.get_decoder) # No decoder file present
+
+    def test_list_entry_details(self):
+        sessions = db.lookup_sessions(task_desc='task_desc')
+        subject, te_id, date = db.list_entry_details(sessions)
+        self.assertCountEqual(subject, ['test_subject'])
+        self.assertCountEqual(te_id, ['2'])
+        self.assertCountEqual(date, ['2023-06-26'])
+        
+    def test_group_entries(self):
+
+        sessions = db.lookup_sessions()
+        grouped = db.group_entries(sessions) # by date
+        self.assertEqual(len(grouped), 1)
+        self.assertEqual(len(grouped[0]), 4)
+
+        grouped = db.group_entries(sessions, lambda x: x.duration) # by duration
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual(len(grouped[0]), 2) # duration = 0.0
+        self.assertEqual(len(grouped[1]), 2) # duration = 3.0
+
 
 if __name__ == "__main__":
     unittest.main()
