@@ -1180,8 +1180,8 @@ class BehaviorMetricsTests(unittest.TestCase):
 
         onset_targ,offset_targ,onset_event,offset_event = aopy.analysis.get_saccade_label(eye_pos, saccades_times, dur, fs, targ_pos, radius, times, event)
         self.assertTrue(np.all(onset_targ==[1,-1]))
-        self.assertTrue(np.all(offset_targ==[20,30]))
-        self.assertTrue(np.all(onset_event==[1,-1]))
+        self.assertTrue(np.all(onset_event==[20,30]))
+        self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
 if __name__ == "__main__":
