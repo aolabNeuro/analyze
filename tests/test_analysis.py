@@ -1168,22 +1168,6 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
 
-    def test_get_saccade_label(self):
-        eye_pos = np.array([[0,0,0,1,1,1,1,5,5],[0,0,0,0,0,0,0,0,0]]).T
-        saccades_times = np.array([3,7])
-        dur = np.array([1.0,1.0])
-        fs = 1.
-        targ_pos = np.array([[0,0],[1,0]])
-        radius = 0.5
-        times = np.array([2,6])
-        event = np.array([20,30])
-
-        onset_targ,offset_targ,onset_event,offset_event = aopy.analysis.get_saccade_label(eye_pos, saccades_times, dur, fs, targ_pos, radius, times, event)
-        self.assertTrue(np.all(onset_targ==[1,-1]))
-        self.assertTrue(np.all(onset_event==[20,30]))
-        self.assertTrue(np.all(offset_targ==[1,-1]))
-        self.assertTrue(np.all(offset_event==[20,30]))
-
 if __name__ == "__main__":
     unittest.main()
 

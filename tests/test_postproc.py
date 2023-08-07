@@ -248,5 +248,26 @@ class TestGetFuncs(unittest.TestCase):
         calibrated = get_calibrated_eye_data(eye_data, coefficients)
         np.testing.assert_array_equal(eye_data, calibrated)
 
+class TestEyeFuncs(unittest.TestCase):
+    
+    def test_get_saccade_label_event(self):
+        eye_pos = np.array([[0,0,0,1,1,1,1,5,5],[0,0,0,0,0,0,0,0,0]]).T
+        saccades_times = np.array([3,7])
+        dur = np.array([1.0,1.0])
+        fs = 1.
+        targ_pos = np.array([[0,0],[1,0]])
+        radius = 0.5
+        times = np.array([2,6])
+        event = np.array([20,30])
+        
+        onset_pos, offset_pos = get_saccade_pos(eye_pos, saccades_times, dur, fs)
+        onset_targ,offset_targ = get_saccade_label_center_out(onset_pos, offset_pos, targ_pos, radius)
+        onset_event, offset_event = get_saccade_event(saccades_times, dur, times, event)
+        self.assertTrue(np.all(onset_pos.shape == (2,2)))
+        self.assertTrue(np.all(onset_targ==[1,-1]))
+        self.assertTrue(np.all(onset_event==[20,30]))
+        self.assertTrue(np.all(offset_targ==[1,-1]))
+        self.assertTrue(np.all(offset_event==[20,30]))
+
 if __name__ == "__main__":
     unittest.main()
