@@ -1398,7 +1398,7 @@ class NeuropixelTests(unittest.TestCase):
         ch_config_dir = os.path.join(data_dir, 'channel_config_np')
         
         # concatenate data
-        concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
+        savedir_names = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
         
         # load each data
         data1, _ = load_neuropixel_data(data_dir, np_recorddir1,'ap',port_number=1)
