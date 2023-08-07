@@ -17,6 +17,12 @@ BMI3D
 .. automodule:: aopy.data.bmi3d
     :members:
 
+Database
+^^^^^^^^
+
+.. automodule:: aopy.data.db
+    :members:
+
 Peslab
 ^^^^^^
 
