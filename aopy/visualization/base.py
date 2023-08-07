@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import cm
 from matplotlib.collections import LineCollection
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -93,7 +94,7 @@ def plot_timeseries(data, samplerate, ax=None, **kwargs):
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (V)')
 
-def gradient_timeseries(data, samplerate, n_colors, color_palette='viridis', ax=None, **kwargs):
+def gradient_timeseries(data, samplerate, n_colors=100, color_palette='viridis', ax=None, **kwargs):
     '''
     Draw gradient lines of timeseries data. Default units are seconds and volts.
 
@@ -763,18 +764,18 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         labels = np.array(labels).astype(int)
         colors = [color_list[i] for i in labels]
 
-        segments = [np.vstack([s[:,0], s[:,1]]).T for s in segments]
-        lc = LineCollection(segments, colors=colors, **kwargs)
-
          # Plot in 3D, fall back to 2D
         try:
             ax.set_zlabel('z')
-            ax.add_collection3d(lc, zs=[s[:,2] for s in segments])
+            segments = [np.vstack([s[:,0], s[:,1], s[:,2]]).T for s in segments]
+            lc = Line3DCollection(segments, colors=colors, **kwargs)
+            ax.add_collection(lc)
             ax.set_box_aspect((1, 1, 1))
 
         except:
+            segments = [np.vstack([s[:,0], s[:,1]]).T for s in segments]
+            lc = LineCollection(segments, colors=colors, **kwargs)
             ax.add_collection(lc)
-
                 
     try:
         ax.set_zlabel('z')
@@ -786,6 +787,7 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         set_bounds(bounds, ax)
     else:
         ax.margins(0.05)
+
     ax.set_xlabel('x')
     ax.set_ylabel('y')        
 
