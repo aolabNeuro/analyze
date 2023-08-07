@@ -533,7 +533,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         files, raw_data_dir = get_source_files(preproc_dir, subject, te_id, date)
         self.assertEqual(files['hdf'], 'hdf/beig20220701_04_te5974.hdf')
         self.assertEqual(files['ecube'], 'ecube/2022-07-01_BMI3D_te5974')
-        self.assertEqual(raw_data_dir, '/data/raw')
+        self.assertEqual(raw_data_dir, '/media/moor-data/raw')
 
     def test_tabulate_behavior_data(self):
 
