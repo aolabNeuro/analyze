@@ -2,7 +2,7 @@ import numpy as np
 
 def get_saccade_pos(eye_pos, onset_times, duration, samplerate):
     '''
-    Computes saccade positions when saccades start and end in a given trial
+    Returns the coordinates of the start and end of each given saccade
     
     Args:
         eye_pos (nt,nch): eye position data
@@ -16,91 +16,77 @@ def get_saccade_pos(eye_pos, onset_times, duration, samplerate):
         | **offset_pos (nsaccade,nch):** eye positions when saccades end in a given trial 
     '''    
 
-    onset_pos = np.zeros((onset_times.shape[0], eye_pos.shape[1]))
-    offset_pos = np.zeros((onset_times.shape[0], eye_pos.shape[1]))
+    # Convert onset times and durations to sample indices
+    onset_indices = (onset_times * samplerate).astype(int)
+    offset_indices = ((onset_times + duration) * samplerate).astype(int)
     
-    for isaccade, (dur, onset) in enumerate(zip(duration, onset_times)): 
-        offset = dur + onset
-        onset_pos[isaccade,:] = eye_pos[int(onset*samplerate),:]
-        offset_pos[isaccade,:] = eye_pos[int(offset*samplerate),:]
-        
+    # Get eye positions for onset and offset indices
+    onset_pos = eye_pos[onset_indices, :]
+    offset_pos = eye_pos[offset_indices, :]
+    
     return onset_pos, offset_pos
         
-def get_saccade_label_center_out(onset_pos, offset_pos, target_pos, target_radius):
+def get_saccade_target_index(onset_pos, offset_pos, target_pos, target_radius):
     '''
-    Determines a target number a subject looked at before and after a saccade. When the subject looked at irrelevant areas, the target number gets -1.
-    This function is for the standard center out task.
+    Determines a target index a subject looked at during a saccade. When the subject 
+    looked at irrelevant areas, the target index is -1.
     
     Args:
         onset_pos (nsaccade, 2): eye positions when saccades start in a given trial
         onset_pos (nsaccade, 2): eye positions when saccades end in a given trial
-        target_pos (ntarget, 2): target positions including the center target
-        target_radius (float): target radius or larger radius to determine which targets a saccade is for
+        target_pos (ntarget, 2): target positions, e.g. center and peripheral targets
+        target_radius (float): radius around the target center to search
     
     Returns:
         tuple: tuple containing:
-        | **onset_target (nsaccade):** target number a subject looked at when a saccade starts
-        | **offset_target (nsaccade):** target number a subject looked at when a saccade ends    
+        | **onset_target (nsaccade):** target index at saccade start
+        | **offset_target (nsaccade):** target index at saccade end    
     '''
     
-    onset_target = []
-    offset_target = []
-
-    nsaccade = onset_pos.shape[0]
-    for isaccade in range(nsaccade):        
-        # Check if this saccade is for looking at a target or not
-        onset_label = (onset_pos[isaccade,0] - target_pos[:,0])**2 + (onset_pos[isaccade,1] - target_pos[:,1])**2 <= target_radius**2
-        offset_label = (offset_pos[isaccade,0] - target_pos[:,0])**2 + (offset_pos[isaccade,1] - target_pos[:,1])**2 <= target_radius**2
-
-        # Get a target number of the saccade
-        if np.any(onset_label):
-            onset_label = np.where(onset_label)[0][0]
-        else:
-            onset_label = -1
-
-        if np.any(offset_label):
-            offset_label = np.where(offset_label)[0][0]
-        else:
-            offset_label = -1
-        
-        onset_target.append(onset_label)
-        offset_target.append(offset_label)
-
-    onset_target = np.array(onset_target)
-    offset_target = np.array(offset_target)
-
+    # Calculate distances between saccade positions and target positions
+    onset_dists = np.linalg.norm(onset_pos[:, np.newaxis, :] - target_pos, axis=2)
+    offset_dists = np.linalg.norm(offset_pos[:, np.newaxis, :] - target_pos, axis=2)
+    
+    # Determine if the saccades are directed towards any target
+    onset_label = onset_dists <= target_radius
+    offset_label = offset_dists <= target_radius
+    
+    # Get target numbers for onset and offset
+    onset_target = np.argmax(onset_label, axis=1)
+    offset_target = np.argmax(offset_label, axis=1)
+    
+    # Set target number to -1 for saccades not directed at any target
+    onset_target[~np.any(onset_label, axis=1)] = -1
+    offset_target[~np.any(offset_label, axis=1)] = -1
+    
     return onset_target, offset_target
 
-def get_saccade_event(onset_times, duration, event_times, event_code):
+def get_saccade_event(onset_times, duration, event_times, event_codes):
     '''
-    Returns event codes passed just before a saccade starts and ends
+    Returns event codes corresponding to times in which the start and end of 
+    each given saccade falls. 
     
     Args:
-        onset_times (nsaccade): saccade onset times (in seconds) generated in a trial segment.
-        duration (nsaccade): saccade duration (in seconds) of saccades generated in a trial segment
-        event_times (nevent): event times in a trial segment
-        event_code (nevent): event codes in a trial segment
+        onset_times (nsaccade): saccade onset times (in seconds)
+        duration (nsaccade): saccade duration (in seconds) of saccades in the onset_times list
+        event_times (nevent): list of event times (in seconds)
+        event_codes (nevent): event codes corresponding to the given event_times
     
     Returns:
         tuple: tuple containing:
-        | **onset_event (nsaccade):** event code passed when a saccade starts
-        | **offset_event (nsaccade):** event code passed when a saccade ends
+        | **onset_event (nsaccade):** event in which each saccade starts
+        | **offset_event (nsaccade):** event in which each saccade ends
     '''
     
-    onset_event = []
-    offset_event = []
+    # Calculate saccade offset times
+    offset_times = onset_times + duration
     
-    for dur, onset in zip(duration, onset_times): 
-        offset = dur + onset
-        
-        # Extract the last event code before and after a saccade
-        onset_event_code = event_code[np.where(event_times < onset)[0][-1]]
-        offset_event_code = event_code[np.where(event_times < offset)[0][-1]]
-        
-        onset_event.append(onset_event_code)
-        offset_event.append(offset_event_code)
-        
-    onset_event = np.array(onset_event)
-    offset_event = np.array(offset_event)
+    # Each index is the event preceding the saccade
+    onset_indices = np.searchsorted(event_times, onset_times, side='right') - 1
+    offset_indices = np.searchsorted(event_times, offset_times, side='right') - 1
+    
+    # Get event codes using the indices
+    onset_event = event_codes[onset_indices]
+    offset_event = event_codes[offset_indices]
     
     return onset_event, offset_event

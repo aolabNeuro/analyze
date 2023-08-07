@@ -250,7 +250,7 @@ class TestGetFuncs(unittest.TestCase):
 
 class TestEyeFuncs(unittest.TestCase):
     
-    def test_get_saccade_label_event(self):
+    def test_get_saccade_target_index(self):
         eye_pos = np.array([[0,0,0,1,1,1,1,5,5],[0,0,0,0,0,0,0,0,0]]).T
         saccades_times = np.array([3,7])
         dur = np.array([1.0,1.0])
@@ -261,7 +261,7 @@ class TestEyeFuncs(unittest.TestCase):
         event = np.array([20,30])
         
         onset_pos, offset_pos = get_saccade_pos(eye_pos, saccades_times, dur, fs)
-        onset_targ,offset_targ = get_saccade_label_center_out(onset_pos, offset_pos, targ_pos, radius)
+        onset_targ,offset_targ = get_saccade_target_index(onset_pos, offset_pos, targ_pos, radius)
         onset_event, offset_event = get_saccade_event(saccades_times, dur, times, event)
         self.assertTrue(np.all(onset_pos.shape == (2,2)))
         self.assertTrue(np.all(onset_targ==[1,-1]))
