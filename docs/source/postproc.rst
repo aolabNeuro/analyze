@@ -9,5 +9,14 @@ Examples functions include spike filtering, spike detection, spike binning, LFP 
 API
 ---
 
+Base
+^^^^
+
 .. automodule:: aopy.postproc.base
+    :members:
+
+Eye
+^^^
+
+.. automodule:: aopy.postproc.eye
     :members:
