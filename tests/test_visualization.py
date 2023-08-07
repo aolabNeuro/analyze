@@ -30,6 +30,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
         savefig(write_dir, filename)
 
+    def test_gradient_timeseries(self):
+        filename = 'timeseries_gradient.png'
+        data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
+        samplerate = 1000
+        plt.figure()
+        gradient_timeseries(data, samplerate)
+        savefig(write_dir, filename)
+
     def test_spatial_map(self):
         data = np.linspace(-1, 1, 100)
         x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
@@ -424,6 +432,58 @@ class OtherPlottingTests(unittest.TestCase):
         plt.title('Segmented trajectories')
         filename = 'color_trajectories_segmented.png'
         savefig(docs_dir, filename)
+
+    def test_gradient_trajectories(self):
+
+        trajectories = [
+            np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [2, 2, 0],
+                [3, 3, 0],
+                [4, 2, 0]
+            ]),
+            np.array([
+                [-1, 1, 0],
+                [-2, 2, 0],
+                [-3, 3, 0],
+                [-3, 4, 0]
+            ]),
+            np.array([
+                [2, 1, 0],
+                [2, -1, 0],
+                [3, -5, 0],
+                [5, -5, 0]
+            ])
+        ]
+        plt.figure()
+        gradient_trajectories(trajectories, n_colors=4)
+        plt.title('Gradient trajectories')
+        filename = 'gradient_trajectories_simple.png'
+        savefig(docs_dir, filename)
+        plt.close()
+
+        # Load some test cursor data
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        preproc_dir = data_dir
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='cursor')
+        plt.figure()
+        gradient_trajectories(traj[:3])
+        filename = 'gradient_trajectories.png'
+        savefig(docs_dir, filename)
+        plt.close()
+
+        # Hand data plotted in 3d
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        gradient_trajectories(traj[:3], bounds=[30,50,10,20,55,65], ax=ax)
+
+        filename = 'gradient_trajectories_3d.png'
+        savefig(docs_dir, filename)
+        plt.close()
 
     def test_plot_sessions_by_date(self):
         from datetime import date, timedelta
