@@ -490,7 +490,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=lambda
             raise ValueError(f"No calibrated eye data for {te_id}")
         
         time = np.arange(len(eye_data))/eye_metadata['samplerate']
-        raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data['calibrated_data'], samplerate)
+        raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
     else:
         raise ValueError(f"Unknown datatype {datatype}")
 
