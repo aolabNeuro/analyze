@@ -33,7 +33,7 @@ def get_saccade_target_index(onset_pos, offset_pos, target_pos, target_radius):
     
     Args:
         onset_pos (nsaccade, 2): eye positions when saccades start in a given trial
-        onset_pos (nsaccade, 2): eye positions when saccades end in a given trial
+        offset_pos (nsaccade, 2): eye positions when saccades end in a given trial
         target_pos (ntarget, 2): target positions, e.g. center and peripheral targets
         target_radius (float): radius around the target center to search
     
