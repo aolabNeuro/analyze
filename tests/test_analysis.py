@@ -1168,7 +1168,6 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
 
-
 if __name__ == "__main__":
     unittest.main()
 
