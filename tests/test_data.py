@@ -489,16 +489,6 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
         self.assertEqual(len(trajs), 7)
 
-        # Test the samplerate return option
-        trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, return_samplerate=True)
-        self.assertEqual(samplerate, 1000)
-
-        trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand', return_samplerate=True)
-        self.assertEqual(samplerate, 1000)
-
-        trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye', return_samplerate=True)
-        self.assertEqual(samplerate, 1000)
-
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
@@ -581,6 +571,23 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
                                                include_center_target=True,
                                                include_handdata=False, include_eyedata=False)
         self.assertEqual(len(df), 18) # should be the same df as above
+
+    def test_tabulate_kinematic_data(self):
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
+                                               include_center_target=True,
+                                               include_handdata=False, include_eyedata=False)
+
+        start_times = [t[0] for t in df['event_times']] # maybe we could update the df to have start and end times directly
+        end_times = [t[-1] for t in df['event_times']]
+
+        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], start_times, end_times, 
+                            preproc=lambda t, x : x, datatype='cursor', samplerate=1000)
+
+        self.assertEqual(len(df), len(kin))
 
 class TestMatlab(unittest.TestCase):
     

@@ -1,6 +1,7 @@
 # data.py
 # Code for directly loading and saving data (and results)
 
+from functools import lru_cache
 import h5py
 import tables
 import os
@@ -302,6 +303,7 @@ def _load_hdf_dataset(dataset, name):
         pass
     return name, data
 
+@lru_cache(maxsize=1)
 def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Simple wrapper to get the data from an hdf file as a numpy array
@@ -324,6 +326,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     hdf.close()
     return np.array(data)
 
+@lru_cache(maxsize=1)
 def load_hdf_group(data_dir, hdf_filename, group="/"):
     '''
     Loads any datasets from the given hdf group into a dictionary. Also will
