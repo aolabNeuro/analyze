@@ -108,6 +108,15 @@ def gradient_timeseries(data, samplerate, n_colors=100, color_palette='viridis',
 
     Raises:
         ValueError: if the data has more than 2 dimensions
+
+    Example:
+        .. code-block:: python
+
+            data = np.reshape(np.sin(np.pi*np.arange(1000)/100), (1000))
+            samplerate = 1000
+            gradient_timeseries(data, samplerate)
+
+        .. image:: _images/timeseries_gradient.png
     '''           
     if data.ndim == 1:
         data = np.expand_dims(data, 1)
@@ -747,6 +756,19 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
         ax (plt.Axis, optional): axis to plot the targets on
         kwargs (dict): keyword arguments to pass to the LineCollection function (similar to plt.plot)
+
+    Example:
+
+        .. code-block:: python
+
+            subject = 'beignet'
+            te_id = 5974
+            date = '2022-07-01'
+            preproc_dir = data_dir
+            traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239])
+            gradient_trajectories(traj[:3])
+        
+        .. image:: _images/gradient_trajectories.png
     '''
 
     if ax is None:

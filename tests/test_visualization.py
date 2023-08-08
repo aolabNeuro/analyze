@@ -32,11 +32,11 @@ class NeuralDataPlottingTests(unittest.TestCase):
 
     def test_gradient_timeseries(self):
         filename = 'timeseries_gradient.png'
-        data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
+        data = np.reshape(np.sin(np.pi*np.arange(1000)/100), (1000))
         samplerate = 1000
         plt.figure()
         gradient_timeseries(data, samplerate)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
     def test_spatial_map(self):
         data = np.linspace(-1, 1, 100)
