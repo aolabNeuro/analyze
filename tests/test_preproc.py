@@ -1398,7 +1398,7 @@ class NeuropixelTests(unittest.TestCase):
         ch_config_dir = os.path.join(data_dir, 'channel_config_np')
         
         # concatenate data
-        savedir_names = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
+        _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
         
         # load each data
         data1, _ = load_neuropixel_data(data_dir, np_recorddir1,'ap',port_number=1)
@@ -1412,6 +1412,15 @@ class NeuropixelTests(unittest.TestCase):
         con_data = con_data.reshape(-1,384)
         self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
         self.assertTrue(np.all(con_data[sample_size1:sample_size1+10,:] == data2.samples[:10,:]))
+        
+        # Check removing bad task id
+        _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1, bad_taskid=['0001'])
+
+        concat_dataname = f'{date}_Neuropixel_ks_{subject}2_bottom_port1'
+        concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
+        con_data = np.memmap(os.path.join(concat_data_dir,'continuous.dat'), dtype='int16') # load continuous.dat file
+        con_data = con_data.reshape(-1,384) 
+        self.assertTrue(np.all(con_data[:10,:] == data2.samples[:10,:]))
             
     def test_parse_and_load_ksdata(self):
         date = '2023-03-26'
