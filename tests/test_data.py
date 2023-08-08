@@ -636,7 +636,7 @@ class TestYaml(unittest.TestCase):
         params_file = os.path.join(tmp_dir, 'task_codes.yaml')
 
          # Testing yaml_write
-        params = [{'CENTER_TARGET_ON': 16,
+        params = {'CENTER_TARGET_ON': 16,
                    'CURSOR_ENTER_CENTER_TARGET': 80,
                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
@@ -647,13 +647,17 @@ class TestYaml(unittest.TestCase):
                    'HOLD_PENALTY': 64,
                    'PAUSE': 254,
                    'TIME_ZERO': 238,
-                   'TRIAL_END': 239}]
+                   'TRIAL_END': 239}
         yaml_write(params_file, params)
 
         # Testing pkl_read
         task_codes = yaml_read(params_file)
 
         self.assertEqual(params,task_codes)
+
+        task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
+
+        self.assertDictEqual(params, task_codes_file)
 
 class SignalPathTests(unittest.TestCase):
 
