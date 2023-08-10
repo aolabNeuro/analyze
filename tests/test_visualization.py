@@ -427,7 +427,8 @@ class OtherPlottingTests(unittest.TestCase):
 
     def test_plot_sessions_by_date(self):
         from datetime import date, timedelta
-        dates = [date.today() - timedelta(days=2), date.today() - timedelta(days=2), date.today()]
+        today = date(1991, 9, 26)
+        dates = [today - timedelta(days=2), today - timedelta(days=2), today]
         success = [70, 65, 65]
         trials = [10, 20, 10]
 
@@ -436,7 +437,7 @@ class OtherPlottingTests(unittest.TestCase):
         ax.set_ylabel('success (%)')
 
         filename = 'sessions_by_date.png'
-        savefig(write_dir, filename) 
+        savefig(docs_dir, filename) 
         # expect a plot of success with three days, with success rate of 
         # (70 * 10 + 65 * 20)/30 = 66.6% on the first day and 65% on the last day with a gap in between
 
@@ -446,8 +447,8 @@ class OtherPlottingTests(unittest.TestCase):
         plot_sessions_by_date(df['trials'], df['dates'], df['success'], method='mean', ax=ax)
 
     def test_plot_sessions_by_trial(self):
-        success = [70, 65, 60]
-        trials = [10, 20, 10]
+        success = [70, 65, 60, 70, 59, 62, 71]
+        trials = [5, 12, 7, 8, 12, 4, 10]
 
         fig, ax = plt.subplots(1,1)
         plot_sessions_by_trial(trials, success, labels=['success rate'], ax=ax)
@@ -461,6 +462,19 @@ class OtherPlottingTests(unittest.TestCase):
         df = pd.DataFrame({'trials': trials, 'success': success})
         fig, ax = plt.subplots(1,1)
         plot_sessions_by_trial(df['trials'], df['success'], ax=ax)
+
+        # Split by date
+        from datetime import date, timedelta
+        today = date(1991, 9, 26)
+        dates = [today - timedelta(days=len(trials)-n) for n in range(len(trials))]
+        fig, ax = plt.subplots(2,1)
+        plot_sessions_by_trial(df['trials'], df['success'], dates=dates, ax=ax[0])
+        ax[0].set_ylabel('success (%)')
+
+        # Smoothing
+        plot_sessions_by_trial(df['trials'], df['success'], dates=dates, smoothing_window=3, ax=ax[1])
+        ax[1].set_ylabel('success (%)')
+        savefig(docs_dir, filename)
 
     def test_plot_events_time(self):
         events = np.zeros(10)

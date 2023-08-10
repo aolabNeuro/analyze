@@ -19,6 +19,7 @@ import copy
 import pandas as pd
 from tqdm import tqdm
 import pandas as pd
+from datetime import timedelta
 
 from .. import analysis
 from ..data import load_chmap
@@ -753,9 +754,10 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     else:
         ax.legend()
 
-def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
+def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, labels=None, ax=None, **kwargs):
     '''
-    Plot session data by absolute number of trials completed
+    Plot session data by absolute number of trials completed. Optionally split up the sessions by date and
+    apply smoothing to each day's data.
     
     Example:
         Plotting success rate over three sessions.
@@ -773,26 +775,49 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     Args:
         trials (nsessions): number of trials in each session
         *columns (nsessions): dataframe columns or numpy arrays to plot
+        dates (nsessions, optional): dataframe columns or numpy arrays of the date of each session
+        smoothing_window (int, optional): number of trials to smooth. Default no smoothing.
         labels (list, optional): string label for each column to go into the legend
         ax (pyplot.Axes, optional): axis on which to plot
     '''
     if ax == None:
-        ax = plt.gca()
+        ax = plt.gca()  
+
+    date_chg = []
+    if dates is not None:
+        trial_dates = np.repeat(np.array(dates), trials)
+        date_chg = np.insert(np.where(np.diff(trial_dates) > timedelta(0))[0] + 1, 0, 0)
+
     for idx_column in range(len(columns)):
         values = columns[idx_column]
         trial_values = []
         
         # Accumulate individual trials with the values given for each session
-        for v, t in zip(values, trials):
-            trial_values = np.concatenate((trial_values, np.tile(v, t)))
+        trial_values = np.repeat(values, trials)
         
+        # Apply smoothing
+        if smoothing_window is not None and dates is not None:
+            split = np.split(trial_values, date_chg[1:])
+            split = [analysis.calc_rolling_average(s, window_size=smoothing_window, mode='nan') for s in split]
+            trial_values = np.concatenate(split)
+        elif smoothing_window is not None:
+            trial_values = analysis.calc_rolling_average(trial_values, window_size=smoothing_window)
+        
+        # Plot with additional kwargs
         if hasattr(columns[idx_column], 'name'):
-            ax.plot(trial_values,  '.-', label=values.name)
+            ax.plot(trial_values, label=values.name, **kwargs)
         else:
-            ax.plot(trial_values,  '.-')
+            ax.plot(trial_values, **kwargs)
+
+    # Add date labels
+    ymin, ymax = ax.get_ylim()
+    for i in date_chg:
+        date = trial_dates[i]
+        ax.axvline(i, ymin=0, ymax=1, color='gray', linestyle='dashed')
+        ax.text(i, ymax, str(date), color='gray', rotation=90, ha='left', va='top')
 
     ax.set_xlabel('trials')
-    if labels:
+    if labels is not None:
         ax.legend(labels)
     else:
         ax.legend()
