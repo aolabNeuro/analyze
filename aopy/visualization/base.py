@@ -810,11 +810,11 @@ def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, 
             ax.plot(trial_values, **kwargs)
 
     # Add date labels
-    ymin, ymax = ax.get_ylim()
     for i in date_chg:
         date = trial_dates[i]
-        ax.axvline(i, ymin=0, ymax=1, color='gray', linestyle='dashed')
-        ax.text(i, ymax, str(date), color='gray', rotation=90, ha='left', va='top')
+        ax.axvline(i, ymin=0, ymax=1, color='gray', alpha=0.5, linestyle='dashed')
+        ax.text(i, 1, str(date), color='gray', rotation=90, ha='left', va='top', 
+                transform=ax.get_xaxis_transform())
 
     ax.set_xlabel('trials')
     if labels is not None:
