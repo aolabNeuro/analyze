@@ -63,7 +63,7 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
             continue # ignore if there isn't any calibration data
         correlation = np.mean(abs(eye_data['correlation_coeff']))
         print(correlation)
-        if correlation > best_correlation:
+        if correlation > best_correlation and correlation < 1.0: # 1.0 correlations aren't valid
             best_id = te_id
             best_coeff = eye_data['coefficients']
             best_correlation = correlation
