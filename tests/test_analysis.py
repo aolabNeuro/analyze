@@ -318,6 +318,27 @@ class CalcTests(unittest.TestCase):
         data_convolved = aopy.analysis.calc_rolling_average(data, kernel_size)
         np.testing.assert_array_almost_equal(data_convolved, np.array([2., 2., 3., 4., 4.]))
 
+        # Check mode 'nan'
+        data_convolved = aopy.analysis.calc_rolling_average(data, kernel_size, mode='nan')
+        np.testing.assert_array_almost_equal(data_convolved, np.array([np.nan, 2., 3., 4., np.nan]))
+
+        # Check if data is smaller than window
+        kernel_size = 7
+        data_convolved = aopy.analysis.calc_rolling_average(data, kernel_size)
+        np.testing.assert_array_almost_equal(data_convolved, np.mean(data)*np.ones(len(data)))
+        data_convolved = aopy.analysis.calc_rolling_average(data, kernel_size, mode='nan')
+        np.testing.assert_array_almost_equal(data_convolved, np.nan*np.ones(len(data)))
+
+        # Test with 2D data
+        data = np.array([[1, 2, 3, 4, 5], 
+                         [2, 3, 4, 5, 6]]).T
+        kernel_size = 3
+        expected = np.array([[2, 2, 3, 4, 4],
+                             [3, 3, 4, 5, 5]]).T
+        data_convolved = aopy.analysis.calc_rolling_average(data, kernel_size)
+        np.testing.assert_array_almost_equal(data_convolved, expected)
+
+
     def test_calc_corr_over_elec_distance(self):
         acq_data = np.array([[1, 2, 3], [4, 5, 6]])
         acq_ch = np.array([1, 2])

@@ -441,27 +441,44 @@ def calc_sem(data, axis=None):
 
     return SEM
 
-def calc_rolling_average(data, window_size=11):
+def calc_rolling_average(data, window_size=11, mode='copy'):
     """
-    Computes the rolling average of a 1D array using a convolutional kernel. The
-    first and last valid datapoint (fully overlapping with the kernel) are copied
-    backwards and forwards, respectively, such that the size of the output is the
-    same as the size of the input.
+    Computes the rolling average of a 1- or 2-D array using a convolutional kernel. 
+    The rolling average is always applied along the first axis of the array.
+    If mode is 'nan', the ends of the array where an incomplete rolling average
+    occurs is replaced with np.nan. If mode is 'copy' (the default), the first and 
+    last valid datapoint (fully overlapping with the kernel) are copied backwards 
+    and forwards, respectively. The size of the output will always be the same as 
+    the size of the input data. 
 
     Args:
-        data (nt): The 1D array of data to compute the rolling average for.
+        data (nt, nch): The array of data to compute the rolling average for.
         window_size (int): The size of the kernel in number of samples. Must be odd.
+        mode (str): Either 'copy' or 'nan', determines what happens on the edges
+            where the kernel doesn't fully overlap the data
     
     Returns:
         (nt,) array: The rolling average of the input data.
     """
     assert window_size % 2 == 1, "Kernel size must be odd."
     
-    kernel = np.ones(window_size) / window_size
-    data_convolved = np.convolve(data, kernel, mode='same')
+    data = np.array(data)
+    kernel = np.ones(window_size) / min(window_size, data.shape[0])
+    data_convolved = np.apply_along_axis(
+        lambda d: np.convolve(d, kernel, mode='same'), 0, data)
     mid_kernel_idx = math.floor(window_size/2)
-    data_convolved[:mid_kernel_idx] = data_convolved[mid_kernel_idx]
-    data_convolved[-mid_kernel_idx:] = data_convolved[-(mid_kernel_idx+1)]
+    if mode == 'nan':
+        data_convolved[:mid_kernel_idx] = np.nan
+        data_convolved[-mid_kernel_idx:] = np.nan
+    elif mode == 'copy':
+        data_convolved[:mid_kernel_idx] = data_convolved[mid_kernel_idx]
+        data_convolved[-mid_kernel_idx:] = data_convolved[-(mid_kernel_idx+1)]  
+    else:
+        raise ValueError(f"Invalid mode: {mode}. Choose from 'copy' or 'nan'.")
+    
+    # Fix shape if window is bigger than data
+    if data_convolved.shape[0] > data.shape[0]:
+        data_convolved = data_convolved[0]*np.ones(data.shape)
     return data_convolved
 
 def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
