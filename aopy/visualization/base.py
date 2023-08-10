@@ -745,7 +745,6 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
             ax.plot(plot_days, aggregate[idx_column,:], '.-', label=columns[idx_column].name)
         else:
             ax.plot(plot_days, aggregate[idx_column,:], '.-')
-    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     
