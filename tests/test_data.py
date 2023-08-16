@@ -1004,8 +1004,8 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test_subject'])
-        self.assertCountEqual(te_id, ['2'])
-        self.assertCountEqual(date, ['2023-06-26'])
+        self.assertCountEqual(te_id, [2])
+        self.assertCountEqual([str(d) for d in date], ['2023-06-26'])
         
     def test_group_entries(self):
 
