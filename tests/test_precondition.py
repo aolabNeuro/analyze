@@ -500,24 +500,27 @@ class EyeTests(unittest.TestCase):
         cls.samplerate = eye_metadata['samplerate']
 
     def test_filter_eye(self):
-        orig = self.calibrated_eye_data
+        length = 10 # seconds
+        orig = self.calibrated_eye_data[:int(self.samplerate*length)]
         t_orig = np.arange(len(orig))/self.samplerate
-        data_filt = filter_eye(orig, self.samplerate, downsamplerate=100)
-        samplerate = 100
+        samplerate = 1000
+        data_filt = filter_eye(orig, self.samplerate, downsamplerate=samplerate)
 
         le_orig = orig[:,:2]
         le_filt = data_filt[:,:2]
-        t = np.arange(len(le_filt))/self.samplerate
+        t = np.arange(len(le_filt))/samplerate
         self.assertNotEqual(self.samplerate, samplerate)
-        fig, ax = plt.subplots(4,1)
-        ax[0].plot(t_orig, le_orig)
-        plot_freq_domain_amplitude(le_orig, self.samplerate, ax=ax[1])
-        ax[1].set_ylim(0,1)
-        ax[1].set_xlim(1,1000)
-        ax[2].plot(t, le_filt)
-        plot_freq_domain_amplitude(le_filt, samplerate, ax=ax[3])
-        ax[3].set_ylim(0,1)
-        ax[3].set_xlim(1,1000)
+        fig, ax = plt.subplots(2,1)
+        ax[0].plot(t, le_filt[:,0], label='filt')
+        ax[0].plot(t_orig, le_orig[:,0], label='orig')
+        ax[0].set_xlabel('time (s)')
+        ax[0].legend()
+        plot_freq_domain_amplitude(le_orig[:,0], self.samplerate, ax=ax[1])
+        plot_freq_domain_amplitude(le_filt[:,0], samplerate, ax=ax[1])
+        ax[1].legend(['orig', 'filt'])
+        ax[1].set_xlim(20,150)
+        ax[1].set_xscale('linear')
+        ax[1].set_ylim(0, 0.05)
         plt.tight_layout()
         savefig(docs_dir, 'filter_eye.png')
 
@@ -540,9 +543,9 @@ class EyeTests(unittest.TestCase):
         savefig(docs_dir, 'convert_pos_to_accel_nofilter.png')
 
         # Important to low-pass filter before computing acceleration
-        pos_filt = filter_eye(pos, self.samplerate, downsamplerate=100)
-        samplerate = 100
-        accel = convert_pos_to_accel(pos, samplerate)
+        samplerate = 1000
+        pos_filt = filter_eye(pos, self.samplerate, downsamplerate=samplerate)
+        accel = convert_pos_to_accel(pos_filt, samplerate)
         fig, ax = plt.subplots(4,1)
         plot_timeseries(pos, self.samplerate, ax=ax[0])        
         ax[0].set_ylabel('pos')
@@ -560,10 +563,10 @@ class EyeTests(unittest.TestCase):
         savefig(docs_dir, 'convert_pos_to_accel_filter.png')
 
     def test_detect_saccades(self):
-        le_data_filt = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=100)
-        samplerate = 100
-
-        onset, duration, distance = detect_saccades(le_data_filt, samplerate, debug=True, debug_window=(0, 5))
+        samplerate = 1000
+        le_data_filt = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=samplerate)
+        le_speed = convert_pos_to_speed(le_data_filt, samplerate)
+        onset, duration, distance = detect_saccades(le_speed, samplerate, debug=True, debug_window=(0, 5))
         savefig(docs_dir, 'detect_saccades.png')
         plt.close()
 

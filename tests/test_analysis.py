@@ -1149,6 +1149,10 @@ class BehaviorMetricsTests(unittest.TestCase):
         path_length = aopy.analysis.compute_path_length_per_trajectory(pts)
         self.assertEqual(path_length, 5.0)
 
+        pts = [(0,0), (0,1), (0,-1), (0, 0)]
+        path_length = aopy.analysis.compute_path_length_per_trajectory(pts)
+        self.assertEqual(path_length, 4.0)
+
     def test_time_to_target(self):
         events =  [[80, 17, 32, 81, 48],
                    [80, 23, 32, 87, 48] ,
