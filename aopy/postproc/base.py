@@ -578,8 +578,8 @@ def get_source_files(preproc_dir, subject, te_id, date):
 
     Returns:
         tuple: tuple containing:
-            |** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
-            |** data_dir (str):** directory where the source files were located
+            | ** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
+            | ** data_dir (str):** directory where the source files were located
     '''
     warnings.warn("This function is deprecated and has been moved to `aopy.data.bmi3d`. "
         "Please update your code.", DeprecationWarning, stacklevel=2)

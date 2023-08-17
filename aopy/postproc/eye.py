@@ -12,8 +12,8 @@ def get_saccade_pos(eye_pos, onset_times, duration, samplerate):
     
     Returns:
         tuple: tuple containing:
-        | **onset_pos (nsaccade,nch):** eye positions when saccades start in a given trial
-        | **offset_pos (nsaccade,nch):** eye positions when saccades end in a given trial 
+            | **onset_pos (nsaccade,nch):** eye positions when saccades start in a given trial
+            | **offset_pos (nsaccade,nch):** eye positions when saccades end in a given trial 
     '''    
 
     # Convert onset times and durations to sample indices
@@ -39,8 +39,8 @@ def get_saccade_target_index(onset_pos, offset_pos, target_pos, target_radius):
     
     Returns:
         tuple: tuple containing:
-        | **onset_target (nsaccade):** target index at saccade start
-        | **offset_target (nsaccade):** target index at saccade end    
+            | **onset_target (nsaccade):** target index at saccade start
+            | **offset_target (nsaccade):** target index at saccade end    
     '''
     
     # Calculate distances between saccade positions and target positions
@@ -74,8 +74,8 @@ def get_saccade_event(onset_times, duration, event_times, event_codes):
     
     Returns:
         tuple: tuple containing:
-        | **onset_event (nsaccade):** event in which each saccade starts
-        | **offset_event (nsaccade):** event in which each saccade ends
+            | **onset_event (nsaccade):** event in which each saccade starts
+            | **offset_event (nsaccade):** event in which each saccade ends
     '''
     
     # Calculate saccade offset times

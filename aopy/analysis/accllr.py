@@ -139,8 +139,8 @@ def detect_accllr(accllr, upper, lower):
         
     Returns:
         tuple: tuple containing:
-            |**p (3,):** probability of upper, lower, and unknown level detections
-            |**selection_idx (ntrial):** index at which accllr crosses upper threshold 
+            | **p (3,):** probability of upper, lower, and unknown level detections
+            | **selection_idx (ntrial):** index at which accllr crosses upper threshold 
                 (or nan if missed) for each trial
     '''
     ntrial = accllr.shape[1]
@@ -203,8 +203,8 @@ def detect_accllr_fast(accllr, upper, lower):
         
     Returns:
         tuple: tuple containing:
-            |**p (3,):** probability of upper, lower, and unknown level detections
-            |**selection_idx (ntrial):** index at which accllr crosses upper threshold 
+            | **p (3,):** probability of upper, lower, and unknown level detections
+            | **selection_idx (ntrial):** index at which accllr crosses upper threshold 
                 (or nan if missed) for each trial
     '''
     nt = accllr.shape[0]
@@ -247,13 +247,13 @@ def calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels=200):
         
     Returns:
         tuple: tuple containing:
-            |**p_altcond (nlevels,3):** probability of upper, lower, and unknown level detections
+            | **p_altcond (nlevels,3):** probability of upper, lower, and unknown level detections
                 for the alternative condition at each detection level
-            |**p_nullcond (nlevels,3):** probability of upper, lower, and unknown level detections
+            | **p_nullcond (nlevels,3):** probability of upper, lower, and unknown level detections
                 for the null condition at each detection level
-            |**selection_idx (nlevels):** index at which accllr crosses upper threshold 
+            | **selection_idx (nlevels):** index at which accllr crosses upper threshold 
                 (or nan if missed) for each trial, averaged across trials
-            |**levels (nlevels):** levels used for calculation of probabilities
+            | **levels (nlevels):** levels used for calculation of probabilities
     '''
     max_accllr = np.nanmax([accllr_altcond, accllr_nullcond]) # ignore nan
     levels = np.linspace(max_accllr/nlevels,max_accllr,nlevels)
@@ -336,8 +336,8 @@ def calc_delong_roc_variance(ground_truth, predictions):
        
     Returns:
         tuple: tuple containing:
-            |**auc (float):** area under the curve after ROC analysis
-            |**cov (float):** variance of the predicted auc
+            | **auc (float):** area under the curve after ROC analysis
+            | **cov (float):** variance of the predicted auc
  
     Reference:
         @article{sun2014fast,

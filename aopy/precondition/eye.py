@@ -104,9 +104,9 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
         
     Returns:
         tuple: tuple containing:
-        | **onset (nsaccade):** onset time (in seconds) of each detected saccade
-        | **duration (nsaccade):** duration (in seconds) of each detected saccade
-        | **distance (nsaccade):** distance (same units as eye_pos) of each detected saccade
+            | **onset (nsaccade):** onset time (in seconds) of each detected saccade
+            | **duration (nsaccade):** duration (in seconds) of each detected saccade
+            | **distance (nsaccade):** distance (same units as eye_pos) of each detected saccade
 
     '''
     assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), "Threshold must be in the form" 

@@ -613,7 +613,7 @@ def calc_ks_waveforms(raw_data, sample_rate, spike_times_unit, templates, channe
         time_before (float, optional): time (us) to include before the start of each trial
         time_after (float, optional): time (us) to include after the start of each trial
     
-    returns
+    returns:
         tuple: tuple containing:
             | **unit_waveforms (dict):** waveforms for each unit. The shape is (nspikes,  m_points, waveforms_nch)
             | **unit_waveforms_ch (n_unit, waveforms_nch):** large amplitude channels in templates

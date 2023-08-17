@@ -66,9 +66,11 @@ def plot_timeseries(data, samplerate, ax=None):
     Plots data along time on the given axis
 
     Example:
+        
         Plot 50 and 100 Hz sine wave.
 
-        ::
+        .. code-block:: python
+
             data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
             samplerate = 1000
             plot_timeseries(data, samplerate)
@@ -97,9 +99,11 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     data and this will calculate and plot the amplitude spectrum. 
 
     Example:
+
         Plot 50 and 100 Hz sine wave amplitude spectrum. 
 
-        ::
+        .. code-block:: python
+
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000
             plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
@@ -160,7 +164,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
-        ::
+        .. code-block:: python
+
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
             missing = [0, 5, 25]
@@ -183,8 +188,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
 
     Returns:
         tuple: tuple containing:
-        | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
-        | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
+            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
+            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
@@ -617,8 +622,9 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
 
     Example:
 
-        ::
-            >>> trajectories =[
+        .. code-block:: python
+
+            trajectories =[
                     np.array([
                         [0, 0, 0],
                         [1, 1, 0],
@@ -633,15 +639,15 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
                         [-3, 4, 0]
                     ])
                 ]
-            >>> labels = [0, 0, 1, 0]
-            >>> colors = ['r', 'b']
-            >>> color_trajectories(trajectories, labels, colors)
+            labels = [0, 0, 1, 0]
+            colors = ['r', 'b']
+            color_trajectories(trajectories, labels, colors)
 
             .. image:: _images/color_trajectories_simple.png
 
-            >>> labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
-            >>> fig = plt.figure()
-            >>> color_trajectories(trajectories, labels_list, colors)
+            labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
+            fig = plt.figure()
+            color_trajectories(trajectories, labels_list, colors)
 
             .. image:: _images/color_trajectories_segmented.png
 
@@ -691,9 +697,11 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     values will be added together on each day, for example for number of trials.
     
     Example:
+
         Plotting success rate averaged across days.
 
-        ::
+        .. code-block:: python
+
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
             success = [70, 65, 65]
@@ -758,9 +766,11 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     Plot session data by absolute number of trials completed
     
     Example:
+
         Plotting success rate over three sessions.
 
-        ::
+        .. code-block:: python
+
             success = [70, 65, 60]
             trials = [10, 20, 10]
 
