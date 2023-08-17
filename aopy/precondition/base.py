@@ -603,7 +603,7 @@ def calc_ks_waveforms(raw_data, sample_rate, spike_times_unit, templates, channe
     Calculate waveforms, waveform channels, and positions of units, using templates from kilosort
     This function does not account for drift correction
     
-    args:
+    Args:
         raw_data (nt,nch): time series neural data to detect spikes and extract waveforms from.
         sample_rate (float): sampling rate (Hz)
         spike_times_unit (dict): spike times for each unit identified by kilosort
@@ -613,7 +613,7 @@ def calc_ks_waveforms(raw_data, sample_rate, spike_times_unit, templates, channe
         time_before (float, optional): time (us) to include before the start of each trial
         time_after (float, optional): time (us) to include after the start of each trial
     
-    returns:
+    Returns:
         tuple: tuple containing:
             | **unit_waveforms (dict):** waveforms for each unit. The shape is (nspikes,  m_points, waveforms_nch)
             | **unit_waveforms_ch (n_unit, waveforms_nch):** large amplitude channels in templates
