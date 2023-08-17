@@ -74,7 +74,7 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
         
     # Apply that calibration to all the other files
     te_ids = np.delete(te_ids, np.where(te_ids == best_id)[0])
-    print(f"Applying eye calibration from {subject} block {te_id} on {date} (r={best_correlation})"
+    print(f"Applying eye calibration from {subject} block {best_id} on {date} (r={best_correlation})"
           f" to {len(te_ids)-1} files...")
     if dry_run:
         return best_id, te_ids
