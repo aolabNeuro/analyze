@@ -8,6 +8,7 @@ from scipy import signal
 from .base import calc_rolling_average
 from .. import preproc
 from .. import postproc
+from .. import data
 
 '''
 Behavioral metrics 
@@ -323,7 +324,7 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
             tracking_rewards[trial_id] += int(time_in_target/reward_interval)
 
     # calculate max possible number of tracking rewards
-    seq_params = exp_metadata['sequence_params']
+    seq_params = data.db.lookup_sessions(id=te_id, subject=subject, date=date)[0].sequence_params
     if 'ramp_down' not in seq_params:
         seq_params['ramp_down'] = 0
     max_rewards = int((seq_params['time_length']+seq_params['ramp']+seq_params['ramp_down'])/reward_interval)
