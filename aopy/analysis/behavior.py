@@ -8,7 +8,7 @@ from scipy import signal
 from .base import calc_rolling_average
 from .. import preproc
 from .. import postproc
-from .. import data
+from ..data.db import lookup_sessions
 
 '''
 Behavioral metrics 
@@ -275,7 +275,7 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
 
     return segment_duration, target_codes
 
-def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=None, cursor_enter_target_code=80, cursor_leave_target_code=96, reward_code=48):
+def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=None, trial_start_code=2, reward_code=48, cursor_enter_target_code=80, cursor_leave_target_code=96):
     '''
     Calculates the maximum possible and actual number of tracking rewards acquired during reward trials.
 
@@ -303,8 +303,8 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
     event_times = exp_data['events']['timestamp']
 
     # get reward trial segments
-    trial_start_codes = [b"TRIAL_START"]
-    trial_end_codes = [b"REWARD"]
+    trial_start_codes = [trial_start_code]
+    trial_end_codes = [reward_code]
 
     reward_segments, reward_times = preproc.get_trial_segments(event_codes, event_times, trial_start_codes, trial_end_codes)
     _, reward_times_all = preproc.get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
@@ -313,7 +313,7 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
     reward_times_all = np.array(reward_times_all,dtype=np.ndarray)
 
     # calculate number of tracking rewards obtained on each trial
-    tracking_rewards = np.empty((len(reward_segments),),dtype=int)
+    tracking_rewards = np.zeros((len(reward_segments),),dtype=int)
     for trial_id,segment in enumerate(reward_segments):
         enter_ind = np.where(segment==cursor_enter_target_code)[0] # this includes ramp periods
         leave_ind = enter_ind + 1 # next event should be either CURSOR_LEAVE_TARGET or REWARD
@@ -324,7 +324,7 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
             tracking_rewards[trial_id] += int(time_in_target/reward_interval)
 
     # calculate max possible number of tracking rewards
-    seq_params = data.db.lookup_sessions(id=te_id, subject=subject, date=date)[0].sequence_params
+    seq_params = lookup_sessions(id=te_id, subject=subject, date=date)[0].sequence_params
     if 'ramp_down' not in seq_params:
         seq_params['ramp_down'] = 0
     max_rewards = int((seq_params['time_length']+seq_params['ramp']+seq_params['ramp_down'])/reward_interval)
