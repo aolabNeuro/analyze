@@ -209,7 +209,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     Example:
         Uncalibrated raw data:
 
-        .. image:: _images/eye_trajectories.png
+        .. image:: _images/eye_trajectories_raw.png
 
         After calibration:
         

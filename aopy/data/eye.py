@@ -43,8 +43,8 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
 
     Returns:
         tuple: tuple containing:
-        | **best_id (int)**: the task entry id with the highest mean absolute value correlation coefficient
-        | **te_ids (list of int)**: the ids to which the coeff were applied
+            | **best_id (int)**: the task entry id with the highest mean absolute value correlation coefficient
+            | **te_ids (list of int)**: the ids to which the coeff were applied
     '''
     
     # Find best calibration from the given subject and date 
