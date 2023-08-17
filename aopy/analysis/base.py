@@ -796,7 +796,7 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
         tuple: Tuple containing:
             | **fxx (np.array):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
             | **txx (np.array):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
-            | **Sxx (len(fxx): x len(txx) x nch):** multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+            | **Sxx (len(fxx) x len(txx) x nch):** multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
     """
     jackknife = False
     sides = 'onesided'
