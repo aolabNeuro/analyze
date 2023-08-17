@@ -273,3 +273,59 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
     target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
 
     return segment_duration, target_codes
+
+def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=None, cursor_enter_target_code=80, cursor_leave_target_code=96, reward_code=48):
+    '''
+    Calculates the maximum possible and actual number of tracking rewards acquired during reward trials.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        reward_interval (float, optional): length of time (in s) between rewards while cursor is in target (i.e. while tracking in)
+        cursor_enter_target_code (int, optional): event code for cursor entering target
+        cursor_leave_target_code (int, optional): event code for cursor leaving target
+        reward_code (int, optional): event code for reward
+
+    Returns:
+        tuple: tuple containing:
+        | **tracking_rewards (ntrials)**: number of tracking rewards acquired per reward trial
+        | **max_rewards (int):** maximum possible number of tracking rewards on a single trial
+    '''
+    # load preproc data file
+    exp_data, exp_metadata = postproc.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    assert 'tracking_rewards' in [feature.decode("utf-8") for feature in exp_metadata['features']], "No tracking rewards"
+    if reward_interval is None:
+        reward_interval = exp_metadata['tracking_reward_interval']
+    event_codes = exp_data['events']['code']
+    event_times = exp_data['events']['timestamp']
+
+    # get reward trial segments
+    trial_start_codes = [b"TRIAL_START"]
+    trial_end_codes = [b"REWARD"]
+
+    reward_segments, reward_times = preproc.get_trial_segments(event_codes, event_times, trial_start_codes, trial_end_codes)
+    _, reward_times_all = preproc.get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
+
+    reward_segments = np.array(reward_segments,dtype=np.ndarray)
+    reward_times_all = np.array(reward_times_all,dtype=np.ndarray)
+
+    # calculate number of tracking rewards obtained on each trial
+    tracking_rewards = np.empty((len(reward_segments),),dtype=int)
+    for trial_id,segment in enumerate(reward_segments):
+        enter_ind = np.where(segment==cursor_enter_target_code)[0] # this includes ramp periods
+        leave_ind = enter_ind + 1 # next event should be either CURSOR_LEAVE_TARGET or REWARD
+        assert ( np.logical_or((segment[leave_ind]==cursor_leave_target_code), (segment[leave_ind]==reward_code)) ).all()
+
+        for _,(enter,leave) in enumerate(np.vstack((enter_ind, leave_ind)).T):
+            time_in_target = reward_times_all[trial_id][leave] - reward_times_all[trial_id][enter]
+            tracking_rewards[trial_id] += int(time_in_target/reward_interval)
+
+    # calculate max possible number of tracking rewards
+    seq_params = exp_metadata['sequence_params']
+    if 'ramp_down' not in seq_params:
+        seq_params['ramp_down'] = 0
+    max_rewards = int((seq_params['time_length']+seq_params['ramp']+seq_params['ramp_down'])/reward_interval)
+
+    return tracking_rewards, max_rewards
