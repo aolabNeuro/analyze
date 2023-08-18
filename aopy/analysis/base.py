@@ -817,7 +817,7 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
 
     return fxx, txx, Sxx
 
-def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype='float64'):
+def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
     '''
     Compute multitaper time-frequency estimate from multichannel signal input. This code is adapted from the Pesaran lab `tfspec`.    
     
@@ -839,6 +839,9 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype
                     If you only analyze single channel data, this has to be False.
                     This paper discuss referencing scheme
                     https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
+        complex_output (bool): if True, return the complex signal instead of magnitude.
+                               Default False.
+        dtype (str): dtype of the output. Default 'float64'
                        
     Returns:
         tuple: Tuple containing:
@@ -947,15 +950,14 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype
             win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]).T
         
         # Compute power for each taper
-        power = 0
-        for ik in range(k):
-            tapers_ik = tapers[:,ik].reshape(-1,1) # keep the dimension for broadcast
-            fk_data = fft(tapers_ik*win_data, nf, axis=0) # tapers_ik.shape:(win_size,1), win_data.shape:(win_size,nch)
-            fk_data = fk_data[int(nfk[0]):int(nfk[1]),:] # extract a part of frequency components
-            power += fk_data*fk_data.conj()
-        power = power/k # average power across number of tapers.   
-        spec[:,iwin,:] = power.real  # Power is already real at this time, but still have 0j part.
-    
+        tapers_ik = tapers[:, :, np.newaxis]  # Shape: (win_size, k, 1)
+        win_data_reshaped = win_data[:, np.newaxis, :]  # Shape: (win_size, 1, nch)
+        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch)
+        if complex_output:
+            spec[:,iwin,:] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :], axis=1)
+        else:
+            spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
+
     t = np.arange(nwin)*step + n/2 # Center of each window is time axis
     
     return f, t, spec
