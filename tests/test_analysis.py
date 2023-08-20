@@ -1000,28 +1000,6 @@ class SpectrumTests(unittest.TestCase):
         HelperFunctions.test_tfr_lfp(tfr_fun)
         filename = 'tfr_mt_lfp.png'
         savefig(docs_dir,filename)
-        
-    def test_tfr_mt_psd(self):
-        NW = 2
-        BW = 1
-        dn = 0.1
-        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr_psd(data, fs, NW, dn, BW)
-        filename = 'tfr_mt_psd.png'
-        HelperFunctions.test_tfr_sines(tfr_fun)
-        savefig(docs_dir,filename)
-        
-        NW = 0.075
-        BW = 20
-        dn = 0.01
-        filename = 'tfr_mt_psd_chirp.png'
-        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr_psd(data, fs, NW, dn, BW)
-        HelperFunctions.test_tfr_chirp(tfr_fun)
-        savefig(docs_dir,filename)
-
-        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr_psd(data, fs, NW, dn, BW)
-        HelperFunctions.test_tfr_lfp(tfr_fun)
-        filename = 'tfr_mt_psd_lfp.png'
-        savefig(docs_dir,filename)
 
     def test_tfr_wavelets(self):
         freqs = np.linspace(1,50,100)

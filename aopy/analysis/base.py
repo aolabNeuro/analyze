@@ -790,47 +790,6 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
         coef = np.abs(coef)
     return freqs, time, np.flip(coef, axis=0)
 
-def calc_mt_tfr_psd(data, fs, win_t, step_t, bw=None, jackknife=False, adaptive=False, sides='onesided'):
-    """
-    Compute multitaper estimate from multichannel signal input.
-
-    Args:
-        data (nt, nch): nd array of input neural data (multichannel)
-        fs (int): sampling rate
-        win_t (float): spectrogram window length (in seconds)
-        step_t (float): step size between spectrogram windows (in seconds)
-        bw (float, optional): spectrogram frequency bin bandwidth. Defaults to None.
-        adaptive (bool, optional): adaptive taper weighting. Defaults to False.
-
-    Returns:
-        tuple: Tuple containing:
-            | **freqs (nfreq,):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
-            | **time (nt,):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
-            | **spec (nfreq, nt, nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
-    """
-    if len(data.shape) < 2:
-        data = data[:,None]
-    assert len(data.shape) < 3, f"only 1- or 2-dim data arrays accepted - {data.shape}-dim input given"
-    (n_sample, n_ch) = data.shape
-    total_t = n_sample/fs
-    n_window = int((total_t-win_t)/step_t)
-    assert n_window > 0
-    window_len = int(win_t*fs)
-    step_len = int(step_t*fs)
-    n_fbin = window_len // 2 + 1
-    time = np.arange(n_window)*step_t # window start time
-    spec = np.zeros((n_fbin,n_window,n_ch))
-
-    data = interp_nans(data)
-
-    for idx_window in range(n_window):
-        window_sample_range = np.arange(window_len) + step_len*idx_window
-        win_data = data[window_sample_range,:]
-        freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, adaptive, jackknife, sides)
-        spec[:,idx_window,...] = _win_psd
-
-    return freqs, time, spec
-
 def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
     '''
     Compute multitaper time-frequency estimate from multichannel signal input. This code is adapted from the Pesaran lab `tfspec`.    
