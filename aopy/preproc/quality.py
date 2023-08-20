@@ -30,7 +30,7 @@ def bad_channel_detection(data, srate, num_th=3., lf_c=100., sg_win_t=8., sg_ove
     print("Running bad channel assessment:")
 
     # compute low-freq PSD estimate
-    fxx, txx, Sxx = analysis.get_sgram_multitaper(data, srate, sg_win_t, sg_step_t, bw=sg_bw)
+    fxx, txx, Sxx = analysis.calc_mt_tfr_psd(data, srate, sg_win_t, sg_step_t, bw=sg_bw)
     low_freq_mask = fxx < lf_c
     Sxx_low = Sxx[low_freq_mask,:,:]
     Sxx_low_psd = np.mean(Sxx_low,axis=1)
@@ -133,7 +133,7 @@ def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100., sg_win_t
         print_progress_bar(ch_i,num_ch)
         sg_step_t = sg_win_t - sg_over_t
         assert sg_step_t > 0, 'window length must be greater than window overlap'
-        fxx, txx, Sxx = analysis.get_sgram_multitaper(data[:, ch_i], srate, sg_win_t, sg_step_t, bw=sg_bw)
+        fxx, txx, Sxx = analysis.calc_mt_tfr_psd(data[:, ch_i], srate, sg_win_t, sg_step_t, bw=sg_bw)
         num_freq, = np.shape(fxx)
         num_t, = np.shape(txx)
         Sxx_mean = np.mean(Sxx, axis=1).T # average across all windows, i.e. numch x num_f periodogram
@@ -269,24 +269,3 @@ def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
     sat_data_mask = num_bad > num_ch/2
 
     return sat_data_mask, bad_all_ch_mask
-
-# 1-d interpolation of missing values (NaN) in multichannel data (unwraps, interpolates over NaN, fills in.)
-def interp_multichannel(x):
-    """interp_multichannel
-
-    interpolates nan segments in multichannel data
-
-    Args:
-        x (np.array): multichannel data array containing nan values
-
-    Returns:
-        x_interp (np.array): data array with interpolated nan values
-    """
-    nan_idx = np.isnan(x)
-    ok_idx = ~nan_idx
-    xp = ok_idx.ravel().nonzero()[0]
-    fp = x[ok_idx]
-    idx = nan_idx.ravel().nonzero()[0]
-    x[nan_idx] = np.interp(idx,xp,fp)
-
-    return x

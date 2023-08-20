@@ -1,3 +1,4 @@
+import time
 from aopy.visualization import savefig
 from aopy.analysis import accllr
 import aopy
@@ -841,6 +842,86 @@ class AccLLRTests(unittest.TestCase):
         aopy.visualization.savefig(docs_dir, filename)
         plt.close()
 
+class HelperFunctions:
+
+    @staticmethod
+    def test_tfr_sines(tfr_fun):
+        '''
+        Tests TFR functions. Input a TFR function with the following signature:
+        tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
+        '''
+        num_points = 5000
+        T = 5
+        t = np.linspace(0,T,num_points)
+        test_data = np.zeros((t.shape[0],2))
+        test_data[:,0] = 1.5*np.sin(2*np.pi*10*t)
+        test_data[:,1] = 2*np.cos(2*np.pi*30*t)
+        test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2])
+        test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2])
+        
+        f_spec,t_spec,spec = tfr_fun(test_data, num_points/T)
+        
+        fig,ax=plt.subplots(1,4,figsize=(8,2),tight_layout=True)
+        ax[0].plot(t,test_data[:,0],linewidth=0.2)
+        ax[0].plot(t,test_data[:,1],linewidth=0.2)
+        ax[0].set(xlabel='Time (s)',ylabel='Amplitude',title='Signals')
+        im = ax[1].imshow((spec[:,:,0]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
+        plt.colorbar(im, ax=ax[1])
+        ax[1].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch1)')
+        im = ax[2].imshow((spec[:,:,1]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
+        plt.colorbar(im, ax=ax[2])
+        ax[2].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch2)')
+        ax[3].plot(f_spec,spec[:,10,0],'-',label='ch 1')
+        ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
+        ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
+        ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
+        
+    @staticmethod
+    def test_tfr_chirp(tfr_fun):
+        '''
+        Tests TFR functions. Input a TFR function with the following signature:
+        tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
+        '''
+        samplerate = 1000
+        t = np.arange(2*samplerate)/samplerate
+        f0 = 1
+        t1 = 2
+        f1 = 1000
+        data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+
+        f_spec,t_spec,spec = tfr_fun(data, samplerate)
+
+        fig, ax = plt.subplots(3,1,figsize=(4,6),tight_layout=True)
+        aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
+        aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+        pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[2])
+        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+
+    def test_tfr_lfp(tfr_fun):
+        '''
+        Tests TFR functions. Input a TFR function with the following signature:
+        tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
+        '''
+        fig, ax = plt.subplots(3,1,figsize=(4,6))
+
+        lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
+        samplerate = lfp_metadata['lfp_samplerate']
+        lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
+
+        aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
+        aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
+
+        freqs = np.linspace(1,200,100)
+
+        t0 = time.perf_counter()
+        freqs, times, coef = tfr_fun(lfp_data, samplerate)
+        dur = time.perf_counter() - t0
+
+        print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
+
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times, freqs, 'plasma', ax=ax[2])
+        fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
+        plt.tight_layout()
 
 class SpectrumTests(unittest.TestCase):
 
@@ -863,8 +944,8 @@ class SpectrumTests(unittest.TestCase):
         self.bw = 4.
     
     def test_multitaper(self):
-        f, psd_filter, mu = aopy.analysis.get_psd_multitaper(self.x, self.fs)
-        psd = aopy.analysis.get_psd_welch(self.x, self.fs, np.shape(f)[0])[1]
+        f, psd_filter, mu = aopy.analysis.calc_mt_psd(self.x, self.fs)
+        psd = aopy.analysis.calc_welch_psd(self.x, self.fs, np.shape(f)[0])[1]
 
         fname = 'multitaper_powerspectrum.png'
         plt.figure()
@@ -876,7 +957,7 @@ class SpectrumTests(unittest.TestCase):
         savefig(write_dir, fname) # both figures should have peaks at [600, 312, 2000] Hz
 
         bands = [(0, 10), (250, 350), (560, 660), (2000, 2010), (4000, 4100)]
-        lfp = aopy.analysis.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        lfp = aopy.analysis.get_tfr_feats(f, psd_filter, bands, False)
         plt.figure()
         plt.plot(np.arange(len(bands)), np.squeeze(lfp), '-bo')
         plt.xticks(np.arange(len(bands)), bands)
@@ -885,107 +966,82 @@ class SpectrumTests(unittest.TestCase):
         fname = 'lfp_bandpower.png'
         savefig(write_dir, fname) # Should have power in [600, 312, 2000] Hz but not 10 or 4000
 
-        f, psd_filter, mu = aopy.analysis.get_psd_multitaper(self.x2, self.fs)
+        f, psd_filter, mu = aopy.analysis.calc_mt_psd(self.x2, self.fs)
         self.assertEqual(psd_filter.shape[1], self.n_ch)
         print(mu.shape)
-        lfp = aopy.analysis.multitaper_lfp_bandpower(f, psd_filter, bands, False)
+        lfp = aopy.analysis.get_tfr_feats(f, psd_filter, bands, False)
         self.assertEqual(lfp.shape[1], self.x2.shape[1])
         self.assertEqual(lfp.shape[0], len(bands))
 
-        #TODO: complete sgram test
-        f_sg, t_sg, sgram = aopy.analysis.get_sgram_multitaper(
-            self.x2, self.fs, self.win_t, self.step_t, self.bw
-        )
-        self.assertEqual(sgram.shape[0], self.win_t*self.fs // 2 + 1) # correct freq. bin count
-        self.assertEqual(sgram.shape[-1], self.x2.shape[-1]) # correct channel output count
-
-    def test_tfspec(self):
-        num_points = 5000
-        T = 5
-        t = np.linspace(0,T,num_points)
-        test_data = np.zeros((t.shape[0],2))
-        test_data[:,0] = 1.5*np.sin(2*np.pi*10*t)
-        test_data[:,1] = 2*np.cos(2*np.pi*30*t)
-        test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2])
-        test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2])
-        
+    def test_tfr_mt(self):
         NW = 2
         BW = 1
-        fs = num_points/T
         dn = 0.1
         fk = 50
         n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-        f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(test_data, n, p, k, fs, dn, fk, pad=2, ref=False)
-        
-        fig,ax=plt.subplots(1,4,figsize=(8,2),tight_layout=True)
-        ax[0].plot(t,test_data[:,0],linewidth=0.2)
-        ax[0].plot(t,test_data[:,1],linewidth=0.2)
-        ax[0].set(xlabel='Time (s)',ylabel='Amplitude',title='Signals')
-        ax[1].imshow((spec[:,:,0]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
-        ax[1].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch1)')
-        ax[2].imshow((spec[:,:,1]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
-        ax[2].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch2)')
-        ax[3].plot(f_spec,spec[:,10,0],'-',label='ch 1')
-        ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
-        ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
-        ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, dn, fk, pad=2, ref=False)
         filename = 'tfspec.png'
+        HelperFunctions.test_tfr_sines(tfr_fun)
+        savefig(docs_dir,filename)
+        
+        NW = 0.5
+        BW = 5
+        n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
+        step = None
+        fk = 1000
+        filename = 'tfr_mt_chirp.png'
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+        HelperFunctions.test_tfr_chirp(tfr_fun)
+        savefig(docs_dir,filename)
+        
+        fk = 200
+        step = 0.01
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+        HelperFunctions.test_tfr_lfp(tfr_fun)
+        filename = 'tfr_mt_lfp.png'
+        savefig(docs_dir,filename)
+        
+    def test_tfr_mt_psd(self):
+        NW = 2
+        BW = 1
+        dn = 0.1
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr_psd(data, fs, NW, dn, BW)
+        filename = 'tfr_mt_psd.png'
+        HelperFunctions.test_tfr_sines(tfr_fun)
         savefig(docs_dir,filename)
         
         NW = 0.075
         BW = 20
-        n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-        step = None
-        fk = 1000
-        samplerate = 1000
-        
-        t = np.arange(2*samplerate)/samplerate
-        f0 = 1
-        t1 = 2
-        f1 = 1000
-        data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
-
-        fig, ax = plt.subplots(3,1,figsize=(4,6),tight_layout=True)
-        aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-        aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
-        f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(data, n, p, k, samplerate, step=step, fk=fk, pad=2, ref=False)
-        pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[2])
-        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-        filename = 'tfr_mt_chirp.png'
+        dn = 0.01
+        filename = 'tfr_mt_psd_chirp.png'
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr_psd(data, fs, NW, dn, BW)
+        HelperFunctions.test_tfr_chirp(tfr_fun)
         savefig(docs_dir,filename)
-        
+
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr_psd(data, fs, NW, dn, BW)
+        HelperFunctions.test_tfr_lfp(tfr_fun)
+        filename = 'tfr_mt_psd_lfp.png'
+        savefig(docs_dir,filename)
+
     def test_tfr_wavelets(self):
-        fig, ax = plt.subplots(3,1,figsize=(4,6))
-
-        samplerate = 1000
-        data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
-        nt = data_200_hz.shape[0]
-        data_200_hz[:int(nt/3),:] /= 3
-        data_200_hz[int(2*nt/3):,:] *= 2
-
-        data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
-        data_50_hz[:int(nt/2),:] /= 2
-
-        data = data_50_hz + data_200_hz
-        print(data.shape)
-        aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-        aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
-
-        freqs = np.linspace(1,250,100)
-        coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
-        t = np.arange(nt)/samplerate
-        
-        print(data.shape)
-        print(coef.shape)
-        print(t.shape)
-        print(freqs.shape)
-        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
-
-        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-        filename = 'tfr_cwt_50_200.png'
-        plt.tight_layout()
+        freqs = np.linspace(1,50,100)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=10, f0_norm=1, verbose=True)
+        filename = 'tfr_cwt_sines.png'
+        HelperFunctions.test_tfr_sines(tfr_fun)
         savefig(docs_dir,filename)
-
+        
+        freqs = np.linspace(1,1000,200)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=10, f0_norm=1, verbose=True)
+        filename = 'tfr_cwt_chirp.png'
+        HelperFunctions.test_tfr_chirp(tfr_fun)
+        savefig(docs_dir,filename)
+        
+        freqs = np.linspace(1,200,200)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=10, f0_norm=1, verbose=True)
+        filename = 'tfr_cwt_lfp.png'
+        HelperFunctions.test_tfr_lfp(tfr_fun)
+        savefig(docs_dir,filename)
+        
 
 class BehaviorMetricsTests(unittest.TestCase):
 

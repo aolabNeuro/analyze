@@ -700,7 +700,7 @@ def classify_by_lda(X_train_lda, y_class_train,
 '''
 Spectral Estimation and Analysis
 '''
-def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
+def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', complex_output=False, verbose=False):
     '''
     Use morlet wavelet decomposition to calculate a time-frequency representation of your data.
     
@@ -712,10 +712,16 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
             of the wavelets; setting a higher number results in narrower frequency resolution
         f0_norm (float, optional): center frequency of the wavelets, normalized to the sampling 
             rate. Default to 1.0, or the same frequency as the sampling rate.
+        method (str, optional): either 'fft', or 'conv', which can be faster for shorter data. 
+            Defaults to 'fft'.
+        complex_output (bool, optional): output complex output or magnitdue. Default False.
         verbose (bool, optional): print out information about the wavelets
 
     Returns:
-        (nfreq, nt, nch): tfr representation for each channel
+        tuple: tuple containing:
+        | **freqs (nfreq):** frequency axis in Hz
+        | **time (nt):** time axis in seconds
+        | **spec (nfreq, nt, nch):** tfr representation for each channel
 
     Examples:
         
@@ -724,23 +730,18 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
             fig, ax = plt.subplots(3,1,figsize=(4,6))
 
             samplerate = 1000
-            data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
-            nt = data_200_hz.shape[0]
-            data_200_hz[:int(nt/3),:] /= 3
-            data_200_hz[int(2*nt/3):,:] *= 2
-
-            data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
-            data_50_hz[:int(nt/2),:] /= 2
-
-            data = data_50_hz + data_200_hz
+            t = np.arange(2*samplerate)/samplerate
+            f0 = 1
+            t1 = 2
+            f1 = 1000
+            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
             print(data.shape)
             aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
             aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
 
-            freqs = np.linspace(1,250,100)
-            coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
-            t = np.arange(nt)/samplerate
-            
+            freqs = np.linspace(1,1000,200)
+            _, _, coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+
             print(data.shape)
             print(coef.shape)
             print(t.shape)
@@ -748,26 +749,49 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
             pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
 
             fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-            
-        .. image:: _images/tfr_cwt_50_200.png
+    
+        .. image:: _images/tfr_cwt_chirp.png
+
+        .. code-block:: python
+
+            lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
+            samplerate = lfp_metadata['lfp_samplerate']
+            lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
+
+            aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
+            aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
+
+            freqs = np.linspace(1,200,100)
+            nt = lfp_data.shape[0]
+            t = np.arange(nt)/samplerate
+            _, _, coef = aopy.analysis.calc_cwt_tfr(lfp_data, freqs, samplerate, fb=1.5, f0_norm=1, verbose=True)
+
+            pcm = aopy.visualization.plot_tfr(abs(coef), t, freqs, 'plasma', ax=ax[2])
+            fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
+
+        .. image:: _images/tfr_cwt_lfp.png
 
     '''
-    freqs = np.flip(freqs)/samplerate
+    if len(data.shape) < 2:
+        data = data[:,None]
+    time = np.arange(data.shape[0])/samplerate
+    freqs_ud = np.flip(freqs)/samplerate
     wav = pywt.ContinuousWavelet(f'cmor{fb}-{f0_norm}') # 'cmorB-C' for a complex Morlet wavelet with the
                                                         # given time-decay (B) and center frequency (C) params.
-    scale = pywt.frequency2scale(wav, freqs)
-    coef, _ = pywt.cwt(data, scale, wav, axis=0)
+    scale = pywt.frequency2scale(wav, freqs_ud)
+    coef, _ = pywt.cwt(data, scale, wav, method=method, axis=0)
     if verbose:
         print(wav.bandwidth_frequency)
         print(f"Wavelet ({wav.lower_bound}, {wav.upper_bound})")
         print(f"Scale ({scale[0]}, {scale[-1]})")
-        print(f"Freqs ({freqs[0]}, {freqs[-1]})")
+        print(f"Freqs ({freqs_ud[0]}, {freqs_ud[-1]})")
     
-    return np.flip(coef, axis=0)
+    if not complex_output:
+        coef = np.abs(coef)
+    return freqs, time, np.flip(coef, axis=0)
 
-def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
-    """get_sgram_multitaper
-
+def calc_mt_tfr_psd(data, fs, win_t, step_t, bw=None, jackknife=False, adaptive=False, sides='onesided'):
+    """
     Compute multitaper estimate from multichannel signal input.
 
     Args:
@@ -775,18 +799,15 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
         fs (int): sampling rate
         win_t (float): spectrogram window length (in seconds)
         step_t (float): step size between spectrogram windows (in seconds)
-        nw (float, optional): time-half-bandwidth product. Defaults to None.
         bw (float, optional): spectrogram frequency bin bandwidth. Defaults to None.
         adaptive (bool, optional): adaptive taper weighting. Defaults to False.
 
     Returns:
         tuple: Tuple containing:
-            | **fxx (np.array):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
-            | **txx (np.array):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
-            | **Sxx (len(fxx):** x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+            | **freqs (nfreq,):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+            | **time (nt,):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+            | **spec (nfreq, nt, nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
     """
-    jackknife = False
-    sides = 'onesided'
     if len(data.shape) < 2:
         data = data[:,None]
     assert len(data.shape) < 3, f"only 1- or 2-dim data arrays accepted - {data.shape}-dim input given"
@@ -797,25 +818,18 @@ def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=Fal
     window_len = int(win_t*fs)
     step_len = int(step_t*fs)
     n_fbin = window_len // 2 + 1
-    txx = np.arange(n_window)*step_t # window start time
-    Sxx = np.zeros((n_fbin,n_window,n_ch))
+    time = np.arange(n_window)*step_t # window start time
+    spec = np.zeros((n_fbin,n_window,n_ch))
 
-    data = interp_multichannel(data)
+    data = interp_nans(data)
 
     for idx_window in range(n_window):
         window_sample_range = np.arange(window_len) + step_len*idx_window
         win_data = data[window_sample_range,:]
-        _f, _win_psd, _ = tsa.multi_taper_psd(win_data.T, fs, nw, bw, adaptive, jackknife, sides)
-        try:
-            Sxx[:,idx_window,...] = _win_psd.T
-        except:
-            breakpoint()
-    if n_ch == 1:
-        Sxx = Sxx.squeeze(axis=-1)
+        freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, adaptive, jackknife, sides)
+        spec[:,idx_window,...] = _win_psd
 
-    fxx = _f
-
-    return fxx, txx, Sxx
+    return freqs, time, spec
 
 def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
     '''
@@ -962,15 +976,14 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     
     return f, t, spec
 
-def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
+def calc_mt_psd(data, fs, bw=None, adaptive=False, jackknife=True, sides='default'):
     '''
     Computes power spectral density using Multitaper functions
 
     Args:
         data (nt, nch): time series data where time axis is assumed to be on the last axis
         fs (float): sampling rate of the signal
-        NW (float): Normalized half bandwidth of the data tapers in Hz
-        BW (float): sampling bandwidth of the data tapers in Hz
+        bw (float): sampling bandwidth of the data tapers in Hz
         adaptive (bool): Use an adaptive weighting routine to combine the PSD estimates of different tapers.
         jackknife (bool): Use the jackknife method to make an estimate of the PSD variance at each point.
         sides (str): This determines which sides of the spectrum to return.
@@ -979,47 +992,20 @@ def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=Tru
         tuple: Tuple containing:
             | **f (nfft):** Frequency points vector
             | **psd_est (nfft, nch):** estimated power spectral density (PSD)
-            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
+            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. 
+                If Jackknife = False; degrees of freedom in a chi square model of how the estimated 
+                psd is distributed wrt true log - PSD
     '''
     data = data.T # move time to the last axis
     
-    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides)
+    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, None, bw,  adaptive, jackknife, sides)
     return f, psd_mt.T, nu.T
 
-def multitaper_lfp_bandpower(f, psd_est, bands, no_log):
+def calc_welch_psd(data, fs, n_freq=None):
     '''
-    Estimate band power in specified frequency bands using multitaper power spectral density estimate
-
-    Args:
-        f (nfft) : Frequency points vector
-        psd_est (nfft, nch): power spectral density - output of bandpass_multitaper_filter_data
-        bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
-        no_log (bool): boolean to select whether lfp band power should be in log scale or not
-
-    Returns:
-        lfp_power (n_features, nch): lfp band power for each channel for each band specified
-    '''
-    if psd_est.ndim == 1:
-        psd_est = np.expand_dims(psd_est, 1)
-
-    lfp_power = np.zeros((len(bands), psd_est.shape[1]))
-    small_epsilon = 0 # TODO: what is this for? It does nothing now, should it be possible to make nonzero? -Leo
-    fft_inds = dict()
-
-    for band_idx, band in enumerate(bands):
-            fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
-
-    for idx, band in enumerate(bands):
-        if no_log:
-            lfp_power[idx, :] = np.mean(psd_est[fft_inds[idx],:], axis=0)
-        else:
-            lfp_power[idx, :] = np.mean(np.log10(psd_est[fft_inds[idx],:] + small_epsilon), axis=0)
-
-    return lfp_power
-
-def get_psd_welch(data, fs,n_freq = None):
-    '''
-    Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
+    Computes power using Welch's method. Welch’s method computes an estimate of the power
+    by dividing the data into overlapping segments, computes a modified periodogram for 
+    each segment and then averages the periodogram. Periodogram is averaged using median.
 
     Args:
         data (nt, ...): time series data.
@@ -1032,13 +1018,63 @@ def get_psd_welch(data, fs,n_freq = None):
             | **psd_est (nfft, ...):** estimated power spectral density (PSD)
     '''
     if n_freq:
-        f, psd = signal.welch(data, fs, average='median', nperseg=2*n_freq, axis=0)
+        f, psd = signal.welch(data, fs, average='median', scaling='spectrum', nperseg=2*n_freq, axis=0)
     else:
-        f, psd = signal.welch(data, fs, average='median', axis=0)
-    return f, psd
+        f, psd = signal.welch(data, fs, average='median', scaling='spectrum', axis=0)
+    return f, np.sqrt(psd)
 
-def interp_multichannel(x):
-    """interp_multichannel
+def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
+    '''
+    Estimate band power in specified frequency bands using multitaper power spectral density estimate
+
+    Args:
+        f (nfreq,): Frequency points vector
+        psd_est (nfreq, nt, nch): spectrogram of data
+        bands (list of tuples): frequency bands of interest in Hz, e.g. [(0, 10), (10, 20), (130, 140)]
+        log (bool): boolean to select whether band power should be in log scale or not
+        epsilon (float): small number, e.g. 1e-10 to add to power before averaging in case there are zero values
+        
+    Returns:
+        lfp_power (n_features, nt, nch): band power features at each timepoint for each channel
+    '''
+    if spec.ndim == 1:
+        spec = np.expand_dims(spec, [1, 2])
+    if spec.ndim == 2:
+        spec = spec[:, np.newaxis, :] # insert time axis
+
+    feats = np.zeros((len(bands), spec.shape[1], spec.shape[2]), like=spec)
+    for idx, band in enumerate(bands):
+        fft_inds = [freq_idx for freq_idx, freq in enumerate(freqs) if band[0] <= freq < band[1]]
+
+        if log:
+            feats[idx] = np.mean(np.log10(spec[fft_inds] + epsilon), axis=0)
+        else:
+            feats[idx] = np.mean(spec[fft_inds], axis=0)
+
+    return np.squeeze(feats)
+
+def get_bandpower_feats(lfp_data, samplerate, bands, method='mt', **kwargs):
+
+    if method == 'mt':
+        n = kwargs.pop('n')
+        p = kwargs.pop('p')
+        k = kwargs.pop('k')
+        step = kwargs.pop('step')
+        fk = kwargs.pop('fk')
+        pad = kwargs.pop('pad', 2)
+        ref = kwargs.pop('ref', True)
+        dtype = kwargs.pop('dtype', 'float64')
+        freqs, time, spec = calc_mt_tfr(lfp_data, n, p, k, samplerate, 
+                                        step=step, fk=fk, pad=pad, ref=ref, dtype=dtype)
+        
+    else:
+        raise ValueError(f"Method {method} not implemented.")
+
+    return time, get_tfr_feats(freqs, spec, bands, log=False, epsilon=0)
+
+def interp_nans(x):
+    """
+    Interpolate NaN values from multichannel data using linear interpolation.
 
     Args:
         x (n_sample, n_ch): input data array containing nan-valued missing entries
