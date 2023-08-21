@@ -850,16 +850,18 @@ class HelperFunctions:
         Tests TFR functions. Input a TFR function with the following signature:
         tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
         '''
-        num_points = 5000
         T = 5
+        fs = 1000
+        num_points = int(T*fs)
         t = np.linspace(0,T,num_points)
         test_data = np.zeros((t.shape[0],2))
-        test_data[:,0] = 1.5*np.sin(2*np.pi*10*t)
-        test_data[:,1] = 2*np.cos(2*np.pi*30*t)
-        test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2])
-        test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2])
-        
-        f_spec,t_spec,spec = tfr_fun(test_data, num_points/T)
+        test_data[:,0] = 1.5*np.sin(2*np.pi*10*t) # 10 Hz sine
+        test_data[:,1] = 2*np.cos(2*np.pi*30*t) # 30 Hz cosine
+        test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2]) # 5 Hz sine
+        test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2]) # 15 Hz cosine
+
+        f_spec,t_spec,spec = tfr_fun(test_data, fs)
+        test_idx = np.where(t_spec >= 2)[0][0]
         
         fig,ax=plt.subplots(1,4,figsize=(8,2),layout='compressed')
         ax[0].plot(t,test_data[:,0],linewidth=0.2)
@@ -871,10 +873,10 @@ class HelperFunctions:
         im = ax[2].imshow((spec[:,:,1]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
         plt.colorbar(im, ax=ax[2])
         ax[2].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch2)')
-        ax[3].plot(f_spec,spec[:,10,0],'-',label='ch 1')
-        ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
+        ax[3].plot(f_spec,spec[:,test_idx,0],'-',label='ch 1')
+        ax[3].plot(f_spec,spec[:,test_idx,1],'-',label='ch 2')
         ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
-        ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
+        ax[3].legend(title=f't = {t_spec[test_idx]}s',frameon=False, fontsize=7)
         
     @staticmethod
     def test_tfr_chirp(tfr_fun):
@@ -1009,17 +1011,17 @@ class SpectrumTests(unittest.TestCase):
         savefig(docs_dir,filename)
         
     def test_tfr_mt(self):
-        NW = 0.2
+        NW = 0.3
         BW = 10
         step = 0.01
         fk = 50
         n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
+        print(f"using {k} tapers length {n} half-bandwidth {p}")
         tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
         filename = 'tfspec.png'
         HelperFunctions.test_tfr_sines(tfr_fun)
         savefig(docs_dir,filename)
         
-        n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
         fk = 500
         filename = 'tfr_mt_chirp.png'
         tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
@@ -1055,20 +1057,22 @@ class SpectrumTests(unittest.TestCase):
         savefig(docs_dir,filename)
 
     def test_tfr_wavelets(self):
-        freqs = np.linspace(1,50,100)
-        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=10, f0_norm=1, verbose=True)
+        fb = 10.
+        f0_norm = 2.
+        freqs = np.linspace(1,50,50)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
         filename = 'tfr_cwt_sines.png'
         HelperFunctions.test_tfr_sines(tfr_fun)
         savefig(docs_dir,filename)
         
-        freqs = np.linspace(1,500,200)
-        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=10, f0_norm=1, verbose=True)
+        freqs = np.linspace(1,500,500)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
         filename = 'tfr_cwt_chirp.png'
         HelperFunctions.test_tfr_chirp(tfr_fun)
         savefig(docs_dir,filename)
         
         freqs = np.linspace(1,200,200)
-        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=10, f0_norm=1, verbose=True)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
         filename = 'tfr_cwt_lfp.png'
         HelperFunctions.test_tfr_lfp(tfr_fun)
         savefig(docs_dir,filename)
