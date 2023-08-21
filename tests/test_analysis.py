@@ -887,7 +887,7 @@ class HelperFunctions:
         t = np.arange(2*samplerate)/samplerate
         f0 = 1
         t1 = 2
-        f1 = 1000
+        f1 = 500
         data = np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
 
         f_spec,t_spec,spec = tfr_fun(data, samplerate)
@@ -975,6 +975,27 @@ class SpectrumTests(unittest.TestCase):
         self.assertEqual(lfp.shape[1], self.x2.shape[1])
         self.assertEqual(lfp.shape[0], len(bands))
 
+    def test_tfr_ft(self):
+        win_t = 0.2
+        step = 0.01
+        f_max = 50
+        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max)
+        filename = 'tfr_ft_sines.png'
+        HelperFunctions.test_tfr_sines(tfr_fun)
+        savefig(docs_dir,filename)
+        
+        f_max = 500
+        filename = 'tfr_ft_chirp.png'
+        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max)
+        HelperFunctions.test_tfr_chirp(tfr_fun)
+        savefig(docs_dir,filename)
+        
+        f_max = 200
+        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max)
+        HelperFunctions.test_tfr_lfp(tfr_fun)
+        filename = 'tfr_ft_lfp.png'
+        savefig(docs_dir,filename)
+        
     def test_tfr_mt(self):
         NW = 2
         BW = 1
@@ -990,7 +1011,7 @@ class SpectrumTests(unittest.TestCase):
         BW = 10
         n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
         step = 0.01
-        fk = 1000
+        fk = 500
         filename = 'tfr_mt_chirp.png'
         tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
         HelperFunctions.test_tfr_chirp(tfr_fun)
@@ -1009,7 +1030,7 @@ class SpectrumTests(unittest.TestCase):
         HelperFunctions.test_tfr_sines(tfr_fun)
         savefig(docs_dir,filename)
         
-        freqs = np.linspace(1,1000,200)
+        freqs = np.linspace(1,500,200)
         tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=10, f0_norm=1, verbose=True)
         filename = 'tfr_cwt_chirp.png'
         HelperFunctions.test_tfr_chirp(tfr_fun)

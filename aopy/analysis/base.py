@@ -790,6 +790,58 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
         coef = np.abs(coef)
     return freqs, time, np.flip(coef, axis=0)
 
+def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None, 
+                 detrend='constant', complex_output=False):
+    '''
+    Short-time fourier transform. Makes use of scipy.signal.spectrogram to compute
+    a fast spectrogram. 
+
+    Args:
+        data (nt, nch): timeseries data.
+        samplerate (float): sampling rate of the data.
+        win_t (float): window size in seconds.
+        step (float): step size in seconds.
+        f_max (float): frequency range to return in Hz ([0, f_max]). Defaults to samplerate/2.
+        pad (int):  padding factor for the FFT. This should be 1 or a multiple of 2.
+                    For N=500, if pad=1, we pad the FFT to 512 points.
+                    If pad=2, we pad the FFT to 1024 points. 
+                    If pad=4, we pad the FFT to 2024 points.
+        window (tuple, optional): see scipy documentation. Defaults to None.
+        detrend (str, optional): see scipy documentation. Defaults to 'constant'.
+        complex_output (bool): if True, return the complex signal instead of magnitude.
+                               Default False.
+
+    Returns:
+        tuple: Tuple containing:
+            | **f (n_freq):** frequency axis for spectrogram
+            | **t (n_time):** time axis for spectrogram
+            | **spec (n_freq,n_time,nch):** multitaper spectrogram estimate
+    '''
+    if isinstance(data, list): 
+        data = np.array(data)
+    if data.ndim == 1:
+        data = data[:, np.newaxis]
+
+    win_size = int(samplerate * win_t)
+    overlap_size = win_size - int(samplerate * step)
+    assert overlap_size > 0, "Step size exceeds window size"
+
+    nfft = np.max([256, pad * 2**utils.nextpow2(win_size + 1)]) # 0 padding for efficient computation in FFT
+    nfk = int(np.floor(f_max/samplerate*nfft)) # number of data points in frequency axis
+
+    if window is None:
+        window = ('tukey', 0.25)
+
+    freqs, time, spec = scipy.signal.spectrogram(
+        data, fs=samplerate, window=window, nperseg=win_size, noverlap=overlap_size, nfft=nfft, 
+        detrend=detrend, scaling='spectrum', axis=0, mode='complex')
+    
+    if complex_output:
+        return freqs[:nfk], time, spec[:nfk].transpose(0,2,1)
+    else:
+        return freqs[:nfk], time, np.abs(spec[:nfk]).transpose(0,2,1)
+
+
 def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
     '''
     Compute multitaper time-frequency estimate from multichannel signal input. This code is adapted from the Pesaran lab `tfspec`.    
