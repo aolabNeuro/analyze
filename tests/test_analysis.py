@@ -861,7 +861,7 @@ class HelperFunctions:
         
         f_spec,t_spec,spec = tfr_fun(test_data, num_points/T)
         
-        fig,ax=plt.subplots(1,4,figsize=(8,2),tight_layout=True)
+        fig,ax=plt.subplots(1,4,figsize=(8,2),layout='compressed')
         ax[0].plot(t,test_data[:,0],linewidth=0.2)
         ax[0].plot(t,test_data[:,1],linewidth=0.2)
         ax[0].set(xlabel='Time (s)',ylabel='Amplitude',title='Signals')
@@ -875,7 +875,6 @@ class HelperFunctions:
         ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
         ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
         ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
-        plt.tight_layout()
         
     @staticmethod
     def test_tfr_chirp(tfr_fun):
@@ -892,37 +891,51 @@ class HelperFunctions:
 
         f_spec,t_spec,spec = tfr_fun(data, samplerate)
 
-        fig, ax = plt.subplots(2,1)
+        fig, ax = plt.subplots(2,1, layout='compressed')
         aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
         pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[1])
-        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[1])
-        plt.tight_layout()
+        fig.colorbar(pcm, label='power (V)', orientation = 'horizontal', ax=ax[1])
 
     def test_tfr_lfp(tfr_fun):
         '''
         Tests TFR functions. Input a TFR function with the following signature:
         tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
         '''
-        fig, ax = plt.subplots(3,1,figsize=(4,6))
+        fig, ax = plt.subplots(3,1,figsize=(5,6), layout='compressed')
 
+        # Collect trials of data starting at go-cue
+        exp_data, exp_metadata = aopy.data.load_preproc_exp_data(data_dir, 'beignet', 5974, '2022-07-01')
         lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
         samplerate = lfp_metadata['lfp_samplerate']
-        lfp_data = lfp_data[:2*samplerate,0] # 2 seconds of the first channel to keep things fast
+        go_cue = 32
+        trial_end = 239
+        reward = 48
+        trial_times, trial_events = aopy.preproc.get_trial_segments_and_times(exp_data['events']['code'], exp_data['events']['code'], [go_cue], [trial_end])
+        go_cues = [t[0] for t, e in zip(trial_times, trial_events) if reward in e]
+        time_before = 0.5
+        time_after = 1.5
+        erp = aopy.analysis.calc_erp(lfp_data[:,0], go_cues, time_before, time_after, samplerate)
+        erp = erp.transpose(1,2,0) # (nt, nch, ntrial)
 
-        aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
-        aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
+        aopy.visualization.plot_timeseries(np.mean(erp, axis=2), samplerate, ax=ax[0])
+        ax[0].set_ylabel('voltage (a.u.)')
+
+        f, amp = aopy.analysis.calc_freq_domain_amplitude(erp[:,0,:], samplerate)
+        amp = np.mean(amp, axis=1)
+        ax[1].plot(f, amp)
+        ax[1].set_xlabel('frequency (Hz)')
+        ax[1].set_ylabel('voltage (a.u.)')
 
         freqs = np.linspace(1,200,100)
-
         t0 = time.perf_counter()
-        freqs, times, coef = tfr_fun(lfp_data, samplerate)
+        freqs, times, coef = tfr_fun(erp[:,0,:], samplerate)
         dur = time.perf_counter() - t0
 
         print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
 
-        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times, freqs, 'plasma', logscale=True, ax=ax[2])
-        fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
-        plt.tight_layout()
+        avg_coef = np.mean(abs(coef), axis=2)
+        pcm = aopy.visualization.plot_tfr(avg_coef, times, freqs, 'plasma', logscale=True, ax=ax[2])
+        fig.colorbar(pcm, label='power (log V)', orientation='horizontal', ax=ax[2])
 
 class SpectrumTests(unittest.TestCase):
 
@@ -996,20 +1009,17 @@ class SpectrumTests(unittest.TestCase):
         savefig(docs_dir,filename)
         
     def test_tfr_mt(self):
-        NW = 2
-        BW = 1
-        dn = 0.1
+        NW = 0.2
+        BW = 10
+        step = 0.01
         fk = 50
         n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, dn, fk, pad=2, ref=False)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
         filename = 'tfspec.png'
         HelperFunctions.test_tfr_sines(tfr_fun)
         savefig(docs_dir,filename)
         
-        NW = 0.2
-        BW = 10
         n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-        step = 0.01
         fk = 500
         filename = 'tfr_mt_chirp.png'
         tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
