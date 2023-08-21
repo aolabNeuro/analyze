@@ -21,7 +21,7 @@ from tqdm import tqdm
 import pandas as pd
 
 from .. import analysis
-from ..data.base import load_chmap
+from ..data import load_chmap
 from .. import utils
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
@@ -1193,27 +1193,3 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     ax.set_ylabel('Frequency (Hz)')
 
     return pcm
-
-def plot_saccades(eye_kinematics, samplerate, onset, duration, ax=None):
-    '''
-    
-
-    Args:
-        eye_kinematics (_type_): _description_
-        samplerate (_type_): _description_
-        onset (_type_): _description_
-        duration (_type_): _description_
-        ax (_type_, optional): _description_. Defaults to None.
-    '''
-    if ax is None:
-        ax = plt.gca()
-
-    time = np.arange(len(eye_kinematics))/samplerate
-    ax[0].plot(time, eye_kinematics)
-    ax[0].set_ylabel('position (cm)')
-    ax[0].set_xlabel('time (s)')
-    
-    min_max = [np.min(eye_kinematics), np.max(eye_kinematics)]
-    for o, d in zip(onset, duration):
-        ax[0].plot([o, o], min_max, 'g--')
-        ax[0].plot([o+d, o+d], min_max, 'r--')
