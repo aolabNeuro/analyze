@@ -3,7 +3,6 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
-from ..precondition.base import dpsschk
 
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
@@ -20,9 +19,11 @@ import warnings
 import nitime.algorithms as tsa
 import pywt
 import math
+import numba as nb
 
 from .. import utils
 from .. import preproc
+from .. import precondition
 
 '''
 Correlation / dimensionality analysis
@@ -885,16 +886,11 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         
     See Also:
         :func:`~aopy.analysis.calc_cwt_tfr`
-    '''   
-    
-    def nextpow2(x):
-        #   Next higher power of 2.
-        #   NEXTPOW2(N) returns the first P such that 2.^P >= abs(N).
-        #   It is often useful for finding the nearest power of two sequence length for FFT operations.
-        return 1 if x == 0 else math.ceil(math.log2(x))
-    
+    '''  
+    if isinstance(ts_data, list): 
+        ts_data = np.array(ts_data)
     if ts_data.ndim == 1:
-        ts_data = np.reshape(ts_data,(-1,1))
+        ts_data = ts_data[:, np.newaxis]
     if ts_data.shape[1] == 1:
         ref = False
     if step == None:
@@ -905,16 +901,16 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     ts_data = ts_data.T
     nch,nt = ts_data.shape
     fk = np.array([0,fk])
-    tapers, _ = dpsschk(n*fs, p, k)
+    tapers, _ = precondition.dpsschk(n*fs, p, k)
     
     win_size = tapers.shape[0] # window size (data points of tapers)
     step_size = int(np.floor(step*fs)) # step size
-    nf = np.max([256,pad*2**nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
+    nf = np.max([256,pad*2**utils.nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
     nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
     nwin = int(np.floor((nt-win_size)/step_size)) # number of windows
-    f = np.linspace(fk[0],fk[1],int(np.diff(nfk))) # frequency axis for spectrogram
+    f = np.linspace(fk[0],fk[1],int(nfk[1] - nfk[0])) # frequency axis for spectrogram
 
-    spec = np.zeros((int(np.diff(nfk)),nwin,nch), dtype=dtype)
+    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch), dtype=dtype)
     for iwin in range(nwin):
         if ref:
             m_data = np.sum(ts_data[:,step_size*iwin:step_size*iwin+win_size],axis=0)/nch # Mean across channels for that window
