@@ -827,6 +827,8 @@ def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None,
     assert overlap_size > 0, "Step size exceeds window size"
 
     nfft = np.max([256, pad * 2**utils.nextpow2(win_size + 1)]) # 0 padding for efficient computation in FFT
+    if f_max == None:
+        f_max = samplerate/2
     nfk = int(np.floor(f_max/samplerate*nfft)) # number of data points in frequency axis
 
     if window is None:
@@ -844,7 +846,8 @@ def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None,
 
 def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
     '''
-    Compute multitaper time-frequency estimate from multichannel signal input. This code is adapted from the Pesaran lab `tfspec`.    
+    Compute multitaper time-frequency estimate from multichannel signal input. 
+    This code is adapted from the Pesaran lab `tfspec`.    
     
     Args:
         ts_data (nt, nch): time series array
@@ -982,9 +985,62 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     
     return f, t, spec
 
-def calc_mt_psd(data, fs, bw=None, adaptive=False, jackknife=True, sides='default'):
+def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackknife=False, adaptive=False, sides='onesided'):
+    """
+    Compute multitaper time-frequency power estimate from multichannel signal input. 
+    This code uses nitime time-series analysis below. In comparison to :func:`~aopy.analysis.calc_mt_tfr` this
+    function is very slow.
+
+    Args:
+        data (nt, nch): nd array of input neural data (multichannel)
+        fs (int): sampling rate
+        win_t (float): spectrogram window length (in seconds)
+        step_t (float): step size between spectrogram windows (in seconds)
+        bw (float, optional): spectrogram frequency bin bandwidth. Defaults to None.
+        f_max (float): frequency range to return in Hz ([0, f_max]). Defaults to samplerate/2.
+        pad (int):  padding factor for the FFT. This should be 1 or a multiple of 2.
+                    For N=500, if pad=1, we pad the FFT to 512 points.
+                    If pad=2, we pad the FFT to 1024 points. 
+                    If pad=4, we pad the FFT to 2024 points.
+        adaptive (bool, optional): adaptive taper weighting. Defaults to False.
+        
+    Returns:
+        tuple: Tuple containing:
+            | **freqs (nfreq,):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+            | **time (nt,):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+            | **spec (nfreq, nt, nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+    """
+    if len(data.shape) < 2:
+        data = data[:,None]
+    assert len(data.shape) < 3, f"only 1- or 2-dim data arrays accepted - {data.shape}-dim input given"
+    (n_sample, n_ch) = data.shape
+    total_t = n_sample/fs
+    n_window = int((total_t-win_t)/step_t)
+    assert n_window > 0
+    window_len = int(win_t*fs)
+    step_len = int(step_t*fs)
+    if f_max == None:
+        f_max = fs/2
+    nfft = np.max([256, pad * 2**utils.nextpow2(window_len+1)]) # 0 padding for efficient computation in FFT
+    nfreqs = nfft // 2 + 1
+    nfk = int(np.floor(f_max/fs*nfft)) # number of data points in frequency axis
+
+    time = np.arange(n_window)*step_t # window start time
+    spec = np.zeros((nfreqs,n_window,n_ch))
+
+    data = interp_nans(data)
+
+    for idx_window in range(n_window):
+        window_sample_range = np.arange(window_len) + step_len*idx_window
+        win_data = data[window_sample_range,:]
+        freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, nfft, adaptive, jackknife, sides)
+        spec[:,idx_window,...] = _win_psd * bw
+
+    return freqs[:nfk], time, spec[:nfk]
+
+def calc_mt_psd(data, fs, bw=None, nfft=None, adaptive=False, jackknife=True, sides='default'):
     '''
-    Computes power spectral density using Multitaper functions
+    Computes power spectral density using Multitaper functions from nitime. 
 
     Args:
         data (nt, nch): time series data where time axis is assumed to be on the last axis
@@ -1003,8 +1059,7 @@ def calc_mt_psd(data, fs, bw=None, adaptive=False, jackknife=True, sides='defaul
                 psd is distributed wrt true log - PSD
     '''
     data = data.T # move time to the last axis
-    
-    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, None, bw,  adaptive, jackknife, sides)
+    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, None, bw,  adaptive, jackknife, sides, NFFT=nfft)
     return f, psd_mt.T, nu.T
 
 def calc_welch_psd(data, fs, n_freq=None):

@@ -892,11 +892,10 @@ class HelperFunctions:
 
         f_spec,t_spec,spec = tfr_fun(data, samplerate)
 
-        fig, ax = plt.subplots(3,1,figsize=(4,6),tight_layout=True)
+        fig, ax = plt.subplots(2,1)
         aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-        aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
-        pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[2])
-        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+        pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[1])
+        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[1])
         plt.tight_layout()
 
     def test_tfr_lfp(tfr_fun):
@@ -1021,6 +1020,28 @@ class SpectrumTests(unittest.TestCase):
         tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, dtype='int16')
         HelperFunctions.test_tfr_lfp(tfr_fun)
         filename = 'tfr_mt_lfp.png'
+        savefig(docs_dir,filename)
+
+    def test_tfr_mt_tsa(self):
+        win_t = 0.2
+        step_t = 0.01
+        bw = 10
+        fk = 50
+        tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+        filename = 'tfr_mt_tsa_sines.png'
+        HelperFunctions.test_tfr_sines(tfr_fun)
+        savefig(docs_dir,filename)
+        
+        fk = 500
+        filename = 'tfr_mt_tsa_chirp.png'
+        tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+        HelperFunctions.test_tfr_chirp(tfr_fun)
+        savefig(docs_dir,filename)
+        
+        fk = 200
+        tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+        HelperFunctions.test_tfr_lfp(tfr_fun)
+        filename = 'tfr_mt_tsa_lfp.png'
         savefig(docs_dir,filename)
 
     def test_tfr_wavelets(self):
