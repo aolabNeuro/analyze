@@ -19,7 +19,6 @@ import warnings
 import nitime.algorithms as tsa
 import pywt
 import math
-import numba as nb
 
 from .. import utils
 from .. import preproc

@@ -1134,7 +1134,7 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
         times ((nt,) array): 
         freqs ((nfreq,) array): 
         cmap (str, optional): colormap to use for plotting
-        logscale (bool, optional): apply a log scale to the freq axis. Default False
+        logscale (bool, optional): apply a log scale to the color axis. Default False.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
         kwargs (dict, optional): other keyword arguments to pass to pyplot
         
@@ -1183,13 +1183,14 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     if ax == None:
         ax = plt.gca()
         
-    pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
+    if logscale:
+        pcm = ax.pcolormesh(times, freqs, np.log10(values), cmap=cmap, **kwargs)
+    else:
+        pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
     pcm.set_edgecolor('face')
     
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Frequency (Hz)')
-    if logscale:
-        ax.set_yscale('log')
 
     return pcm
 
