@@ -936,7 +936,7 @@ class HelperFunctions:
         print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
 
         avg_coef = np.mean(abs(coef), axis=2)
-        pcm = aopy.visualization.plot_tfr(avg_coef, times, freqs, 'plasma', logscale=True, ax=ax[2])
+        pcm = aopy.visualization.plot_tfr(avg_coef, times - time_before, freqs, 'plasma', logscale=True, ax=ax[2])
         fig.colorbar(pcm, label='power (log V)', orientation='horizontal', ax=ax[2])
 
 class SpectrumTests(unittest.TestCase):
