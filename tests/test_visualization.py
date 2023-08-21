@@ -175,7 +175,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
 
         freqs = np.linspace(1,250,100)
-        coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+        freqs, t, coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
         pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
 
         fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
