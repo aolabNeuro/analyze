@@ -243,6 +243,27 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_allclose(mds_true, md)
         np.testing.assert_allclose(pds_true, np.rad2deg(pd)-90)
 
+
+    def test_get_mean_fr_per_condition(self):
+        ntime = 4
+        nch = 3
+        ntrials = 10
+        ncond = 2
+        data = np.random.normal(0,0.0001,size=(ntime, nch, ntrials))
+        cond_labels = np.zeros(ntrials)
+        cond_labels[6:] = 1
+        data[:,1,cond_labels==1] = 1
+        means, std, pvalue = aopy.analysis.get_mean_fr_per_condition(data, cond_labels, return_significance=True)
+        expected_means = np.zeros((nch, ncond))
+        expected_std = np.zeros((nch, ncond))
+        expected_means[1,1] = 1
+        np.testing.assert_allclose(means, expected_means, atol=0.0001)
+        np.testing.assert_allclose(std, expected_std, atol=0.0001)
+        np.testing.assert_equal(len(pvalue), nch)
+        np.testing.assert_equal(pvalue[0]>0.05, True)
+        np.testing.assert_equal(pvalue[1]<0.05, True)
+        np.testing.assert_equal(pvalue[2]>0.05, True)
+
 class CalcTests(unittest.TestCase):
 
     def test_calc_rms(self):
