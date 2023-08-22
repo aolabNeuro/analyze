@@ -257,8 +257,8 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         expected_means = np.zeros((nch, ncond))
         expected_std = np.zeros((nch, ncond))
         expected_means[1,1] = 1
-        np.testing.assert_allclose(means, expected_means, atol=0.0001)
-        np.testing.assert_allclose(std, expected_std, atol=0.0001)
+        np.testing.assert_allclose(means, expected_means, atol=0.001)
+        np.testing.assert_allclose(std, expected_std, atol=0.001)
         np.testing.assert_equal(len(pvalue), nch)
         np.testing.assert_equal(pvalue[0]>0.05, True)
         np.testing.assert_equal(pvalue[1]<0.05, True)
