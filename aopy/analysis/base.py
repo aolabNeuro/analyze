@@ -1034,7 +1034,7 @@ def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackkni
         window_sample_range = np.arange(window_len) + step_len*idx_window
         win_data = data[window_sample_range,:]
         freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, nfft, adaptive, jackknife, sides)
-        spec[:,idx_window,...] = _win_psd * bw
+        spec[:,idx_window,...] = _win_psd
 
     return freqs[:nfk], time, spec[:nfk]
 

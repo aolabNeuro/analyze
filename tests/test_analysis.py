@@ -903,7 +903,7 @@ class HelperFunctions:
         Tests TFR functions. Input a TFR function with the following signature:
         tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
         '''
-        fig, ax = plt.subplots(3,1,figsize=(5,6), layout='compressed')
+        fig, ax = plt.subplots(4,1,figsize=(5,8), layout='compressed')
 
         # Collect trials of data starting at go-cue
         exp_data, exp_metadata = aopy.data.load_preproc_exp_data(data_dir, 'beignet', 5974, '2022-07-01')
@@ -914,20 +914,23 @@ class HelperFunctions:
         reward = 48
         trial_times, trial_events = aopy.preproc.get_trial_segments_and_times(exp_data['events']['code'], exp_data['events']['code'], [go_cue], [trial_end])
         go_cues = [t[0] for t, e in zip(trial_times, trial_events) if reward in e]
-        time_before = 0.5
-        time_after = 1.5
+        time_before = 1.0
+        time_after = 2.0
         erp = aopy.analysis.calc_erp(lfp_data[:,0], go_cues, time_before, time_after, samplerate)
         erp = erp.transpose(1,2,0) # (nt, nch, ntrial)
 
+        # Plot time domain
         aopy.visualization.plot_timeseries(np.mean(erp, axis=2), samplerate, ax=ax[0])
         ax[0].set_ylabel('voltage (a.u.)')
 
+        # Plot frequency domain
         f, amp = aopy.analysis.calc_freq_domain_amplitude(erp[:,0,:], samplerate)
         amp = np.mean(amp, axis=1)
         ax[1].plot(f, amp)
         ax[1].set_xlabel('frequency (Hz)')
         ax[1].set_ylabel('voltage (a.u.)')
 
+        # Compute and time spectrogram
         freqs = np.linspace(1,200,100)
         t0 = time.perf_counter()
         freqs, times, coef = tfr_fun(erp[:,0,:], samplerate)
@@ -935,9 +938,17 @@ class HelperFunctions:
 
         print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
 
+        # Plot spectrogram
         avg_coef = np.mean(abs(coef), axis=2)
         pcm = aopy.visualization.plot_tfr(avg_coef, times - time_before, freqs, 'plasma', logscale=True, ax=ax[2])
         fig.colorbar(pcm, label='power (log V)', orientation='horizontal', ax=ax[2])
+
+        # Plot beta-band power
+        band_power = aopy.analysis.get_tfr_feats(freqs, abs(coef), [(12.5,30)])
+        mean_band_power = np.mean(band_power, axis=1)
+        ax[3].plot(times - time_before, mean_band_power)
+        ax[3].set_xlabel('time (s)')
+        ax[3].set_ylabel('beta power (V)')
 
 class SpectrumTests(unittest.TestCase):
 
@@ -990,22 +1001,22 @@ class SpectrumTests(unittest.TestCase):
         self.assertEqual(lfp.shape[0], len(bands))
 
     def test_tfr_ft(self):
-        win_t = 0.2
+        win_t = 0.5
         step = 0.01
         f_max = 50
-        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
         filename = 'tfr_ft_sines.png'
         HelperFunctions.test_tfr_sines(tfr_fun)
         savefig(docs_dir,filename)
         
         f_max = 500
         filename = 'tfr_ft_chirp.png'
-        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
         HelperFunctions.test_tfr_chirp(tfr_fun)
         savefig(docs_dir,filename)
         
         f_max = 200
-        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max)
+        tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
         HelperFunctions.test_tfr_lfp(tfr_fun)
         filename = 'tfr_ft_lfp.png'
         savefig(docs_dir,filename)
@@ -1035,9 +1046,9 @@ class SpectrumTests(unittest.TestCase):
         savefig(docs_dir,filename)
 
     def test_tfr_mt_tsa(self):
-        win_t = 0.2
+        win_t = 0.3
         step_t = 0.01
-        bw = 10
+        bw = 20
         fk = 50
         tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
         filename = 'tfr_mt_tsa_sines.png'
