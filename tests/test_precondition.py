@@ -565,8 +565,8 @@ class EyeTests(unittest.TestCase):
     def test_detect_saccades(self):
         samplerate = 1000
         le_data_filt = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=samplerate)
-        le_speed = convert_pos_to_speed(le_data_filt, samplerate)
-        onset, duration, distance = detect_saccades(le_speed, samplerate, debug=True, debug_window=(0, 5))
+        le_accel = convert_pos_to_accel(le_data_filt, samplerate)
+        onset, duration, distance = detect_saccades(le_accel, samplerate, debug=True, debug_window=(0, 5))
         savefig(docs_dir, 'detect_saccades.png')
         plt.close()
 

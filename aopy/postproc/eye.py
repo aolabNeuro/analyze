@@ -25,6 +25,22 @@ def get_saccade_pos(eye_pos, onset_times, duration, samplerate):
     offset_pos = eye_pos[offset_indices, :]
     
     return onset_pos, offset_pos
+
+def get_saccade_distance(eye_pos, onset_times, duration, samplerate):
+    '''
+    Returns the distance from start to end of each given saccade
+    
+    Args:
+        eye_pos (nt,2): eye position data
+        onset_times (nsaccade): saccade onset times (in seconds) generated in a trial segment.
+        duration (nsaccade): saccade duration (in seconds) of saccades generated in a trial segment
+        samplerate (float): sampling rate
+    
+    Returns:
+        (nsaccade,) distance traveled for each saccade
+    '''    
+    onset_pos, offset_pos = get_saccade_pos(eye_pos, onset_times, duration, samplerate)
+    return np.linalg.norm(offset_pos - onset_pos, 2)
         
 def get_saccade_target_index(onset_pos, offset_pos, target_pos, target_radius):
     '''

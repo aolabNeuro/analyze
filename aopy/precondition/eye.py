@@ -5,7 +5,7 @@ from scipy.signal import butter, filtfilt
 from ..precondition import downsample
 from ..utils import derivative, detect_edges
 
-def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=100, buttord=4):
+def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=200, buttord=4):
     '''
     Filter and downsample eye data.
 
@@ -130,12 +130,11 @@ def detect_saccades(eye_kinematics, samplerate, thr=None, num_sd=1.5, intersacca
     saccade_offset_time, _ = detect_edges(eye_kinematics < thr[1], samplerate, rising=False, falling=True, check_alternating=False)
 
     if saccade_onset_time.size == 0 or saccade_offset_time.size == 0:
-        return [], [], []
+        return np.array([]), np.array([]), np.array([])
 
     # Only consider saccades that have a threshold-crossing offset
     onset = []
     duration = []
-    distance = []
     prev_offset = 0
     for t in saccade_onset_time:
         if intersaccade_min and t < prev_offset + intersaccade_min:
@@ -146,14 +145,9 @@ def detect_saccades(eye_kinematics, samplerate, thr=None, num_sd=1.5, intersacca
             offset_time = saccade_offset_time[nearby_offset[0]]
             onset.append(t)
             duration.append(offset_time - t)
-            distance.append(
-                np.linalg.norm(eye_kinematics[int(t*samplerate),:] - 
-                               eye_kinematics[int(offset_time*samplerate),:])
-            ) # distance is the deviation of the saccade in space (in cm)
             prev_offset = offset_time
     onset = np.array(onset)
     duration = np.array(duration)
-    distance = np.array(distance)
 
     if debug:
         from ..visualization import plot_saccades
@@ -168,5 +162,16 @@ def detect_saccades(eye_kinematics, samplerate, thr=None, num_sd=1.5, intersacca
         plt.figure()
         plot_saccades(eye_kinematics[debug_idx[0]:debug_idx[1]], onset_debug, duration_debug)
 
+    return onset, duration
+
+def detect_saccades_accel():
+    accel = convert_pos_to_accel()
+    onset, duration = detect_saccades()
+    distance = postproc.get_saccade_distance()
     return onset, duration, distance
-        
+
+def detect_saccades_speed():
+    speed = convert_pos_to_speed()
+    onset, duration = detect_saccades()
+    distance = postproc.get_saccade_distance()
+    return onset, duration, distance
