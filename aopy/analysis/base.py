@@ -1066,6 +1066,208 @@ def interp_multichannel(x):
 
     return x
 
+def calculate_coherency(X, Y, fs, p, k, fk=None, pad=2, pool_trials=False, errorchk=False, pval=0.05):
+    '''
+    Coherency between two signals.
+
+    Args:
+        X (_type_): Time series array in [Space / Trials, Time] form.
+        Y (_type_): Time series array in [Space / Trials, Time] form.
+        fs (float): sampling rate
+        p (int): standardized half bandwidth in hz
+        k (int): number of DPSS tapers to use
+        fk (float): frequency range to return in Hz ([0, fk]). Defaults to fs/2.
+        pad (int):  padding factor for the FFT. This should be 1 or a multiple of 2.
+                    For N=500, if pad=1, we pad the FFT to 512 points.
+                    If pad=2, we pad the FFT to 1024 points. 
+                    If pad=4, we pad the FFT to 2024 points.
+        pool_trials (bool): if True, then calculate COH by pooling across channels / trials.
+            Otherwise calculate COH separately for each channel / trial. Default False.
+        errorchk (bool): _description_
+        pval (float, optional): p-value to calculate error bars for. Defaults to 0.05 i.e. 95 % confidence.
+
+    Returns: 
+        tuple: tuple containing:
+        | **coh (nfreq, nch):** coherency between X and Y.
+        | **freqs (nfreq,):** the frequency axis for coh
+        | **S_X (nfreq, nch):** spectrum of X
+        | **S_Y (nfreq, nch):** spectrum of Y
+        | **coh_err (2, nch, nfreqs):** error bars for coh in Hi / Lo 
+        |    form given by the Jacknife - t interval for pval.
+        | **SX_err (2, nch, nfreqs):** error bars for S_X.
+        | **SY_err (2, nch, nfreqs):** error bars for S_Y.
+
+    Raises:
+        ValueError: if there is a shape mismatch between X and Y
+
+    Original Matlab code written by: Bijan Pesaran Caltech 1998
+    '''
+    if X.shape != Y.shape:
+        raise ValueError('Error: Time series are not the same size')
+
+    if X.ndim == 1:
+        X = X[:, np.newaxis]
+        Y = Y[:, np.newaxis]
+    if fk is None:
+        fk = fs / 2
+
+    X = X.T
+    Y = Y.T
+    nch, nt = X.shape
+    fk = np.array([0, fk])
+    tapers, _ = dpsschk(nt, p, k)
+
+    # Compute the next power of two efficiently
+    def nextpow2(x):
+        #   Next higher power of 2.
+        #   NEXTPOW2(N) returns the first P such that 2.^P >= abs(N).
+        #   It is often useful for finding the nearest power of two sequence length for FFT operations.
+        return 1 if x == 0 else math.ceil(math.log2(x))
+    nf = np.max([256,pad*2**nextpow2(nt+1)]) # 0 padding for efficient computation in FFT
+    nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
+    freqs = np.linspace(fk[0],fk[1],int(np.diff(nfk))) # frequency axis for spectrogram
+    
+    coh_err = SX_err = SY_err = None
+
+    if not pool_trials:
+        coh, S_X, S_Y = [], [], []
+
+        if errorchk:
+            coh_err, SX_err, SY_err = np.zeros([2, nch, len(freqs)]), np.zeros([2, nch, len(freqs)]), np.zeros([2, nch, len(freqs)])
+
+        for ch in range(nch):
+            tmp1 = X[ch, :] - np.mean(X, axis=1)
+            tmp2 = Y[ch, :] - np.mean(Y, axis=1)
+
+            inputArrayX = tapers * tmp1[:, np.newaxis]
+            Xk = np.fft.fft(inputArrayX.T, int(nf))[:, int(fk[0] / fs * nf):int(fk[1] / fs * nf)]
+
+            inputArrayY = tapers * tmp2[:, np.newaxis]
+            Yk = np.fft.fft(inputArrayY.T, int(nf))[:, int(fk[0] / fs * nf):int(fk[1] / fs * nf)]
+
+            SXk = (Xk * np.conj(Xk)).real
+            SYk = (Yk * np.conj(Yk)).real
+
+            S_X.append(np.mean(SXk, axis=0) / nt)
+            S_Y.append(np.mean(SYk, axis=0) / nt)
+
+            cohTemp = np.sum(Xk * np.conj(Yk), axis=0)
+            cohTemp1 = np.sqrt(S_X[ch] * S_Y[ch])
+            coh.append(cohTemp.real / (nt * cohTemp1.real))
+
+            if errorchk:
+                jcoh, jXlsp, jYlsp = _calculate_jacobian(Xk, Yk, nt)
+                lsigX, lsigY, lsigXY = _calculate_standard_deviations(jXlsp, jYlsp, jcoh, nt)
+                coh_err[:, ch, :], SX_err[:, ch, :], SY_err[:, ch, :] = _calculate_confidence_intervals(
+                    coh[ch], jcoh, S_X[ch], S_Y[ch], lsigX, lsigY, lsigXY, pval)
+
+    else:
+        Xk = np.zeros([nch * k, nf], dtype=complex)
+        Yk = np.zeros([nch * k, nf], dtype=complex)
+
+        for ch in range(nch):
+            tmp1 = X[ch, :] - np.mean(X, axis=1)
+            tmp2 = Y[ch, :] - np.mean(Y, axis=1)
+
+            inputArrayx = tapers * tmp1[:, np.newaxis]
+            xk = np.fft.fft(inputArrayx.T, int(nf))[:, int(fk[0] / fs * nf):int(fk[1] / fs * nf)]
+            Xk[int(ch * k):int((ch + 1) * k), :] = xk
+
+            inputArrayy = tapers * tmp2[:, np.newaxis]
+            yk = np.fft.fft(inputArrayy.T, int(nf))[:, int(fk[0] / fs * nf):int(fk[1] / fs * nf)]
+            Yk[int(ch * k):int((ch + 1) * k), :] = yk
+
+        S_X = np.sum(Xk * np.conj(Xk), axis=0) / k
+        S_Y = np.sum(Yk * np.conj(Yk), axis=0) / k
+
+        coh = np.sum(Xk * np.conj(Yk), axis=0) / (k * np.sqrt(S_X * S_Y))
+
+        if errorchk:
+            jcoh, jXlsp, jYlsp = _calculate_jacobian(Xk, Yk, nch * k)
+            lsigX, lsigY, lsigXY = _calculate_standard_deviations(jXlsp, jYlsp, jcoh, nch * k)
+            coh_err, SX_err, SY_err = _calculate_confidence_intervals(
+                coh, jcoh, S_X, S_Y, lsigX, lsigY, lsigXY, pval)
+
+    coh = np.array(coh).T
+    S_X = np.array(S_X).T
+    S_Y = np.array(S_Y).T
+    
+    if errorchk:
+        coh_err = coh_err.T
+        SX_err = SX_err.T
+        SY_err = SY_err.T
+
+    return coh, freqs, S_X, S_Y, coh_err, SX_err, SY_err
+
+def _calculate_jacobian(Xk, Yk, n):
+    '''
+    Helper function for coherence jacobian
+
+    Args:
+        Xk (_type_): _description_
+        Yk (_type_): _description_
+        n (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    '''
+    jcoh, jXlsp, jYlsp = np.zeros([n, Xk.shape[1]]), np.zeros([n, Xk.shape[1]]), np.zeros([n, Xk.shape[1]])
+    for ik in range(n):
+        indices = np.setdiff1d(np.arange(n), ik)
+        Xj = Xk[indices, :]
+        Yj = Yk[indices, :]
+
+        tmpx = np.mean(Xj * np.conj(Xj), axis=0) / (n - 1)
+        tmpy = np.mean(Yj * np.conj(Yj), axis=0) / (n - 1)
+
+        jcohTemp = np.sum(Xj * np.conj(Yj), axis=0) / (n - 1)
+        jcohTemp1 = jcohTemp / np.sqrt(tmpx * tmpy)
+        jcoh[ik, :] = np.arctanh(np.abs(jcohTemp1))
+        jXlsp[ik, :] = np.log(tmpx.real)
+        jYlsp[ik, :] = np.log(tmpy.real)
+    
+    return jcoh, jXlsp, jYlsp
+
+def _calculate_standard_deviations(jXlsp, jYlsp, jcoh, nt):
+    '''
+    Helper function for coherence standard deviations.
+
+    Args:
+        jXlsp (_type_): _description_
+        jYlsp (_type_): _description_
+        jcoh (_type_): _description_
+        nt (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    '''
+    lsigX = np.std(jXlsp, axis=0) * np.sqrt(nt - 1)
+    lsigY = np.std(jYlsp, axis=0) * np.sqrt(nt - 1)
+    lsigXY = np.std(jcoh, axis=0) * np.sqrt(nt - 1)
+    return lsigX, lsigY, lsigXY
+
+def _calculate_confidence_intervals(coh, jcoh, S_X, S_Y, lsigX, lsigY, lsigXY, pval):
+    '''
+    Helper function for coherence confidence intervals.
+
+    Args:
+        coh (_type_): _description_
+        jcoh (_type_): _description_
+        S_X (_type_): _description_
+        S_Y (_type_): _description_
+        lsigX (_type_): _description_
+        lsigY (_type_): _description_
+        lsigXY (_type_): _description_
+        pval (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    '''
+    crit = stats.t.ppf(1 - pval / 2, jcoh.shape[0] - 1)
+    coh_err = np.tanh(np.arctanh(np.abs(coh)) + crit * lsigXY)
+    SX_err = np.exp(np.log(S_X.real) + crit * lsigX)
+    SY_err = np.exp(np.log(S_Y.real) + crit * lsigY)
+    return coh_err, SX_err, SY_err
 
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''

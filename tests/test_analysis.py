@@ -5,6 +5,7 @@ import os
 import numpy as np
 import warnings
 import unittest
+import scipy
 
 import os
 import matplotlib.pyplot as plt
@@ -986,6 +987,58 @@ class SpectrumTests(unittest.TestCase):
         plt.tight_layout()
         savefig(docs_dir,filename)
 
+    def test_coherency(self):
+
+        fs = 1000
+        N = 1e5
+        amp = 20
+        freq = 300.0
+        noise_power = 0.001 * fs / 2
+        time = np.arange(N) / fs
+
+        rng = np.random.default_rng(seed=0)
+        signal1 = rng.normal(scale=np.sqrt(noise_power), size=time.shape)
+
+        b, a = scipy.signal.butter(2, 0.25, 'low')
+        signal2 = scipy.signal.lfilter(b, a, signal1)
+        signal2 += rng.normal(scale=0.1*np.sqrt(noise_power), size=time.shape)
+
+        signal1 += amp*np.sin(2*np.pi*freq*time)
+
+        # Calculate coherency
+        p = 5  # Time-bandwidth product
+        k = 9  # Number of tapers
+        pool_trials = False  # Do not pool trials
+        errorchk = False  # Disable error checking for simplicity
+        fk = fs / 2  # Maximum frequency of interest
+
+        coh, f, S_X, S_Y, _, _, _ = aopy.analysis.calculate_coherency(
+            signal1, signal2, fs, p, k, fk=fk, pool_trials=pool_trials, errorchk=errorchk)
+
+        f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=1024, axis=0)
+
+        # Plot the coherency
+        plt.figure(figsize=(10, 6))
+        plt.subplot(2, 1, 1)
+        plt.semilogy(f, coh)
+        plt.semilogy(f_scipy, coh_scipy)
+        plt.title('Coherency between two signals')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Coherency')
+        plt.legend(['peslab', 'scipy'])
+
+        plt.subplot(2, 1, 2)
+        plt.semilogy(f, S_X, label='S_X')
+        plt.semilogy(f, S_Y, label='S_Y')
+        plt.title('Spectral densities of the signals')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Power/Frequency')
+        plt.legend()
+
+        plt.tight_layout()
+        
+        figname = 'coherency.png'
+        aopy.visualization.savefig(docs_dir, figname)
 
 class BehaviorMetricsTests(unittest.TestCase):
 
