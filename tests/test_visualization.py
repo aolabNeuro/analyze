@@ -425,12 +425,12 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'color_trajectories_segmented.png'
         savefig(docs_dir, filename)
 
-    def test_get_color_gradient(self):
+    def test_get_color_gradient_RGB(self):
         npts = 200
         x = np.linspace(0, 2*np.pi, npts)
         y = np.sin(x)
         fig, ax = plt.subplots()
-        ax.scatter(x, y, c=aopy.visualization.get_color_gradient(npts, 'g', [1,0,0]))
+        ax.scatter(x, y, c=aopy.visualization.get_color_gradient_RGB(npts, 'g', [1,0,0]))
         filename = 'color_gradient_example.png'
         savefig(docs_dir, filename)
 

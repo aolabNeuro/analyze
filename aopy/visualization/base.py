@@ -1207,9 +1207,9 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
 
     return pcm
 
-def get_color_gradient(npts, end_color, start_color=[1,1,1]):
+def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
     '''
-    This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color.
+    This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color. See also sns.color_palette for a gradient of RGB values within a Seaborn color palette.
 
     Examples:
         
