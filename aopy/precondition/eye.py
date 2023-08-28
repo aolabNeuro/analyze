@@ -72,7 +72,7 @@ def convert_pos_to_accel(eye_pos, samplerate):
 
 def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=None, 
                     min_saccade_duration=0.015, max_saccade_duration=0.16, 
-                    debug=False, debug_window=(0, 2)):
+                    lowpass_filter_freq=30, debug=False, debug_window=(0, 2)):
     '''
     Detect saccades from eye kinematics data. Uses thresholding of the kinematics 
     to find putative saccades, then ensures that saccades are spaced by some 
@@ -103,6 +103,7 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
         intersaccade_min (float, optional): minimum time (in seconds) allowed between saccades (from offset to next onset)
         min_saccade_duration (float, optional): minimum time (in seconds) that a saccade can take (inclusive)
         max_saccade_duration (float, optional): maximum time (in seconds) that a saccade can take (exclusive)
+        lowpass_filter_freq (float, optional): frequency in Hz to low-pass filter. If None, no filtering will take place. Default 30 Hz. 
         debug (bool, optional): if True, display a figure showing the threshold crossings
         debug_window (tuple, optional): (start, end) time (in seconds) for the debug figure
         
@@ -117,9 +118,9 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
     " (positive thr, negative thr)"
     assert (intersaccade_min is None) or intersaccade_min < max_saccade_duration, "Max saccade"
     " duration must be longer than the minimum intersaccade interval"
-    if samplerate != 1000:
-        print("Warning: this function works best with eye data that has been low-pass filtered below 30 Hz")
-
+    
+    if lowpass_filter_freq is not None:
+        eye_pos = filter_eye(eye_pos, samplerate, samplerate, low_cut=lowpass_filter_freq)    
     eye_accel = convert_pos_to_accel(eye_pos, samplerate)
 
     # Set an appropritate threshold to detect saccades
