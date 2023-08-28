@@ -66,7 +66,7 @@ def get_preferred_direction(b1, b2):
 
 def get_mean_fr_per_condition(data, condition_labels, return_significance=False):
     '''
-    This function computes the average activity within a time window for each feature and trial. 
+    This function computes the average activity for each feature and trial. 
 
     Args:
         data (ntime, nch, ntrials): Trial aligned neural data
