@@ -99,6 +99,8 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
     Args:
         eye_kinematics (nt, nch): eye kinematics data, e.g. velocity or acceleration for one eye
         samplerate (float): sampling rate of the eye data
+        thr ((high,low) tuple): positive and negative threshold values for acceleration, if desired. If None (default), 
+            thresholds will be automatically chosen based on num_sd above the mean.
         num_sd (float, optional): number of standard deviations above zero to threshold acceleration
         intersaccade_min (float, optional): minimum time (in seconds) allowed between saccades (from offset to next onset)
         min_saccade_duration (float, optional): minimum time (in seconds) that a saccade can take (inclusive)
@@ -114,10 +116,10 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
         | **distance (nsaccade):** distance (same units as eye_pos) of each detected saccade
 
     '''
-    assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), "Threshold must be in the form" 
-    " (positive thr, negative thr)"
-    assert (intersaccade_min is None) or intersaccade_min < max_saccade_duration, "Max saccade"
-    " duration must be longer than the minimum intersaccade interval"
+    assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), ("Threshold must be in the form" 
+        " (positive thr, negative thr)")
+    assert (intersaccade_min is None) or intersaccade_min < max_saccade_duration, ("Max saccade"
+        " duration must be longer than the minimum intersaccade interval")
     
     if lowpass_filter_freq is not None:
         eye_pos = filter_eye(eye_pos, samplerate, samplerate, low_cut=lowpass_filter_freq)    
