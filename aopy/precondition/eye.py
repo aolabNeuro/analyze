@@ -1,10 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import butter, filtfilt
 
-from ..precondition import downsample, mt_lowpass_filter
+from ..precondition import downsample
 from ..utils import derivative, detect_edges
 
-def filter_eye(eye_pos, samplerate, downsamplerate=1000, lowpass_freq=30, taper_len=0.05, pad_t=1.0):
+def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=200, buttord=4):
     '''
     Filter and downsample eye data.
 
@@ -16,16 +17,13 @@ def filter_eye(eye_pos, samplerate, downsamplerate=1000, lowpass_freq=30, taper_
         downsamplerate (float, optional): sampling rate at which to return eye data
         lowpass_freq (float, optional): low cutoff frequency to limit analysis of saccades
         taper_len (float, optional): length of tapers to use in multitaper lowpass filter
-        pad_t (float, optional): time in seconds to pad the ends of the eye data before filtering
 
     Returns:
         (nt, nch) eye pos: eye position after filtering and downsampling
     '''
     # Lowpass filter
-    n_pad = int(pad_t*samplerate)
-    eye_pos = np.pad(eye_pos, ((n_pad,n_pad),(0,0)), mode='edge')
-    eye_pos = mt_lowpass_filter(eye_pos, lowpass_freq, taper_len, samplerate, verbose=False)
-    eye_pos = eye_pos[n_pad:-n_pad,:]
+    b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
+    eye_pos = filtfilt(b, a, eye_pos, axis=0)
 
     # Downsample
     if samplerate > downsamplerate:
@@ -33,21 +31,27 @@ def filter_eye(eye_pos, samplerate, downsamplerate=1000, lowpass_freq=30, taper_
 
     return eye_pos
 
-def convert_pos_to_velocity(eye_pos, samplerate):
+def convert_pos_to_speed(eye_pos, samplerate):
     '''
-    Differentiate twice to get acceleration from eye position.
+    Differentiate to get speed from eye position.
 
     Args:
         eye_pos (nt, nch): eye position data, e.g. from oculomatic
         samplerate (float): sampling rate of the eye data
     
     Returns:
-        (nt, nch) array: eye velocity
+        (nt, nch) array: eye speed
+
+    Examples:
+
+        .. image:: _images/convert_pos_to_accel_nofilter.png
+
+        .. image:: _images/convert_pos_to_accel_filter.png
     '''
     time = np.arange(eye_pos.shape[0])/samplerate
-    velocity = derivative(time, eye_pos, norm=True)
+    speed = derivative(time, eye_pos, norm=True)
 
-    return velocity    
+    return speed    
 
 def convert_pos_to_accel(eye_pos, samplerate):
     '''
@@ -60,15 +64,15 @@ def convert_pos_to_accel(eye_pos, samplerate):
     Returns:
         (nt, nch) array: eye acceleration
     '''
-    velocity = convert_pos_to_velocity(eye_pos, samplerate)
+    speed = convert_pos_to_speed(eye_pos, samplerate)
     time = np.arange(eye_pos.shape[0])/samplerate
-    accel = derivative(time, velocity, norm=False)
+    accel = derivative(time, speed, norm=False)
 
     return accel
 
 def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=None, 
                     min_saccade_duration=0.015, max_saccade_duration=0.16, 
-                    debug=False, debug_window=(0, 2)):
+                    lowpass_filter_freq=30, debug=False, debug_window=(0, 2)):
     '''
     Detect saccades from eye kinematics data. Uses thresholding of the kinematics 
     to find putative saccades, then ensures that saccades are spaced by some 
@@ -95,10 +99,13 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
     Args:
         eye_kinematics (nt, nch): eye kinematics data, e.g. velocity or acceleration for one eye
         samplerate (float): sampling rate of the eye data
+        thr ((high,low) tuple): positive and negative threshold values for acceleration, if desired. If None (default), 
+            thresholds will be automatically chosen based on num_sd above the mean.
         num_sd (float, optional): number of standard deviations above zero to threshold acceleration
         intersaccade_min (float, optional): minimum time (in seconds) allowed between saccades (from offset to next onset)
         min_saccade_duration (float, optional): minimum time (in seconds) that a saccade can take (inclusive)
         max_saccade_duration (float, optional): maximum time (in seconds) that a saccade can take (exclusive)
+        lowpass_filter_freq (float, optional): frequency in Hz to low-pass filter. If None, no filtering will take place. Default 30 Hz. 
         debug (bool, optional): if True, display a figure showing the threshold crossings
         debug_window (tuple, optional): (start, end) time (in seconds) for the debug figure
         
@@ -109,13 +116,13 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
             | **distance (nsaccade):** distance (same units as eye_pos) of each detected saccade
 
     '''
-    assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), "Threshold must be in the form" 
-    " (positive thr, negative thr)"
-    assert (intersaccade_min is None) or intersaccade_min < max_saccade_duration, "Max saccade"
-    " duration must be longer than the minimum intersaccade interval"
-    if samplerate != 1000:
-        print("Warning: this function works best with eye data that has been low-pass filtered below 30 Hz")
-
+    assert thr is None or (len(thr) == 2 and thr[0] > thr[1]), ("Threshold must be in the form" 
+        " (positive thr, negative thr)")
+    assert (intersaccade_min is None) or intersaccade_min < max_saccade_duration, ("Max saccade"
+        " duration must be longer than the minimum intersaccade interval")
+    
+    if lowpass_filter_freq is not None:
+        eye_pos = filter_eye(eye_pos, samplerate, samplerate, low_cut=lowpass_filter_freq)    
     eye_accel = convert_pos_to_accel(eye_pos, samplerate)
 
     # Set an appropritate threshold to detect saccades
