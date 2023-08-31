@@ -1216,3 +1216,35 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
         ax.set_yscale('log')
 
     return pcm
+
+def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
+    '''
+    This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color. See also sns.color_palette for a gradient of RGB values within a Seaborn color palette.
+
+    Examples:
+        
+        .. code-block:: python
+
+                npts = 200
+                x = np.linspace(0, 2*np.pi, npts)
+                y = np.sin(x)
+                fig, ax = plt.subplots()
+                ax.scatter(x, y, c=get_color_gradient(npts, 'g', [1,0,0]))
+    
+        .. image:: _images/color_gradient_example.png
+
+    Args:
+        npts (int): How many different colors are part of the gradient
+        end_color (str or list): Color that ends the gradient. Can be any matplotlib color or specific RGB values.
+        start_color (str or list): Color that ends the gradient. Can be any matplotlib color or specific RGB values. Defaults to white.
+
+    Returns:
+        (npts, 3): An array with linearly spaced colors from the start to end
+    '''
+    rgb_end = matplotlib.colors.to_rgb(end_color)
+    rgb_start = matplotlib.colors.to_rgb(start_color)
+    ct = np.zeros((npts, 3))
+    ct[:,0] = np.flip(np.linspace(rgb_end[0], rgb_start[0], npts))
+    ct[:,1] = np.flip(np.linspace(rgb_end[1], rgb_start[1], npts))
+    ct[:,2] = np.flip(np.linspace(rgb_end[2], rgb_start[2], npts))
+    return ct
