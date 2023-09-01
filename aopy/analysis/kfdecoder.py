@@ -19,10 +19,10 @@ class KFDecoder(object):
     
     Attributes:
         model ([A, W, H, Q] list): list of matrices:
-        | [State Transition model,
-        | Covariance of State Transition model,
-        | Observation model,
-        | Covariance of Observation model]
+            | [State Transition model,
+            | Covariance of State Transition model,
+            | Observation model,
+            | Covariance of Observation model]
     """
 
     def __init__(self, C=1):

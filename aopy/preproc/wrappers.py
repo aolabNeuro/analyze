@@ -209,7 +209,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     Example:
         Uncalibrated raw data:
 
-        .. image:: _images/eye_trajectories.png
+        .. image:: _images/eye_trajectories_raw.png
 
         After calibration:
         
@@ -230,7 +230,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         exp_data = load_hdf_group(result_dir, exp_filename, 'exp_data')
         exp_metadata = load_hdf_group(result_dir, exp_filename, 'exp_metadata')
     except (FileNotFoundError, ValueError):
-        raise ValueError(f"File {result_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
+        raise ValueError(f"File {exp_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
     
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)

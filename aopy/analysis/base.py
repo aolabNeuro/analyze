@@ -173,10 +173,22 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     .. math::
     
         R \\in \\mathbb{R}^{nt \\times nch}
+
+    .. math::
+
         M \\in \\mathbb{R}^{nt \\times ndim}
+
+    .. math::
+
         \\beta \\in \\mathbb{R}^{nch \\times ndim}
+    
+    .. math::
+
         R = M\\beta^T
-        [\\beta_0 \beta_x \beta_y]^T = (M^T M)^{-1} M^T R
+
+    .. math::
+
+        [\\beta_0 \\beta_x \\beta_y]^T = (M^T M)^{-1} M^T R
 
     Args:
         neural_data ((nt, nch) or list of (nt, nch)): Input neural data (:math:`R`) to regress against kinematic activity.
@@ -185,7 +197,7 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
 
     Returns:
         tuple: Tuple containing:
-            | **(nch, ndim):** Subspace (:math:`\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
+            | **(nch, ndim):** Subspace (:math:`\\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
             | **((nt, nch) or list of (nt, ndim)):** Neural data projected onto task relevant subspace
 
     '''
@@ -393,8 +405,9 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
         plot_flag (bool, optional): display histogram. In plotting, number of intervals is summed across units.
 
     Returns:
-        ISI_hist (n_bins, n_unit) : number of intervals
-        hist_bins (n_bins): bin edge to compute histogram
+        tuple: tuple containing:
+            | **ISI_hist (n_bins, n_unit):** number of intervals
+            | **hist_bins (n_bins):** bin edge to compute histogram
     '''
 
     n_unit = data.shape[1]
@@ -495,8 +508,8 @@ def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='sp
         
     Returns:
         tuple: tuple containing:
-            |**dist (nbins):** electrode distance at each bin
-            |**corr (nbins):** correlation at each bin
+            | **dist (nbins):** electrode distance at each bin
+            | **corr (nbins):** correlation at each bin
 
     '''
     dist = utils.calc_euclid_dist_mat(elec_pos)
@@ -647,7 +660,7 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
             | **linear_fit_score (float):** Coefficient of determination for linear fit
             | **pcc (float):** Pearson's correlation coefficient
             | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
-            | **reg_fit (sklearn.linear_model._base.LinearRegression)
+            | **reg_fit (sklearn.linear_model._base.LinearRegression):** Linear regression parameters
     '''
     xdata = xdata.reshape(-1, 1)
     ydata = ydata.reshape(-1,1)

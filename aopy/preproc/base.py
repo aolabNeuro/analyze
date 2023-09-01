@@ -211,8 +211,8 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
 
     Returns:
         tuple: tuple containing:
-        | **timeseries (nt):** New timeseries of data.
-        | **sampling_points (nt):** Sampling points used to calculate the new time series.
+            | **timeseries (nt):** New timeseries of data.
+            | **sampling_points (nt):** Sampling points used to calculate the new time series.
 
     '''
     # Check for nans and remove them
