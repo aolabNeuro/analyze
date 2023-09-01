@@ -867,25 +867,43 @@ class AccLLRTests(unittest.TestCase):
         nch = 50
         ntrials = 30
         align_idx = 50
-        onset_idx = 70
+        onset_idx = 40
         samplerate = 100
         time_before = align_idx/samplerate
         time_after = time_before
         time_before_new = 0.3
         time_after_new = 0.4
+        time_shift = 0.1
         data = np.ones(npts)
         data[onset_idx:] = np.arange(npts-onset_idx)
         data = np.repeat(np.tile(data, (nch,1)).T[:,:,None], ntrials, axis=2)
 
         data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond = accllr.prepare_erp(
-            data, data, samplerate, time_before, time_after, time_before_new, time_after_new, time_shift=0.1
+            data, data, samplerate, time_before, time_after, time_before_new, time_after_new, time_shift=time_shift,
         )
 
         self.assertEqual(data_altcond.shape, (int(time_after_new*samplerate), nch, ntrials))
         self.assertEqual(data_nullcond.shape, (int(time_before_new*samplerate), nch, ntrials))
         self.assertEqual(lowpass_altcond.shape, (int(time_after_new*samplerate), nch, ntrials))
         self.assertEqual(lowpass_nullcond.shape, (int(time_before_new*samplerate), nch, ntrials))
-        
+
+        plt.figure()
+        plt.subplot(2,1,1)
+        aopy.visualization.plot_timeseries(data[:,0,0], samplerate)
+        plt.title('full erp')
+
+        plt.subplot(2,2,3)
+        aopy.visualization.plot_timeseries(data_nullcond[:,0,0], samplerate)
+        plt.title('null condition')
+
+        plt.subplot(2,2,4)
+        aopy.visualization.plot_timeseries(data_altcond[:,0,0], samplerate)
+        plt.title('alternate condition')
+        plt.tight_layout()
+
+        filename = 'prepare_erp_for_accllr.png'
+        aopy.visualization.savefig(docs_dir, filename)
+
 
 class SpectrumTests(unittest.TestCase):
 

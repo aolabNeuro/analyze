@@ -662,6 +662,33 @@ def prepare_erp(erp, erp_lowpass, samplerate, time_before, time_after,
             | **data_nullcond ((nt_before_new, nch, ntr) array):** null condition data
             | **lowpass_altcond ((nt_before_new, nch, ntr) array):** alternative condition low-passed data
             | **lowpass_nullcond ((nt_before_new, nch, ntr) array):** null condition low-passed data
+
+    Example:
+
+        .. code-block:: python
+
+            npts = 100
+            nch = 50
+            ntrials = 30
+            align_idx = 50
+            onset_idx = 40
+            samplerate = 100
+            time_before = align_idx/samplerate
+            time_after = time_before
+            time_before_new = 0.3
+            time_after_new = 0.4
+            time_shift = 0.1
+            data = np.ones(npts)
+            data[onset_idx:] = np.arange(npts-onset_idx)
+            data = np.repeat(np.tile(data, (nch,1)).T[:,:,None], ntrials, axis=2)
+
+            data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond = accllr.prepare_erp(
+                data, data, samplerate, time_before, time_after, time_before_new, time_after_new, time_shift=time_shift,
+            )
+
+        .. image:: _images/prepare_erp_for_accllr.png
+
+
     '''
     assert time_before_new <= time_before - time_shift
     assert time_after_new <= time_after - time_shift
@@ -673,10 +700,10 @@ def prepare_erp(erp, erp_lowpass, samplerate, time_before, time_after,
     nullcond_start = altcond_start-int(time_before_new*samplerate)
     
     # Extract data
-    data_altcond = erp[altcond_start:altcond_end,:,:]
-    data_nullcond = erp[nullcond_start:nullcond_end,:,:]
-    lowpass_altcond = erp_lowpass[altcond_start:altcond_end,:,:]
-    lowpass_nullcond = erp_lowpass[nullcond_start:nullcond_end,:,:]
+    data_altcond = erp[altcond_start:altcond_end,:,:].copy()
+    data_nullcond = erp[nullcond_start:nullcond_end,:,:].copy()
+    lowpass_altcond = erp_lowpass[altcond_start:altcond_end,:,:].copy()
+    lowpass_nullcond = erp_lowpass[nullcond_start:nullcond_end,:,:].copy()
     
     # Make each trial zero-mean for both stim and baseline
     baseline = np.mean(data_nullcond, axis=0)
