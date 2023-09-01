@@ -532,6 +532,35 @@ def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='sp
 
     return dist, corr
 
+def subtract_erp_baseline(erp, time, t0, t1):
+    '''
+    Subtract pre-trigger activity from trial-aligned data.
+
+    Args:
+        erp (nt, nch, ntr): trial-aligned evoked responses
+        time (nt): time in seconds for each sample of the erp
+        t0 (float): start of the baseline window
+        t1 (float): end of the baseline window
+
+    Raises:
+        ValueError: if the baseline window parameters (t0, t1) are malformed
+
+    Returns:
+        (nt, nch, ntr): erp after baseline subtraction
+    '''
+    if t1 <= t0:
+        raise ValueError("t1 must be greater than t0")
+    
+    # Take a mean across the data before the events as a baseline
+    s0 = np.searchsorted(time, t0)
+    s1 = np.searchsorted(time, t1)
+    event_mean = np.mean(erp[s0:s1], axis=0)
+
+    # Subtract the baseline to calculate ERP
+    n_samples = erp.shape[0]
+    event_mean = np.tile(event_mean, (n_samples,1,1))
+    return erp - event_mean
+
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
     Calculates the event-related potential (ERP) for the given timeseries data.
@@ -558,25 +587,16 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
     aligned_data = preproc.trial_align_data(data, event_times, time_before, time_after, samplerate)
 
     if subtract_baseline:
-        
-        # Take a mean across the data before the events as a baseline
         if not baseline_window:
             baseline_window = (0, time_before)
-        elif len(baseline_window) < 2 or baseline_window[1] < baseline_window[0]:
+        elif len(baseline_window) < 2 or baseline_window[1] <= baseline_window[0]:
             raise ValueError("baseline_window must be in the form (t0, t1) where \
                 t1 is greater than t0")
-        before_samples = int(time_before*samplerate)
-        s0 = before_samples - int(baseline_window[1]*samplerate)
-        s1 = before_samples - int(baseline_window[0]*samplerate)
-        event_mean = np.mean(aligned_data[s0:s1], axis=0)
 
-        # Subtract the baseline to calculate ERP
-        n_samples = aligned_data.shape[0]
-        event_mean = np.tile(event_mean, (n_samples, 1, 1))
-        erp = aligned_data - event_mean
+        time = np.arange(len(aligned_data))/samplerate
+        erp = subtract_erp_baseline(aligned_data, time, baseline_window[0], baseline_window[1])
+        
     else:
-
-        # Just use the aligned data as-is
         erp = aligned_data
 
     return erp
