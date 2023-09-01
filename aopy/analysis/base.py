@@ -581,12 +581,14 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
 
     return erp
 
-def find_max_erp(erp, time_before, time_after, samplerate, max_search_window=None, trial_average=False):
+def get_max_erp(erp, time_before, time_after, samplerate, max_search_window=None, trial_average=False):
     '''
-    Finds the maximum (across time) mean (across trials) values for the given event-related potential (ERP).
+    Finds the maximum (across time) mean (across trials) values for the given trial-aligned data or 
+    event-related potential (ERP). Identical to :func:`~aopy.analysis.calc_max_erp` except this function 
+    takes trial-aligned data as input instead of timeseries data.
     
     Args:
-        erp ((nt, nch, ntr) array): 
+        erp ((nt, nch, ntr) array): trial-aligned data
         time_before (float): number of seconds to include before each event
         time_after (float): number of seconds to include after each event
         samplerate (float): sampling rate of the data
@@ -624,10 +626,13 @@ def find_max_erp(erp, time_before, time_after, samplerate, max_search_window=Non
         
     return max_erp
 
-def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None, trial_average=True):
+def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, 
+                 baseline_window=None, max_search_window=None, trial_average=True):
     '''
     Calculates the maximum (across time) mean (across trials) event-related potential (ERP) 
-    for the given timeseries data.
+    for the given timeseries data. Identical to :func:`~aopy.analysis.get_max_erp` except this function 
+    takes timeseries data. If you already have trial-aligned erp (e.g. from :func:`~aopy.analysis.base.calc_erp`,
+    then use :func:`~aopy.analysis.get_max_erp` instead.
     
     Args:
         data (nt, nch): timeseries data across channels
@@ -647,7 +652,7 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
         nch: array of maximum mean-ERP for each channel during the given time periods
     '''
     erp = calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window)
-    return find_max_erp(erp, time_before, time_after, samplerate, max_search_window, trial_average)
+    return get_max_erp(erp, time_before, time_after, samplerate, max_search_window, trial_average)
     
     
 '''
