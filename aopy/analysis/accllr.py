@@ -636,3 +636,54 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
         roc_p_fdrc = np.array((np.nan,))
     
     return selection_time_altcond, roc_auc, roc_se, roc_p_fdrc
+
+
+def prepare_erp(erp, erp_lowpass, samplerate, time_before, time_after, 
+                time_before_new, time_after_new, time_shift=0.):
+    '''
+    Prepare data for accllr. Given event-related potentials, organize alternative
+    and null condition data and subtract the mean baseline from the null condition.
+    Additionally shift the data to the right such that the trigger time comes
+    earlier by a fixed amount, for instance if your data is filtered by mtfilter.
+
+    Args:
+        erp ((nt, nch, ntr) array): trial-aligned data
+        erp_lowpass ((nt, nch, ntr) array): trial-aligned data lowpass filtered
+        samplerate (float): sampling rate of the erps
+        time_before (float): time before event in the erp (in seconds)
+        time_after (float): time after event in the erp (in seconds)
+        time_before_new (float): desired length of nullcond (in seconds)
+        time_after_new (float): desired length of altcond (in seconds)
+        time_shift (float): additional time to shift the signal, e.g. if filtering was used
+
+    Returns:
+        tuple: tuple containing:
+            | **data_altcond ((nt_before_new, nch, ntr) array):** alternative condition data
+            | **data_nullcond ((nt_before_new, nch, ntr) array):** null condition data
+            | **lowpass_altcond ((nt_before_new, nch, ntr) array):** alternative condition low-passed data
+            | **lowpass_nullcond ((nt_before_new, nch, ntr) array):** null condition low-passed data
+    '''
+    assert time_before_new <= time_before - time_shift
+    assert time_after_new <= time_after - time_shift
+    
+    # Find start and end indices
+    altcond_start = int((time_before-time_shift)*samplerate)-1
+    altcond_end = altcond_start + int(time_after_new*samplerate)
+    nullcond_end = altcond_start
+    nullcond_start = altcond_start-int(time_before_new*samplerate)
+    
+    # Extract data
+    data_altcond = erp[altcond_start:altcond_end,:,:]
+    data_nullcond = erp[nullcond_start:nullcond_end,:,:]
+    lowpass_altcond = erp_lowpass[altcond_start:altcond_end,:,:]
+    lowpass_nullcond = erp_lowpass[nullcond_start:nullcond_end,:,:]
+    
+    # Make each trial zero-mean for both stim and baseline
+    baseline = np.mean(data_nullcond, axis=0)
+    data_altcond -= baseline
+    data_nullcond -= baseline
+    lowpass_baseline = np.mean(lowpass_nullcond, axis=0)
+    lowpass_altcond -= lowpass_baseline
+    lowpass_nullcond -= lowpass_baseline
+
+    return data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond

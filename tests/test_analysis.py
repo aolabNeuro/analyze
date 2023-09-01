@@ -862,6 +862,30 @@ class AccLLRTests(unittest.TestCase):
         aopy.visualization.savefig(docs_dir, filename)
         plt.close()
 
+    def test_prepare_erp(self):
+        npts = 100
+        nch = 50
+        ntrials = 30
+        align_idx = 50
+        onset_idx = 70
+        samplerate = 100
+        time_before = align_idx/samplerate
+        time_after = time_before
+        time_before_new = 0.3
+        time_after_new = 0.4
+        data = np.ones(npts)
+        data[onset_idx:] = np.arange(npts-onset_idx)
+        data = np.repeat(np.tile(data, (nch,1)).T[:,:,None], ntrials, axis=2)
+
+        data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond = accllr.prepare_erp(
+            data, data, samplerate, time_before, time_after, time_before_new, time_after_new, time_shift=0.1
+        )
+
+        self.assertEqual(data_altcond.shape, (int(time_after_new*samplerate), nch, ntrials))
+        self.assertEqual(data_nullcond.shape, (int(time_before_new*samplerate), nch, ntrials))
+        self.assertEqual(lowpass_altcond.shape, (int(time_after_new*samplerate), nch, ntrials))
+        self.assertEqual(lowpass_nullcond.shape, (int(time_before_new*samplerate), nch, ntrials))
+        
 
 class SpectrumTests(unittest.TestCase):
 
