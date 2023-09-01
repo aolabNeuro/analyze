@@ -554,8 +554,7 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
     if subtract_baseline and time_before <= 0:
         raise ValueError("Input time_before must be positive in order to calculate baseline")
         
-    # Align the data to the given event times (shape is [trials x time x channels])
-    n_events = len(event_times)
+    # Align the data to the given event times (shape is [nt, nch, ntrial])
     aligned_data = preproc.trial_align_data(data, event_times, time_before, time_after, samplerate)
 
     if subtract_baseline:
@@ -569,11 +568,11 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
         before_samples = int(time_before*samplerate)
         s0 = before_samples - int(baseline_window[1]*samplerate)
         s1 = before_samples - int(baseline_window[0]*samplerate)
-        event_mean = np.mean(aligned_data[:,s0:s1,:], axis=1)
+        event_mean = np.mean(aligned_data[s0:s1], axis=0)
 
         # Subtract the baseline to calculate ERP
-        n_samples = aligned_data.shape[1]
-        event_mean = np.tile(event_mean, (n_samples, 1, 1)).swapaxes(0,1)
+        n_samples = aligned_data.shape[0]
+        event_mean = np.tile(event_mean, (n_samples, 1, 1))
         erp = aligned_data - event_mean
     else:
 
@@ -581,6 +580,49 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
         erp = aligned_data
 
     return erp
+
+def find_max_erp(erp, time_before, time_after, samplerate, max_search_window=None, trial_average=False):
+    '''
+    Finds the maximum (across time) mean (across trials) values for the given event-related potential (ERP).
+    
+    Args:
+        erp ((nt, nch, ntr) array): 
+        time_before (float): number of seconds to include before each event
+        time_after (float): number of seconds to include after each event
+        samplerate (float): sampling rate of the data
+        max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
+            after event). Default is the entire time_after period.
+        trial_average (bool, optional): if True, average across trials before calculating max. Default False.
+        
+    Returns:
+        (nch, ntr): array of maximum mean-ERP for each channel during the given time periods
+    '''
+    if np.ndim(erp) != 3: # assume (nt, ntr)
+        raise ValueError("ERP must be in the form (nt, nch, ntr)")
+    if trial_average:
+        erp = np.nanmean(erp, axis=2, keepdims=True)
+
+    # Limit the search to the given window
+    start_idx = int(time_before*samplerate)
+    end_idx = start_idx + int(time_after*samplerate)
+    if max_search_window:
+        if len(max_search_window) < 2 or max_search_window[1] < max_search_window[0]:
+            raise ValueError("max_search_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
+        end_idx = start_idx + int(max_search_window[1]*samplerate)
+        start_idx += int(max_search_window[0]*samplerate)
+    
+    # Find the indices of the maximum absolute values
+    erp_window = erp[start_idx:end_idx]
+    idx_max_erp = start_idx + np.argmax(np.abs(erp_window), axis=0)
+
+    # Use the indices to obtain the actual signed values
+    max_erp = erp[idx_max_erp, np.arange(erp.shape[1])[:, None], np.arange(erp.shape[2])]
+
+    if trial_average:
+        max_erp = max_erp[:,0]
+        
+    return max_erp
 
 def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None, trial_average=True):
     '''
@@ -605,33 +647,8 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
         nch: array of maximum mean-ERP for each channel during the given time periods
     '''
     erp = calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window)
+    return find_max_erp(erp, time_before, time_after, samplerate, max_search_window, trial_average)
     
-    if trial_average:
-        erp = np.expand_dims(np.nanmean(erp, axis=0), 0)
-
-    # Limit the search to the given window
-    start_idx = int(time_before*samplerate)
-    end_idx = start_idx + int(time_after*samplerate)
-    if max_search_window:
-        if len(max_search_window) < 2 or max_search_window[1] < max_search_window[0]:
-            raise ValueError("max_search_window must be in the form (t0, t1) where \
-                t1 is greater than t0")
-        end_idx = start_idx + int(max_search_window[1]*samplerate)
-        start_idx += int(max_search_window[0]*samplerate)
-    
-    # Caculate max separately for each trial
-    erp_window = erp[:,start_idx:end_idx,:]
-    max_erp = np.zeros((erp.shape[0], erp.shape[2]))*np.nan
-    for t in range(erp.shape[0]):
-            
-        # Find the index that maximizes the absolute value, then use that index to get the actual signed value
-        idx_max_erp = start_idx + np.argmax(np.abs(erp_window[t]), axis=0)
-        max_erp[t,:] = np.squeeze([erp[t,idx_max_erp[i],i] for i in range(erp.shape[2])])
-
-    if trial_average:
-        max_erp = max_erp[0]
-        
-    return max_erp
     
 '''
 MODEL FITTING

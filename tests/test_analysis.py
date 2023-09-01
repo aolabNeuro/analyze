@@ -390,23 +390,23 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(np.sum(data[:,1]), nevents*2)
 
         erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, subtract_baseline=False)
-        self.assertEqual(erp.shape[0], 3)
+        self.assertEqual(erp.shape[2], 3)
 
-        mean_erp = np.mean(erp, axis=0)
+        mean_erp = np.mean(erp, axis=2)
         self.assertEqual(np.sum(mean_erp[:,0]), 1)
         self.assertEqual(np.sum(mean_erp[:,1]), 2)
 
         # Subtract baseline
         data += 1
         erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate)
-        mean_erp = np.mean(erp, axis=0)
+        mean_erp = np.mean(erp, axis=2)
         self.assertEqual(np.sum(mean_erp[:,0]), 1)
         self.assertEqual(np.sum(mean_erp[:,1]), 2)
 
         # Specify baseline window
         data[0] = 100
         erp = aopy.analysis.calc_erp(data, event_times, 0.1, 0.1, samplerate, baseline_window=())
-        mean_erp = np.mean(erp, axis=0)
+        mean_erp = np.mean(erp, axis=2)
         self.assertEqual(np.sum(mean_erp[:,0]), 1)
         self.assertEqual(np.sum(mean_erp[:,1]), 2)
 
@@ -433,8 +433,8 @@ class CalcTests(unittest.TestCase):
 
         # Test without trial averaging
         max_erp = aopy.analysis.calc_max_erp(data, event_times, 0.1, 0.1, samplerate, trial_average=False)
-        self.assertEqual(max_erp.shape[0], len(event_times)) 
-        self.assertEqual(max_erp.shape[1], nch) 
+        self.assertEqual(max_erp.shape[1], len(event_times)) 
+        self.assertEqual(max_erp.shape[0], nch) 
 
     def test_calc_corr2_map(self):
         # Test correlation map
