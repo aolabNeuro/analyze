@@ -63,36 +63,39 @@ exp_rotations = dict(
     ))
 
 def _get_mapping(exp_metadata):
+    ''' 
+    Returns a mapping A that transforms centered hand coordinates to cursor coordinates through c=A*h
+    
+    Hand coordinates ordered [hx hy hz] where hx: forward/backward, hy: up/down, hz: right/left
+    Cursor coordinates ordered [cx cz cy] where cx: right/left, cz: in/out of screen, cy: up/down (same order as exp_data['task']['cursor'])
+    
+    Hand coordinates are centered about the hand space origin (i.e. offset already applied)
     '''
-    Returns transformed coordinates based on rotation, offset, and scale traits
-    Args:
-        exp_metadata: exp_metadata from load_preproc_exp_data(preproc_dir, subject, te_id, date)
-
-    Returns:
-        mapping (3 x 3 numpy array): mapping of hand to cursor data used
-    '''
-    offset = exp_metadata['offset']
-    offset_arr = np.array(
-        [[1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [offset[0], offset[1], offset[2], 1]]
-    )
     scale =  exp_metadata['scale']
     scale_arr = np.array(
-        [[scale, 0, 0, 0],
-        [0, scale, 0, 0],
-        [0, 0, scale, 0],
+        [[scale, 0, 0, 0], 
+        [0, scale, 0, 0], 
+        [0, 0, scale, 0], 
         [0, 0, 0, 1]]
     )
-    rotation = exp_metadata['rotation'] # optitrack -> screen space
-#     print(rotation)
-    exp_rotation = exp_metadata['exp_rotation'] # out of plane perturbations applied in screen space - x - right, y - towards monkey, z - up
-    perturbation = exp_metadata['pertubation_rotation'] # in plane perturbations applied in screen space about y axis so rotation is inplane
-    new_plane = np.linalg.multi_dot((offset_arr, scale_arr, rotations[rotation], exp_rotations[exp_rotation])) # multi dot product of 4 x 4 matrices
-    pertubation_rot = R.from_euler('y', perturbation, degrees=True)
-    mapping = np.matmul(pertubation_rot.as_matrix(), new_plane[0:3])
+    rotation = exp_metadata['rotation'] # optitrack (x: forward/backward, y: up/down, z: right/left) --> screen space (x: right/left, y: forward/backward, z: up/down)
+    exp_rotation = exp_metadata['exp_rotation'] # out of plane perturbations applied in screen space
+
+    if 'incremental_rotation' not in [feature.decode("utf-8") for feature in exp_metadata['features']]:
+        perturbation = exp_metadata['pertubation_rotation'] # in plane perturbations applied in screen space, about bmi3d y-axis (in/out of screen)
+        perturbation_rotation = R.from_euler('y', perturbation, degrees=True).as_matrix()
+        mapping = np.linalg.multi_dot((scale_arr[:3,:3], rotations[rotation][:3,:3], exp_rotations[exp_rotation][:3,:3], perturbation_rotation)).T # mapping from *centered* hand coords --> cursor coords
+    else:
+        mapping = []
+        start = exp_metadata['init_rotation_y']
+        stop = exp_metadata['final_rotation_y']
+        step = exp_metadata['delta_rotation_y']
+        for perturbation in np.arange(start, stop+step, step):
+            perturbation_rotation = R.from_euler('y', perturbation, degrees=True).as_matrix()
+            mapping.append(np.linalg.multi_dot((scale_arr[:3,:3], rotations[rotation][:3,:3], exp_rotations[exp_rotation][:3,:3], perturbation_rotation)).T) # mapping from *centered* hand coords --> cursor coords
+
     return mapping
+
 
 def _transform_coords(hand_data, exp_metadata):
   '''
@@ -141,9 +144,9 @@ def get_taskspace_and_nullspace(mapping, task='2DCenterOut'):
         n_a (3 x 3 numpy array): Matrix that projects hand movement into the null space
     '''
     if task == '2DCenterOut':
-        a = mapping[[0,2], :] # rows are cursor and columns are hand. taking only hy and hz components of optitrack that correspond to up/down and right/left
+        a = mapping[[0,2], :] # rows are cursor and columns are hand. taking only hand components that correspond to cursor up/down and right/left
     elif task == '1DTracking':
-        a = mapping[2,:]
+        a = mapping[2,:].reshape(1,3) # rows are cursor and columns are hand. taking only hand components that correspond to cursor up/down
 
     a_plus = a.T @ np.linalg.pinv(a @ a.T)
     t_a = a_plus @ a
@@ -151,23 +154,23 @@ def get_taskspace_and_nullspace(mapping, task='2DCenterOut'):
 
     return t_a, n_a
 
-def decompose_hand_movements(hand_data, mapping):
+def decompose_hand_movements(hand_data, mapping, task='2DCenterOut'):
     '''
     Decomposes hand movement into components of movement in the plane of the screen and out of the plane of the screen
     Args:
         hand_data (2D numpy array): 3D array of hand trajectory per trial (n_timepoints x 3) in optitrack space. X - forward/back, Y - up/down, Z - right/left
-        mapping (3 x 3 numpy array): Mapping matrix used in experiment. See :func:`get_mapping` for more details . Rows must be cursor and columns must be hand.
+        mapping (3 x 3 numpy array): Mapping matrix used in experiment. See :func:`_get_mapping` for more details . Rows must be cursor and columns must be hand.
 
     Returns:
 
     '''
-    t_a, n_a = get_taskspace_and_nullspace(mapping)
+    t_a, n_a = get_taskspace_and_nullspace(mapping, task)
     hand_data = np.array(hand_data)
 
-    hT = np.dot(t_a, hand_data.T)  # 3x2400
+    hT = np.dot(t_a, hand_data.T)  # 3 x n_timepoints
     hN = np.dot(n_a, hand_data.T)
 
     hT_norm = np.mean(np.linalg.norm(hT, axis=0)) # gives the magnitude of movement in task space
     hN_norm = np.mean(np.linalg.norm(hN, axis=0)) # gives the magnitude of movement in null space
 
-    return  hT_norm, hN_norm
+    return hT_norm, hN_norm
