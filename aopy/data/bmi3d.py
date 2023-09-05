@@ -3,7 +3,7 @@ import traceback
 import warnings
 
 from .. import precondition
-from ..preproc.base import get_data_segment, get_data_segments, get_trial_data, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
+from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
@@ -502,6 +502,8 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
     time = np.arange(len(raw_kinematics))/samplerate
     if preproc is not None:
         kinematics, samplerate = preproc(raw_kinematics, samplerate)
+    else:
+        kinematics = raw_kinematics
 
     return kinematics, samplerate
 
@@ -532,7 +534,7 @@ def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_tim
     return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           trial_filter=lambda x:True, preproc=lambda t, x : x, datatype='cursor',
+                           trial_filter=lambda x:True, preproc=None, datatype='cursor',
                            samplerate=1000):
     '''
     Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
@@ -894,7 +896,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, df=None
     return df
 
 def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
-                            samplerate=1000, preproc=lambda t, x : x, datatype='cursor'):
+                            samplerate=1000, preproc=None, datatype='cursor'):
     '''
     Grab kinematics data from trials across arbitrary preprocessed files.
 
@@ -940,7 +942,9 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
         datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'.    
         
     Returns:
-        (ntrial,): tensor of (nt, nch) kinematics from each trial
+        tuple: tuple containing:
+            | **data (nt, nch, ntr):** tensor of data from each channel and trial
+            | **samplerate (float):** sampling rate of the data
     '''
 
     assert len(subjects) == len(te_ids) == len(dates) == len(trigger_times)

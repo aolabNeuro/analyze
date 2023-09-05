@@ -16,6 +16,8 @@ import yaml
 import pandas as pd
 from importlib.resources import files, as_file
 
+from ..preproc import get_trial_data
+
 ###############################################################################
 # Loading preprocessed data
 ###############################################################################

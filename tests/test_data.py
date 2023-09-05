@@ -585,9 +585,34 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         end_times = [t[-1] for t in df['event_times']]
 
         kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], start_times, end_times, 
-                            preproc=lambda t, x : x, datatype='cursor', samplerate=1000)
+                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
 
         self.assertEqual(len(df), len(kin))
+
+    def test_tabulate_ts_data(self):
+
+        subjects = [self.subject]
+        ids = [self.te_id]
+        dates = [self.date]
+
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
+                                               include_center_target=True,
+                                               include_handdata=False, include_eyedata=False)
+
+        trigger_times = [t[0] for t in df['event_times']] 
+        time_before = 0.5
+        time_after = 0.5
+
+        ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'], 
+                               trigger_times, time_before, time_after, datatype='lfp')
+        
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [TRIAL_END]
+        ts_data_single_file = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
+                                              trial_start_codes, trial_end_codes, time_before, time_after)
+        ts_data_single_file = ts_data_single_file.transpose(1,2,0) # should be fixed soon!
+        
+        self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
 class TestMatlab(unittest.TestCase):
     
