@@ -102,6 +102,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'posmap_244ch.png'
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
 
+    def test_annotate_spatial_map(self):
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+        annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', color='k')
+        annotate_spatial_map_channels(acq_ch=None, drive_type='Opto32', color='b', print_zero_index=False)
+        plt.axis('off')
+        filename = 'ecog244_opto32.png'
+        savefig(docs_dir, filename)
+
     def test_plot_image_by_time(self):
         time = np.array([-2, -1, 0, 1, 2, 3])
         data = np.array([[0, 0, 1, 1, 0, 0],

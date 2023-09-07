@@ -371,6 +371,65 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
     im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
     return im
 
+def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
+    '''
+    Simple wrapper around plt.annotate() to add text annotation to a 2d position. 
+
+    Args:
+        elec_pos ((x,y) tuple): position where text should be placed on 2d plot
+        text (str): annotation text
+        color (plt.Color): the color to make the text
+        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to plt.annotate()
+
+    Returns:
+        plt.Annotation: annotation object
+    '''
+    if ax is None:
+        ax = plt.gca()
+    return ax.annotate(text, elec_pos, color=color, fontsize=fontsize, ha='center', va='center', **kwargs)
+    
+def annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', color='k', fontsize=6, 
+                                  print_zero_index=True, ax=None, **kwargs):
+    '''
+    Prints 0-index channel by default
+
+    Args:
+        acq_ch ((nacq,) array or list, optional): If None (the default), all acquisition channels 
+            will be annotated. Otherwise, only the provided acquisition channels (zero-indexed) will
+            be annotated.
+        drive_type (str, optional): Drive type of the channels to plot. See :func:`aopy.data.base.load_chmap`.
+        color (str, optional): color to display the channels. Default 'k'.
+        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        print_zero_index (bool, optional): if True (the default), prints channel numbers indexed by 0. 
+            Otherwise prints directly from the channel map (which should use 1-indexing).
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to plt.annotate()
+
+    Example:
+
+        .. code-block:: python
+
+            aopy.visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+            aopy.visualization.annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', color='k')
+            aopy.visualization.annotate_spatial_map_channels(acq_ch=None, drive_type='Opto32', color='b', print_zero_index=False)
+            plt.axis('off')
+
+        .. image:: _/images/ecog244_opto32.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+    if acq_ch is not None:
+        acq_ch = np.array(acq_ch)+1 # Change from 0 to 1 index
+    elec_pos, acq_ch, elecs = load_chmap(drive_type, acq_ch)
+    if isinstance(color, str) or len(color) < len(elec_pos):
+        color = np.repeat(np.array(color), len(elec_pos))
+    for pos, ch, color in zip(elec_pos, acq_ch, color):
+        if print_zero_index:
+            ch = ch - 1
+        annotate_spatial_map(pos, ch, color, fontsize, ax, **kwargs)
+
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
     '''
     Makes an nt x ntrial image colored by the timeseries values. 
