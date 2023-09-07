@@ -110,6 +110,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'ecog244_opto32.png'
         savefig(docs_dir, filename)
 
+        plt.figure()
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
+        annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', color='k', theta=90)
+        annotate_spatial_map_channels(acq_ch=None, drive_type='Opto32', color='b', theta=90, print_zero_index=False)
+        plt.axis('off')
+        filename = 'ecog244_opto32_theta90.png'
+        savefig(write_dir, filename)
+
     def test_plot_image_by_time(self):
         time = np.array([-2, -1, 0, 1, 2, 3])
         data = np.array([[0, 0, 1, 1, 0, 0],

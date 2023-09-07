@@ -527,7 +527,7 @@ def map_elec2acq(signalpath_table, elecs):
         return acq_chs[elec_idx]
 
 
-def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
+def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -536,6 +536,7 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_nam
         signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        theta (float): rotation (in degrees) to apply to positions. Default 0.
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
 
@@ -556,6 +557,11 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_nam
     for ielec, elecid in enumerate(connected_elecs):
         acq_ch_position[ielec,0] = eleclayout_table[xpos_name][eleclayout_table['electrode']==elecid]
         acq_ch_position[ielec,1] = eleclayout_table[ypos_name][eleclayout_table['electrode']==elecid]
+
+    if theta != 0:
+        theta = np.deg2rad(theta)
+        rot_mat = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+        acq_ch_position = acq_ch_position @ rot_mat
 
     return acq_ch_position, acq_chs, connected_elecs
 
@@ -585,7 +591,7 @@ def map_data2elec(datain, signalpath_table, acq_ch_subset=None, zero_indexing=Fa
     
     return dataout, acq_chs, connected_elecs
 
-def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
+def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
     '''
     Map data from its acquisition channel to the electrodes recorded from and their position. Wrapper for aopy.data.map_acq2pos
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -595,6 +601,7 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
         signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
         acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        theta (float): rotation to apply to positions
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
         zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
@@ -608,7 +615,7 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
             | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
     
-    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, xpos_name='topdown_x', ypos_name='topdown_y')
+    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, theta=theta, xpos_name=xpos_name, ypos_name=ypos_name)
     if zero_indexing:
         dataout = datain[:,acq_chs]
     else:
@@ -616,14 +623,15 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
     
     return dataout, acq_ch_position, acq_chs, connected_elecs
 
-def load_chmap(drive_type='ECoG244', acq_ch_subset=None):
+def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0):
     '''
     Load the mapping between acquisition channel and electrode number for the viventi ECoG array.
     
     Args:
-        drive_type (str): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
-        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition 
+        drive_type (str, optional): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
+        acq_ch_subset (nacq, optional): Subset of acquisition channels to call. If not called, all acquisition 
             channels and connected electrodes will be returned.
+        theta (float, optional): rotation in degrees to apply to positions. Default 0.
 
     Returns:
         tuple: Tuple Containing:
@@ -648,7 +656,7 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None):
         layout = pd.read_excel(f)
     if acq_ch_subset is not None:
         acq_ch_subset = np.array(acq_ch_subset, dtype='int')
-    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset)
+    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta)
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''
