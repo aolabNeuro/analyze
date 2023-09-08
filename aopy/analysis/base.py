@@ -933,6 +933,8 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         
     See Also:
         :func:`~aopy.analysis.calc_cwt_tfr`
+
+    Modified September 2023 to return magnitude instead of magnitude squared power.
     '''  
     if isinstance(ts_data, list): 
         ts_data = np.array(ts_data)
