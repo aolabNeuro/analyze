@@ -934,7 +934,11 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     See Also:
         :func:`~aopy.analysis.calc_cwt_tfr`
 
-    Modified September 2023 to return magnitude instead of magnitude squared power.
+    Note:
+        The time axis returned by calc_mt_tfr corresponds to the center of the sliding window (`n` seconds). 
+        To shift to the right edge of each window, subtract `n/2` from `time`.
+
+    Modified September 2023 to return magnitude instead of magnitude squared power. And correct the time axis.
     '''  
     if isinstance(ts_data, list): 
         ts_data = np.array(ts_data)
@@ -976,7 +980,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         else:
             spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
 
-    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
+    t = np.arange(nwin)*step - n/2 # Center of each window is time axis
     
     return f, t, spec
 
