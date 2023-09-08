@@ -740,47 +740,28 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
         
         .. code-block:: python
 
-            fig, ax = plt.subplots(3,1,figsize=(4,6))
+            from analyze/tests/analysis_tests import HelperFunctions
+            fb = 10.
+            f0_norm = 2.
+            freqs = np.linspace(1,50,50)
+            tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
+            HelperFunctions.test_tfr_sines(tfr_fun)
+            
+        .. image:: _images/tfr_cwt_sines.png
+        
+        .. code-block:: python
 
-            samplerate = 1000
-            t = np.arange(2*samplerate)/samplerate
-            f0 = 1
-            t1 = 2
-            f1 = 1000
-            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
-            print(data.shape)
-            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
+            freqs = np.linspace(1,500,500)
+            tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
+            HelperFunctions.test_tfr_chirp(tfr_fun)
 
-            freqs = np.linspace(1,1000,200)
-            _, _, coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
-
-            print(data.shape)
-            print(coef.shape)
-            print(t.shape)
-            print(freqs.shape)
-            pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
-
-            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-    
         .. image:: _images/tfr_cwt_chirp.png
 
         .. code-block:: python
 
-            lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
-            samplerate = lfp_metadata['lfp_samplerate']
-            lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
-
-            aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
-            aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
-
-            freqs = np.linspace(1,200,100)
-            nt = lfp_data.shape[0]
-            t = np.arange(nt)/samplerate
-            _, _, coef = aopy.analysis.calc_cwt_tfr(lfp_data, freqs, samplerate, fb=1.5, f0_norm=1, verbose=True)
-
-            pcm = aopy.visualization.plot_tfr(abs(coef), t, freqs, 'plasma', ax=ax[2])
-            fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
+            freqs = np.linspace(1,200,200)
+            tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
+            HelperFunctions.test_tfr_lfp(tfr_fun)
 
         .. image:: _images/tfr_cwt_lfp.png
 
@@ -829,6 +810,35 @@ def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None,
             | **f (n_freq):** frequency axis for spectrogram
             | **t (n_time):** time axis for spectrogram
             | **spec (n_freq,n_time,nch):** multitaper spectrogram estimate
+
+    Examples:
+        
+        .. code-block:: python
+
+            from analyze/tests/analysis_tests import HelperFunctions
+            win_t = 0.5
+            step = 0.01
+            f_max = 50
+            tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
+            HelperFunctions.test_tfr_sines(tfr_fun)
+        
+        .. image:: _images/tfr_ft_sines.png
+            
+        .. code-block:: python
+
+            f_max = 500
+            tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
+            HelperFunctions.test_tfr_chirp(tfr_fun)
+            
+        .. image:: _images/tfr_ft_chirp.png
+        
+        .. code-block:: python
+
+            f_max = 200
+            tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
+            HelperFunctions.test_tfr_lfp(tfr_fun)
+            
+        .. image:: _images/tfr_ft_lfp.png
     '''
     if isinstance(data, list): 
         data = np.array(data)
@@ -864,8 +874,8 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     
     Args:
         ts_data (nt, nch): time series array
-        n (int): window length in seconds
-        p (int): standardized half bandwidth in hz
+        n (float): window length in seconds
+        p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
         fs (float): sampling rate
         step (float): window step. Defaults to step = n/10.
@@ -894,62 +904,32 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         
         .. code-block:: python
 
-            fig, ax = plt.subplots(3,1,figsize=(4,6))
-
-            NW = 0.075
-            BW = 20
-            n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-            step = None
-            fk = 1000
-            samplerate = 1000
-            
-            t = np.arange(2*samplerate)/samplerate
-            f0 = 1
-            t1 = 2
-            f1 = 1000
-            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
-
-            fig, ax = plt.subplots(3,1,figsize=(4,6),tight_layout=True)
-            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
-            f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(data, n, p, k, samplerate, step=step, fk=fk, pad=2, ref=False)
-            pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[2])
-            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-            
-        .. image:: _images/tfr_mt_chirp.png
-            
-        .. code-block:: python
-            T = 5
-            t = np.linspace(0,T,num_points)
-            test_data = np.zeros((t.shape[0],2))
-            test_data[:,0] = 1.5*np.sin(2*np.pi*10*t)
-            test_data[:,1] = 2*np.cos(2*np.pi*30*t)
-            test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2])
-            test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2])
-    
-            NW = 2
-            BW = 1
-            fs = num_points/T
-            dn = 0.1
+            from analyze/tests/analysis_tests import HelperFunctions
+            NW = 0.3
+            BW = 10
+            step = 0.01
             fk = 50
             n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-            f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(test_data, n, p, k, fs, dn, fk, pad=2, ref=False)
-
-            fig,ax=plt.subplots(1,4,figsize=(8,2),tight_layout=True)
-            ax[0].plot(t,test_data[:,0],linewidth=0.2)
-            ax[0].plot(t,test_data[:,1],linewidth=0.2)
-            ax[0].set(xlabel='Time (s)',ylabel='Amplitude',title='Signals')
-            ax[1].imshow((spec[:,:,0]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
-            ax[1].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch1)')
-            ax[2].imshow((spec[:,:,1]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
-            ax[2].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch2)')
-            ax[3].plot(f_spec,spec[:,10,0],'-',label='ch 1')
-            ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
-            ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
-            ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
-            
+            print(f"using {k} tapers length {n} half-bandwidth {p}")
+            tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+            HelperFunctions.test_tfr_sines(tfr_fun)
+                        
         .. image:: _images/tfspec.png
+            
+        .. code-block:: python
+            fk = 500
+            tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+            HelperFunctions.test_tfr_chirp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_chirp.png
+        
+        .. code-block:: python
 
+            fk = 200
+            tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, dtype='int16')
+            HelperFunctions.test_tfr_lfp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_lfp.png
         
     See Also:
         :func:`~aopy.analysis.calc_cwt_tfr`
@@ -1022,6 +1002,36 @@ def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackkni
             | **freqs (nfreq,):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
             | **time (nt,):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
             | **spec (nfreq, nt, nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+
+    Examples:
+        
+        .. code-block:: python
+
+            from analyze/tests/analysis_tests import HelperFunctions
+            win_t = 0.3
+            step_t = 0.01
+            bw = 20
+            fk = 50
+            tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+            HelperFunctions.test_tfr_sines(tfr_fun)
+                        
+        .. image:: _images/tfr_mt_tsa_sines.png
+            
+        .. code-block:: python
+
+            fk = 500
+            tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+            HelperFunctions.test_tfr_chirp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_tsa_chirp.png
+        
+        .. code-block:: python
+            
+            fk = 200
+            tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+            HelperFunctions.test_tfr_lfp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_tsa_lfp.png
     """
     if len(data.shape) < 2:
         data = data[:,None]

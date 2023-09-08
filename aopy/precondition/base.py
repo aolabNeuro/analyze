@@ -98,8 +98,8 @@ def dpsschk(n, p, k):
     Computes the Discrete Prolate Spheroidal Sequences (DPSS) array based on input tapers
 
     Args:
-        n (int): window length in number of samples
-        p (int): standardized half bandwidth in hz
+        n (float): window length in number of samples
+        p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
 
     Returns:
@@ -262,8 +262,8 @@ def mtfilter(data, n, p, k, fs=1, f0=0, center_output=True, complex_output=False
 
     Args:
         data (nt, nch): time series array
-        n (int): window length in seconds
-        p (int): standardized half bandwidth in hz
+        n (float): window length in seconds
+        p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
         fs (float): sampling rate
         f0 (float, optional): center frequency of filiter. Default 0.
