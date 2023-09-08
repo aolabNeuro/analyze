@@ -639,12 +639,10 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
 
 
 def prepare_erp(erp, erp_lowpass, samplerate, time_before, time_after, 
-                time_before_new, time_after_new, time_shift=0.):
+                window_nullcond, window_altcond):
     '''
     Prepare data for accllr. Given event-related potentials, organize alternative
     and null condition data and subtract the mean baseline from the null condition.
-    Additionally shift the data to the right such that the trigger time comes
-    earlier by a fixed amount, for instance if your data is filtered by mtfilter.
 
     Args:
         erp ((nt, nch, ntr) array): trial-aligned data
@@ -652,9 +650,8 @@ def prepare_erp(erp, erp_lowpass, samplerate, time_before, time_after,
         samplerate (float): sampling rate of the erps
         time_before (float): time before event in the erp (in seconds)
         time_after (float): time after event in the erp (in seconds)
-        time_before_new (float): desired length of nullcond (in seconds)
-        time_after_new (float): desired length of altcond (in seconds)
-        time_shift (float): additional time to shift the signal, e.g. if filtering was used
+        window_nullcond ((2,) tuple of float): desired (start, end) of nullcond (in seconds)
+        window_altcond ((2,) tuple of float): desired (start, end) of altcond (in seconds)
 
     Returns:
         tuple: tuple containing:
@@ -675,29 +672,32 @@ def prepare_erp(erp, erp_lowpass, samplerate, time_before, time_after,
             samplerate = 100
             time_before = align_idx/samplerate
             time_after = time_before
-            time_before_new = 0.3
-            time_after_new = 0.4
-            time_shift = 0.1
-            data = np.ones(npts)
-            data[onset_idx:] = np.arange(npts-onset_idx)
+            window_nullcond = (-0.4, -0.1)
+            window_altcond = (-0.1, 0.3)
+            data = np.ones(npts)*10
+            data[onset_idx:] = 10 + np.arange(npts-onset_idx)
             data = np.repeat(np.tile(data, (nch,1)).T[:,:,None], ntrials, axis=2)
 
             data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond = accllr.prepare_erp(
-                data, data, samplerate, time_before, time_after, time_before_new, time_after_new, time_shift=time_shift,
+                data, data, samplerate, time_before, time_after, window_nullcond, window_altcond,
             )
 
         .. image:: _images/prepare_erp_for_accllr.png
 
 
     '''
-    assert time_before_new <= time_before - time_shift
-    assert time_after_new <= time_after - time_shift
+    assert len(window_nullcond) == 2 and window_nullcond[1] > window_nullcond[0]
+    assert len(window_altcond) == 2 and window_altcond[1] > window_altcond[0]
+    assert window_nullcond[0] >= -time_before
+    assert window_altcond[1] <= time_after
     
     # Find start and end indices
-    altcond_start = int((time_before-time_shift)*samplerate)-1
-    altcond_end = altcond_start + int(time_after_new*samplerate)
-    nullcond_end = altcond_start
-    nullcond_start = altcond_start-int(time_before_new*samplerate)
+    altcond_start = int((time_before+window_altcond[0])*samplerate)-1
+    altcond_dur = window_altcond[1] - window_altcond[0]
+    altcond_end = altcond_start + int(altcond_dur*samplerate)
+    nullcond_start = int((time_before+window_nullcond[0])*samplerate)
+    nullcond_dur = window_nullcond[1] - window_nullcond[0]
+    nullcond_end = nullcond_start+int(nullcond_dur*samplerate)
     
     # Extract data
     data_altcond = erp[altcond_start:altcond_end,:,:].copy()
