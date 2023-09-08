@@ -63,19 +63,26 @@ exp_rotations = dict(
     ))
 
 def _get_mapping(exp_metadata):
-    ''' 
+    '''
     Returns a mapping A that transforms centered hand coordinates to cursor coordinates through c=A*h
-    
+
     Hand coordinates ordered [hx hy hz] where hx: forward/backward, hy: up/down, hz: right/left
     Cursor coordinates ordered [cx cz cy] where cx: right/left, cz: in/out of screen, cy: up/down (same order as exp_data['task']['cursor'])
-    
+
     Hand coordinates are centered about the hand space origin (i.e. offset already applied)
     '''
+    offset = exp_metadata['offset']
+    offset_arr = np.array(
+        [[1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [offset[0], offset[1], offset[2], 1]]
+    )
     scale =  exp_metadata['scale']
     scale_arr = np.array(
-        [[scale, 0, 0, 0], 
-        [0, scale, 0, 0], 
-        [0, 0, scale, 0], 
+        [[scale, 0, 0, 0],
+        [0, scale, 0, 0],
+        [0, 0, scale, 0],
         [0, 0, 0, 1]]
     )
     rotation = exp_metadata['rotation'] # optitrack (x: forward/backward, y: up/down, z: right/left) --> screen space (x: right/left, y: forward/backward, z: up/down)
@@ -144,9 +151,9 @@ def get_taskspace_and_nullspace(mapping, task='2DCenterOut'):
         n_a (3 x 3 numpy array): Matrix that projects hand movement into the null space
     '''
     if task == '2DCenterOut':
-        a = mapping[[0,2], :] # rows are cursor and columns are hand. taking only hand components that correspond to cursor up/down and right/left
+        a = mapping[[0,2], :] # rows are cursor and columns are hand. taking only hy and hz components of optitrack that correspond to up/down and right/left
     elif task == '1DTracking':
-        a = mapping[2,:].reshape(1,3) # rows are cursor and columns are hand. taking only hand components that correspond to cursor up/down
+        a = mapping[2,:]
 
     a_plus = a.T @ np.linalg.pinv(a @ a.T)
     t_a = a_plus @ a
@@ -173,4 +180,4 @@ def decompose_hand_movements(hand_data, mapping, task='2DCenterOut'):
     hT_norm = np.mean(np.linalg.norm(hT, axis=0)) # gives the magnitude of movement in task space
     hN_norm = np.mean(np.linalg.norm(hN, axis=0)) # gives the magnitude of movement in null space
 
-    return hT_norm, hN_norm
+    return  hT_norm, hN_norm
