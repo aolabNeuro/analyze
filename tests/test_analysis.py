@@ -863,6 +863,57 @@ class AccLLRTests(unittest.TestCase):
         aopy.visualization.savefig(docs_dir, filename)
         plt.close()
 
+    def test_prepare_erp(self):
+        npts = 100
+        nch = 50
+        ntrials = 30
+        align_idx = 50
+        onset_idx = 40
+        samplerate = 100
+        time_before = align_idx/samplerate
+        time_after = time_before
+        window_nullcond = (-0.4, -0.1)
+        window_altcond = (-0.1, 0.3)
+        data = np.ones(npts)*10
+        data[onset_idx:] = 10 + np.arange(npts-onset_idx)
+        data = np.repeat(np.tile(data, (nch,1)).T[:,:,None], ntrials, axis=2)
+
+        data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond = accllr.prepare_erp(
+            data, data, samplerate, time_before, time_after, window_nullcond, window_altcond,
+        )
+
+        altcond_dur = window_altcond[1] - window_altcond[0]
+        nullcond_dur = window_nullcond[1] - window_nullcond[0]
+
+        self.assertEqual(data_altcond.shape, (int(altcond_dur*samplerate), nch, ntrials))
+        self.assertEqual(data_nullcond.shape, (int(nullcond_dur*samplerate), nch, ntrials))
+        self.assertEqual(lowpass_altcond.shape, (int(altcond_dur*samplerate), nch, ntrials))
+        self.assertEqual(lowpass_nullcond.shape, (int(nullcond_dur*samplerate), nch, ntrials))
+
+        plt.figure()
+        plt.subplot(2,1,1)
+        time = np.arange(len(data))/samplerate - time_before
+        plt.plot(time, data[:,0,0])
+        plt.xlabel('time (s)')
+        plt.axvspan(*window_nullcond, color='g', alpha=0.25, label='null condition')
+        plt.axvspan(*window_altcond, color='m', alpha=0.25, label='alt condition')
+        plt.title('full erp')
+        plt.legend()
+
+        plt.subplot(2,2,3)
+        aopy.visualization.plot_timeseries(data_nullcond[:,0,0], samplerate)
+        plt.ylabel('')
+        plt.title('null condition')
+
+        plt.subplot(2,2,4)
+        aopy.visualization.plot_timeseries(data_altcond[:,0,0], samplerate)
+        plt.title('alternate condition')
+        plt.ylabel('')
+        plt.tight_layout()
+
+        filename = 'prepare_erp_for_accllr.png'
+        aopy.visualization.savefig(docs_dir, filename)
+        
 class HelperFunctions:
 
     @staticmethod
