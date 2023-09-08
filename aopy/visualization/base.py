@@ -321,7 +321,9 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, a
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
-        theta (float, optional): rotation in degrees to apply to channel mapping. Default 0.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
+            e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
+            by 90 degrees. Default 0.
         ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
         kwargs (dict): dictionary of additional keyword argument pairs to send to calc_data_map and plot_spatial_map.
 
@@ -394,7 +396,7 @@ def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
 def annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', theta=0, color='k', fontsize=6, 
                                   print_zero_index=True, ax=None, **kwargs):
     '''
-    Prints 0-index channel by default
+    Given zero-indexed acq_ch, prints zero- or one-indexed channels on top of a spatial map.
 
     Args:
         acq_ch ((nacq,) array or list, optional): If None (the default), all acquisition channels 
@@ -418,12 +420,22 @@ def annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', theta=0, co
             plt.axis('off')
 
         .. image:: _/images/ecog244_opto32.png
+
+    Note: 
+        The acq_ch returned from `func::aopy.data.load_chmap` are 1-indexed lists of acquisition 
+        channels connected to electrodes. However, the acq_ch input to this function is always 
+        0-indexed (or None for all channels). The print_zero_index argument controls in what format the
+        channels are printed onto the figure.
     '''
     if ax is None:
         ax = plt.gca()
     if acq_ch is not None:
         acq_ch = np.array(acq_ch)+1 # Change from 0 to 1 index
+
+    # Get 1-indexed channel map
     elec_pos, acq_ch, elecs = load_chmap(drive_type, acq_ch, theta)
+
+    # Annotate each channel
     if isinstance(color, str) or len(color) < len(elec_pos):
         color = np.repeat(np.array(color), len(elec_pos))
     for pos, ch, color in zip(elec_pos, acq_ch, color):

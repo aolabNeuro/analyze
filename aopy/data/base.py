@@ -535,8 +535,10 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0,
     Args:
         signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
-        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
-        theta (float): rotation (in degrees) to apply to positions. Default 0.
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected 
+            electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates 
+            the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
 
@@ -600,8 +602,10 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
         datain (nt, nacqch): Data recoded from an array.
         signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
-        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
-        theta (float): rotation to apply to positions
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes 
+            will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates the map 
+            clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
         zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
@@ -631,7 +635,8 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0):
         drive_type (str, optional): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
         acq_ch_subset (nacq, optional): Subset of acquisition channels to call. If not called, all acquisition 
             channels and connected electrodes will be returned.
-        theta (float, optional): rotation in degrees to apply to positions. Default 0.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
+            rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
 
     Returns:
         tuple: Tuple Containing:
