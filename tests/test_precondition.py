@@ -56,8 +56,8 @@ class HelperFunctions:
         ax['B'].plot(t, x_filt_simple, label='Filtered signal')
         ax['B'].set_xlabel('time (seconds)')
 
-        f_noise, psd_noise = analysis.get_psd_welch(x_noise, fs)
-        f_filt, psd_filt = analysis.get_psd_welch(x_filt, fs)
+        f_noise, psd_noise = analysis.calc_welch_psd(x_noise, fs)
+        f_filt, psd_filt = analysis.calc_welch_psd(x_filt, fs)
         ax['C'].semilogy(f_noise, psd_noise, label='Noisy signal')
         ax['C'].semilogy(f_filt, psd_filt, label='Filtered signal')
         ax['C'].set_xlabel('frequency (Hz)')

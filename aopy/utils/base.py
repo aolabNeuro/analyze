@@ -519,6 +519,19 @@ def count_repetitions(arr, diff_thr=0):
 
     return repetitions, change_idx
 
+def nextpow2(x):
+    '''
+    Next higher power of 2. It is often useful for finding the nearest power of two 
+    sequence length for FFT operations.
+
+    Args:
+        x (int or float): input number 
+        
+    Returns:
+        int: the first P such that 2**P >= abs(x).
+    '''
+    return 1 if x == 0 else math.ceil(math.log2(x))
+
 '''
 Other utils
 '''
