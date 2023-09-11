@@ -7,3 +7,6 @@ from .kfdecoder import *
 from .celltype import *
 from .tuning import *
 from .kfdecoder import *
+
+# For new submodules, import just the namespace
+from . import accllr

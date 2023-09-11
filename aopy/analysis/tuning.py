@@ -4,6 +4,7 @@
 
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.stats import f_oneway
 
 
 '''
@@ -63,26 +64,37 @@ def get_preferred_direction(b1, b2):
     return pd
 
 
-def get_mean_fr_per_direction(data, target_dir):
+def get_mean_fr_per_condition(data, condition_labels, return_significance=False):
     '''
+    This function computes the average activity for each feature and trial. 
 
     Args:
-        data (3D array): Neural data in the form of a 3D array neurons X trials x timebins
-        target_dir (1D array): target direction
+        data (ntime, nch, ntrials): Trial aligned neural data
+        condition_labels (ntrials): condition label for each trial
+        return_significance (bool): Uses the one-way ANOVA test to compute a p-value for each channel/unit
 
     Returns:
         tuple: Tuple containing:
-            | **means_d:** = mean firing rate per neuron per target direction
-            | **stds_d:** standard deviation from mean firing rate per neuron
+            | **means_d: (nch, nconditions)** = mean firing rate per neuron per target direction
+            | **stds_d: (nch, nconditions)** standard deviation from mean firing rate per neuron
+            | **pvalue: (nch)** significance of modulation
     '''
     means_d = []
     stds_d = []
+    unique_condition_labels = np.unique(condition_labels)
+    nconditions = len(unique_condition_labels)
 
-    for i in range(1, 9):
-        means_d.append(np.mean(data[target_dir == i], axis=(0, 2)))
-        stds_d.append(np.std(data[target_dir == i], axis=(0, 2)))
+    [means_d.append(np.mean(data[:,:,condition_labels==unique_condition_labels[icond]], axis=(0,2))) for icond in range(nconditions)]
+    [stds_d.append(np.std(data[:,:,condition_labels==unique_condition_labels[icond]], axis=(0,2))) for icond in range(nconditions)]    
 
-    return means_d, stds_d
+    if return_significance:
+        cond_means = [] 
+        [cond_means.append(np.mean(data[:,:,condition_labels==unique_condition_labels[icond]], axis=0)) for icond in range(nconditions)]
+        _, pvalue = f_oneway(*cond_means, axis=1)
+        return np.array(means_d).T, np.array(stds_d).T, pvalue
+    else:
+        return np.array(means_d).T, np.array(stds_d).T
+    
 
 def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''
