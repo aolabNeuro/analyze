@@ -989,7 +989,6 @@ class HelperFunctions:
         time_before = 1.0
         time_after = 2.0
         erp = aopy.analysis.calc_erp(lfp_data[:,0], go_cues, time_before, time_after, samplerate)
-        erp = erp.transpose(1,2,0) # (nt, nch, ntrial)
 
         # Plot time domain
         aopy.visualization.plot_timeseries(np.mean(erp, axis=2), samplerate, ax=ax[0])
@@ -1021,6 +1020,7 @@ class HelperFunctions:
         ax[3].plot(times - time_before, mean_band_power)
         ax[3].set_xlabel('time (s)')
         ax[3].set_ylabel('beta power (V)')
+
 
 class SpectrumTests(unittest.TestCase):
 
@@ -1115,6 +1115,42 @@ class SpectrumTests(unittest.TestCase):
         tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, dtype='int16')
         HelperFunctions.test_tfr_lfp(tfr_fun)
         filename = 'tfr_mt_lfp.png'
+        savefig(docs_dir,filename)
+
+        # Test two alignments
+        fk = 100
+        fig, ax = plt.subplots(3,1,figsize=(5,8), layout='compressed')
+
+        # Make some test data with change at t=0
+        T = 2
+        fs = 1000
+        num_points = int(T*fs)
+        t = np.linspace(0,T,num_points)
+        erp = np.zeros((t.shape[0],))
+        erp = np.sin(2*np.pi*20*t) # 20 Hz sine
+        time_before = T/2
+        erp[t>=time_before] = np.sin(2*np.pi*80*t[t>=time_before]) # 80 Hz sine
+
+        # Plot time domain
+        ax[0].plot(t - time_before, erp)
+        ax[0].set_ylabel('Voltage (a.u.)')
+        ax[0].set_xlabel('Time (s)')
+
+        # Compute and time spectrogram
+        t0 = time.perf_counter()
+        freqs, times, coef = aopy.analysis.calc_mt_tfr(erp, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+        dur = time.perf_counter() - t0
+
+        print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
+
+        # Plot spectrogram
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before, freqs, 'plasma', ax=ax[1])
+        ax[1].set_title('Align center (default)')
+
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before + n/2, freqs, 'plasma', ax=ax[2])
+        fig.colorbar(pcm, label='power (a.u.)', orientation='horizontal', ax=ax[2])
+        ax[2].set_title('Align right (time += n/2)')
+        filename = 'tfr_mt_alignment.png'
         savefig(docs_dir,filename)
 
     def test_tfr_mt_tsa(self):

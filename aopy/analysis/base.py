@@ -959,6 +959,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         .. image:: _images/tfspec.png
             
         .. code-block:: python
+        
             fk = 500
             tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
             HelperFunctions.test_tfr_chirp(tfr_fun)
@@ -978,9 +979,12 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
 
     Note:
         The time axis returned by calc_mt_tfr corresponds to the center of the sliding window (`n` seconds). 
-        To shift to the right edge of each window, subtract `n/2` from `time`.
+        To move the time axis so that the spectrogram bins are aligned to the right edge of each window, do 
+        `time += n/2`.
 
-    Modified September 2023 to return magnitude instead of magnitude squared power. And correct the time axis.
+        .. image:: _images/tfr_mt_alignment.png
+
+    Modified September 2023 to return magnitude instead of magnitude squared power.
     '''  
     if isinstance(ts_data, list): 
         ts_data = np.array(ts_data)
@@ -1002,7 +1006,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     step_size = int(np.floor(step*fs)) # step size
     nf = np.max([256,pad*2**utils.nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
     nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
-    nwin = int(np.floor((nt-win_size)/step_size)) # number of windows
+    nwin = 1 + int(np.floor((nt-win_size)/step_size)) # number of windows
     f = np.linspace(fk[0],fk[1],int(nfk[1] - nfk[0])) # frequency axis for spectrogram
 
     spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch), dtype=dtype)
@@ -1022,7 +1026,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         else:
             spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
 
-    t = np.arange(nwin)*step - n/2 # Center of each window is time axis
+    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
     
     return f, t, spec
 
