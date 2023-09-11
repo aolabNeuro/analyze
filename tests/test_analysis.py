@@ -1021,38 +1021,6 @@ class HelperFunctions:
         ax[3].set_xlabel('time (s)')
         ax[3].set_ylabel('beta power (V)')
 
-    def test_tfr_alignment(tfr_fun):
-        '''
-        Tests TFR functions. Input a TFR function with the following signature:
-        tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
-        '''
-        fig, ax = plt.subplots(2,1,figsize=(5,8), layout='compressed')
-
-        # Make some test data with change at t=0
-        T = 5
-        fs = 1000
-        num_points = int(T*fs)
-        t = np.linspace(0,T,num_points)
-        erp = np.zeros((t.shape[0],))
-        erp = 1.5*np.sin(2*np.pi*100*t) # 100 Hz sine
-        time_before = T/2
-        erp[t>=time_before] = 2*np.sin(2*np.pi*50*t[t>=time_before]) # 50 Hz sine
-
-        # Plot time domain
-        ax[0].plot(t - time_before, erp)
-        ax[0].set_ylabel('Voltage (a.u.)')
-        ax[0].set_xlabel('Time (s)')
-
-        # Compute and time spectrogram
-        t0 = time.perf_counter()
-        freqs, times, coef = tfr_fun(erp, fs)
-        dur = time.perf_counter() - t0
-
-        print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
-
-        # Plot spectrogram
-        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before, freqs, 'plasma', ax=ax[1])
-        fig.colorbar(pcm, label='power (a.u.)', orientation='horizontal', ax=ax[1])
 
 class SpectrumTests(unittest.TestCase):
 
@@ -1150,18 +1118,39 @@ class SpectrumTests(unittest.TestCase):
         savefig(docs_dir,filename)
 
         # Test two alignments
-        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
-        HelperFunctions.test_tfr_alignment(tfr_fun)
-        plt.title('Align center (default)')
-        filename = 'tfr_mt_alignment_center.png'
-        savefig(docs_dir,filename)
+        fk = 100
+        fig, ax = plt.subplots(3,1,figsize=(5,8), layout='compressed')
 
-        def tfr_fun(data, fs):
-            freqs, time, spec = aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
-            return freqs, time+n/2, spec
-        HelperFunctions.test_tfr_alignment(tfr_fun)
-        plt.title('Align right (time += n/2)')
-        filename = 'tfr_mt_alignment_right.png'
+        # Make some test data with change at t=0
+        T = 2
+        fs = 1000
+        num_points = int(T*fs)
+        t = np.linspace(0,T,num_points)
+        erp = np.zeros((t.shape[0],))
+        erp = np.sin(2*np.pi*20*t) # 20 Hz sine
+        time_before = T/2
+        erp[t>=time_before] = np.sin(2*np.pi*80*t[t>=time_before]) # 80 Hz sine
+
+        # Plot time domain
+        ax[0].plot(t - time_before, erp)
+        ax[0].set_ylabel('Voltage (a.u.)')
+        ax[0].set_xlabel('Time (s)')
+
+        # Compute and time spectrogram
+        t0 = time.perf_counter()
+        freqs, times, coef = aopy.analysis.calc_mt_tfr(erp, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+        dur = time.perf_counter() - t0
+
+        print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
+
+        # Plot spectrogram
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before, freqs, 'plasma', ax=ax[1])
+        ax[1].set_title('Align center (default)')
+
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before + n/2, freqs, 'plasma', ax=ax[2])
+        fig.colorbar(pcm, label='power (a.u.)', orientation='horizontal', ax=ax[2])
+        ax[2].set_title('Align right (time += n/2)')
+        filename = 'tfr_mt_alignment.png'
         savefig(docs_dir,filename)
 
     def test_tfr_mt_tsa(self):

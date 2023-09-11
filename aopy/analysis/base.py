@@ -979,13 +979,12 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
 
     Note:
         The time axis returned by calc_mt_tfr corresponds to the center of the sliding window (`n` seconds). 
-        To shift to the right edge of each window, add `n/2` to `time`.
+        To move the time axis so that the spectrogram bins are aligned to the right edge of each window, do 
+        `time += n/2`.
 
-        .. image:: _images/tfr_mt_alignment_center.png
+        .. image:: _images/tfr_mt_alignment.png
 
-        .. image:: _images/tfr_mt_alignment_right.png
-
-    Modified September 2023 to return magnitude instead of magnitude squared power. And correct the time axis.
+    Modified September 2023 to return magnitude instead of magnitude squared power.
     '''  
     if isinstance(ts_data, list): 
         ts_data = np.array(ts_data)
@@ -1027,7 +1026,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         else:
             spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
 
-    t = np.arange(nwin)*step # Center of each window is time axis
+    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
     
     return f, t, spec
 
