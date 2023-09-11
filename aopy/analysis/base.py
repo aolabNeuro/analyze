@@ -936,7 +936,11 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
 
     Note:
         The time axis returned by calc_mt_tfr corresponds to the center of the sliding window (`n` seconds). 
-        To shift to the right edge of each window, subtract `n/2` from `time`.
+        To shift to the right edge of each window, add `n/2` to `time`.
+
+        .. image:: _images/tfr_mt_alignment_center.png
+
+        .. image:: _images/tfr_mt_alignment_right.png
 
     Modified September 2023 to return magnitude instead of magnitude squared power. And correct the time axis.
     '''  
