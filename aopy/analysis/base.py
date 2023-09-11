@@ -960,7 +960,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     step_size = int(np.floor(step*fs)) # step size
     nf = np.max([256,pad*2**utils.nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
     nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
-    nwin = int(np.floor((nt-win_size)/step_size)) # number of windows
+    nwin = 1 + int(np.floor((nt-win_size)/step_size)) # number of windows
     f = np.linspace(fk[0],fk[1],int(nfk[1] - nfk[0])) # frequency axis for spectrogram
 
     spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch), dtype=dtype)
@@ -980,7 +980,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         else:
             spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
 
-    t = np.arange(nwin)*step - n/2 # Center of each window is time axis
+    t = np.arange(nwin)*step # Center of each window is time axis
     
     return f, t, spec
 

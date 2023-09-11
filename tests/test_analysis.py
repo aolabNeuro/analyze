@@ -971,6 +971,38 @@ class HelperFunctions:
         ax[3].set_xlabel('time (s)')
         ax[3].set_ylabel('beta power (V)')
 
+    def test_tfr_alignment(tfr_fun):
+        '''
+        Tests TFR functions. Input a TFR function with the following signature:
+        tfr_fun(ts_data, samplerate) -> (frequency, time, spectrogram)
+        '''
+        fig, ax = plt.subplots(2,1,figsize=(5,8), layout='compressed')
+
+        # Make some test data with change at t=0
+        T = 5
+        fs = 1000
+        num_points = int(T*fs)
+        t = np.linspace(0,T,num_points)
+        erp = np.zeros((t.shape[0],))
+        erp = 1.5*np.sin(2*np.pi*100*t) # 100 Hz sine
+        time_before = T/2
+        erp[t>=time_before] = 2*np.sin(2*np.pi*50*t[t>=time_before]) # 50 Hz sine
+
+        # Plot time domain
+        aopy.visualization.plot_timeseries(erp, fs, ax=ax[0])
+        ax[0].set_ylabel('voltage (a.u.)')
+
+        # Compute and time spectrogram
+        t0 = time.perf_counter()
+        freqs, times, coef = tfr_fun(erp, fs)
+        dur = time.perf_counter() - t0
+
+        print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
+
+        # Plot spectrogram
+        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before, freqs, 'plasma', ax=ax[1])
+        fig.colorbar(pcm, label='power (log V)', orientation='horizontal', ax=ax[1])
+
 class SpectrumTests(unittest.TestCase):
 
     def setUp(self):
@@ -1064,6 +1096,21 @@ class SpectrumTests(unittest.TestCase):
         tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, dtype='int16')
         HelperFunctions.test_tfr_lfp(tfr_fun)
         filename = 'tfr_mt_lfp.png'
+        savefig(docs_dir,filename)
+
+        # Test two alignments
+        tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, dtype='int16')
+        HelperFunctions.test_tfr_alignment(tfr_fun)
+        plt.title('Align center')
+        filename = 'tfr_mt_alignment_center.png'
+        savefig(docs_dir,filename)
+
+        def tfr_fun(data, fs):
+            freqs, time, spec = aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, dtype='int16')
+            return freqs, time+n/2, spec
+        HelperFunctions.test_tfr_alignment(tfr_fun)
+        plt.title('Align right (plus n/2)')
+        filename = 'tfr_mt_alignment_right.png'
         savefig(docs_dir,filename)
 
     def test_tfr_mt_tsa(self):
