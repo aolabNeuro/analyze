@@ -959,6 +959,7 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         .. image:: _images/tfspec.png
             
         .. code-block:: python
+        
             fk = 500
             tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
             HelperFunctions.test_tfr_chirp(tfr_fun)
