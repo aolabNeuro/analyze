@@ -406,7 +406,9 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
         samplerate (int): sampling rate of data [samples/s]
     
     Returns:
-        (ntrial, nt, nch): trial aligned data
+        (nt, nch, trial): trial aligned data
+
+    Modified Sept. 2023 - transpose output
     '''
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
@@ -434,7 +436,7 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
         else:
             trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,:]
         trial_aligned[t,:min(len(trial_data),n_samples),:] = trial_data[:min(len(trial_data),n_samples),:]
-    return trial_aligned
+    return trial_aligned.transpose(1,2,0)
 
 def trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=True):
     '''
