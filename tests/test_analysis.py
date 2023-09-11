@@ -989,7 +989,6 @@ class HelperFunctions:
         time_before = 1.0
         time_after = 2.0
         erp = aopy.analysis.calc_erp(lfp_data[:,0], go_cues, time_before, time_after, samplerate)
-        erp = erp.transpose(1,2,0) # (nt, nch, ntrial)
 
         # Plot time domain
         aopy.visualization.plot_timeseries(np.mean(erp, axis=2), samplerate, ax=ax[0])
