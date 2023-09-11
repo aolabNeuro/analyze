@@ -538,12 +538,12 @@ def subtract_erp_baseline(erp, time, t0, t1):
 
     Args:
         erp (nt, nch, ntr): trial-aligned evoked responses
-        time (nt): time in seconds for each sample of the erp
-        t0 (float): start of the baseline window
-        t1 (float): end of the baseline window
+        time (nt): time axis (in seconds) of the erp, in the same reference frame as t0 and t1
+        t0 (float): start of the baseline window (in seconds)
+        t1 (float): end of the baseline window (in seconds)
 
     Raises:
-        ValueError: if the baseline window parameters (t0, t1) are malformed
+        ValueError: if the baseline window times (t0, t1) are in the wrong order
 
     Returns:
         (nt, nch, ntr): erp after baseline subtraction
@@ -572,12 +572,12 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
         time_after (float): number of seconds to include after each event
         samplerate (float): sampling rate of the data
         subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
-            the time_before period preceding each event. Must supply a positive time_before. Default True
+            the time_before period preceding each event (using nanmean). Must supply a positive time_before. Default True
         baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
             Default is the entire time_before period.
 
     Returns:
-        (ntr, nt, nch): array of event-aligned responses for each channel during the given time periods
+        (nt, nch, ntr): array of event-aligned responses for each channel during the given time periods
 
     '''
     if subtract_baseline and time_before <= 0:
@@ -614,7 +614,7 @@ def get_max_erp(erp, time_before, time_after, samplerate, max_search_window=None
         samplerate (float): sampling rate of the data
         max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
             after event). Default is the entire time_after period.
-        trial_average (bool, optional): if True, average across trials before calculating max. Default False.
+        trial_average (bool, optional): if True, average across trials before calculating max (using nanmean). Default False.
         
     Returns:
         (nch, ntr): array of maximum mean-ERP for each channel during the given time periods
