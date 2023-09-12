@@ -1227,7 +1227,7 @@ def interp_nans(x):
     return x
 
 def calc_mt_coh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
-                return_error=False, pval=0.05, dtype='float64', workers=None):
+                dtype='float64', workers=None):
     '''
     Computes moving window time-frequency coherence across selected channels.
     This is based on pesaran lab code, but modified.
@@ -1325,7 +1325,7 @@ def calc_mt_coh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginar
         Plot coherence
 
         .. code-block:: python
-        
+
             # Plot the coherence over time
             plt.figure(figsize=(10, 6))
             plt.subplot(2, 1, 1)
