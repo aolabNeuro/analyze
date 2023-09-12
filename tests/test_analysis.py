@@ -1198,11 +1198,11 @@ class SpectrumTests(unittest.TestCase):
         savefig(docs_dir,filename)
         
     def test_coherency(self):
-
         fs = 1000
         N = 1e5
+        T = N/fs
         amp = 20
-        freq = 300.0
+        freq = 100.0
         noise_power = 0.001 * fs / 2
         time = np.arange(N) / fs
 
@@ -1213,40 +1213,42 @@ class SpectrumTests(unittest.TestCase):
         signal2 = scipy.signal.lfilter(b, a, signal1)
         signal2 += rng.normal(scale=0.1*np.sqrt(noise_power), size=time.shape)
 
-        signal1 += amp*np.sin(2*np.pi*freq*time)
+        signal1[time > T/2] += amp*np.sin(2*np.pi*freq*time[time > T/2])
 
-        # Calculate coherency
-        p = 5  # Time-bandwidth product
-        k = 9  # Number of tapers
-        pool_trials = False  # Do not pool trials
-        errorchk = False  # Disable error checking for simplicity
+        # Calculate mt coh
+        n = 2
+        w = 10
+        n, p, k = aopy.precondition.convert_taper_parameters(n, w)
         fk = fs / 2  # Maximum frequency of interest
+        step = n # no overlap
+        signal_combined = np.stack((signal1, signal2), axis=1)
 
-        coh, f, S_X, S_Y, _, _, _ = aopy.analysis.calculate_coherency(
-            signal1, signal2, fs, p, k, fk=fk, pool_trials=pool_trials, errorchk=errorchk)
+        f, t, coh = aopy.analysis.calc_mt_coh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                              ref=False)
+        f, t, coh_im = aopy.analysis.calc_mt_coh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                              ref=False, imaginary=True)
+        
+        # Calculate coherency from scipy
+        f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=2048, noverlap=0, axis=0)
 
-        f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=1024, axis=0)
-
-        # Plot the coherency
+        # Plot the coherence over time
         plt.figure(figsize=(10, 6))
         plt.subplot(2, 1, 1)
-        plt.semilogy(f, coh)
-        plt.semilogy(f_scipy, coh_scipy)
-        plt.title('Coherency between two signals')
+        im = aopy.visualization.plot_tfr(coh, t, f)
+        plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
+        im.set_clim(0,1)
+
+        # Plot the average coherence across windows
+        plt.subplot(2, 1, 2)
+        plt.plot(f, np.mean(coh, axis=1))
+        plt.plot(f, np.mean(coh_im, axis=1))
+        plt.plot(f_scipy, coh_scipy)
+        plt.title('Average coherence across time')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Coherency')
-        plt.legend(['peslab', 'scipy'])
-
-        plt.subplot(2, 1, 2)
-        plt.semilogy(f, S_X, label='S_X')
-        plt.semilogy(f, S_Y, label='S_Y')
-        plt.title('Spectral densities of the signals')
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Power/Frequency')
-        plt.legend()
+        plt.legend(['coh', 'imag coh', 'scipy'])
 
         plt.tight_layout()
-        
         figname = 'coherency.png'
         aopy.visualization.savefig(docs_dir, figname)
 
