@@ -67,9 +67,11 @@ def plot_timeseries(data, samplerate, ax=None):
     Plots data along time on the given axis
 
     Example:
+        
         Plot 50 and 100 Hz sine wave.
 
-        ::
+        .. code-block:: python
+
             data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
             samplerate = 1000
             plot_timeseries(data, samplerate)
@@ -98,9 +100,11 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     data and this will calculate and plot the amplitude spectrum. 
 
     Example:
+
         Plot 50 and 100 Hz sine wave amplitude spectrum. 
 
-        ::
+        .. code-block:: python
+
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000
             plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
@@ -161,7 +165,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
-        ::
+        .. code-block:: python
+
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
             missing = [0, 5, 25]
@@ -184,8 +189,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
 
     Returns:
         tuple: tuple containing:
-        | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
-        | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
+            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
+            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
@@ -618,8 +623,9 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
 
     Example:
 
-        ::
-            >>> trajectories =[
+        .. code-block:: python
+
+            trajectories =[
                     np.array([
                         [0, 0, 0],
                         [1, 1, 0],
@@ -634,15 +640,15 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
                         [-3, 4, 0]
                     ])
                 ]
-            >>> labels = [0, 0, 1, 0]
-            >>> colors = ['r', 'b']
-            >>> color_trajectories(trajectories, labels, colors)
+            labels = [0, 0, 1, 0]
+            colors = ['r', 'b']
+            color_trajectories(trajectories, labels, colors)
 
             .. image:: _images/color_trajectories_simple.png
 
-            >>> labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
-            >>> fig = plt.figure()
-            >>> color_trajectories(trajectories, labels_list, colors)
+            labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
+            fig = plt.figure()
+            color_trajectories(trajectories, labels_list, colors)
 
             .. image:: _images/color_trajectories_segmented.png
 
@@ -692,9 +698,11 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     values will be added together on each day, for example for number of trials.
     
     Example:
+
         Plotting success rate averaged across days.
 
-        ::
+        .. code-block:: python
+
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
             success = [70, 65, 65]
@@ -759,9 +767,11 @@ def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, 
     apply smoothing to each day's data.
     
     Example:
+
         Plotting success rate over three sessions.
 
-        ::
+        .. code-block:: python
+
             success = [70, 65, 60]
             trials = [10, 20, 10]
 
@@ -1158,7 +1168,7 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
         times ((nt,) array): 
         freqs ((nfreq,) array): 
         cmap (str, optional): colormap to use for plotting
-        logscale (bool, optional): apply a log scale to the freq axis. Default False
+        logscale (bool, optional): apply a log scale to the color axis. Default False.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
         kwargs (dict, optional): other keyword arguments to pass to pyplot
         
@@ -1172,18 +1182,23 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
             fig, ax = plt.subplots(3,1,figsize=(4,6))
 
             samplerate = 1000
-            t = np.arange(2*samplerate)/samplerate
-            f0 = 1
-            t1 = 2
-            f1 = 1000
-            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+            data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
+            nt = data_200_hz.shape[0]
+            data_200_hz[:int(nt/3),:] /= 3
+            data_200_hz[int(2*nt/3):,:] *= 2
+
+            data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
+            data_50_hz[:int(nt/2),:] /= 2
+
+            data = data_50_hz + data_200_hz
             print(data.shape)
             aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
             aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
 
-            freqs = np.linspace(1,1000,200)
+            freqs = np.linspace(1,250,100)
             coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
-
+            t = np.arange(nt)/samplerate
+            
             print(data.shape)
             print(coef.shape)
             print(t.shape)
@@ -1191,27 +1206,8 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
             pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
 
             fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-    
-        .. image:: _images/tfr_cwt_chirp.png
-
-        .. code-block:: python
-
-            lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
-            samplerate = lfp_metadata['lfp_samplerate']
-            lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
-
-            aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
-            aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
-
-            freqs = np.linspace(1,200,100)
-            nt = lfp_data.shape[0]
-            t = np.arange(nt)/samplerate
-            coef = aopy.analysis.calc_cwt_tfr(lfp_data, freqs, samplerate, fb=1.5, f0_norm=1, verbose=True)
-
-            pcm = aopy.visualization.plot_tfr(abs(coef), t, freqs, 'plasma', ax=ax[2])
-            fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
-
-        .. image:: _images/tfr_cwt_lfp.png
+            
+        .. image:: _images/tfr_cwt_50_200.png
 
 
     See Also:
@@ -1221,12 +1217,45 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     if ax == None:
         ax = plt.gca()
         
-    pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
+    if logscale:
+        pcm = ax.pcolormesh(times, freqs, np.log10(values), cmap=cmap, **kwargs)
+    else:
+        pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
     pcm.set_edgecolor('face')
     
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Frequency (Hz)')
-    if logscale:
-        ax.set_yscale('log')
 
     return pcm
+
+def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
+    '''
+    This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color. See also sns.color_palette for a gradient of RGB values within a Seaborn color palette.
+
+    Examples:
+        
+        .. code-block:: python
+
+                npts = 200
+                x = np.linspace(0, 2*np.pi, npts)
+                y = np.sin(x)
+                fig, ax = plt.subplots()
+                ax.scatter(x, y, c=get_color_gradient(npts, 'g', [1,0,0]))
+    
+        .. image:: _images/color_gradient_example.png
+
+    Args:
+        npts (int): How many different colors are part of the gradient
+        end_color (str or list): Color that ends the gradient. Can be any matplotlib color or specific RGB values.
+        start_color (str or list): Color that ends the gradient. Can be any matplotlib color or specific RGB values. Defaults to white.
+
+    Returns:
+        (npts, 3): An array with linearly spaced colors from the start to end
+    '''
+    rgb_end = matplotlib.colors.to_rgb(end_color)
+    rgb_start = matplotlib.colors.to_rgb(start_color)
+    ct = np.zeros((npts, 3))
+    ct[:,0] = np.flip(np.linspace(rgb_end[0], rgb_start[0], npts))
+    ct[:,1] = np.flip(np.linspace(rgb_end[1], rgb_start[1], npts))
+    ct[:,2] = np.flip(np.linspace(rgb_end[2], rgb_start[2], npts))
+    return ct
