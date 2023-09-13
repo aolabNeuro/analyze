@@ -552,7 +552,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         te_id = 4301
         date = '2021-01-01'
         trial_filter = lambda t: TRIAL_END not in t
-        trajectories, segments = get_trial_trajectories(preproc_dir, subject, te_id, date,
+        trajectories, segments = get_kinematic_segments(preproc_dir, subject, te_id, date,
                                                        [CURSOR_ENTER_CENTER_TARGET], 
                                                        [REWARD, TRIAL_END], 
                                                        trial_filter=trial_filter) 
