@@ -753,6 +753,8 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
             ax.plot(plot_days, aggregate[idx_column,:], '.-', label=columns[idx_column].name)
         else:
             ax.plot(plot_days, aggregate[idx_column,:], '.-')
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=(mdates.MO, mdates.TU, mdates.WE, 
+                                                                mdates.TH, mdates.FR, mdates.SA, mdates.SU)))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     
@@ -798,10 +800,9 @@ def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, 
         date_chg = np.insert(np.where(np.diff(trial_dates) > timedelta(0))[0] + 1, 0, 0)
 
     for idx_column in range(len(columns)):
-        values = columns[idx_column]
-        trial_values = []
         
         # Accumulate individual trials with the values given for each session
+        values = np.array(columns[idx_column])
         trial_values = np.repeat(values, trials)
         
         # Apply smoothing
@@ -814,7 +815,7 @@ def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, 
         
         # Plot with additional kwargs
         if hasattr(columns[idx_column], 'name'):
-            ax.plot(trial_values, label=values.name, **kwargs)
+            ax.plot(trial_values, label=columns[idx_column].name, **kwargs)
         else:
             ax.plot(trial_values, **kwargs)
 

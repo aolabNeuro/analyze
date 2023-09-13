@@ -451,20 +451,25 @@ class OtherPlottingTests(unittest.TestCase):
 
         # Also make sure it works with dataframe columns
         df = pd.DataFrame({'trials': trials, 'success': success})
-        fig, ax = plt.subplots(1,1)
-        plot_sessions_by_trial(df['trials'], df['success'], ax=ax)
+        fig, ax = plt.subplots(3,1, figsize=(4,6))
+        plot_sessions_by_trial(df['trials'], df['success'], ax=ax[0])
+        ax[0].set_ylabel('success (%)')
+        ax[0].set_title('plot trials')
 
         # Split by date
         from datetime import date, timedelta
         today = date(1991, 9, 26)
-        dates = [today - timedelta(days=len(trials)-n) for n in range(len(trials))]
-        fig, ax = plt.subplots(2,1)
-        plot_sessions_by_trial(df['trials'], df['success'], dates=dates, ax=ax[0])
-        ax[0].set_ylabel('success (%)')
+        df['date'] = [today - timedelta(days=len(trials)-np.floor(n/2)) for n in range(len(trials))]
+        plot_sessions_by_trial(df['trials'], df['success'], dates=df['date'], ax=ax[1])
+        ax[1].set_ylabel('success (%)')
+        ax[1].set_title('separate by date')
 
         # Smoothing
-        plot_sessions_by_trial(df['trials'], df['success'], dates=dates, smoothing_window=3, ax=ax[1])
-        ax[1].set_ylabel('success (%)')
+        plot_sessions_by_trial(df['trials'], df['success'], dates=df['date'], smoothing_window=3, ax=ax[2])
+        ax[2].set_ylabel('success (%)')
+        ax[2].set_title('smoothing window = 3 trials')
+
+        plt.tight_layout()
         savefig(docs_dir, filename)
 
     def test_plot_events_time(self):
