@@ -1226,11 +1226,11 @@ def interp_nans(x):
 
     return x
 
-def calc_mt_coh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
+def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
                 dtype='float64', workers=None):
     '''
-    Computes moving window time-frequency coherence across selected channels.
-    This is based on pesaran lab code, but modified.
+    Computes moving window time-frequency coherence averaged across trials between selected channels.
+    This is based on pesaran lab code, but modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
     
     Given analytical signals Xk1 and Xk2, coherence is computed as:
     
@@ -1383,19 +1383,19 @@ def calc_mt_coh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginar
         # tapers is shape (N, k)
 
         # Compute power for channel 1
-        ch1_rolled = np.reshape(tapers[:,:,np.newaxis]*tmp[:,[ch1],:], (win_size, k*ntr))
-        Xk_tmp1 = scipy.fft.fft(ch1_rolled.T, nf, axis=-1, overwrite_x=True, workers=workers).T
-        Xk1 = Xk_tmp1[int(nfk[0]):int(nfk[1])]
+        ch1_rolled = np.reshape(tapers[:,:,np.newaxis]*tmp[:,[ch1],:], (win_size, k*ntr)) # trials and tapers together
+        Xk_tmp1 = scipy.fft.fft(ch1_rolled.T, nf, axis=-1, overwrite_x=True, workers=workers).T # looping over the last axis is faster
+        Xk1 = Xk_tmp1[int(nfk[0]):int(nfk[1])] # filter desired frequency range
         S1 = np.sum(Xk1*Xk1.conj(), axis=1) # sum across tapers and trials
 
         # Compute power for channel 2
         ch2_rolled = np.reshape(tapers[:,:,np.newaxis]*tmp[:,[ch2],:], (win_size, k*ntr))
         Xk_tmp2 = scipy.fft.fft(ch2_rolled.T, nf, axis=-1, overwrite_x=True, workers=workers).T
         Xk2 = Xk_tmp2[int(nfk[0]):int(nfk[1])]
-        S2 = np.sum(Xk2*Xk2.conj(), axis=1) # sum across tapers and trials 
+        S2 = np.sum(Xk2*Xk2.conj(), axis=1) # note: Xk*Xk.conj() is equivalent to abs(Xk)**2
 
         # Cross spectral power
-        S12 = np.sum(Xk1*Xk2.conj(), axis=1) # sum across tapers and trials
+        S12 = np.sum(Xk1*Xk2.conj(), axis=1)
     
         # Coherence
         if imaginary:
