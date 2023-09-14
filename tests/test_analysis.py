@@ -1223,9 +1223,9 @@ class SpectrumTests(unittest.TestCase):
         step = n # no overlap
         signal_combined = np.stack((signal1, signal2), axis=1)
 
-        f, t, coh = aopy.analysis.calc_mt_coh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+        f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                               ref=False)
-        f, t, coh_im = aopy.analysis.calc_mt_coh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+        f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                               ref=False, imaginary=True)
         
         # Calculate coherency from scipy

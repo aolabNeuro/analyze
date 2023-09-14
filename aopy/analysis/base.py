@@ -1316,9 +1316,9 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             step = n # no overlap
             signal_combined = np.stack((signal1, signal2), axis=1)
 
-            f, t, coh = aopy.analysis.calc_mt_coh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+            f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                                 ref=False)
-            f, t, coh_im = aopy.analysis.calc_mt_coh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+            f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                                 ref=False, imaginary=True)
             f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=2048, noverlap=0, axis=0)
 
