@@ -163,8 +163,8 @@ def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadb
 
     Returns:
         tuple: tuple containing:
-        | **dset (h5py.Dataset):** the new hdf dataset
-        | **metadata (dict):** the ecube metadata
+            | **dset (h5py.Dataset):** the new hdf dataset
+            | **metadata (dict):** the ecube metadata
     '''
 
     # Load the metadata to figure out the datatypes
@@ -360,8 +360,8 @@ def get_ecube_digital_input_times(path, data_dir, ch):
         
     Returns:
         tuple: Tuple containing:
-            |** on_times (n_times):** times at which sync line turned on
-            |** off_times (n_times):** times at which sync line turned off    
+            | **on_times (n_times):** times at which sync line turned on
+            | **off_times (n_times):** times at which sync line turned off    
     '''
     
     # Load ecube digital data
@@ -755,8 +755,8 @@ def get_source_files(preproc_dir, subject, te_id, date):
 
     Returns:
         tuple: tuple containing:
-            |** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
-            |** data_dir (str):** directory where the source files were located
+            | ** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
+            | ** data_dir (str):** directory where the source files were located
     '''
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
