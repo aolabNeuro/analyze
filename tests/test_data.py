@@ -537,29 +537,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         penalty_codes = [64]
         df = tabulate_behavior_data(
             write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-            target_codes, reward_codes, penalty_codes, df=None, 
-            include_handdata=False, include_eyedata=False)
+            reward_codes, penalty_codes, metadata=['target_radius'], df=None)
         self.assertEqual(len(df), 18)
-        self.assertTrue(np.all(df['target_idx'] < 9))
+        np.testing.assert_allclose(df['target_radius'], 2.)
         expected_reward = np.ones(len(df))
         expected_reward[-2:] = 0
         expected_reward[-11:-9] = 0
         np.testing.assert_allclose(df['reward'], expected_reward)
-        
-        plt.figure()
-        bounds = [-10, 10, -10, 10]
-        visualization.plot_trajectories(df['cursor_traj'].to_numpy(), bounds=bounds)
-        figname = 'concat_trials.png' # should look very similar to get_trial_aligned_trajectories.png
-        visualization.savefig(write_dir, figname)
-
-        df = tabulate_behavior_data(
-            write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-            target_codes, reward_codes, penalty_codes, df=None, 
-            include_handdata=True, include_eyedata=True)
-        self.assertEqual(len(df), 18)
-        self.assertEqual(df['cursor_traj'].iloc[0].shape[1], 2) # should have 2 cursor axes     
-        self.assertEqual(df['hand_traj'].iloc[0].shape[1], 3) # should have 3 hand axes 
-        self.assertEqual(df['eye_traj'].iloc[0].shape[1], 4) # should have 4 eye axes
 
     def test_tabulate_behavior_data_center_out(self):
 
@@ -568,9 +552,10 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = [self.date, self.date]
 
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True,
-                                               include_handdata=False, include_eyedata=False)
+                                               include_center_target=True)
         self.assertEqual(len(df), 18) # should be the same df as above
+        self.assertTrue(np.all(df['target_idx'] < 9))
+
 
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
@@ -578,8 +563,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = [self.date, self.date]
 
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True,
-                                               include_handdata=False, include_eyedata=False)
+                                               include_center_target=True)
 
         start_times = [t[0] for t in df['event_times']] # maybe we could update the df to have start and end times directly
         end_times = [t[-1] for t in df['event_times']]
@@ -589,6 +573,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(len(df), len(kin))
 
+        plt.figure()
+        bounds = [-10, 10, -10, 10]
+        visualization.plot_trajectories(kin, bounds=bounds)
+        figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
+        visualization.savefig(write_dir, figname)
+
     def test_tabulate_ts_data(self):
 
         subjects = [self.subject]
@@ -596,9 +586,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = [self.date]
 
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True,
-                                               include_handdata=False, include_eyedata=False)
-
+                                               include_center_target=True)
         trigger_times = [t[0] for t in df['event_times']] 
         time_before = 0.5
         time_after = 0.5
