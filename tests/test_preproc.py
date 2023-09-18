@@ -768,9 +768,9 @@ class TestPrepareExperiment(unittest.TestCase):
         event_timestamps = data['events']['timestamp']
         flash_times = event_timestamps[np.logical_and(16 <= data['events']['code'], data['events']['code'] < 32)]
         evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
-        time = np.arange(evoked_lfp.shape[1])/samplerate - time_before
+        time = np.arange(evoked_lfp.shape[0])/samplerate - time_before
         plt.figure()
-        im = visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im = visualization.plot_image_by_time(time, evoked_lfp[:,0,:])
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')        
         filename = 'parse_bmi3d_flash_events.png'
@@ -781,7 +781,7 @@ class TestPrepareExperiment(unittest.TestCase):
         flash_times = data['clock']['timestamp_sync'][data['bmi3d_events']['time'][target_on_events]]
         evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
         plt.figure()
-        im = visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im = visualization.plot_image_by_time(time, evoked_lfp[:,0,:])
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_sync_clock.png'
@@ -792,7 +792,7 @@ class TestPrepareExperiment(unittest.TestCase):
         flash_times = data['clock']['timestamp_measure_offline'][data['bmi3d_events']['time'][target_on_events]]
         evoked_lfp = analysis.calc_erp(lfp_data, flash_times, time_before, time_after, samplerate)
         plt.figure()
-        im = visualization.plot_image_by_time(time, evoked_lfp[:,:,0].T)
+        im = visualization.plot_image_by_time(time, evoked_lfp[:,0,:])
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_measure_clock.png'
@@ -1050,7 +1050,7 @@ class TestPrepareExperiment(unittest.TestCase):
         ch = 36
         samplerate = lfp_metadata['lfp_samplerate']
         erp = analysis.calc_erp(lfp_data, trial_times, time_before, time_after, samplerate)
-        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=0)
+        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=2)
         t = 1000*(np.arange(erp_voltage.shape[0])/samplerate - time_before)
         ch_data = 1e6*lfp_metadata['voltsperbit']*erp_voltage[:,ch]
         plt.figure()
@@ -1060,7 +1060,7 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # Also plot the individual trials
         plt.figure()
-        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,:,ch].T, ylabel='trials')
+        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,ch,:], ylabel='trials')
         im.set_clim(-100,100)
         visualization.savefig(img_dir, 'laser_aligned_lfp.png')
         
@@ -1074,7 +1074,7 @@ class TestPrepareExperiment(unittest.TestCase):
         ds_data = ds_data - np.mean(ds_data)
         analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
         print(analog_erp.shape)
-        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
+        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
         visualization.savefig(img_dir, 'laser_aligned_sensor.png')
 
@@ -1122,7 +1122,7 @@ class TestPrepareExperiment(unittest.TestCase):
         ch = 1
         samplerate = lfp_metadata['lfp_samplerate']
         erp = analysis.calc_erp(lfp_data, trial_times, time_before, time_after, samplerate)
-        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=0)
+        erp_voltage = 1e6*lfp_metadata['voltsperbit']*np.mean(erp, axis=2)
         t = 1000*(np.arange(erp_voltage.shape[0])/samplerate - time_before)
         ch_data = 1e6*lfp_metadata['voltsperbit']*erp_voltage[:,ch]
         plt.figure()
@@ -1132,7 +1132,7 @@ class TestPrepareExperiment(unittest.TestCase):
         
         # Also plot the individual trials
         plt.figure()
-        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,:,ch].T, ylabel='trials')
+        im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,ch,:], ylabel='trials')
         im.set_clim(-100,100)
         visualization.savefig(img_dir, 'laser_aligned_lfp_dch_trigger.png')
         
@@ -1146,7 +1146,7 @@ class TestPrepareExperiment(unittest.TestCase):
         ds_data = ds_data - np.mean(ds_data)
         analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
         print(analog_erp.shape)
-        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
+        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
         visualization.savefig(img_dir, 'laser_aligned_sensor_dch_trigger.png')
 
