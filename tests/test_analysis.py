@@ -1201,8 +1201,7 @@ class SpectrumTests(unittest.TestCase):
         fs = 1000
         N = 1e5
         T = N/fs
-        amp = 20
-        freq = 100.0
+        amp = 1
         noise_power = 0.001 * fs / 2
         time = np.arange(N) / fs
 
@@ -1213,33 +1212,59 @@ class SpectrumTests(unittest.TestCase):
         signal2 = scipy.signal.lfilter(b, a, signal1)
         signal2 += rng.normal(scale=0.1*np.sqrt(noise_power), size=time.shape)
 
+        # Add a 100 hz sine wave only to signal 1
+        freq = 100.0
         signal1[time > T/2] += amp*np.sin(2*np.pi*freq*time[time > T/2])
 
+        # Add a 400 hz sine wave to both signals
+        freq = 400.0
+        signal1[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
+        signal2[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
+
         # Calculate mt coh
-        n = 2
-        w = 10
+        n = 1
+        w = 2
         n, p, k = aopy.precondition.convert_taper_parameters(n, w)
+        print(k)
+        # k = k-1
         fk = fs / 2  # Maximum frequency of interest
         step = n # no overlap
         signal_combined = np.stack((signal1, signal2), axis=1)
 
+        # Calculate spectrograms for each signal
+        f, t, spec1 = aopy.analysis.calc_mt_tfr(signal1, n, p, k, fs, step, fk=fk,
+                                                              ref=False)
+        f, t, spec2 = aopy.analysis.calc_mt_tfr(signal2, n, p, k, fs, step, fk=fk,
+                                                              ref=False)
+
+        # Calculate coherence
         f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                               ref=False)
         f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                               ref=False, imaginary=True)
         
         # Calculate coherency from scipy
-        f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=2048, noverlap=0, axis=0)
+        f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=fs*n, noverlap=0, axis=0)
 
         # Plot the coherence over time
-        plt.figure(figsize=(10, 6))
-        plt.subplot(2, 1, 1)
+        plt.figure(figsize=(10, 12))
+        plt.subplot(4, 1, 1)
+        im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
+        plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
+        im.set_clim(0,3)
+
+        plt.subplot(4, 1, 2)
+        im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
+        plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
+        im.set_clim(0,3)
+
+        plt.subplot(4, 1, 3)
         im = aopy.visualization.plot_tfr(coh, t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
         im.set_clim(0,1)
 
         # Plot the average coherence across windows
-        plt.subplot(2, 1, 2)
+        plt.subplot(4, 1, 4)
         plt.plot(f, np.mean(coh, axis=1))
         plt.plot(f, np.mean(coh_im, axis=1))
         plt.plot(f_scipy, coh_scipy)
