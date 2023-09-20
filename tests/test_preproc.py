@@ -937,6 +937,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIsNotNone(eye)
         self.assertIsNotNone(meta)
         self.assertIn('raw_data', eye)
+        self.assertIn('eye_closed_mask', eye)
         self.assertIn('samplerate', meta)
 
         # This dataset has more trials
