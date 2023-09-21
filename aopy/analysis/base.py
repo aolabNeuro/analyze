@@ -1188,8 +1188,38 @@ def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
 
     return np.squeeze(feats)
 
-def get_bandpower_feats(lfp_data, samplerate, bands, method='mt', **kwargs):
+def get_bandpower_feats(data, samplerate, bands, method='mt', log=False, epsilon=0, **kwargs):
+    '''
+    Wrapper around get_tfr_feats and calc_mt_tfr. 
 
+    Args:
+        data (nt, ...): time series data.
+        samplerate (float): sampling rate of the data.
+        bands (list of tuples): frequency bands of interest in Hz, e.g. [(0, 10), (10, 20), (130, 140)]
+        log (bool): boolean to select whether band power should be in log scale or not
+        epsilon (float): small number, e.g. 1e-10 to add to power before averaging in case there are zero values
+        kwargs (dict, optional): keyword arguments for the calc_tfr function of choice (see Note).
+
+    Raises:
+        ValueError: if the requested method is not valid
+
+    Returns:
+        tuple: tuple containing:
+            | **time (nstep):** the resulting time axis for the features
+            | **feats (nfeatures, nstep, nch):** band power features
+
+    Note:
+        For method 'mt', you must pass the following keyword arguments:
+            | **n (float):** window length in seconds
+            | **p (float):** standardized half bandwidth in hz
+            | **k (int):** number of DPSS tapers to use
+            | **step (float):** window step. Defaults to step = n/10.
+            | **fk (float):** frequency range to return in Hz ([0, fk]). Defaults to fs/2.
+        Optionally you may also pass:
+            | **pad (int):** padding factor for the FFT. This should be 1 or a multiple of 2.
+            | **ref (bool):** referencing flag. If True, mean of neural signals across electrodes 
+            | **dtype (str):** dtype of the output. Default 'float64'
+    '''
     if method == 'mt':
         n = kwargs.pop('n')
         p = kwargs.pop('p')
@@ -1199,13 +1229,12 @@ def get_bandpower_feats(lfp_data, samplerate, bands, method='mt', **kwargs):
         pad = kwargs.pop('pad', 2)
         ref = kwargs.pop('ref', True)
         dtype = kwargs.pop('dtype', 'float64')
-        freqs, time, spec = calc_mt_tfr(lfp_data, n, p, k, samplerate, 
+        freqs, time, spec = calc_mt_tfr(data, n, p, k, samplerate, 
                                         step=step, fk=fk, pad=pad, ref=ref, dtype=dtype)
-        
     else:
         raise ValueError(f"Method {method} not implemented.")
 
-    return time, get_tfr_feats(freqs, spec, bands, log=False, epsilon=0)
+    return time, get_tfr_feats(freqs, spec, bands, log=log, epsilon=epsilon)
 
 def interp_nans(x):
     """
@@ -1249,6 +1278,7 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
 
     Args:
         data ((nt,nch,ntr) array): evoked potential across all channels and trials
+        ch ((2,) tuple): the two channel indices between which coherence will be computed
         n (float): window length in seconds
         p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
