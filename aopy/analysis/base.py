@@ -1259,7 +1259,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
                 dtype='float64', workers=None):
     '''
     Computes moving window time-frequency coherence averaged across trials between selected channels.
-    This is based on pesaran lab code, but modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
+    This is loosely based on pesaran lab code, modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
+    The coherence computations are from https://doi.org/10.7551/mitpress/9609.001.0001
     
     Given analytical signals Xk1 and Xk2, coherence is computed as:
     
@@ -1318,7 +1319,6 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             N = 1e5
             T = N/fs
             amp = 20
-            freq = 100.0
             noise_power = 0.001 * fs / 2
             time = np.arange(N) / fs
 
@@ -1333,19 +1333,33 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             signal2 = scipy.signal.lfilter(b, a, signal1)
             signal2 += rng.normal(scale=0.1*np.sqrt(noise_power), size=time.shape)
 
+            # Add a 100 hz sine wave only to signal 1
+            freq = 100.0
             signal1[time > T/2] += amp*np.sin(2*np.pi*freq*time[time > T/2])
+
+            # Add a 400 hz sine wave to both signals
+            freq = 400.0
+            signal1[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
+            signal2[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
 
         Calculate coherence, imaginary coherence, and compared to `scipy.signal.coherence()`
 
         .. code-block:: python
 
-            n = 2
-            w = 10
+            n = 1
+            w = 2
             n, p, k = aopy.precondition.convert_taper_parameters(n, w)
             fk = fs / 2  # Maximum frequency of interest
             step = n # no overlap
             signal_combined = np.stack((signal1, signal2), axis=1)
 
+            # Calculate spectrograms for each signal
+            f, t, spec1 = aopy.analysis.calc_mt_tfr(signal1, n, p, k, fs, step, fk=fk,
+                                                                ref=False)
+            f, t, spec2 = aopy.analysis.calc_mt_tfr(signal2, n, p, k, fs, step, fk=fk,
+                                                                ref=False)
+
+            # And coherence
             f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                                 ref=False)
             f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
@@ -1357,13 +1371,25 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         .. code-block:: python
 
             # Plot the coherence over time
-            plt.figure(figsize=(10, 6))
-            plt.subplot(2, 1, 1)
+            plt.figure(figsize=(10, 12))
+            plt.subplot(4, 1, 1)
+            im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
+            plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
+            im.set_clim(0,3)
+
+            plt.subplot(4, 1, 2)
+            im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
+            plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
+            im.set_clim(0,3)
+
+            plt.subplot(4, 1, 3)
             im = aopy.visualization.plot_tfr(coh, t, f)
             plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
             im.set_clim(0,1)
 
             # Plot the average coherence across windows
+            # Note: scipy uses welch's method, so its coherence is based on the average cross-spectral
+            # density of the two signals, rather than here the instantaneous cross-spectral density.
             plt.subplot(2, 1, 2)
             plt.plot(f, np.mean(coh, axis=1))
             plt.plot(f, np.mean(coh_im, axis=1))
