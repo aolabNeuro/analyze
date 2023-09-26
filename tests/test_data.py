@@ -502,7 +502,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         time_before = 0.1
         time_after = 0.4
         lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, time_before, time_after)
-        self.assertEqual(lfp_aligned.shape, (9, (time_before+time_after)*1000, 8))
+        self.assertEqual(lfp_aligned.shape, ((time_before+time_after)*1000, 8, 9))
 
     def test_get_target_locations(self):
         target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
@@ -565,7 +565,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
                                                include_center_target=True)
 
-        start_times = [t[0] for t in df['event_times']] # maybe we could update the df to have start and end times directly
+        start_times = [t[0] for t in df['event_times']]
         end_times = [t[-1] for t in df['event_times']]
 
         kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], start_times, end_times, 
@@ -591,6 +591,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         time_before = 0.5
         time_after = 0.5
 
+        # Note: the data we're reading is only 1s long, so mostly these will be nans
         ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'], 
                                trigger_times, time_before, time_after, datatype='lfp')
         
@@ -598,8 +599,9 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_end_codes = [TRIAL_END]
         ts_data_single_file = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
                                               trial_start_codes, trial_end_codes, time_before, time_after)
-        ts_data_single_file = ts_data_single_file.transpose(1,2,0) # should be fixed soon!
-        
+     
+        print(ts_data_single_file.shape)
+
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
 class TestMatlab(unittest.TestCase):

@@ -669,11 +669,10 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
                                                      trial_start_codes, trial_end_codes)
     trial_start_times = [t[0] for t in trial_times]
     assert len(trial_start_times) > 0, "No trials found"
-    print(lfp_data.shape)
-    trial_aligned_data = trial_align_data(lfp_data, trial_start_times, time_before, time_after, samplerate) #(ntrial, nt, nch)
+    trial_aligned_data = trial_align_data(lfp_data, trial_start_times, time_before, time_after, samplerate) # (nt, nch, ntrial)
     success_trials = [trial_filter(t) for t in trial_segments]
     
-    return trial_aligned_data[success_trials]
+    return trial_aligned_data[:,:,success_trials]
 
 def get_ts_data_segment(preproc_dir, subject, te_id, date, trigger_time, time_before, time_after,
                        datatype='lfp'):
