@@ -13,10 +13,9 @@ from .. import data as aodata
 from .. import utils
 from .. import analysis
 from .. import visualization
-from ..postproc import get_source_files
-from ..precondition import downsample
+from ..data import get_source_files
 from ..utils import detect_edges
-from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries, sample_timestamped_data
+from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements
 
 def decode_event(dictionary, value):
     '''
