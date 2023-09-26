@@ -13,7 +13,6 @@ from sklearn.linear_model import LinearRegression
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
-from scipy.fft import fft
 
 import warnings
 import nitime.algorithms as tsa
@@ -1189,8 +1188,38 @@ def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
 
     return np.squeeze(feats)
 
-def get_bandpower_feats(lfp_data, samplerate, bands, method='mt', **kwargs):
+def get_bandpower_feats(data, samplerate, bands, method='mt', log=False, epsilon=0, **kwargs):
+    '''
+    Wrapper around get_tfr_feats and calc_mt_tfr. 
 
+    Args:
+        data (nt, ...): time series data.
+        samplerate (float): sampling rate of the data.
+        bands (list of tuples): frequency bands of interest in Hz, e.g. [(0, 10), (10, 20), (130, 140)]
+        log (bool): boolean to select whether band power should be in log scale or not
+        epsilon (float): small number, e.g. 1e-10 to add to power before averaging in case there are zero values
+        kwargs (dict, optional): keyword arguments for the calc_tfr function of choice (see Note).
+
+    Raises:
+        ValueError: if the requested method is not valid
+
+    Returns:
+        tuple: tuple containing:
+            | **time (nstep):** the resulting time axis for the features
+            | **feats (nfeatures, nstep, nch):** band power features
+
+    Note:
+        For method 'mt', you must pass the following keyword arguments:
+            | **n (float):** window length in seconds
+            | **p (float):** standardized half bandwidth in hz
+            | **k (int):** number of DPSS tapers to use
+            | **step (float):** window step. Defaults to step = n/10.
+            | **fk (float):** frequency range to return in Hz ([0, fk]). Defaults to fs/2.
+        Optionally you may also pass:
+            | **pad (int):** padding factor for the FFT. This should be 1 or a multiple of 2.
+            | **ref (bool):** referencing flag. If True, mean of neural signals across electrodes 
+            | **dtype (str):** dtype of the output. Default 'float64'
+    '''
     if method == 'mt':
         n = kwargs.pop('n')
         p = kwargs.pop('p')
@@ -1200,13 +1229,12 @@ def get_bandpower_feats(lfp_data, samplerate, bands, method='mt', **kwargs):
         pad = kwargs.pop('pad', 2)
         ref = kwargs.pop('ref', True)
         dtype = kwargs.pop('dtype', 'float64')
-        freqs, time, spec = calc_mt_tfr(lfp_data, n, p, k, samplerate, 
+        freqs, time, spec = calc_mt_tfr(data, n, p, k, samplerate, 
                                         step=step, fk=fk, pad=pad, ref=ref, dtype=dtype)
-        
     else:
         raise ValueError(f"Method {method} not implemented.")
 
-    return time, get_tfr_feats(freqs, spec, bands, log=False, epsilon=0)
+    return time, get_tfr_feats(freqs, spec, bands, log=log, epsilon=epsilon)
 
 def interp_nans(x):
     """
@@ -1227,6 +1255,188 @@ def interp_nans(x):
 
     return x
 
+def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
+                dtype='float64', workers=None):
+    '''
+    Computes moving window time-frequency coherence averaged across trials between selected channels.
+    This is based on pesaran lab code, but modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
+    
+    Given analytical signals Xk1 and Xk2, coherence is computed as:
+    
+    .. code-block:: python
+    
+        # Compute power and cross-spectral power
+        S1 = np.sum(Xk*Xk.conj(), axis=1) # sum across tapers and trials
+        S2 = np.sum(Yk*Yk.conj(), axis=1) # sum across tapers and trials 
+        S12 = np.sum(Xk*Yk.conj(), axis=1) # sum across tapers and trials
+    
+        # Coherence
+        coh = np.abs(S12/np.sqrt(S1*S2))**2
+
+        # Imaginary coherence
+        coh = np.abs(np.imag(S12/np.sqrt(S1*S2)))
+
+    Args:
+        data ((nt,nch,ntr) array): evoked potential across all channels and trials
+        ch ((2,) tuple): the two channel indices between which coherence will be computed
+        n (float): window length in seconds
+        p (float): standardized half bandwidth in hz
+        k (int): number of DPSS tapers to use
+        fs (float): sampling rate in Hz.
+        step (float): window step size in seconds.
+        fk (float, optional): frequency range to return in Hz ([0, fk]). Default is fs/2.
+        pad (int, optional): padding factor for the FFT. This should be 1 or a multiple of 2.
+            For nt=500, if pad=1, we pad the FFT to 512 points.
+            If pad=2, we pad the FFT to 1024 points. 
+            If pad=4, we pad the FFT to 2024 points.
+            Default is 2.
+        ref (bool, optional): referencing flag. If True, mean of neural signals across electrodes 
+            for each time window is subtracted to remove common noise so that You can get 
+            spacially-localized signals. If you only analyze single channel data, this has 
+            to be False. This paper discuss referencing scheme
+            https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
+            Default is False.
+        imaginary (bool, optional): if True, compute imaginary coherence.
+        dtype (str, optional): dtype of the output. Default 'float64'
+        workers (int, optional): Number of workers argument to pass to scipy.fft.fft. 
+            Default None. 
+                       
+    Returns:
+        tuple: tuple containing:
+            | **f (n_freq):** frequency axis
+            | **t (n_time):** time axis
+            | **coh (n_freq,n_time):** magnitude squared coherence or imaginary coherence (0 <= coh <= 1)
+
+    See also: 
+        :func:`~aopy.analysis.calc_mt_tfr`
+
+    Examples:
+
+        .. code-block:: python
+
+            fs = 1000
+            N = 1e5
+            T = N/fs
+            amp = 20
+            freq = 100.0
+            noise_power = 0.001 * fs / 2
+            time = np.arange(N) / fs
+
+        Generate two test signals with common low-frequency signals, except at a given freq (100 Hz)
+
+        .. code-block:: python
+
+            rng = np.random.default_rng(seed=0)
+            signal1 = rng.normal(scale=np.sqrt(noise_power), size=time.shape)
+
+            b, a = scipy.signal.butter(2, 0.25, 'low')
+            signal2 = scipy.signal.lfilter(b, a, signal1)
+            signal2 += rng.normal(scale=0.1*np.sqrt(noise_power), size=time.shape)
+
+            signal1[time > T/2] += amp*np.sin(2*np.pi*freq*time[time > T/2])
+
+        Calculate coherence, imaginary coherence, and compared to `scipy.signal.coherence()`
+
+        .. code-block:: python
+
+            n = 2
+            w = 10
+            n, p, k = aopy.precondition.convert_taper_parameters(n, w)
+            fk = fs / 2  # Maximum frequency of interest
+            step = n # no overlap
+            signal_combined = np.stack((signal1, signal2), axis=1)
+
+            f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                                ref=False)
+            f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                                ref=False, imaginary=True)
+            f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=2048, noverlap=0, axis=0)
+
+        Plot coherence
+
+        .. code-block:: python
+
+            # Plot the coherence over time
+            plt.figure(figsize=(10, 6))
+            plt.subplot(2, 1, 1)
+            im = aopy.visualization.plot_tfr(coh, t, f)
+            plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
+            im.set_clim(0,1)
+
+            # Plot the average coherence across windows
+            plt.subplot(2, 1, 2)
+            plt.plot(f, np.mean(coh, axis=1))
+            plt.plot(f, np.mean(coh_im, axis=1))
+            plt.plot(f_scipy, coh_scipy)
+            plt.title('Average coherence across time')
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel('Coherency')
+            plt.legend(['coh', 'imag coh', 'scipy'])
+
+        .. image:: _images/coherency.png
+    '''
+    if data.ndim == 1:
+        data = data[:,np.newaxis,np.newaxis]
+    elif data.ndim == 2:
+        data = data[:,:,np.newaxis]
+    if data.shape[1] == 1:
+        ref = False
+    if fk == None:
+        fk = fs/2
+
+    nt,_,ntr = data.shape
+    fk = np.array([0,fk])    
+    win_size = int(n*fs)
+    dn = int(np.floor(step*fs))
+    nf = np.max([256,pad*2**utils.nextpow2(win_size+1)])
+    nfk = np.floor(fk/fs*nf)
+    nwin = 1 + int(np.floor((nt-win_size)/dn))
+    f = np.linspace(fk[0],fk[1],int(nfk[1]-nfk[0]))
+
+    assert nwin > 0, "Not enough data for the given `n` and `step`"
+   
+    tapers, _ = precondition.dpsschk(win_size, p, k)
+
+    # For now we only allow two channel. In the future we could expand to multiple pairs of channels
+    ch1 = ch[0]
+    ch2 = ch[1]
+        
+    coh = np.zeros((nwin,int(nfk[1]-nfk[0])), dtype=dtype)
+    for win in range(nwin):
+        if ref:
+            mX = np.mean(data[dn*win:dn*win+win_size], axis=1, keepdims=True) # Mean across channels for that window
+            tmp = (data[dn*win:dn*win+win_size]-mX[:,0,...]) # Subtract mean from data 
+        else:
+            tmp = (data[dn*win:dn*win+win_size])
+
+        # tmp is shape (N, nch, ntr)
+        # tapers is shape (N, k)
+
+        # Compute power for channel 1
+        ch1_rolled = np.reshape(tapers[:,:,np.newaxis]*tmp[:,[ch1],:], (win_size, k*ntr)) # trials and tapers together
+        Xk_tmp1 = scipy.fft.fft(ch1_rolled.T, nf, axis=-1, overwrite_x=True, workers=workers).T # looping over the last axis is faster
+        Xk1 = Xk_tmp1[int(nfk[0]):int(nfk[1])] # filter desired frequency range
+        S1 = np.sum(Xk1*Xk1.conj(), axis=1) # sum across tapers and trials
+
+        # Compute power for channel 2
+        ch2_rolled = np.reshape(tapers[:,:,np.newaxis]*tmp[:,[ch2],:], (win_size, k*ntr))
+        Xk_tmp2 = scipy.fft.fft(ch2_rolled.T, nf, axis=-1, overwrite_x=True, workers=workers).T
+        Xk2 = Xk_tmp2[int(nfk[0]):int(nfk[1])]
+        S2 = np.sum(Xk2*Xk2.conj(), axis=1) # note: Xk*Xk.conj() is equivalent to abs(Xk)**2
+
+        # Cross spectral power
+        S12 = np.sum(Xk1*Xk2.conj(), axis=1)
+    
+        # Coherence
+        if imaginary:
+            coh[win,:] = np.abs(np.imag(S12/np.sqrt(S1*S2)))
+        else:
+            coh[win,:] = np.abs(S12/np.sqrt(S1*S2))**2
+            
+    coh = coh.T
+    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
+    
+    return f, t, coh
 
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''
