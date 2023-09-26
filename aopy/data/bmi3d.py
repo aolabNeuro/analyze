@@ -802,8 +802,8 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
 
         # Trial aligned event codes and event times
         tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
-        reward = [np.any(np.isin(reward_codes, ec)) for ec in tr_seg]
-        penalty = [np.any(np.isin(penalty_codes, ec)) for ec in tr_seg]
+        reward = np.array([np.any(np.isin(reward_codes, ec)) for ec in tr_seg], dtype='bool')
+        penalty = np.array([np.any(np.isin(penalty_codes, ec)) for ec in tr_seg], dtype='bool')
         
         # Build a dataframe for this task entry
         exp = {
