@@ -537,9 +537,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         penalty_codes = [64]
         df = tabulate_behavior_data(
             write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-            reward_codes, penalty_codes, metadata=['target_radius'], df=None)
+            reward_codes, penalty_codes, metadata=['target_radius', 'rand_delay'], df=None)
         self.assertEqual(len(df), 18)
         np.testing.assert_allclose(df['target_radius'], 2.)
+        for delay in df['rand_delay']:
+             np.testing.assert_allclose(delay, [0.23, 0.3])
         expected_reward = np.ones(len(df))
         expected_reward[-2:] = 0
         expected_reward[-11:-9] = 0
@@ -555,7 +557,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
                                                include_center_target=True)
         self.assertEqual(len(df), 18) # should be the same df as above
         self.assertTrue(np.all(df['target_idx'] < 9))
-
+        self.assertTrue(np.all(df['target_idx'] >= 0))
+        self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
+        for loc in df['target_location']:
+            self.assertEqual(loc.shape[0], 3)
+            self.assertLess(np.linalg.norm(loc), 7)
 
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
