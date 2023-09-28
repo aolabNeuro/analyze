@@ -393,15 +393,19 @@ def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
         ax = plt.gca()
     return ax.annotate(text, elec_pos, color=color, fontsize=fontsize, ha='center', va='center', **kwargs)
     
-def annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', theta=0, color='k', fontsize=6, 
-                                  print_zero_index=True, ax=None, **kwargs):
+def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244', theta=0, color='k', fontsize=6, 
+                                  ax=None, **kwargs):
     '''
-    Given zero-indexed acq_ch, prints zero- or one-indexed channels on top of a spatial map.
+    Given acq_idx (indices) or acq_ch (channel numbers), prints either indices or channel numbers
+    on top of a spatial map.
 
     Args:
-        acq_ch ((nacq,) array or list, optional): If None (the default), all acquisition channels 
-            will be annotated. Otherwise, only the provided acquisition channels (zero-indexed) will
-            be annotated.
+        acq_idx ((nacq,) array or list, optional): If provided, specifies the acquisition indices to
+            be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
+            annotated by default.
+        acq_ch ((nacq,) array or list, optional): If provided, specifies the acquisition channel numbers to
+            be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
+            annotated by default.
         drive_type (str, optional): Drive type of the channels to plot. See :func:`aopy.data.base.load_chmap`.
         color (str, optional): color to display the channels. Default 'k'.
         fontsize (int, optional): the fontsize to make the text. Defaults to 6.
@@ -415,32 +419,36 @@ def annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', theta=0, co
         .. code-block:: python
 
             aopy.visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
-            aopy.visualization.annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', color='k')
-            aopy.visualization.annotate_spatial_map_channels(acq_ch=None, drive_type='Opto32', color='b', print_zero_index=False)
+            aopy.visualization.annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+            aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b')
             plt.axis('off')
 
         .. image:: _/images/ecog244_opto32.png
 
     Note: 
-        The acq_ch returned from `func::aopy.data.load_chmap` are 1-indexed lists of acquisition 
-        channels connected to electrodes. However, the acq_ch input to this function is always 
-        0-indexed (or None for all channels). The print_zero_index argument controls in what format the
-        channels are printed onto the figure.
+        The acq_ch returned from `func::aopy.data.load_chmap` are generally 1-indexed lists of acquisition 
+        channels connected to electrodes. In python, however, the acquisition indices start at 0, so we
+        give the option to select channels based on either an index (acq_idx) or a channel number (acq_ch).
     '''
     if ax is None:
         ax = plt.gca()
-    if acq_ch is not None:
-        acq_ch = np.array(acq_ch)+1 # Change from 0 to 1 index
+    if acq_idx is not None and acq_ch is not None:
+        raise ValueError("Please specify only one of acq_idx or acq_ch.")
+    if acq_idx is not None:
+        acq_ch = np.array(acq_idx)+1 # Change from index to ch numbers
+        print("Annotating acquisition indices")
+    else:
+        print("Annotating acquisition channel numbers")
 
-    # Get 1-indexed channel map
+    # Get channel map (overwrite acq_ch if it was supplied to get the correct shape acq_ch)
     elec_pos, acq_ch, elecs = load_chmap(drive_type, acq_ch, theta)
 
     # Annotate each channel
     if isinstance(color, str) or len(color) < len(elec_pos):
         color = np.repeat(np.array(color), len(elec_pos))
     for pos, ch, color in zip(elec_pos, acq_ch, color):
-        if print_zero_index:
-            ch = ch - 1
+        if acq_idx is not None:
+            ch = ch - 1 # change back from channel numbers to indices
         annotate_spatial_map(pos, ch, color, fontsize, ax, **kwargs)
 
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):

@@ -104,18 +104,26 @@ class NeuralDataPlottingTests(unittest.TestCase):
 
     def test_annotate_spatial_map(self):
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
-        annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', color='k')
-        annotate_spatial_map_channels(acq_ch=None, drive_type='Opto32', color='b', print_zero_index=False)
+        annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+        annotate_spatial_map_channels(drive_type='Opto32', color='b')
         plt.axis('off')
         filename = 'ecog244_opto32.png'
         savefig(docs_dir, filename)
 
         plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
-        annotate_spatial_map_channels(acq_ch=None, drive_type='ECoG244', color='k', theta=90)
-        annotate_spatial_map_channels(acq_ch=None, drive_type='Opto32', color='b', theta=90, print_zero_index=False)
+        annotate_spatial_map_channels(drive_type='ECoG244', color='k', theta=90)
+        annotate_spatial_map_channels(drive_type='Opto32', color='b', theta=90)
         plt.axis('off')
         filename = 'ecog244_opto32_theta90.png'
+        savefig(write_dir, filename)
+
+        plt.figure()
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
+        annotate_spatial_map_channels(acq_idx=[45,46,55,56], drive_type='ECoG244', color='k', theta=90)
+        annotate_spatial_map_channels(acq_ch=[11], drive_type='Opto32', color='b', theta=90)
+        plt.axis('off')
+        filename = 'ecog244_opto32_index_subset.png'
         savefig(write_dir, filename)
 
     def test_plot_image_by_time(self):
