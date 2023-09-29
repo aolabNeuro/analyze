@@ -548,10 +548,10 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
     laser_sensor_widths = corrected_off_times - corrected_times
     laser_on_times = np.mean([corrected_off_times, corrected_times], axis=0)
     laser_on_samples = (laser_on_times * ds_fs).astype(int)
-    laser_sensor_powers = (ds_data[laser_on_samples])*sensor_voltsperbit
+    laser_sensor_volts = (ds_data[laser_on_samples])*sensor_voltsperbit
     
     # Normalize sensor power to the highest power, then multiply by the highest trial power
-    laser_sensor_powers /= np.max(laser_sensor_powers)
+    laser_sensor_powers = laser_sensor_volts / np.max(laser_sensor_volts)
     laser_sensor_powers *= np.max(laser_event_powers)
 
     # Correct the widths and powers with the given thresholds
