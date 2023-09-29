@@ -312,7 +312,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, **kwargs):
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
@@ -321,6 +321,9 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
+            e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
+            by 90 degrees. Default 0.
         ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
         kwargs (dict): dictionary of additional keyword argument pairs to send to calc_data_map and plot_spatial_map.
 
@@ -352,7 +355,7 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         ax = plt.gca()
     
     # Load the signal path files
-    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244')
+    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244', theta=theta)
 
     # Remove bad electrodes
     bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
@@ -370,6 +373,83 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
     plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
     im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
     return im
+
+def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
+    '''
+    Simple wrapper around plt.annotate() to add text annotation to a 2d position. 
+
+    Args:
+        elec_pos ((x,y) tuple): position where text should be placed on 2d plot
+        text (str): annotation text
+        color (plt.Color): the color to make the text
+        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to plt.annotate()
+
+    Returns:
+        plt.Annotation: annotation object
+    '''
+    if ax is None:
+        ax = plt.gca()
+    return ax.annotate(text, elec_pos, color=color, fontsize=fontsize, ha='center', va='center', **kwargs)
+    
+def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244', theta=0, color='k', fontsize=6, 
+                                  ax=None, **kwargs):
+    '''
+    Given acq_idx (indices) or acq_ch (channel numbers), prints either indices or channel numbers
+    on top of a spatial map.
+
+    Args:
+        acq_idx ((nacq,) array or list, optional): If provided, specifies the acquisition indices to
+            be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
+            annotated by default.
+        acq_ch ((nacq,) array or list, optional): If provided, specifies the acquisition channel numbers to
+            be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
+            annotated by default.
+        drive_type (str, optional): Drive type of the channels to plot. See :func:`aopy.data.base.load_chmap`.
+        color (str, optional): color to display the channels. Default 'k'.
+        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        print_zero_index (bool, optional): if True (the default), prints channel numbers indexed by 0. 
+            Otherwise prints directly from the channel map (which should use 1-indexing).
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to plt.annotate()
+
+    Example:
+
+        .. code-block:: python
+
+            aopy.visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+            aopy.visualization.annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+            aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b')
+            plt.axis('off')
+
+        .. image:: _/images/ecog244_opto32.png
+
+    Note: 
+        The acq_ch returned from `func::aopy.data.load_chmap` are generally 1-indexed lists of acquisition 
+        channels connected to electrodes. In python, however, the acquisition indices start at 0, so we
+        give the option to select channels based on either an index (acq_idx) or a channel number (acq_ch).
+    '''
+    if ax is None:
+        ax = plt.gca()
+    if acq_idx is not None and acq_ch is not None:
+        raise ValueError("Please specify only one of acq_idx or acq_ch.")
+    if acq_idx is not None:
+        acq_ch = np.array(acq_idx)+1 # Change from index to ch numbers
+        print("Annotating acquisition indices")
+    else:
+        print("Annotating acquisition channel numbers")
+
+    # Get channel map (overwrite acq_ch if it was supplied to get the correct shape acq_ch)
+    elec_pos, acq_ch, elecs = load_chmap(drive_type, acq_ch, theta)
+
+    # Annotate each channel
+    if isinstance(color, str) or len(color) < len(elec_pos):
+        color = np.repeat(np.array(color), len(elec_pos))
+    for pos, ch, color in zip(elec_pos, acq_ch, color):
+        if acq_idx is not None:
+            ch = ch - 1 # change back from channel numbers to indices
+        annotate_spatial_map(pos, ch, color, fontsize, ax, **kwargs)
 
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
     '''
