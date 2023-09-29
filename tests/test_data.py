@@ -604,6 +604,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
+    def test_tabulate_stim_data(self):
+        subjects = ['test']
+        ids = [6581]
+        dates = ['2022-08-19']
+        tabulate_stim_data(data_dir, subjects, ids, dates, debug=True, df=None)
+
+        figname = 'tabulate_stim_data.png' # should be the same as laser_aligned_sensor_debug.png
+        visualization.savefig(write_dir, figname)
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):

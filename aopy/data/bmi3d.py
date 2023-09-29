@@ -12,8 +12,9 @@ from importlib.resources import files, as_file
 import datetime
 
 from .. import precondition
+from .. import preproc
+
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
-from ..preproc.bmi3d import get_laser_trial_times
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
@@ -1003,10 +1004,12 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, debug=True, df=None, *
             | **trial_time (float):** time of stimulation within recording
             | **trial_width (float):** width of stimulation pulse
             | **trial_power (float):** gain of stimulation pulse
-            | **trial_watts (float):** power of stimulation pulse in watts
             | **trial_found (bool):** whether an analog laser signal was recorded on this trial
             | **width_above_thr (bool):** if the width of the analog signal was above the cutoff
             | **power_above_thr (bool):** if the gain of the analog signal was above the cutoff
+
+    Note:
+        Only supports single-site stimulation.
     '''
     if df is None:
         df = pd.DataFrame()
@@ -1025,19 +1028,13 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, debug=True, df=None, *
         # Find laser trial times 
         try:
             (trial_times, trial_widths, trial_powers, times_not_found, widths_above_thr, 
-             powers_above_thr) = get_laser_trial_times(
+             powers_above_thr) = preproc.bmi3d.get_laser_trial_times(
                 preproc_dir, subject, te, date, debug=debug, **kwargs)
         except:
             print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
             traceback.print_exc()
             continue
-        if debug:
-            plt.show() # Show debug figure after each recording is processed
-                
-        # Calibrate power
-        peak_watts = get_watts_at_peak(preproc_dir, subject, te, date)
-        laser_powers_calibrated = trial_powers * peak_watts
-        
+                        
         # Tabulate everything together
         exp = {
             'subject': subject,
@@ -1047,7 +1044,6 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, debug=True, df=None, *
             'trial_time': trial_times,
             'trial_width': trial_widths, 
             'trial_power': trial_powers,
-            'trial_watts': laser_powers_calibrated,
             'trial_found': ~times_not_found,
             'width_above_thr': widths_above_thr,
             'power_above_thr': powers_above_thr,
@@ -1055,49 +1051,3 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, debug=True, df=None, *
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
     
     return df
-
-def get_watts_at_peak(preproc_dir, subject, te_id, date):
-    '''
-    
-
-    Args:
-        preproc_dir (_type_): _description_
-        subject (_type_): _description_
-        te_id (_type_): _description_
-        date (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    '''
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    if not isinstance(date, datetime.date):
-        date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-    if 'qwalor_peak_watts' in exp_metadata:
-        return exp_metadata['qwalor_peak_watts']
-    
-    if date < datetime.datetime(2022,5,31).date():
-        if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
-            return 1.5
-        else:
-            return 20
-    elif date < datetime.datetime(2022,9,30).date():
-        return 1.5
-    elif date < datetime.datetime(2023,1,23).date():
-        return 20
-    else:
-        return 25
-
-def add_db_info(df, entries):
-    '''_summary_
-
-    Args:
-        df (_type_): _description_
-        entries (_type_): _description_
-    '''
-    df['session'] = ['']*len(df)
-    df['project'] = ['']*len(df)
-    df['experimenter'] = ['']*len(df)
-    for entry in (entries):
-        df.loc[df['te_id'] == entry.id, ('session', 'project', 'experimenter')] = (
-            entry.session, entry.project, entry.experimenter
-        )
