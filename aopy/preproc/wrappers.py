@@ -181,6 +181,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     The data is prepared into HDF datasets:
     
     eye_data:
+        eye_closed_mask (nt, nch): boolean mask of when the eyes are closed
         raw_data (nt, nch): raw eye data
         calibrated_data (nt, nch): calibrated eye data
         coefficients (nch, 2): linear regression coefficients
