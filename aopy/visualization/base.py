@@ -742,7 +742,7 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
 
 def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', bounds=None, ax=None, **kwargs):
     '''
-    Draw trajectories with a gradient of color from start to end of each trjajectory. 
+    Draw trajectories with a gradient of color from start to end of each trajectory. 
     Works in 2D and 3D.
 
     Note: this function applies the gradient evenly across the timepoints of the trajectory. 
@@ -786,7 +786,7 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         labels = np.array(labels).astype(int)
         colors = [color_list[i] for i in labels]
 
-         # Plot in 3D, fall back to 2D
+        # Plot in 3D, fall back to 2D
         try:
             ax.set_zlabel('z')
             segments = [np.vstack([s[:,0], s[:,1], s[:,2]]).T for s in segments]
