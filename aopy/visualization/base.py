@@ -131,9 +131,9 @@ def gradient_timeseries(data, samplerate, n_colors=100, color_palette='viridis',
     # Segment the line
     n_pt = data.shape[0]
     labels = np.zeros((n_pt,), dtype='int')
-    size = (n_pt // n_colors) * n_colors
+    size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
     labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
-    labels[size:] = n_colors - 1
+    labels[size:] = n_colors - 1 # leftovers also get the last color
     times, _ = utils.segment_array(time, labels, duplicate_endpoints=True)
     lines, line_labels = utils.segment_array(data, labels, duplicate_endpoints=True)
 
@@ -777,23 +777,25 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
     color_list = sns.color_palette(color_palette, n_colors)
     for traj in trajectories:
         n_pt = len(traj)
+
+        # Assign labels to the trajectory according to color
         labels = np.zeros((n_pt,), dtype='int')
-        size = (n_pt // n_colors) * n_colors
+        size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
         labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
-        labels[size:] = n_colors - 1
+        labels[size:] = n_colors - 1 # leftovers also get the last color
             
+        # Split the labeled trajectories into segments with unique colors
         segments, labels = utils.segment_array(traj, labels, duplicate_endpoints=True)
         labels = np.array(labels).astype(int)
         colors = [color_list[i] for i in labels]
 
-        # Plot in 3D, fall back to 2D
+        # Plot as line collections in 3D, fall back to 2D
         try:
             ax.set_zlabel('z')
             segments = [np.vstack([s[:,0], s[:,1], s[:,2]]).T for s in segments]
             lc = Line3DCollection(segments, colors=colors, **kwargs)
             ax.add_collection(lc)
             ax.set_box_aspect((1, 1, 1))
-
         except:
             segments = [np.vstack([s[:,0], s[:,1]]).T for s in segments]
             lc = LineCollection(segments, colors=colors, **kwargs)
@@ -808,7 +810,7 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
     if bounds is not None: 
         set_bounds(bounds, ax)
     else:
-        ax.margins(0.05)
+        ax.margins(0.05) # The ax.add_collection() call doesn't automatically set margins
 
     ax.set_xlabel('x')
     ax.set_ylabel('y')        
