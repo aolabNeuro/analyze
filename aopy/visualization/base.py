@@ -1,6 +1,7 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 
+import warnings
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
@@ -125,11 +126,11 @@ def gradient_timeseries(data, samplerate, n_colors=100, color_palette='viridis',
     if ax is None:
         ax = plt.gca()
 
-    time = np.arange(data.shape[0]) / samplerate
-    colors = sns.color_palette(color_palette, n_colors)
+    n_pt = data.shape[0]
+    time = np.arange(n_pt) / samplerate
+    colors = sns.color_palette(color_palette, min(n_colors, n_pt))
 
     # Segment the line
-    n_pt = data.shape[0]
     labels = np.zeros((n_pt,), dtype='int')
     size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
     labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
@@ -753,12 +754,13 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         trajectories (ntrials): list of 2D or 3D trajectories, in x, y[, z] coordinates
         n_colors (int, optional): number of colors in the gradient. Default 100.
         color_palette (str, optional): colormap to use for the gradient. Default 'viridis'.
-        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) axes bounds
         ax (plt.Axis, optional): axis to plot the targets on
         kwargs (dict): keyword arguments to pass to the LineCollection function (similar to plt.plot)
 
     Example:
 
+        Cursor trajectories in 2D
         .. code-block:: python
 
             subject = 'beignet'
@@ -769,6 +771,20 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
             gradient_trajectories(traj[:3])
         
         .. image:: _images/gradient_trajectories.png
+
+        Hand trajectories in 3D
+        .. code-block:: python
+
+            traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+            plt.figure()
+            ax = plt.axes(projection='3d')
+            gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
+
+        .. image:: _images/gradient_trajectories_3d.png
+
+    Note:
+        Automatic bounds aren't set in 3D plots. The best alternative is to first plot in 2D, then use
+        those bounds to manually set the first 2 axes bounds for the 3D plot.
     '''
 
     if ax is None:
@@ -777,6 +793,9 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
     color_list = sns.color_palette(color_palette, n_colors)
     for traj in trajectories:
         n_pt = len(traj)
+
+        if n_pt < n_colors:
+            warnings.warn("Not enough datapoints to divide into n_colors!")
 
         # Assign labels to the trajectory according to color
         labels = np.zeros((n_pt,), dtype='int')

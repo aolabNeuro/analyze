@@ -460,7 +460,15 @@ class OtherPlottingTests(unittest.TestCase):
         gradient_trajectories(trajectories, n_colors=4)
         plt.title('Gradient trajectories')
         filename = 'gradient_trajectories_simple.png'
-        savefig(docs_dir, filename)
+        savefig(write_dir, filename)
+        plt.close()
+
+        # Test what happens when the number of colors is higher than the number of points
+        plt.figure()
+        gradient_trajectories(trajectories, n_colors=5)
+        plt.title('Gradient trajectories')
+        filename = 'gradient_trajectories_error.png'
+        savefig(write_dir, filename)
         plt.close()
 
         # Load some test cursor data
@@ -479,7 +487,7 @@ class OtherPlottingTests(unittest.TestCase):
         traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
         plt.figure()
         ax = plt.axes(projection='3d')
-        gradient_trajectories(traj[:3], bounds=[30,50,10,20,55,65], ax=ax)
+        gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
 
         filename = 'gradient_trajectories_3d.png'
         savefig(docs_dir, filename)
