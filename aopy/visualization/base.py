@@ -733,13 +733,13 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     for idx_day in range(n_days):
         day = plot_days[idx_day]
         for idx_column in range(n_columns):
-            values = np.array(columns[idx_column])[dates == day]
+            values = np.array(columns[idx_column])[dates == day.date()]
             
             try:
                 if method == 'sum':
                     aggregate[idx_column, idx_day] = np.sum(values)
                 elif method == 'mean':
-                    day_trials = np.array(trials)[dates == day]
+                    day_trials = np.array(trials)[dates == day.date()]
                     aggregate[idx_column, idx_day] = np.average(values, weights=day_trials)
                 else:
                     raise ValueError("Unknown method for combining data")
