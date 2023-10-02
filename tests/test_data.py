@@ -489,16 +489,6 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
         self.assertEqual(len(trajs), 7)
 
-        # Test the samplerate return option
-        trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, return_samplerate=True)
-        self.assertEqual(samplerate, 1000)
-
-        trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand', return_samplerate=True)
-        self.assertEqual(samplerate, 1000)
-
-        trajs, segs, samplerate = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye', return_samplerate=True)
-        self.assertEqual(samplerate, 1000)
-
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
@@ -512,7 +502,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         time_before = 0.1
         time_after = 0.4
         lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, time_before, time_after)
-        self.assertEqual(lfp_aligned.shape, (9, (time_before+time_after)*1000, 8))
+        self.assertEqual(lfp_aligned.shape, ((time_before+time_after)*1000, 8, 9))
 
     def test_get_target_locations(self):
         target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
@@ -547,29 +537,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         penalty_codes = [64]
         df = tabulate_behavior_data(
             write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-            target_codes, reward_codes, penalty_codes, df=None, 
-            include_handdata=False, include_eyedata=False)
+            reward_codes, penalty_codes, metadata=['target_radius'], df=None)
         self.assertEqual(len(df), 18)
-        self.assertTrue(np.all(df['target_idx'] < 9))
+        np.testing.assert_allclose(df['target_radius'], 2.)
         expected_reward = np.ones(len(df))
         expected_reward[-2:] = 0
         expected_reward[-11:-9] = 0
         np.testing.assert_allclose(df['reward'], expected_reward)
-        
-        plt.figure()
-        bounds = [-10, 10, -10, 10]
-        visualization.plot_trajectories(df['cursor_traj'].to_numpy(), bounds=bounds)
-        figname = 'concat_trials.png' # should look very similar to get_trial_aligned_trajectories.png
-        visualization.savefig(write_dir, figname)
-
-        df = tabulate_behavior_data(
-            write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-            target_codes, reward_codes, penalty_codes, df=None, 
-            include_handdata=True, include_eyedata=True)
-        self.assertEqual(len(df), 18)
-        self.assertEqual(df['cursor_traj'].iloc[0].shape[1], 2) # should have 2 cursor axes     
-        self.assertEqual(df['hand_traj'].iloc[0].shape[1], 3) # should have 3 hand axes 
-        self.assertEqual(df['eye_traj'].iloc[0].shape[1], 4) # should have 4 eye axes
 
     def test_tabulate_behavior_data_center_out(self):
 
@@ -578,9 +552,57 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = [self.date, self.date]
 
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True,
-                                               include_handdata=False, include_eyedata=False)
+                                               include_center_target=True)
         self.assertEqual(len(df), 18) # should be the same df as above
+        self.assertTrue(np.all(df['target_idx'] < 9))
+
+
+    def test_tabulate_kinematic_data(self):
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
+                                               include_center_target=True)
+
+        start_times = [t[0] for t in df['event_times']]
+        end_times = [t[-1] for t in df['event_times']]
+
+        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], start_times, end_times, 
+                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
+
+        self.assertEqual(len(df), len(kin))
+
+        plt.figure()
+        bounds = [-10, 10, -10, 10]
+        visualization.plot_trajectories(kin, bounds=bounds)
+        figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
+        visualization.savefig(write_dir, figname)
+
+    def test_tabulate_ts_data(self):
+
+        subjects = [self.subject]
+        ids = [self.te_id]
+        dates = [self.date]
+
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
+                                               include_center_target=True)
+        trigger_times = [t[0] for t in df['event_times']] 
+        time_before = 0.5
+        time_after = 0.5
+
+        # Note: the data we're reading is only 1s long, so mostly these will be nans
+        ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'], 
+                               trigger_times, time_before, time_after, datatype='lfp')
+        
+        trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
+        trial_end_codes = [TRIAL_END]
+        ts_data_single_file = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
+                                              trial_start_codes, trial_end_codes, time_before, time_after)
+     
+        print(ts_data_single_file.shape)
+
+        self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
 class TestMatlab(unittest.TestCase):
     
@@ -1004,8 +1026,8 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test_subject'])
-        self.assertCountEqual(te_id, ['2'])
-        self.assertCountEqual(date, ['2023-06-26'])
+        self.assertCountEqual(te_id, [2])
+        self.assertCountEqual([str(d) for d in date], ['2023-06-26'])
         
     def test_group_entries(self):
 

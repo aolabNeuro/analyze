@@ -69,9 +69,11 @@ def plot_timeseries(data, samplerate, ax=None, **kwargs):
     Plots data along time on the given axis. Default units are seconds and volts.
 
     Example:
+        
         Plot 50 and 100 Hz sine wave.
 
-        ::
+        .. code-block:: python
+
             data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
             samplerate = 1000
             plot_timeseries(data, samplerate)
@@ -156,9 +158,11 @@ def plot_freq_domain_amplitude(data, samplerate, ax=None, rms=False):
     data and this will calculate and plot the amplitude spectrum. 
 
     Example:
+
         Plot 50 and 100 Hz sine wave amplitude spectrum. 
 
-        ::
+        .. code-block:: python
+
             data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
             samplerate = 1000
             plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
@@ -219,7 +223,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
-        ::
+        .. code-block:: python
+
             data = np.linspace(-1, 1, 100)
             x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
             missing = [0, 5, 25]
@@ -242,8 +247,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
 
     Returns:
         tuple: tuple containing:
-        | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
-        | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
+            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
+            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
     extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
@@ -366,7 +371,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, **kwargs):
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
@@ -375,6 +380,9 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
+            e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
+            by 90 degrees. Default 0.
         ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
         kwargs (dict): dictionary of additional keyword argument pairs to send to calc_data_map and plot_spatial_map.
 
@@ -406,7 +414,7 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
         ax = plt.gca()
     
     # Load the signal path files
-    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244')
+    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244', theta=theta)
 
     # Remove bad electrodes
     bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
@@ -424,6 +432,83 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', ax=None, *
     plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
     im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
     return im
+
+def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
+    '''
+    Simple wrapper around plt.annotate() to add text annotation to a 2d position. 
+
+    Args:
+        elec_pos ((x,y) tuple): position where text should be placed on 2d plot
+        text (str): annotation text
+        color (plt.Color): the color to make the text
+        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to plt.annotate()
+
+    Returns:
+        plt.Annotation: annotation object
+    '''
+    if ax is None:
+        ax = plt.gca()
+    return ax.annotate(text, elec_pos, color=color, fontsize=fontsize, ha='center', va='center', **kwargs)
+    
+def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244', theta=0, color='k', fontsize=6, 
+                                  ax=None, **kwargs):
+    '''
+    Given acq_idx (indices) or acq_ch (channel numbers), prints either indices or channel numbers
+    on top of a spatial map.
+
+    Args:
+        acq_idx ((nacq,) array or list, optional): If provided, specifies the acquisition indices to
+            be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
+            annotated by default.
+        acq_ch ((nacq,) array or list, optional): If provided, specifies the acquisition channel numbers to
+            be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
+            annotated by default.
+        drive_type (str, optional): Drive type of the channels to plot. See :func:`aopy.data.base.load_chmap`.
+        color (str, optional): color to display the channels. Default 'k'.
+        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        print_zero_index (bool, optional): if True (the default), prints channel numbers indexed by 0. 
+            Otherwise prints directly from the channel map (which should use 1-indexing).
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to plt.annotate()
+
+    Example:
+
+        .. code-block:: python
+
+            aopy.visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+            aopy.visualization.annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+            aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b')
+            plt.axis('off')
+
+        .. image:: _/images/ecog244_opto32.png
+
+    Note: 
+        The acq_ch returned from `func::aopy.data.load_chmap` are generally 1-indexed lists of acquisition 
+        channels connected to electrodes. In python, however, the acquisition indices start at 0, so we
+        give the option to select channels based on either an index (acq_idx) or a channel number (acq_ch).
+    '''
+    if ax is None:
+        ax = plt.gca()
+    if acq_idx is not None and acq_ch is not None:
+        raise ValueError("Please specify only one of acq_idx or acq_ch.")
+    if acq_idx is not None:
+        acq_ch = np.array(acq_idx)+1 # Change from index to ch numbers
+        print("Annotating acquisition indices")
+    else:
+        print("Annotating acquisition channel numbers")
+
+    # Get channel map (overwrite acq_ch if it was supplied to get the correct shape acq_ch)
+    elec_pos, acq_ch, elecs = load_chmap(drive_type, acq_ch, theta)
+
+    # Annotate each channel
+    if isinstance(color, str) or len(color) < len(elec_pos):
+        color = np.repeat(np.array(color), len(elec_pos))
+    for pos, ch, color in zip(elec_pos, acq_ch, color):
+        if acq_idx is not None:
+            ch = ch - 1 # change back from channel numbers to indices
+        annotate_spatial_map(pos, ch, color, fontsize, ax, **kwargs)
 
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
     '''
@@ -676,8 +761,9 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
 
     Example:
 
-        ::
-            >>> trajectories =[
+        .. code-block:: python
+
+            trajectories =[
                     np.array([
                         [0, 0, 0],
                         [1, 1, 0],
@@ -692,15 +778,15 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
                         [-3, 4, 0]
                     ])
                 ]
-            >>> labels = [0, 0, 1, 0]
-            >>> colors = ['r', 'b']
-            >>> color_trajectories(trajectories, labels, colors)
+            labels = [0, 0, 1, 0]
+            colors = ['r', 'b']
+            color_trajectories(trajectories, labels, colors)
 
             .. image:: _images/color_trajectories_simple.png
 
-            >>> labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
-            >>> fig = plt.figure()
-            >>> color_trajectories(trajectories, labels_list, colors)
+            labels_list = [[0, 0, 1, 1, 1], [0, 0, 1, 1], [1, 1, 0, 0]]
+            fig = plt.figure()
+            color_trajectories(trajectories, labels_list, colors)
 
             .. image:: _images/color_trajectories_segmented.png
 
@@ -843,9 +929,11 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     values will be added together on each day, for example for number of trials.
     
     Example:
+
         Plotting success rate averaged across days.
 
-        ::
+        .. code-block:: python
+
             from datetime import date, timedelta
             date = [date.today() - timedelta(days=1), date.today() - timedelta(days=1), date.today()]
             success = [70, 65, 65]
@@ -910,9 +998,11 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     Plot session data by absolute number of trials completed
     
     Example:
+
         Plotting success rate over three sessions.
 
-        ::
+        .. code-block:: python
+
             success = [70, 65, 60]
             trials = [10, 20, 10]
 
@@ -1286,7 +1376,7 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
         times ((nt,) array): 
         freqs ((nfreq,) array): 
         cmap (str, optional): colormap to use for plotting
-        logscale (bool, optional): apply a log scale to the freq axis. Default False
+        logscale (bool, optional): apply a log scale to the color axis. Default False.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
         kwargs (dict, optional): other keyword arguments to pass to pyplot
         
@@ -1300,18 +1390,23 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
             fig, ax = plt.subplots(3,1,figsize=(4,6))
 
             samplerate = 1000
-            t = np.arange(2*samplerate)/samplerate
-            f0 = 1
-            t1 = 2
-            f1 = 1000
-            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+            data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
+            nt = data_200_hz.shape[0]
+            data_200_hz[:int(nt/3),:] /= 3
+            data_200_hz[int(2*nt/3):,:] *= 2
+
+            data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
+            data_50_hz[:int(nt/2),:] /= 2
+
+            data = data_50_hz + data_200_hz
             print(data.shape)
             aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
             aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
 
-            freqs = np.linspace(1,1000,200)
+            freqs = np.linspace(1,250,100)
             coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
-
+            t = np.arange(nt)/samplerate
+            
             print(data.shape)
             print(coef.shape)
             print(t.shape)
@@ -1319,27 +1414,8 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
             pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
 
             fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-    
-        .. image:: _images/tfr_cwt_chirp.png
-
-        .. code-block:: python
-
-            lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
-            samplerate = lfp_metadata['lfp_samplerate']
-            lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
-
-            aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
-            aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
-
-            freqs = np.linspace(1,200,100)
-            nt = lfp_data.shape[0]
-            t = np.arange(nt)/samplerate
-            coef = aopy.analysis.calc_cwt_tfr(lfp_data, freqs, samplerate, fb=1.5, f0_norm=1, verbose=True)
-
-            pcm = aopy.visualization.plot_tfr(abs(coef), t, freqs, 'plasma', ax=ax[2])
-            fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
-
-        .. image:: _images/tfr_cwt_lfp.png
+            
+        .. image:: _images/tfr_cwt_50_200.png
 
 
     See Also:
@@ -1349,12 +1425,45 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     if ax == None:
         ax = plt.gca()
         
-    pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
+    if logscale:
+        pcm = ax.pcolormesh(times, freqs, np.log10(values), cmap=cmap, **kwargs)
+    else:
+        pcm = ax.pcolormesh(times, freqs, values, cmap=cmap, **kwargs)
     pcm.set_edgecolor('face')
     
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Frequency (Hz)')
-    if logscale:
-        ax.set_yscale('log')
 
     return pcm
+
+def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
+    '''
+    This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color. See also sns.color_palette for a gradient of RGB values within a Seaborn color palette.
+
+    Examples:
+        
+        .. code-block:: python
+
+                npts = 200
+                x = np.linspace(0, 2*np.pi, npts)
+                y = np.sin(x)
+                fig, ax = plt.subplots()
+                ax.scatter(x, y, c=get_color_gradient(npts, 'g', [1,0,0]))
+    
+        .. image:: _images/color_gradient_example.png
+
+    Args:
+        npts (int): How many different colors are part of the gradient
+        end_color (str or list): Color that ends the gradient. Can be any matplotlib color or specific RGB values.
+        start_color (str or list): Color that ends the gradient. Can be any matplotlib color or specific RGB values. Defaults to white.
+
+    Returns:
+        (npts, 3): An array with linearly spaced colors from the start to end
+    '''
+    rgb_end = matplotlib.colors.to_rgb(end_color)
+    rgb_start = matplotlib.colors.to_rgb(start_color)
+    ct = np.zeros((npts, 3))
+    ct[:,0] = np.flip(np.linspace(rgb_end[0], rgb_start[0], npts))
+    ct[:,1] = np.flip(np.linspace(rgb_end[1], rgb_start[1], npts))
+    ct[:,2] = np.flip(np.linspace(rgb_end[2], rgb_start[2], npts))
+    return ct

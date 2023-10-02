@@ -3,7 +3,6 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
-from ..precondition.base import dpsschk
 
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
@@ -14,7 +13,6 @@ from sklearn.linear_model import LinearRegression
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
-from scipy.fft import fft
 
 import warnings
 import nitime.algorithms as tsa
@@ -23,6 +21,7 @@ import math
 
 from .. import utils
 from .. import preproc
+from .. import precondition
 
 '''
 Correlation / dimensionality analysis
@@ -173,10 +172,22 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     .. math::
     
         R \\in \\mathbb{R}^{nt \\times nch}
+
+    .. math::
+
         M \\in \\mathbb{R}^{nt \\times ndim}
+
+    .. math::
+
         \\beta \\in \\mathbb{R}^{nch \\times ndim}
+    
+    .. math::
+
         R = M\\beta^T
-        [\\beta_0 \beta_x \beta_y]^T = (M^T M)^{-1} M^T R
+
+    .. math::
+
+        [\\beta_0 \\beta_x \\beta_y]^T = (M^T M)^{-1} M^T R
 
     Args:
         neural_data ((nt, nch) or list of (nt, nch)): Input neural data (:math:`R`) to regress against kinematic activity.
@@ -185,7 +196,7 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
 
     Returns:
         tuple: Tuple containing:
-            | **(nch, ndim):** Subspace (:math:`\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
+            | **(nch, ndim):** Subspace (:math:`\\beta`) that best predicts kinematic variables. Note the first column represents the intercept, then the next dimensions represent the behvaioral variables
             | **((nt, nch) or list of (nt, ndim)):** Neural data projected onto task relevant subspace
 
     '''
@@ -393,8 +404,9 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
         plot_flag (bool, optional): display histogram. In plotting, number of intervals is summed across units.
 
     Returns:
-        ISI_hist (n_bins, n_unit) : number of intervals
-        hist_bins (n_bins): bin edge to compute histogram
+        tuple: tuple containing:
+            | **ISI_hist (n_bins, n_unit):** number of intervals
+            | **hist_bins (n_bins):** bin edge to compute histogram
     '''
 
     n_unit = data.shape[1]
@@ -441,27 +453,44 @@ def calc_sem(data, axis=None):
 
     return SEM
 
-def calc_rolling_average(data, window_size=11):
+def calc_rolling_average(data, window_size=11, mode='copy'):
     """
-    Computes the rolling average of a 1D array using a convolutional kernel. The
-    first and last valid datapoint (fully overlapping with the kernel) are copied
-    backwards and forwards, respectively, such that the size of the output is the
-    same as the size of the input.
+    Computes the rolling average of a 1- or 2-D array using a convolutional kernel. 
+    The rolling average is always applied along the first axis of the array.
+    If mode is 'nan', the ends of the array where an incomplete rolling average
+    occurs is replaced with np.nan. If mode is 'copy' (the default), the first and 
+    last valid datapoint (fully overlapping with the kernel) are copied backwards 
+    and forwards, respectively. The size of the output will always be the same as 
+    the size of the input data. 
 
     Args:
-        data (nt): The 1D array of data to compute the rolling average for.
+        data (nt, nch): The array of data to compute the rolling average for.
         window_size (int): The size of the kernel in number of samples. Must be odd.
+        mode (str): Either 'copy' or 'nan', determines what happens on the edges
+            where the kernel doesn't fully overlap the data
     
     Returns:
         (nt,) array: The rolling average of the input data.
     """
     assert window_size % 2 == 1, "Kernel size must be odd."
     
-    kernel = np.ones(window_size) / window_size
-    data_convolved = np.convolve(data, kernel, mode='same')
+    data = np.array(data)
+    kernel = np.ones(window_size) / min(window_size, data.shape[0])
+    data_convolved = np.apply_along_axis(
+        lambda d: np.convolve(d, kernel, mode='same'), 0, data)
     mid_kernel_idx = math.floor(window_size/2)
-    data_convolved[:mid_kernel_idx] = data_convolved[mid_kernel_idx]
-    data_convolved[-mid_kernel_idx:] = data_convolved[-(mid_kernel_idx+1)]
+    if mode == 'nan':
+        data_convolved[:mid_kernel_idx] = np.nan
+        data_convolved[-mid_kernel_idx:] = np.nan
+    elif mode == 'copy':
+        data_convolved[:mid_kernel_idx] = data_convolved[mid_kernel_idx]
+        data_convolved[-mid_kernel_idx:] = data_convolved[-(mid_kernel_idx+1)]  
+    else:
+        raise ValueError(f"Invalid mode: {mode}. Choose from 'copy' or 'nan'.")
+    
+    # Fix shape if window is bigger than data
+    if data_convolved.shape[0] > data.shape[0]:
+        data_convolved = data_convolved[0]*np.ones(data.shape)
     return data_convolved
 
 def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
@@ -478,8 +507,8 @@ def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='sp
         
     Returns:
         tuple: tuple containing:
-            |**dist (nbins):** electrode distance at each bin
-            |**corr (nbins):** correlation at each bin
+            | **dist (nbins):** electrode distance at each bin
+            | **corr (nbins):** correlation at each bin
 
     '''
     dist = utils.calc_euclid_dist_mat(elec_pos)
@@ -502,6 +531,35 @@ def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='sp
 
     return dist, corr
 
+def subtract_erp_baseline(erp, time, t0, t1):
+    '''
+    Subtract pre-trigger activity from trial-aligned data.
+
+    Args:
+        erp (nt, nch, ntr): trial-aligned evoked responses
+        time (nt): time axis (in seconds) of the erp, in the same reference frame as t0 and t1
+        t0 (float): start of the baseline window (in seconds)
+        t1 (float): end of the baseline window (in seconds)
+
+    Raises:
+        ValueError: if the baseline window times (t0, t1) are in the wrong order
+
+    Returns:
+        (nt, nch, ntr): erp after baseline subtraction
+    '''
+    if t1 <= t0:
+        raise ValueError("t1 must be greater than t0")
+    
+    # Take a mean across the data before the events as a baseline
+    s0 = np.searchsorted(time, t0)
+    s1 = np.searchsorted(time, t1)
+    event_mean = np.mean(erp[s0:s1], axis=0)
+
+    # Subtract the baseline to calculate ERP
+    n_samples = erp.shape[0]
+    event_mean = np.tile(event_mean, (n_samples,1,1))
+    return erp - event_mean
+
 def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None):
     '''
     Calculates the event-related potential (ERP) for the given timeseries data.
@@ -513,49 +571,87 @@ def calc_erp(data, event_times, time_before, time_after, samplerate, subtract_ba
         time_after (float): number of seconds to include after each event
         samplerate (float): sampling rate of the data
         subtract_baseline (bool, optional): if True, subtract the mean of the aligned data during
-            the time_before period preceding each event. Must supply a positive time_before. Default True
+            the time_before period preceding each event (using nanmean). Must supply a positive time_before. Default True
         baseline_window ((2,) float, optional): range of time to compute baseline (in seconds before event)
             Default is the entire time_before period.
 
     Returns:
-        (ntr, nt, nch): array of event-aligned responses for each channel during the given time periods
+        (nt, nch, ntr): array of event-aligned responses for each channel during the given time periods
 
     '''
     if subtract_baseline and time_before <= 0:
         raise ValueError("Input time_before must be positive in order to calculate baseline")
         
-    # Align the data to the given event times (shape is [trials x time x channels])
-    n_events = len(event_times)
+    # Align the data to the given event times (shape is [nt, nch, ntrial])
     aligned_data = preproc.trial_align_data(data, event_times, time_before, time_after, samplerate)
 
     if subtract_baseline:
-        
-        # Take a mean across the data before the events as a baseline
         if not baseline_window:
             baseline_window = (0, time_before)
-        elif len(baseline_window) < 2 or baseline_window[1] < baseline_window[0]:
+        elif len(baseline_window) < 2 or baseline_window[1] <= baseline_window[0]:
             raise ValueError("baseline_window must be in the form (t0, t1) where \
                 t1 is greater than t0")
-        before_samples = int(time_before*samplerate)
-        s0 = before_samples - int(baseline_window[1]*samplerate)
-        s1 = before_samples - int(baseline_window[0]*samplerate)
-        event_mean = np.mean(aligned_data[:,s0:s1,:], axis=1)
 
-        # Subtract the baseline to calculate ERP
-        n_samples = aligned_data.shape[1]
-        event_mean = np.tile(event_mean, (n_samples, 1, 1)).swapaxes(0,1)
-        erp = aligned_data - event_mean
+        time = np.arange(len(aligned_data))/samplerate
+        erp = subtract_erp_baseline(aligned_data, time, baseline_window[0], baseline_window[1])
+        
     else:
-
-        # Just use the aligned data as-is
         erp = aligned_data
 
     return erp
 
-def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, baseline_window=None, max_search_window=None, trial_average=True):
+def get_max_erp(erp, time_before, time_after, samplerate, max_search_window=None, trial_average=False):
+    '''
+    Finds the maximum (across time) mean (across trials) values for the given trial-aligned data or 
+    event-related potential (ERP). Identical to :func:`~aopy.analysis.calc_max_erp` except this function 
+    takes trial-aligned data as input instead of timeseries data.
+    
+    Args:
+        erp ((nt, nch, ntr) array): trial-aligned data
+        time_before (float): number of seconds to include before each event
+        time_after (float): number of seconds to include after each event
+        samplerate (float): sampling rate of the data
+        max_search_window ((2,) float, optional): range of time to search for maximum value (in seconds 
+            after event). Default is the entire time_after period.
+        trial_average (bool, optional): if True, average across trials before calculating max (using nanmean). Default False.
+        
+    Returns:
+        (nch, ntr): array of maximum mean-ERP for each channel during the given time periods
+    '''
+    if np.ndim(erp) != 3: # assume (nt, ntr)
+        raise ValueError("ERP must be in the form (nt, nch, ntr)")
+    if trial_average:
+        erp = np.nanmean(erp, axis=2, keepdims=True)
+
+    # Limit the search to the given window
+    start_idx = int(time_before*samplerate)
+    end_idx = start_idx + int(time_after*samplerate)
+    if max_search_window:
+        if len(max_search_window) < 2 or max_search_window[1] < max_search_window[0]:
+            raise ValueError("max_search_window must be in the form (t0, t1) where \
+                t1 is greater than t0")
+        end_idx = start_idx + int(max_search_window[1]*samplerate)
+        start_idx += int(max_search_window[0]*samplerate)
+    
+    # Find the indices of the maximum absolute values
+    erp_window = erp[start_idx:end_idx]
+    idx_max_erp = start_idx + np.argmax(np.abs(erp_window), axis=0)
+
+    # Use the indices to obtain the actual signed values
+    max_erp = erp[idx_max_erp, np.arange(erp.shape[1])[:, None], np.arange(erp.shape[2])]
+
+    if trial_average:
+        max_erp = max_erp[:,0]
+        
+    return max_erp
+
+def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline=True, 
+                 baseline_window=None, max_search_window=None, trial_average=True):
     '''
     Calculates the maximum (across time) mean (across trials) event-related potential (ERP) 
-    for the given timeseries data.
+    for the given timeseries data. Identical to :func:`~aopy.analysis.get_max_erp` except this function 
+    takes timeseries data. If you already have trial-aligned erp (e.g. from :func:`~aopy.analysis.base.calc_erp`,
+    then use :func:`~aopy.analysis.get_max_erp` instead.
     
     Args:
         data (nt, nch): timeseries data across channels
@@ -575,33 +671,8 @@ def calc_max_erp(data, event_times, time_before, time_after, samplerate, subtrac
         nch: array of maximum mean-ERP for each channel during the given time periods
     '''
     erp = calc_erp(data, event_times, time_before, time_after, samplerate, subtract_baseline, baseline_window)
+    return get_max_erp(erp, time_before, time_after, samplerate, max_search_window, trial_average)
     
-    if trial_average:
-        erp = np.expand_dims(np.nanmean(erp, axis=0), 0)
-
-    # Limit the search to the given window
-    start_idx = int(time_before*samplerate)
-    end_idx = start_idx + int(time_after*samplerate)
-    if max_search_window:
-        if len(max_search_window) < 2 or max_search_window[1] < max_search_window[0]:
-            raise ValueError("max_search_window must be in the form (t0, t1) where \
-                t1 is greater than t0")
-        end_idx = start_idx + int(max_search_window[1]*samplerate)
-        start_idx += int(max_search_window[0]*samplerate)
-    
-    # Caculate max separately for each trial
-    erp_window = erp[:,start_idx:end_idx,:]
-    max_erp = np.zeros((erp.shape[0], erp.shape[2]))*np.nan
-    for t in range(erp.shape[0]):
-            
-        # Find the index that maximizes the absolute value, then use that index to get the actual signed value
-        idx_max_erp = start_idx + np.argmax(np.abs(erp_window[t]), axis=0)
-        max_erp[t,:] = np.squeeze([erp[t,idx_max_erp[i],i] for i in range(erp.shape[2])])
-
-    if trial_average:
-        max_erp = max_erp[0]
-        
-    return max_erp
     
 '''
 MODEL FITTING
@@ -630,7 +701,7 @@ def linear_fit_analysis2D(xdata, ydata, weights=None, fit_intercept=True):
             | **linear_fit_score (float):** Coefficient of determination for linear fit
             | **pcc (float):** Pearson's correlation coefficient
             | **pcc_pvalue (float):** Two tailed p-value corresponding to PCC calculation. Measures the significance of the relationship between xdata and ydata.
-            | **reg_fit (sklearn.linear_model._base.LinearRegression)
+            | **reg_fit (sklearn.linear_model._base.LinearRegression):** Linear regression parameters
     '''
     xdata = xdata.reshape(-1, 1)
     ydata = ydata.reshape(-1,1)
@@ -683,7 +754,7 @@ def classify_by_lda(X_train_lda, y_class_train,
 '''
 Spectral Estimation and Analysis
 '''
-def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
+def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', complex_output=False, verbose=False):
     '''
     Use morlet wavelet decomposition to calculate a time-frequency representation of your data.
     
@@ -695,119 +766,157 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, verbose=False):
             of the wavelets; setting a higher number results in narrower frequency resolution
         f0_norm (float, optional): center frequency of the wavelets, normalized to the sampling 
             rate. Default to 1.0, or the same frequency as the sampling rate.
+        method (str, optional): either 'fft', or 'conv', which can be faster for shorter data. 
+            Defaults to 'fft'.
+        complex_output (bool, optional): output complex output or magnitdue. Default False.
         verbose (bool, optional): print out information about the wavelets
 
     Returns:
-        (nfreq, nt, nch): tfr representation for each channel
+        tuple: tuple containing:
+        | **freqs (nfreq):** frequency axis in Hz
+        | **time (nt):** time axis in seconds
+        | **spec (nfreq, nt, nch):** tfr representation for each channel
 
     Examples:
         
         .. code-block:: python
 
-            fig, ax = plt.subplots(3,1,figsize=(4,6))
-
-            samplerate = 1000
-            data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
-            nt = data_200_hz.shape[0]
-            data_200_hz[:int(nt/3),:] /= 3
-            data_200_hz[int(2*nt/3):,:] *= 2
-
-            data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
-            data_50_hz[:int(nt/2),:] /= 2
-
-            data = data_50_hz + data_200_hz
-            print(data.shape)
-            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
-
-            freqs = np.linspace(1,250,100)
-            coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
-            t = np.arange(nt)/samplerate
+            from analyze/tests/analysis_tests import HelperFunctions
+            fb = 10.
+            f0_norm = 2.
+            freqs = np.linspace(1,50,50)
+            tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
+            HelperFunctions.test_tfr_sines(tfr_fun)
             
-            print(data.shape)
-            print(coef.shape)
-            print(t.shape)
-            print(freqs.shape)
-            pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
+        .. image:: _images/tfr_cwt_sines.png
+        
+        .. code-block:: python
 
-            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-            
-        .. image:: _images/tfr_cwt_50_200.png
+            freqs = np.linspace(1,500,500)
+            tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
+            HelperFunctions.test_tfr_chirp(tfr_fun)
+
+        .. image:: _images/tfr_cwt_chirp.png
+
+        .. code-block:: python
+
+            freqs = np.linspace(1,200,200)
+            tfr_fun = lambda data, fs: aopy.analysis.calc_cwt_tfr(data, freqs, fs, fb=fb, f0_norm=f0_norm, verbose=True)
+            HelperFunctions.test_tfr_lfp(tfr_fun)
+
+        .. image:: _images/tfr_cwt_lfp.png
 
     '''
-    freqs = np.flip(freqs)/samplerate
+    if len(data.shape) < 2:
+        data = data[:,None]
+    time = np.arange(data.shape[0])/samplerate
+    freqs_ud = np.flip(freqs)/samplerate
     wav = pywt.ContinuousWavelet(f'cmor{fb}-{f0_norm}') # 'cmorB-C' for a complex Morlet wavelet with the
                                                         # given time-decay (B) and center frequency (C) params.
-    scale = pywt.frequency2scale(wav, freqs)
-    coef, _ = pywt.cwt(data, scale, wav, axis=0)
+    scale = pywt.frequency2scale(wav, freqs_ud)
+    coef, _ = pywt.cwt(data, scale, wav, method=method, axis=0)
     if verbose:
         print(wav.bandwidth_frequency)
         print(f"Wavelet ({wav.lower_bound}, {wav.upper_bound})")
         print(f"Scale ({scale[0]}, {scale[-1]})")
-        print(f"Freqs ({freqs[0]}, {freqs[-1]})")
+        print(f"Freqs ({freqs_ud[0]}, {freqs_ud[-1]})")
     
-    return np.flip(coef, axis=0)
+    if not complex_output:
+        coef = np.abs(coef)
+    return freqs, time, np.flip(coef, axis=0)
 
-def get_sgram_multitaper(data, fs, win_t, step_t, nw=None, bw=None, adaptive=False):
-    """get_sgram_multitaper
-
-    Compute multitaper estimate from multichannel signal input.
+def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None, 
+                 detrend='constant', complex_output=False):
+    '''
+    Short-time fourier transform. Makes use of scipy.signal.spectrogram to compute
+    a fast spectrogram. 
 
     Args:
-        data (nt, nch): nd array of input neural data (multichannel)
-        fs (int): sampling rate
-        win_t (float): spectrogram window length (in seconds)
-        step_t (float): step size between spectrogram windows (in seconds)
-        nw (float, optional): time-half-bandwidth product. Defaults to None.
-        bw (float, optional): spectrogram frequency bin bandwidth. Defaults to None.
-        adaptive (bool, optional): adaptive taper weighting. Defaults to False.
+        data (nt, nch): timeseries data.
+        samplerate (float): sampling rate of the data.
+        win_t (float): window size in seconds.
+        step (float): step size in seconds.
+        f_max (float): frequency range to return in Hz ([0, f_max]). Defaults to samplerate/2.
+        pad (int):  padding factor for the FFT. This should be 1 or a multiple of 2.
+                    For N=500, if pad=1, we pad the FFT to 512 points.
+                    If pad=2, we pad the FFT to 1024 points. 
+                    If pad=4, we pad the FFT to 2024 points.
+        window (tuple, optional): see scipy documentation. Defaults to None.
+        detrend (str, optional): see scipy documentation. Defaults to 'constant'.
+        complex_output (bool): if True, return the complex signal instead of magnitude.
+                               Default False.
 
     Returns:
         tuple: Tuple containing:
-            | **fxx (np.array):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
-            | **txx (np.array):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
-            | **Sxx (len(fxx):** x len(txx) x nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
-    """
-    jackknife = False
-    sides = 'onesided'
-    if len(data.shape) < 2:
-        data = data[:,None]
-    assert len(data.shape) < 3, f"only 1- or 2-dim data arrays accepted - {data.shape}-dim input given"
-    (n_sample, n_ch) = data.shape
-    total_t = n_sample/fs
-    n_window = int((total_t-win_t)/step_t)
-    assert n_window > 0
-    window_len = int(win_t*fs)
-    step_len = int(step_t*fs)
-    n_fbin = window_len // 2 + 1
-    txx = np.arange(n_window)*step_t # window start time
-    Sxx = np.zeros((n_fbin,n_window,n_ch))
+            | **f (n_freq):** frequency axis for spectrogram
+            | **t (n_time):** time axis for spectrogram
+            | **spec (n_freq,n_time,nch):** multitaper spectrogram estimate
 
-    data = interp_multichannel(data)
+    Examples:
+        
+        .. code-block:: python
 
-    for idx_window in range(n_window):
-        window_sample_range = np.arange(window_len) + step_len*idx_window
-        win_data = data[window_sample_range,:]
-        _f, _win_psd, _ = tsa.multi_taper_psd(win_data.T, fs, nw, bw, adaptive, jackknife, sides)
-        try:
-            Sxx[:,idx_window,...] = _win_psd.T
-        except:
-            breakpoint()
-    if n_ch == 1:
-        Sxx = Sxx.squeeze(axis=-1)
+            from analyze/tests/analysis_tests import HelperFunctions
+            win_t = 0.5
+            step = 0.01
+            f_max = 50
+            tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
+            HelperFunctions.test_tfr_sines(tfr_fun)
+        
+        .. image:: _images/tfr_ft_sines.png
+            
+        .. code-block:: python
 
-    fxx = _f
+            f_max = 500
+            tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
+            HelperFunctions.test_tfr_chirp(tfr_fun)
+            
+        .. image:: _images/tfr_ft_chirp.png
+        
+        .. code-block:: python
 
-    return fxx, txx, Sxx
-
-def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype='float64'):
+            f_max = 200
+            tfr_fun = lambda data, fs: aopy.analysis.calc_ft_tfr(data, fs, win_t, step, f_max, pad=3, window=('tukey', 0.5))
+            HelperFunctions.test_tfr_lfp(tfr_fun)
+            
+        .. image:: _images/tfr_ft_lfp.png
     '''
-    Compute multitaper time-frequency estimate from multichannel signal input. This code is adapted from the Pesaran lab `tfspec`.    
+    if isinstance(data, list): 
+        data = np.array(data)
+    if data.ndim == 1:
+        data = data[:, np.newaxis]
+
+    win_size = int(samplerate * win_t)
+    overlap_size = win_size - int(samplerate * step)
+    assert overlap_size > 0, "Step size exceeds window size"
+
+    nfft = np.max([256, pad * 2**utils.nextpow2(win_size + 1)]) # 0 padding for efficient computation in FFT
+    if f_max == None:
+        f_max = samplerate/2
+    nfk = int(np.floor(f_max/samplerate*nfft)) # number of data points in frequency axis
+
+    if window is None:
+        window = ('tukey', 0.25)
+
+    freqs, time, spec = scipy.signal.spectrogram(
+        data, fs=samplerate, window=window, nperseg=win_size, noverlap=overlap_size, nfft=nfft, 
+        detrend=detrend, scaling='spectrum', axis=0, mode='complex')
+    
+    if complex_output:
+        return freqs[:nfk], time, spec[:nfk].transpose(0,2,1)
+    else:
+        return freqs[:nfk], time, np.abs(spec[:nfk]).transpose(0,2,1)
+
+
+def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
+    '''
+    Compute multitaper time-frequency estimate from multichannel signal input. 
+    This code is adapted from the Pesaran lab `tfspec`.    
     
     Args:
         ts_data (nt, nch): time series array
-        n (int): window length in seconds
-        p (int): standardized half bandwidth in hz
+        n (float): window length in seconds
+        p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
         fs (float): sampling rate
         step (float): window step. Defaults to step = n/10.
@@ -822,6 +931,9 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype
                     If you only analyze single channel data, this has to be False.
                     This paper discuss referencing scheme
                     https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
+        complex_output (bool): if True, return the complex signal instead of magnitude.
+                               Default False.
+        dtype (str): dtype of the output. Default 'float64'
                        
     Returns:
         tuple: Tuple containing:
@@ -833,75 +945,50 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype
         
         .. code-block:: python
 
-            fig, ax = plt.subplots(3,1,figsize=(4,6))
-
-            NW = 0.075
-            BW = 20
-            n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-            step = None
-            fk = 1000
-            samplerate = 1000
-            
-            t = np.arange(2*samplerate)/samplerate
-            f0 = 1
-            t1 = 2
-            f1 = 1000
-            data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
-
-            fig, ax = plt.subplots(3,1,figsize=(4,6),tight_layout=True)
-            aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-            aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
-            f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(data, n, p, k, samplerate, step=step, fk=fk, pad=2, ref=False)
-            pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[2])
-            fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
-            
-        .. image:: _images/tfr_mt_chirp.png
-            
-        .. code-block:: python
-            T = 5
-            t = np.linspace(0,T,num_points)
-            test_data = np.zeros((t.shape[0],2))
-            test_data[:,0] = 1.5*np.sin(2*np.pi*10*t)
-            test_data[:,1] = 2*np.cos(2*np.pi*30*t)
-            test_data[t>=T/2,0] = 2*np.sin(2*np.pi*5*t[t<=T/2])
-            test_data[t>=T/2,1] = 1*np.cos(2*np.pi*15*t[t<=T/2])
-    
-            NW = 2
-            BW = 1
-            fs = num_points/T
-            dn = 0.1
+            from analyze/tests/analysis_tests import HelperFunctions
+            NW = 0.3
+            BW = 10
+            step = 0.01
             fk = 50
             n, p, k = aopy.precondition.convert_taper_parameters(NW, BW)
-            f_spec,t_spec,spec = aopy.analysis.calc_mt_tfr(test_data, n, p, k, fs, dn, fk, pad=2, ref=False)
-
-            fig,ax=plt.subplots(1,4,figsize=(8,2),tight_layout=True)
-            ax[0].plot(t,test_data[:,0],linewidth=0.2)
-            ax[0].plot(t,test_data[:,1],linewidth=0.2)
-            ax[0].set(xlabel='Time (s)',ylabel='Amplitude',title='Signals')
-            ax[1].imshow((spec[:,:,0]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
-            ax[1].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch1)')
-            ax[2].imshow((spec[:,:,1]),aspect='auto',origin='lower',extent=[0,T,0,f_spec[-1]])
-            ax[2].set(ylabel='Frequency (Hz)',xlabel='Time [s]',title='Spectrogram (ch2)')
-            ax[3].plot(f_spec,spec[:,10,0],'-',label='ch 1')
-            ax[3].plot(f_spec,spec[:,10,1],'-',label='ch 2')
-            ax[3].set(ylabel='Power',xlabel='Frequency (Hz)',xlim=(0,50),title='Power spectral')
-            ax[3].legend(title=f't = {t_spec[10]}s',frameon=False, fontsize=7)
-            
+            print(f"using {k} tapers length {n} half-bandwidth {p}")
+            tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+            HelperFunctions.test_tfr_sines(tfr_fun)
+                        
         .. image:: _images/tfspec.png
+            
+        .. code-block:: python
+        
+            fk = 500
+            tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False)
+            HelperFunctions.test_tfr_chirp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_chirp.png
+        
+        .. code-block:: python
 
+            fk = 200
+            tfr_fun = lambda data, fs: aopy.analysis.calc_mt_tfr(data, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, dtype='int16')
+            HelperFunctions.test_tfr_lfp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_lfp.png
         
     See Also:
         :func:`~aopy.analysis.calc_cwt_tfr`
-    '''   
-    
-    def nextpow2(x):
-        #   Next higher power of 2.
-        #   NEXTPOW2(N) returns the first P such that 2.^P >= abs(N).
-        #   It is often useful for finding the nearest power of two sequence length for FFT operations.
-        return 1 if x == 0 else math.ceil(math.log2(x))
-    
+
+    Note:
+        The time axis returned by calc_mt_tfr corresponds to the center of the sliding window (`n` seconds). 
+        To move the time axis so that the spectrogram bins are aligned to the right edge of each window, do 
+        `time += n/2`.
+
+        .. image:: _images/tfr_mt_alignment.png
+
+    Modified September 2023 to return magnitude instead of magnitude squared power.
+    '''  
+    if isinstance(ts_data, list): 
+        ts_data = np.array(ts_data)
     if ts_data.ndim == 1:
-        ts_data = np.reshape(ts_data,(-1,1))
+        ts_data = ts_data[:, np.newaxis]
     if ts_data.shape[1] == 1:
         ref = False
     if step == None:
@@ -912,16 +999,16 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype
     ts_data = ts_data.T
     nch,nt = ts_data.shape
     fk = np.array([0,fk])
-    tapers, _ = dpsschk(n*fs, p, k)
+    tapers, _ = precondition.dpsschk(n*fs, p, k)
     
     win_size = tapers.shape[0] # window size (data points of tapers)
     step_size = int(np.floor(step*fs)) # step size
-    nf = np.max([256,pad*2**nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
+    nf = np.max([256,pad*2**utils.nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
     nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
-    nwin = int(np.floor((nt-win_size)/step_size)) # number of windows
-    f = np.linspace(fk[0],fk[1],int(np.diff(nfk))) # frequency axis for spectrogram
+    nwin = 1 + int(np.floor((nt-win_size)/step_size)) # number of windows
+    f = np.linspace(fk[0],fk[1],int(nfk[1] - nfk[0])) # frequency axis for spectrogram
 
-    spec = np.zeros((int(np.diff(nfk)),nwin,nch), dtype=dtype)
+    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch), dtype=dtype)
     for iwin in range(nwin):
         if ref:
             m_data = np.sum(ts_data[:,step_size*iwin:step_size*iwin+win_size],axis=0)/nch # Mean across channels for that window
@@ -930,28 +1017,109 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, dtype
             win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]).T
         
         # Compute power for each taper
-        power = 0
-        for ik in range(k):
-            tapers_ik = tapers[:,ik].reshape(-1,1) # keep the dimension for broadcast
-            fk_data = fft(tapers_ik*win_data, nf, axis=0) # tapers_ik.shape:(win_size,1), win_data.shape:(win_size,nch)
-            fk_data = fk_data[int(nfk[0]):int(nfk[1]),:] # extract a part of frequency components
-            power += fk_data*fk_data.conj()
-        power = power/k # average power across number of tapers.   
-        spec[:,iwin,:] = power.real  # Power is already real at this time, but still have 0j part.
-    
+        tapers_ik = tapers[:, :, np.newaxis]  # Shape: (win_size, k, 1)
+        win_data_reshaped = win_data[:, np.newaxis, :]  # Shape: (win_size, 1, nch)
+        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch)
+        if complex_output:
+            spec[:,iwin,:] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :], axis=1)
+        else:
+            spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
+
     t = np.arange(nwin)*step + n/2 # Center of each window is time axis
     
     return f, t, spec
 
-def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=True, sides='default'):
+def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackknife=False, adaptive=False, sides='onesided'):
+    """
+    Compute multitaper time-frequency power estimate from multichannel signal input. 
+    This code uses nitime time-series analysis below. In comparison to :func:`~aopy.analysis.calc_mt_tfr` this
+    function is very slow.
+
+    Args:
+        data (nt, nch): nd array of input neural data (multichannel)
+        fs (int): sampling rate
+        win_t (float): spectrogram window length (in seconds)
+        step_t (float): step size between spectrogram windows (in seconds)
+        bw (float, optional): spectrogram frequency bin bandwidth. Defaults to None.
+        f_max (float): frequency range to return in Hz ([0, f_max]). Defaults to samplerate/2.
+        pad (int):  padding factor for the FFT. This should be 1 or a multiple of 2.
+                    For N=500, if pad=1, we pad the FFT to 512 points.
+                    If pad=2, we pad the FFT to 1024 points. 
+                    If pad=4, we pad the FFT to 2024 points.
+        adaptive (bool, optional): adaptive taper weighting. Defaults to False.
+        
+    Returns:
+        tuple: Tuple containing:
+            | **freqs (nfreq,):** spectrogram frequency array (equal in length to win_t * fs // 2 + 1)
+            | **time (nt,):** spectrogram time array (equal in length to (len(data)/fs - win_t)/step_t)
+            | **spec (nfreq, nt, nch): multitaper spectrogram estimate. Last dimension squeezed for 1-d inputs.
+
+    Examples:
+        
+        .. code-block:: python
+
+            from analyze/tests/analysis_tests import HelperFunctions
+            win_t = 0.3
+            step_t = 0.01
+            bw = 20
+            fk = 50
+            tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+            HelperFunctions.test_tfr_sines(tfr_fun)
+                        
+        .. image:: _images/tfr_mt_tsa_sines.png
+            
+        .. code-block:: python
+
+            fk = 500
+            tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+            HelperFunctions.test_tfr_chirp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_tsa_chirp.png
+        
+        .. code-block:: python
+            
+            fk = 200
+            tfr_fun = lambda data, fs: aopy.analysis.calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=bw, f_max=fk)
+            HelperFunctions.test_tfr_lfp(tfr_fun)
+            
+        .. image:: _images/tfr_mt_tsa_lfp.png
+    """
+    if len(data.shape) < 2:
+        data = data[:,None]
+    assert len(data.shape) < 3, f"only 1- or 2-dim data arrays accepted - {data.shape}-dim input given"
+    (n_sample, n_ch) = data.shape
+    total_t = n_sample/fs
+    n_window = int((total_t-win_t)/step_t)
+    assert n_window > 0
+    window_len = int(win_t*fs)
+    step_len = int(step_t*fs)
+    if f_max == None:
+        f_max = fs/2
+    nfft = np.max([256, pad * 2**utils.nextpow2(window_len+1)]) # 0 padding for efficient computation in FFT
+    nfreqs = nfft // 2 + 1
+    nfk = int(np.floor(f_max/fs*nfft)) # number of data points in frequency axis
+
+    time = np.arange(n_window)*step_t # window start time
+    spec = np.zeros((nfreqs,n_window,n_ch))
+
+    data = interp_nans(data)
+
+    for idx_window in range(n_window):
+        window_sample_range = np.arange(window_len) + step_len*idx_window
+        win_data = data[window_sample_range,:]
+        freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, nfft, adaptive, jackknife, sides)
+        spec[:,idx_window,...] = _win_psd
+
+    return freqs[:nfk], time, spec[:nfk]
+
+def calc_mt_psd(data, fs, bw=None, nfft=None, adaptive=False, jackknife=True, sides='default'):
     '''
-    Computes power spectral density using Multitaper functions
+    Computes power spectral density using Multitaper functions from nitime. 
 
     Args:
         data (nt, nch): time series data where time axis is assumed to be on the last axis
         fs (float): sampling rate of the signal
-        NW (float): Normalized half bandwidth of the data tapers in Hz
-        BW (float): sampling bandwidth of the data tapers in Hz
+        bw (float): sampling bandwidth of the data tapers in Hz
         adaptive (bool): Use an adaptive weighting routine to combine the PSD estimates of different tapers.
         jackknife (bool): Use the jackknife method to make an estimate of the PSD variance at each point.
         sides (str): This determines which sides of the spectrum to return.
@@ -960,47 +1128,19 @@ def get_psd_multitaper(data, fs, NW=None, BW=None, adaptive=False, jackknife=Tru
         tuple: Tuple containing:
             | **f (nfft):** Frequency points vector
             | **psd_est (nfft, nch):** estimated power spectral density (PSD)
-            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. If Jackknife = False; degrees of freedom in a chi square model of how the estimated psd is distributed wrt true log - PSD
+            | **nu (nfft, nch):** if jackknife = True; estimated variance of the log-psd. 
+                If Jackknife = False; degrees of freedom in a chi square model of how the estimated 
+                psd is distributed wrt true log - PSD
     '''
     data = data.T # move time to the last axis
-    
-    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, NW, BW,  adaptive, jackknife, sides)
+    f, psd_mt, nu = tsa.multi_taper_psd(data, fs, None, bw,  adaptive, jackknife, sides, NFFT=nfft)
     return f, psd_mt.T, nu.T
 
-def multitaper_lfp_bandpower(f, psd_est, bands, no_log):
+def calc_welch_psd(data, fs, n_freq=None):
     '''
-    Estimate band power in specified frequency bands using multitaper power spectral density estimate
-
-    Args:
-        f (nfft) : Frequency points vector
-        psd_est (nfft, nch): power spectral density - output of bandpass_multitaper_filter_data
-        bands (list): lfp bands should be a list of tuples representing ranges e.g., bands = [(0, 10), (10, 20), (130, 140)] for 0-10, 10-20, and 130-140 Hz
-        no_log (bool): boolean to select whether lfp band power should be in log scale or not
-
-    Returns:
-        lfp_power (n_features, nch): lfp band power for each channel for each band specified
-    '''
-    if psd_est.ndim == 1:
-        psd_est = np.expand_dims(psd_est, 1)
-
-    lfp_power = np.zeros((len(bands), psd_est.shape[1]))
-    small_epsilon = 0 # TODO: what is this for? It does nothing now, should it be possible to make nonzero? -Leo
-    fft_inds = dict()
-
-    for band_idx, band in enumerate(bands):
-            fft_inds[band_idx] = [freq_idx for freq_idx, freq in enumerate(f) if band[0] <= freq < band[1]]
-
-    for idx, band in enumerate(bands):
-        if no_log:
-            lfp_power[idx, :] = np.mean(psd_est[fft_inds[idx],:], axis=0)
-        else:
-            lfp_power[idx, :] = np.mean(np.log10(psd_est[fft_inds[idx],:] + small_epsilon), axis=0)
-
-    return lfp_power
-
-def get_psd_welch(data, fs,n_freq = None):
-    '''
-    Computes power spectral density using Welch's method. Welch’s method computes an estimate of the power spectral density by dividing the data into overlapping segments, computes a modified periodogram for each segment and then averages the periodogram. Periodogram is averaged using median.
+    Computes power using Welch's method. Welch’s method computes an estimate of the power
+    by dividing the data into overlapping segments, computes a modified periodogram for 
+    each segment and then averages the periodogram. Periodogram is averaged using median.
 
     Args:
         data (nt, ...): time series data.
@@ -1013,13 +1153,92 @@ def get_psd_welch(data, fs,n_freq = None):
             | **psd_est (nfft, ...):** estimated power spectral density (PSD)
     '''
     if n_freq:
-        f, psd = signal.welch(data, fs, average='median', nperseg=2*n_freq, axis=0)
+        f, psd = signal.welch(data, fs, average='median', scaling='spectrum', nperseg=2*n_freq, axis=0)
     else:
-        f, psd = signal.welch(data, fs, average='median', axis=0)
-    return f, psd
+        f, psd = signal.welch(data, fs, average='median', scaling='spectrum', axis=0)
+    return f, np.sqrt(psd)
 
-def interp_multichannel(x):
-    """interp_multichannel
+def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
+    '''
+    Estimate band power in specified frequency bands using multitaper power spectral density estimate
+
+    Args:
+        f (nfreq,): Frequency points vector
+        psd_est (nfreq, nt, nch): spectrogram of data
+        bands (list of tuples): frequency bands of interest in Hz, e.g. [(0, 10), (10, 20), (130, 140)]
+        log (bool): boolean to select whether band power should be in log scale or not
+        epsilon (float): small number, e.g. 1e-10 to add to power before averaging in case there are zero values
+        
+    Returns:
+        lfp_power (n_features, nt, nch): band power features at each timepoint for each channel
+    '''
+    if spec.ndim == 1:
+        spec = np.expand_dims(spec, [1, 2])
+    if spec.ndim == 2:
+        spec = spec[:, np.newaxis, :] # insert time axis
+
+    feats = np.zeros((len(bands), spec.shape[1], spec.shape[2]), like=spec)
+    for idx, band in enumerate(bands):
+        fft_inds = [freq_idx for freq_idx, freq in enumerate(freqs) if band[0] <= freq < band[1]]
+
+        if log:
+            feats[idx] = np.mean(np.log10(spec[fft_inds] + epsilon), axis=0)
+        else:
+            feats[idx] = np.mean(spec[fft_inds], axis=0)
+
+    return np.squeeze(feats)
+
+def get_bandpower_feats(data, samplerate, bands, method='mt', log=False, epsilon=0, **kwargs):
+    '''
+    Wrapper around get_tfr_feats and calc_mt_tfr. 
+
+    Args:
+        data (nt, ...): time series data.
+        samplerate (float): sampling rate of the data.
+        bands (list of tuples): frequency bands of interest in Hz, e.g. [(0, 10), (10, 20), (130, 140)]
+        log (bool): boolean to select whether band power should be in log scale or not
+        epsilon (float): small number, e.g. 1e-10 to add to power before averaging in case there are zero values
+        kwargs (dict, optional): keyword arguments for the calc_tfr function of choice (see Note).
+
+    Raises:
+        ValueError: if the requested method is not valid
+
+    Returns:
+        tuple: tuple containing:
+            | **time (nstep):** the resulting time axis for the features
+            | **feats (nfeatures, nstep, nch):** band power features
+
+    Note:
+        For method 'mt', you must pass the following keyword arguments:
+            | **n (float):** window length in seconds
+            | **p (float):** standardized half bandwidth in hz
+            | **k (int):** number of DPSS tapers to use
+            | **step (float):** window step. Defaults to step = n/10.
+            | **fk (float):** frequency range to return in Hz ([0, fk]). Defaults to fs/2.
+        Optionally you may also pass:
+            | **pad (int):** padding factor for the FFT. This should be 1 or a multiple of 2.
+            | **ref (bool):** referencing flag. If True, mean of neural signals across electrodes 
+            | **dtype (str):** dtype of the output. Default 'float64'
+    '''
+    if method == 'mt':
+        n = kwargs.pop('n')
+        p = kwargs.pop('p')
+        k = kwargs.pop('k')
+        step = kwargs.pop('step')
+        fk = kwargs.pop('fk')
+        pad = kwargs.pop('pad', 2)
+        ref = kwargs.pop('ref', True)
+        dtype = kwargs.pop('dtype', 'float64')
+        freqs, time, spec = calc_mt_tfr(data, n, p, k, samplerate, 
+                                        step=step, fk=fk, pad=pad, ref=ref, dtype=dtype)
+    else:
+        raise ValueError(f"Method {method} not implemented.")
+
+    return time, get_tfr_feats(freqs, spec, bands, log=log, epsilon=epsilon)
+
+def interp_nans(x):
+    """
+    Interpolate NaN values from multichannel data using linear interpolation.
 
     Args:
         x (n_sample, n_ch): input data array containing nan-valued missing entries
@@ -1036,6 +1255,214 @@ def interp_multichannel(x):
 
     return x
 
+def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
+                dtype='float64', workers=None):
+    '''
+    Computes moving window time-frequency coherence averaged across trials between selected channels.
+    This is loosely based on pesaran lab code, modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
+    The coherence computations are from https://doi.org/10.7551/mitpress/9609.001.0001
+    
+    Given analytical signals Xk1 and Xk2, coherence is computed as:
+    
+    .. code-block:: python
+    
+        # Compute power and cross-spectral power
+        S1 = np.sum(Xk*Xk.conj(), axis=1) # sum across tapers and trials
+        S2 = np.sum(Yk*Yk.conj(), axis=1) # sum across tapers and trials 
+        S12 = np.sum(Xk*Yk.conj(), axis=1) # sum across tapers and trials
+    
+        # Coherence
+        coh = np.abs(S12/np.sqrt(S1*S2))**2
+
+        # Imaginary coherence
+        coh = np.abs(np.imag(S12/np.sqrt(S1*S2)))
+
+    Args:
+        data ((nt,nch,ntr) array): evoked potential across all channels and trials
+        ch ((2,) tuple): the two channel indices between which coherence will be computed
+        n (float): window length in seconds
+        p (float): standardized half bandwidth in hz
+        k (int): number of DPSS tapers to use
+        fs (float): sampling rate in Hz.
+        step (float): window step size in seconds.
+        fk (float, optional): frequency range to return in Hz ([0, fk]). Default is fs/2.
+        pad (int, optional): padding factor for the FFT. This should be 1 or a multiple of 2.
+            For nt=500, if pad=1, we pad the FFT to 512 points.
+            If pad=2, we pad the FFT to 1024 points. 
+            If pad=4, we pad the FFT to 2024 points.
+            Default is 2.
+        ref (bool, optional): referencing flag. If True, mean of neural signals across electrodes 
+            for each time window is subtracted to remove common noise so that You can get 
+            spacially-localized signals. If you only analyze single channel data, this has 
+            to be False. This paper discuss referencing scheme
+            https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
+            Default is False.
+        imaginary (bool, optional): if True, compute imaginary coherence.
+        dtype (str, optional): dtype of the output. Default 'float64'
+        workers (int, optional): Number of workers argument to pass to scipy.fft.fft. 
+            Default None. 
+                       
+    Returns:
+        tuple: tuple containing:
+            | **f (n_freq):** frequency axis
+            | **t (n_time):** time axis
+            | **coh (n_freq,n_time):** magnitude squared coherence or imaginary coherence (0 <= coh <= 1)
+
+    See also: 
+        :func:`~aopy.analysis.calc_mt_tfr`
+
+    Examples:
+
+        .. code-block:: python
+
+            fs = 1000
+            N = 1e5
+            T = N/fs
+            amp = 20
+            noise_power = 0.001 * fs / 2
+            time = np.arange(N) / fs
+
+        Generate two test signals with common low-frequency signals, except at a given freq (100 Hz)
+
+        .. code-block:: python
+
+            rng = np.random.default_rng(seed=0)
+            signal1 = rng.normal(scale=np.sqrt(noise_power), size=time.shape)
+
+            b, a = scipy.signal.butter(2, 0.25, 'low')
+            signal2 = scipy.signal.lfilter(b, a, signal1)
+            signal2 += rng.normal(scale=0.1*np.sqrt(noise_power), size=time.shape)
+
+            # Add a 100 hz sine wave only to signal 1
+            freq = 100.0
+            signal1[time > T/2] += amp*np.sin(2*np.pi*freq*time[time > T/2])
+
+            # Add a 400 hz sine wave to both signals
+            freq = 400.0
+            signal1[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
+            signal2[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
+
+        Calculate coherence, imaginary coherence, and compared to `scipy.signal.coherence()`
+
+        .. code-block:: python
+
+            n = 1
+            w = 2
+            n, p, k = aopy.precondition.convert_taper_parameters(n, w)
+            fk = fs / 2  # Maximum frequency of interest
+            step = n # no overlap
+            signal_combined = np.stack((signal1, signal2), axis=1)
+
+            # Calculate spectrograms for each signal
+            f, t, spec1 = aopy.analysis.calc_mt_tfr(signal1, n, p, k, fs, step, fk=fk,
+                                                                ref=False)
+            f, t, spec2 = aopy.analysis.calc_mt_tfr(signal2, n, p, k, fs, step, fk=fk,
+                                                                ref=False)
+
+            # And coherence
+            f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                                ref=False)
+            f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                                ref=False, imaginary=True)
+            f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=2048, noverlap=0, axis=0)
+
+        Plot coherence
+
+        .. code-block:: python
+
+            # Plot the coherence over time
+            plt.figure(figsize=(10, 12))
+            plt.subplot(4, 1, 1)
+            im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
+            plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
+            im.set_clim(0,3)
+
+            plt.subplot(4, 1, 2)
+            im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
+            plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
+            im.set_clim(0,3)
+
+            plt.subplot(4, 1, 3)
+            im = aopy.visualization.plot_tfr(coh, t, f)
+            plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
+            im.set_clim(0,1)
+
+            # Plot the average coherence across windows
+            # Note: scipy uses welch's method, so its coherence is based on the average cross-spectral
+            # density of the two signals, rather than here the instantaneous cross-spectral density.
+            plt.subplot(2, 1, 2)
+            plt.plot(f, np.mean(coh, axis=1))
+            plt.plot(f, np.mean(coh_im, axis=1))
+            plt.plot(f_scipy, coh_scipy)
+            plt.title('Average coherence across time')
+            plt.xlabel('Frequency (Hz)')
+            plt.ylabel('Coherency')
+            plt.legend(['coh', 'imag coh', 'scipy'])
+
+        .. image:: _images/coherency.png
+    '''
+    if data.ndim == 1:
+        data = data[:,np.newaxis,np.newaxis]
+    elif data.ndim == 2:
+        data = data[:,:,np.newaxis]
+    if data.shape[1] == 1:
+        ref = False
+    if fk == None:
+        fk = fs/2
+
+    nt,_,ntr = data.shape
+    fk = np.array([0,fk])    
+    win_size = int(n*fs)
+    dn = int(np.floor(step*fs))
+    nf = np.max([256,pad*2**utils.nextpow2(win_size+1)])
+    nfk = np.floor(fk/fs*nf)
+    nwin = 1 + int(np.floor((nt-win_size)/dn))
+    f = np.linspace(fk[0],fk[1],int(nfk[1]-nfk[0]))
+
+    assert nwin > 0, "Not enough data for the given `n` and `step`"
+   
+    tapers, _ = precondition.dpsschk(win_size, p, k)
+
+    # For now we only allow two channel. In the future we could expand to multiple pairs of channels
+    ch1 = ch[0]
+    ch2 = ch[1]
+        
+    coh = np.zeros((nwin,int(nfk[1]-nfk[0])), dtype=dtype)
+    for win in range(nwin):
+        if ref:
+            mX = np.mean(data[dn*win:dn*win+win_size], axis=1, keepdims=True) # Mean across channels for that window
+            tmp = (data[dn*win:dn*win+win_size]-mX[:,0,...]) # Subtract mean from data 
+        else:
+            tmp = (data[dn*win:dn*win+win_size])
+
+        # tmp is shape (N, nch, ntr)
+        # tapers is shape (N, k)
+
+        # Compute power for channel 1
+        ch1_rolled = np.reshape(tapers[:,:,np.newaxis]*tmp[:,[ch1],:], (win_size, k*ntr)) # trials and tapers together
+        Xk_tmp1 = scipy.fft.fft(ch1_rolled.T, nf, axis=-1, overwrite_x=True, workers=workers).T # looping over the last axis is faster
+        Xk1 = Xk_tmp1[int(nfk[0]):int(nfk[1])] # filter desired frequency range
+        S1 = np.sum(Xk1*Xk1.conj(), axis=1) # sum across tapers and trials
+
+        # Compute power for channel 2
+        ch2_rolled = np.reshape(tapers[:,:,np.newaxis]*tmp[:,[ch2],:], (win_size, k*ntr))
+        Xk_tmp2 = scipy.fft.fft(ch2_rolled.T, nf, axis=-1, overwrite_x=True, workers=workers).T
+        Xk2 = Xk_tmp2[int(nfk[0]):int(nfk[1])]
+        S2 = np.sum(Xk2*Xk2.conj(), axis=1) # note: Xk*Xk.conj() is equivalent to abs(Xk)**2
+
+        # Cross spectral power
+        S12 = np.sum(Xk1*Xk2.conj(), axis=1)
+    
+        # Coherence
+        if imaginary:
+            coh[win,:] = np.abs(np.imag(S12/np.sqrt(S1*S2)))
+        else:
+            coh[win,:] = np.abs(S12/np.sqrt(S1*S2))**2
+            
+    coh = coh.T
+    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
+    
+    return f, t, coh
 
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''

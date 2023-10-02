@@ -430,7 +430,7 @@ def list_entry_details(sessions):
             | **te_id (list):** list of task entry ids
             | **date (list):** list of dates
     '''
-    return zip(*[(te.subject, str(te.id), str(te.date)) for te in sessions])
+    return zip(*[(te.subject, te.id, te.date) for te in sessions])
 
 def group_entries(sessions, grouping_fn=lambda te: te.date):
     '''

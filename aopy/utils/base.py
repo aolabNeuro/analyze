@@ -434,8 +434,8 @@ def count_repetitions(arr, diff_thr=0):
 
     Returns:
         tuple: A tuple of two numpy arrays:
-        | **repetitions (nt,):** Lengths of the repetitions in the input array, 
-        | **change_idx (nt,):** Indices where the repetitions start
+            | **repetitions (nt,):** Lengths of the repetitions in the input array, 
+            | **change_idx (nt,):** Indices where the repetitions start
     """
     assert np.array(arr).ndim == 1, "Only supports 1d arrays"
     if len(arr) == 0:
@@ -469,12 +469,8 @@ def segment_array(arr, category, duplicate_endpoints=False):
 
     Returns:
         tuple: Tuple containing:
-        | **segments (list of arrays):**
-            A list of subarrays of `arr`, where each subarray corresponds to a unique
-            value in `category`.
-        | **segmented_category (list of arrays):**
-            An array of the same length as `segments`, where each element corresponds to
-            the category label for the corresponding subarray in `segments`.
+            | **segments (list of arrays):** A list of subarrays of `arr`, where each subarray corresponds to a unique value in `category`.
+            | **segmented_category (list of arrays):** An array of the same length as `segments`, where each element corresponds to the category label for the corresponding subarray in `segments`.
     '''
     run_arr, idx = count_repetitions(category)
     end_indices = np.cumsum(run_arr)
@@ -522,6 +518,19 @@ def count_repetitions(arr, diff_thr=0):
     repetitions = np.diff(change)
 
     return repetitions, change_idx
+
+def nextpow2(x):
+    '''
+    Next higher power of 2. It is often useful for finding the nearest power of two 
+    sequence length for FFT operations.
+
+    Args:
+        x (int or float): input number 
+        
+    Returns:
+        int: the first P such that 2**P >= abs(x).
+    '''
+    return 1 if x == 0 else math.ceil(math.log2(x))
 
 '''
 Other utils

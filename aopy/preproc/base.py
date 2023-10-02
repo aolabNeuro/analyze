@@ -2,6 +2,7 @@
 # Code for preprocessing neural data (reorganize data into the needed form) including parsing
 # experimental files, trial sorting, and subsampling
 
+import warnings
 import numpy as np
 from scipy import interpolate
 
@@ -189,7 +190,9 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     The optional argument 'interp_kind' corresponds to 'kind'. The optional argument 'extrapolate' determines whether timepoints falling outside the 
     range of the input timestamps should be extrapolated or not. If not, they are copied from the first and last valid values, depending on whether they
     appear at the beginnin or end of the timeseries, respectively.
-    Enforces monotonicity of the input timestamps by removing timestamps and their associated values that do not increase.
+    
+    Note:
+        Enforces monotonicity of the input timestamps by removing timestamps and their associated values that do not increase.
 
     Example:
         ::
@@ -211,8 +214,8 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
 
     Returns:
         tuple: tuple containing:
-        | **timeseries (nt):** New timeseries of data.
-        | **sampling_points (nt):** Sampling points used to calculate the new time series.
+            | **timeseries (nt):** New timeseries of data.
+            | **sampling_points (nt):** Sampling points used to calculate the new time series.
 
     '''
     # Check for nans and remove them
@@ -227,7 +230,6 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
 
     # Check that timestamps are monotonic
     if not np.all(np.diff(timestamps) > 0):
-        print("Warning: Input timemeseries is not monotonic")
         tmask = np.insert(np.diff(timestamps) > 0, 0, True)
         timestamps = timestamps[tmask]
         timestamp_values = timestamp_values[tmask]
@@ -393,10 +395,45 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
 
     return trial_aligned_times
 
+def get_trial_data(data, trigger_time, time_before, time_after, samplerate):
+    '''
+    Get one chunk of data triggered by a trial start time. Chunks are padded with
+    nan if the data does not span the entire chunk
+
+    Args:
+        data (nt, nch): arbitrary data, can be multidimensional
+        trigger_time (float): start time of the trial
+        time_before (float): amount of time [s] to include before the start of the trial
+        time_after (float): time [s] to include after the start of the trial
+        samplerate (int): sampling rate of data [samples/s]
+    
+    Returns:
+        (nt, nch): trial aligned data chunk
+    '''
+    dur = time_after + time_before
+    n_samples = int(np.floor(dur * samplerate))
+
+    if data.ndim == 1:
+        data.shape = (data.shape[0], 1)
+
+    t0 = trigger_time - time_before
+    if np.isnan(t0):
+        return
+    
+    trial_data = np.zeros((n_samples,data.shape[1]))*np.nan
+    idx_start = int(np.round(t0*samplerate, 0))
+    idx_end = min(data.shape[0], idx_start+n_samples)
+    if idx_start < 0:
+        trial_data[-idx_start:idx_end-idx_start] = data[:idx_end,:]
+    else:
+        trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,:]
+    return trial_data
+
 def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     '''
     Transform data into chunks of data triggered by trial start times. If trigger_times is too long
-    relative to 'data/samplerate', only the triggers that correspond to data will be returned.
+    relative to 'data/samplerate', only the triggers that correspond to data will be included, while
+    others will be filled with np.nan.
 
     Args:
         data (nt, nch): arbitrary data, can be multidimensional
@@ -406,7 +443,9 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
         samplerate (int): sampling rate of data [samples/s]
     
     Returns:
-        (ntrial, nt, nch): trial aligned data
+        (nt, nch, trial): trial aligned data
+
+    Modified Sept. 2023 - transpose output
     '''
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
@@ -419,22 +458,14 @@ def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
     # Don't look at trigger times that are after the end of the data
     max_trigger_time = (data.shape[0]/samplerate) - time_after
     if max_trigger_time < trigger_times[0]:
-        return trial_aligned # no valid triggers to align to
+        warnings.warn("No valid triggers to align to")
+        return trial_aligned.transpose(1,2,0)
     last_trigger_idx = np.where(trigger_times < max_trigger_time)[0][-1]
     for t in range(last_trigger_idx+1):
-        t0 = trigger_times[t] - time_before
-        if np.isnan(t0):
+        if np.isnan(trigger_times[t]):
             continue
-        # sub = subvec(data, t0, n_samples, samplerate)
-        trial_data = np.zeros((n_samples,data.shape[1]))*np.nan
-        idx_start = int(np.round(t0*samplerate, 0))
-        idx_end = min(data.shape[0], idx_start+n_samples)
-        if idx_start < 0:
-            trial_data[-idx_start:idx_end-idx_start] = data[:idx_end,:]
-        else:
-            trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,:]
-        trial_aligned[t,:min(len(trial_data),n_samples),:] = trial_data[:min(len(trial_data),n_samples),:]
-    return trial_aligned
+        trial_aligned[t] = get_trial_data(data, trigger_times[t], time_before, time_after, samplerate)
+    return trial_aligned.transpose(1,2,0)
 
 def trial_align_times(timestamps, trigger_times, time_before, time_after, subtract=True):
     '''
@@ -465,7 +496,6 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
         trial_indices.append(np.where(trial_idx)[0])
     return trial_aligned, trial_indices
 
-
 def get_trial_segments(events, times, start_events, end_events):
     '''
     Gets times for the start and end of each trial according to the given set of start_events and end_events
@@ -484,26 +514,8 @@ def get_trial_segments(events, times, start_events, end_events):
     Note:
         - if there are multiple matching start or end events in a trial, only consider the first one
     '''
-    # Find the indices in events that correspond to start events
-    evt_start_idx = np.where(np.in1d(events, start_events))[0]
-
-    # Extract segments for each start event
-    segments = []
-    segment_times = []
-    for idx_evt in range(len(evt_start_idx)):
-        idx_start = evt_start_idx[idx_evt]
-        idx_end = evt_start_idx[idx_evt] + 1
-
-        # Look forward for a matching end event
-        while idx_end < len(events):
-            if np.in1d(events[idx_end], start_events): 
-                break # start event must be followed by end event otherwise not valid
-            if np.in1d(events[idx_end], end_events):
-                segments.append(events[idx_start:idx_end+1])
-                segment_times.append([times[idx_start], times[idx_end]])
-                break 
-            idx_end += 1
-    segment_times = np.array(segment_times)
+    segments, segment_times = get_trial_segments_and_times(events, times, start_events, end_events)
+    segment_times = np.array([[t[0], t[-1]] for t in segment_times])
     return segments, segment_times
 
 def get_trial_segments_and_times(events, times, start_events, end_events):
@@ -544,6 +556,23 @@ def get_trial_segments_and_times(events, times, start_events, end_events):
             idx_end += 1
     return segments, segment_times
 
+def get_data_segment(data, start_time, end_time, samplerate):
+    '''
+    Gets a single arbitrary length sengment of data from a timeseries
+
+    Args:
+        data (nt, ndim): arbitrary timeseries data that needs to segmented
+        start_time (float): start of the segment in seconds
+        end_time (float): end of the segment in seconds
+        samplerate (int): sampling rate of the data
+
+    Returns:
+        (nt', ndim): short segment of data from the given times
+    '''
+    idx_data_start = int(start_time*samplerate)
+    idx_data_end = int(end_time*samplerate)
+    return data[idx_data_start:idx_data_end]
+
 def get_data_segments(data, segment_times, samplerate):
     '''
     Gets arbitrary length segments of data from a timeseries
@@ -558,10 +587,7 @@ def get_data_segments(data, segment_times, samplerate):
     '''
     segments = []
     for idx_seg in range(segment_times.shape[0]):
-        idx_data_start = int(segment_times[idx_seg,0]*samplerate)
-        idx_data_end = int(segment_times[idx_seg,1]*samplerate)
-        seg = data[idx_data_start:idx_data_end]
-        segments.append(seg)
+        segments.append(get_data_segment(data, segment_times[idx_seg,0], segment_times[idx_seg,1], samplerate))
     return segments
 
 def get_unique_conditions(trial_idx, conditions, condition_name='target'):

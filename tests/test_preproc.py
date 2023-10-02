@@ -411,9 +411,9 @@ class EventFilterTests(unittest.TestCase):
         time_after = 10
         trigger_times = np.array([5, 55])
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        self.assertEqual(len(trial_aligned), len(trigger_times))
-        np.testing.assert_allclose(np.squeeze(trial_aligned[0]), np.arange(5, 15))
-        np.testing.assert_allclose(np.squeeze(trial_aligned[1]), np.arange(55, 65))
+        self.assertEqual(trial_aligned.shape[2], len(trigger_times))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[:,:,0]), np.arange(5, 15))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[:,:,1]), np.arange(55, 65))
         
         # Test with nonzero time_before
         # Data looks like: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ...
@@ -421,20 +421,20 @@ class EventFilterTests(unittest.TestCase):
         # Aligned trials:        3 4 5 6 7 8 9 10 11 12 13 14 15    ...
         time_before = 2
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        self.assertEqual(len(trial_aligned), len(trigger_times))
-        np.testing.assert_allclose(np.squeeze(trial_aligned[0]), np.arange(3, 15))
-        np.testing.assert_allclose(np.squeeze(trial_aligned[1]), np.arange(53, 65))
+        self.assertEqual(trial_aligned.shape[2], len(trigger_times))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[:,:,0]), np.arange(3, 15))
+        np.testing.assert_allclose(np.squeeze(trial_aligned[:,:,1]), np.arange(53, 65))
         
         # Test shape is consistent with more dimensions in data
         data = np.ones((100,2))
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        self.assertEqual(trial_aligned.shape, (len(trigger_times), time_before + time_after, 2))
+        self.assertEqual(trial_aligned.shape, (time_before + time_after, 2, len(trigger_times)))
         
         # Test single trial
         data = np.ones((100,1))
         trigger_times = [5]
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        self.assertEqual(trial_aligned.shape, (1, time_before + time_after, 1))
+        self.assertEqual(trial_aligned.shape, (time_before + time_after, 1, 1))
         
         # Test with time_before bleeding into the start of data
         # Data looks like:            0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ...
@@ -453,8 +453,8 @@ class EventFilterTests(unittest.TestCase):
         time_before = 0
         trigger_times = [5, 55]
         trial_aligned = trial_align_data(data, trigger_times, time_before, time_after, samplerate)
-        np.testing.assert_allclose(np.squeeze(trial_aligned[0]), np.arange(5,15))
-        self.assertTrue(np.count_nonzero(np.isnan(trial_aligned[1])), 15)
+        np.testing.assert_allclose(np.squeeze(trial_aligned[:,:,0]), np.arange(5,15))
+        self.assertTrue(np.count_nonzero(np.isnan(trial_aligned[:,:,1])), 15)
 
         # Test other samplerate
         # At 50 Hz, 0.1s should be 5 samples
@@ -469,7 +469,8 @@ class EventFilterTests(unittest.TestCase):
         time_before = 0.1
         time_after = 0.1
         aligned_data = trial_align_data(data, event_times, time_before, time_after, samplerate)
-        for t in aligned_data:
+        for t in range(aligned_data.shape[2]):
+            t = aligned_data[:,:,t]
             np.testing.assert_allclose(np.array(
                 [[0., 0.],
                 [0., 0.],
@@ -1398,7 +1399,7 @@ class NeuropixelTests(unittest.TestCase):
         ch_config_dir = os.path.join(data_dir, 'channel_config_np')
         
         # concatenate data
-        concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
+        _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
         
         # load each data
         data1, _ = load_neuropixel_data(data_dir, np_recorddir1,'ap',port_number=1)
@@ -1412,6 +1413,15 @@ class NeuropixelTests(unittest.TestCase):
         con_data = con_data.reshape(-1,384)
         self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
         self.assertTrue(np.all(con_data[sample_size1:sample_size1+10,:] == data2.samples[:10,:]))
+        
+        # Check removing bad task id
+        _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1, bad_taskid=['0001'])
+
+        concat_dataname = f'{date}_Neuropixel_ks_{subject}2_bottom_port1'
+        concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
+        con_data = np.memmap(os.path.join(concat_data_dir,'continuous.dat'), dtype='int16') # load continuous.dat file
+        con_data = con_data.reshape(-1,384) 
+        self.assertTrue(np.all(con_data[:10,:] == data2.samples[:10,:]))
             
     def test_parse_and_load_ksdata(self):
         date = '2023-03-26'
