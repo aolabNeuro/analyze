@@ -801,8 +801,8 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
 
         # Trial aligned event codes and event times
         tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
-        reward = np.array([np.any(np.isin(reward_codes, ec)) for ec in tr_seg], dtype='bool')
-        penalty = np.array([np.any(np.isin(penalty_codes, ec)) for ec in tr_seg], dtype='bool')
+        reward = [np.any(np.isin(reward_codes, ec)) for ec in tr_seg]
+        penalty = [np.any(np.isin(penalty_codes, ec)) for ec in tr_seg]
         
         # Build a dataframe for this task entry
         exp = {
@@ -818,7 +818,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         # Add requested metadata
         for key in metadata:
             if key in exp_metadata:
-                exp[key] = exp_metadata[key]
+                exp[key] = [exp_metadata[key] for _ in range(len(tr_seg))]
             else:
                 exp[key] = None
                 print(f"Entry {subject} {date} {te} does not have metadata {key}.")
@@ -867,37 +867,26 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         target_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']] + task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'] 
     
     # Concatenate base trial data
-    base_df = tabulate_behavior_data(
+    new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata, df=None)
     
     # Add target info
-    center_out_df = None
-    entries = list(zip(subjects, dates, ids))
-    for subject, date, te in tqdm(entries): 
+    target_idx = [
+        code[np.isin(code, target_codes)][0] - target_codes[0] 
+        if np.sum(np.isin(code, target_codes)) == 1 else 0 
+        for code 
+        in new_df['event_codes']
+    ]
+    target_location = [
+        np.squeeze(get_target_locations(preproc_dir, s, te, d, [t_idx]))
+        for s, te, d, t_idx 
+        in zip(new_df['subject'], new_df['te_id'], new_df['date'], target_idx)
+    ]
+    new_df['target_idx'] = target_idx
+    new_df['target_location'] = target_location
 
-        # Load data from bmi3d hdf 
-        try:
-            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
-        except:
-            print(f"Entry {subject} {date} {te} could not be loaded.")
-            traceback.print_exc()
-            continue
-        event_codes = exp_data['events']['code']
-        event_times = exp_data['events']['timestamp']
-
-        # Trial aligned event codes and event times
-        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
-        target_idx = [code[np.isin(code, target_codes)][0] - target_codes[0] if np.sum(np.isin(code, target_codes)) == 1 else 0 for code in tr_seg]
-        target_location = get_target_locations(preproc_dir, subject, te, date, target_idx).tolist()
-        
-        center_out_df = pd.concat([center_out_df,pd.DataFrame({
-            'target_idx': target_idx,
-            'target_location': target_location,
-        })], ignore_index=True)
-
-    center_out_df = base_df.join(center_out_df)
-    df = pd.concat([df, center_out_df], ignore_index=True)
+    df = pd.concat([df, new_df], ignore_index=True)
     return df
 
 def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 

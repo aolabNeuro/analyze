@@ -85,6 +85,7 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
         ids.append(te_id)
     return ids
 
+@lru_cache(maxsize=1)
 def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     '''
     Loads experiment data from a preprocessed file.

@@ -1431,7 +1431,7 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
     for win in range(nwin):
         if ref:
             mX = np.mean(data[dn*win:dn*win+win_size], axis=1, keepdims=True) # Mean across channels for that window
-            tmp = (data[dn*win:dn*win+win_size]-mX[:,0,...]) # Subtract mean from data 
+            tmp = (data[dn*win:dn*win+win_size]-mX) # Subtract mean from data 
         else:
             tmp = (data[dn*win:dn*win+win_size])
 

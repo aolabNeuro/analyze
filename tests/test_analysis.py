@@ -1277,6 +1277,11 @@ class SpectrumTests(unittest.TestCase):
         figname = 'coherency.png'
         aopy.visualization.savefig(docs_dir, figname)
 
+        # Also test some other features
+        f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                        ref=True, workers=2, dtype='int16')
+
+
 class BehaviorMetricsTests(unittest.TestCase):
 
     def test_calc_success_percent(self):
