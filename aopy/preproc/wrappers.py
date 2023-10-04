@@ -181,6 +181,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     The data is prepared into HDF datasets:
     
     eye_data:
+        eye_closed_mask (nt, nch): boolean mask of when the eyes are closed
         raw_data (nt, nch): raw eye data
         calibrated_data (nt, nch): calibrated eye data
         coefficients (nch, 2): linear regression coefficients
@@ -209,7 +210,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     Example:
         Uncalibrated raw data:
 
-        .. image:: _images/eye_trajectories.png
+        .. image:: _images/eye_trajectories_raw.png
 
         After calibration:
         
@@ -230,7 +231,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         exp_data = load_hdf_group(result_dir, exp_filename, 'exp_data')
         exp_metadata = load_hdf_group(result_dir, exp_filename, 'exp_metadata')
     except (FileNotFoundError, ValueError):
-        raise ValueError(f"File {result_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
+        raise ValueError(f"File {exp_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
     
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
     eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
@@ -262,7 +263,10 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     except (KeyError, ValueError):
         # If there is no cursor data or there aren't enough trials, this will fail. 
         # We should still save the eye data, just don't include the calibrated data
-        eye_dict = {'raw_data': eye_data}
+        eye_dict = {
+            'eye_closed_mask': eye_mask,
+            'raw_data': eye_data
+        }
 
     # Save everything into the HDF file
     if save_res:

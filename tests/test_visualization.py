@@ -102,6 +102,30 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'posmap_244ch.png'
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
 
+    def test_annotate_spatial_map(self):
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+        annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+        annotate_spatial_map_channels(drive_type='Opto32', color='b')
+        plt.axis('off')
+        filename = 'ecog244_opto32.png'
+        savefig(docs_dir, filename)
+
+        plt.figure()
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
+        annotate_spatial_map_channels(drive_type='ECoG244', color='k', theta=90)
+        annotate_spatial_map_channels(drive_type='Opto32', color='b', theta=90)
+        plt.axis('off')
+        filename = 'ecog244_opto32_theta90.png'
+        savefig(write_dir, filename)
+
+        plt.figure()
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
+        annotate_spatial_map_channels(acq_idx=[45,46,55,56], drive_type='ECoG244', color='k', theta=90)
+        annotate_spatial_map_channels(acq_ch=[11], drive_type='Opto32', color='b', theta=90)
+        plt.axis('off')
+        filename = 'ecog244_opto32_index_subset.png'
+        savefig(write_dir, filename)
+
     def test_plot_image_by_time(self):
         time = np.array([-2, -1, 0, 1, 2, 3])
         data = np.array([[0, 0, 1, 1, 0, 0],
@@ -158,46 +182,28 @@ class NeuralDataPlottingTests(unittest.TestCase):
 
     def test_plot_tfr(self):
 
-        # Test chirp signal
         fig, ax = plt.subplots(3,1,figsize=(4,6))
 
         samplerate = 1000
-        t = np.arange(2*samplerate)/samplerate
-        f0 = 1
-        t1 = 2
-        f1 = 1000
-        data = 1e-6*np.expand_dims(signal.chirp(t, f0, t1, f1, method='quadratic', phi=0),1)
+        data_200_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 200, 2)
+        nt = data_200_hz.shape[0]
+        data_200_hz[:int(nt/3),:] /= 3
+        data_200_hz[int(2*nt/3):,:] *= 2
+
+        data_50_hz = aopy.utils.generate_multichannel_test_signal(2, samplerate, 8, 50, 2)
+        data_50_hz[:int(nt/2),:] /= 2
+
+        data = data_50_hz + data_200_hz
         print(data.shape)
         aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
         aopy.visualization.plot_freq_domain_amplitude(data, samplerate, ax=ax[1])
 
-        freqs = np.linspace(1,1000,200)
-        coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
+        freqs = np.linspace(1,250,100)
+        freqs, t, coef = aopy.analysis.calc_cwt_tfr(data, freqs, samplerate, fb=10, f0_norm=1, verbose=True)
         pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), t, freqs, 'plasma', ax=ax[2])
 
-        fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
-        filename = 'tfr_cwt_chirp.png'
-        plt.tight_layout()
-        savefig(docs_dir,filename)
-
-        # Test plotting a signle neural data channel
-        fig, ax = plt.subplots(3,1,figsize=(4,6))
-
-        lfp_data, lfp_metadata = aopy.data.load_preproc_lfp_data(data_dir, 'beignet', 5974, '2022-07-01')
-        samplerate = lfp_metadata['lfp_samplerate']
-        lfp_data = lfp_data[:2*samplerate,0]*lfp_metadata['voltsperbit'] # 2 seconds of the first channel to keep things fast
-
-        aopy.visualization.plot_timeseries(lfp_data, samplerate, ax=ax[0])
-        aopy.visualization.plot_freq_domain_amplitude(lfp_data, samplerate, ax=ax[1])
-
-        freqs = np.linspace(1,200,100)
-        nt = lfp_data.shape[0]
-        t = np.arange(nt)/samplerate
-        coef = aopy.analysis.calc_cwt_tfr(lfp_data, freqs, samplerate, fb=1.5, f0_norm=1, verbose=True)
-
-        pcm = aopy.visualization.plot_tfr(abs(coef), t, freqs, 'plasma', ax=ax[2])
-        fig.colorbar(pcm, label='Power', orientation='horizontal', ax=ax[2])
-        filename = 'tfr_cwt_lfp.png'
+        fig.colorbar(pcm, label='Power', orientation = 'horizontal', ax=ax[2])
+        filename = 'tfr_cwt_50_200.png'
         plt.tight_layout()
         savefig(docs_dir,filename)
 
@@ -423,6 +429,15 @@ class OtherPlottingTests(unittest.TestCase):
         color_trajectories(trajectories, labels_list, colors)
         plt.title('Segmented trajectories')
         filename = 'color_trajectories_segmented.png'
+        savefig(docs_dir, filename)
+
+    def test_get_color_gradient_RGB(self):
+        npts = 200
+        x = np.linspace(0, 2*np.pi, npts)
+        y = np.sin(x)
+        fig, ax = plt.subplots()
+        ax.scatter(x, y, c=aopy.visualization.get_color_gradient_RGB(npts, 'g', [1,0,0]))
+        filename = 'color_gradient_example.png'
         savefig(docs_dir, filename)
 
     def test_plot_sessions_by_date(self):

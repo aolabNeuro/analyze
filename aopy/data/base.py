@@ -1,6 +1,7 @@
 # data.py
 # Code for directly loading and saving data (and results)
 
+from functools import lru_cache
 import h5py
 import tables
 import os
@@ -14,6 +15,8 @@ import warnings
 import yaml
 import pandas as pd
 from importlib.resources import files, as_file
+
+from ..preproc import get_trial_data
 
 ###############################################################################
 # Loading preprocessed data
@@ -82,6 +85,7 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
         ids.append(te_id)
     return ids
 
+@lru_cache(maxsize=1)
 def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     '''
     Loads experiment data from a preprocessed file.
@@ -302,6 +306,7 @@ def _load_hdf_dataset(dataset, name):
         pass
     return name, data
 
+@lru_cache(maxsize=1)
 def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Simple wrapper to get the data from an hdf file as a numpy array
@@ -324,6 +329,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     hdf.close()
     return np.array(data)
 
+@lru_cache(maxsize=1)
 def load_hdf_group(data_dir, hdf_filename, group="/"):
     '''
     Loads any datasets from the given hdf group into a dictionary. Also will
@@ -357,6 +363,44 @@ def load_hdf_group(data_dir, hdf_filename, group="/"):
     data = _load_hdf_group(hdf[group])
     hdf.close()
     return data
+
+def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
+                       samplerate, trigger_time, time_before, time_after):
+    '''
+    Load a segment of HDF timeseries data given start and end times and a sampling rate.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        filename (str): filename of the hdf file where the data resides
+        data_group (str): hdf group of the desired dataset
+        data_name (str): hdf name of the desired dataset
+        samplerate (float): the sampling rate of the data in Hz
+        trigger_time (float): time (in seconds) in the recording at which the desired segment starts
+        time_before (float): time (in seconds) to include before the trigger times
+        time_after (float): time (in seconds) to include after the trigger times
+
+    Raises:
+        ValueError: if the dataset cannot be found in the file
+
+    Returns:
+        tuple: tuple containing:
+            | **segment (nt, nch):** data segment from the given preprocessed file
+            | **samplerate (float):** sampling rate of the returned data    
+    '''
+    filepath = os.path.join(preproc_dir, filename)
+    hdf = h5py.File(filepath, 'r')
+    
+    # Check that the data group exists
+    dataname = os.path.join(data_group, data_name).replace("\\", "/")
+    if dataname not in hdf:
+        raise ValueError('{} not found in file {}'.format(dataname, filepath))
+    
+    # Get the ts segment
+    ts_data = hdf[dataname]
+    segment = get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate)
+    
+    hdf.close()
+    return segment
 
 # Set up a cache mapping filenames to pandas dataframes so we don't have to load the
 # dataframe every time someone calls the lookup functions
@@ -527,7 +571,7 @@ def map_elec2acq(signalpath_table, elecs):
         return acq_chs[elec_idx]
 
 
-def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y'):
+def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -535,7 +579,10 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_nam
     Args:
         signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
-        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected 
+            electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates 
+            the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
 
@@ -556,6 +603,11 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_nam
     for ielec, elecid in enumerate(connected_elecs):
         acq_ch_position[ielec,0] = eleclayout_table[xpos_name][eleclayout_table['electrode']==elecid]
         acq_ch_position[ielec,1] = eleclayout_table[ypos_name][eleclayout_table['electrode']==elecid]
+
+    if theta != 0:
+        theta = np.deg2rad(theta)
+        rot_mat = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+        acq_ch_position = acq_ch_position @ rot_mat
 
     return acq_ch_position, acq_chs, connected_elecs
 
@@ -585,7 +637,7 @@ def map_data2elec(datain, signalpath_table, acq_ch_subset=None, zero_indexing=Fa
     
     return dataout, acq_chs, connected_elecs
 
-def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
+def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
     '''
     Map data from its acquisition channel to the electrodes recorded from and their position. Wrapper for aopy.data.map_acq2pos
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -594,7 +646,10 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
         datain (nt, nacqch): Data recoded from an array.
         signalpath_table (pd dataframe): Signal path information in a pandas dataframe. (Mapping between electrode and acquisition ch)
         eleclayout_table (pd dataframe): Electrode position information in a pandas dataframe. (Mapping between electrode and position on array)
-        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition channels and connected electrodes 
+            will be return. If a requested acquisition channel isn't returned a warned will be displayed
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates the map 
+            clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
         zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
@@ -608,7 +663,7 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
             | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
     
-    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, xpos_name='topdown_x', ypos_name='topdown_y')
+    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, theta=theta, xpos_name=xpos_name, ypos_name=ypos_name)
     if zero_indexing:
         dataout = datain[:,acq_chs]
     else:
@@ -616,14 +671,16 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
     
     return dataout, acq_ch_position, acq_chs, connected_elecs
 
-def load_chmap(drive_type='ECoG244', acq_ch_subset=None):
+def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0):
     '''
     Load the mapping between acquisition channel and electrode number for the viventi ECoG array.
     
     Args:
-        drive_type (str): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
-        acq_ch_subset (nacq): Subset of acquisition channels to call. If not called, all acquisition 
+        drive_type (str, optional): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
+        acq_ch_subset (nacq, optional): Subset of acquisition channels to call. If not called, all acquisition 
             channels and connected electrodes will be returned.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
+            rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
 
     Returns:
         tuple: Tuple Containing:
@@ -648,7 +705,7 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None):
         layout = pd.read_excel(f)
     if acq_ch_subset is not None:
         acq_ch_subset = np.array(acq_ch_subset, dtype='int')
-    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset)
+    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta)
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''

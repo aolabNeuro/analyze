@@ -18,7 +18,7 @@ install_requires = [
     'nitime',
     'xlrd',
     'openpyxl',
-    'matplotlib',
+    'matplotlib>=3.6',
     'scipy',
     'PyWavelets',
     'Pillow',
@@ -31,7 +31,7 @@ install_requires = [
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.6.3",
+    version="0.6.6",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

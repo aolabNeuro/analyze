@@ -13,10 +13,9 @@ from .. import data as aodata
 from .. import utils
 from .. import analysis
 from .. import visualization
-from ..postproc import get_source_files
-from ..precondition import downsample
+from ..data import get_source_files
 from ..utils import detect_edges
-from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements, interp_timestamps2timeseries, sample_timestamped_data
+from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements
 
 def decode_event(dictionary, value):
     '''
@@ -574,8 +573,8 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
         time_before = 0.1 # seconds
         time_after = 0.1 # seconds
         analog_erp = analysis.calc_erp(ds_data, corrected_times, time_before, time_after, ds_fs)
-        t = 1000*(np.arange(analog_erp.shape[1])/ds_fs - time_before) # milliseconds
-        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,:,0].T, ylabel='trials')
+        t = 1000*(np.arange(analog_erp.shape[0])/ds_fs - time_before) # milliseconds
+        im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         plt.xlabel('time (ms)')
         plt.title('laser sensor aligned')
 

@@ -183,18 +183,18 @@ def compute_movement_stats(trajectory, target_position, rotation_vector=np.array
 
     Returns:
         tuple: A tuple containing:
-            |**mean (float):** The mean error of the trajectory relative to the target position.
-            |**std (float):** The variance of the error of the trajectory relative to the target position.
-            |**auc (float):** The area under the curve ofthe trajectory relative to the target position.
+            | **mean (float):** The mean error of the trajectory relative to the target position.
+            | **std (float):** The variance of the error of the trajectory relative to the target position.
+            | **auc (float):** The area under the curve ofthe trajectory relative to the target position.
         additionally, with return_all_stats=True: 
-            |**abs_mean (float):** The mean of the absolute value of the trajectory error.
-            |**abs_min (float):** The minimum absolute trajectory error.
-            |**abs_max (float):** The maximum absolute trajectory error.
-            |**abs_auc (float):** The area under the curve of the absolute value of the trajectory error.
-            |**sign (float):** 1 if the maximum positive value is bigger than the maximum negative value. -1 otherwise.
-            |**signed_min (float):** The minimum value if the sign is 1, otherwise the maximum value of the trajectory error.
-            |**signed_max (float):** The maximum value if the sign is 1, otherwise the minimum value of the trajectory error.
-            |**signed_abs_mean (float):** The sign multiplied by the absolute value of the mean trajectory error.
+            | **abs_mean (float):** The mean of the absolute value of the trajectory error.
+            | **abs_min (float):** The minimum absolute trajectory error.
+            | **abs_max (float):** The maximum absolute trajectory error.
+            | **abs_auc (float):** The area under the curve of the absolute value of the trajectory error.
+            | **sign (float):** 1 if the maximum positive value is bigger than the maximum negative value. -1 otherwise.
+            | **signed_min (float):** The minimum value if the sign is 1, otherwise the maximum value of the trajectory error.
+            | **signed_max (float):** The maximum value if the sign is 1, otherwise the minimum value of the trajectory error.
+            | **signed_abs_mean (float):** The sign multiplied by the absolute value of the mean trajectory error.
         
     """
     dist_ts = compute_movement_error(trajectory, target_position, rotation_vector, error_axis)
@@ -263,8 +263,8 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
 
     Returns:
         tuple: tuple containing:
-        | **segment_duration (list)**: duration of each segment after filtering
-        | **target_codes (list):** target index on each segment
+            | **segment_duration (list)**: duration of each segment after filtering
+            | **target_codes (list):** target index on each segment
     '''
     trial_events, trial_times = preproc.get_trial_segments(events, event_times, start_events, end_events)
     trial_events, trial_times = zip(*[(e, t) for e, t in zip(trial_events, trial_times) if trial_filter(e)])
