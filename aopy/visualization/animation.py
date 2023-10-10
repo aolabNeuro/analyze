@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .base import plot_spatial_map, color_trajectories, plot_circles, plot_targets, set_bounds
-from ..preproc.base import get_target_timeseries
 from .. import postproc
 
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):

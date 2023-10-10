@@ -3,7 +3,7 @@ import traceback
 import warnings
 
 from .. import precondition
-from ..preproc.base import get_data_segment, get_data_segments, get_target_timeseries, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
+from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
@@ -392,7 +392,7 @@ def get_target_events(exp_data, exp_metadata):
         exp_metadata (dict): A dictionary containing the experiment metadata.
 
     Returns:
-        (n_event, n_target) array: position of each target at each event time.
+        (n_event, n_target, 3) array: position of each target at each event time.
     '''
     
     events = exp_data['events']['code']
@@ -428,7 +428,7 @@ def get_target_events(exp_data, exp_metadata):
         event_target = target_location[None,:] * target_on[:,None]    
         target_events.append(event_target)
         
-    return np.array(target_events).T
+    return np.array(target_events).transpose(1,0,2)
 
 def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
@@ -472,6 +472,9 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         data_time (ns, ...): Kinematic data interpolated and filtered 
             to the desired sampling rate.
     '''
+    kwargs = {}
+
+    # Fetch the relevant BMI3D data
     if datatype == 'hand':
         data_cycles = exp_data['clean_hand_position']
         clock = exp_data['clock']['timestamp_sync']
@@ -481,13 +484,16 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
+        kwargs['remove_nan'] = False # In this case we need to keep NaN values.
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
         clock = exp_data['clock']['timestamp_sync']
     else:
         raise ValueError(f"Unknown datatype {datatype}")
+    
+    # Interpolate
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
-                                        upsamplerate=10000, append_time=10)
+                                        upsamplerate=10000, append_time=10, **kwargs)
     data_time = precondition.filter_kinematics(data_time, samplerate)
     return data_time
 
