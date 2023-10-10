@@ -3,7 +3,7 @@ import traceback
 import warnings
 
 from .. import precondition
-from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
+from ..preproc.base import get_data_segment, get_data_segments, get_target_timeseries, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
@@ -14,6 +14,7 @@ import tables
 import pandas as pd
 from tqdm.auto import tqdm
 from importlib.resources import files, as_file
+from scipy import interpolate
 
 ############
 # Raw data #
@@ -380,7 +381,56 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
+def get_target_events(exp_data, exp_metadata):
+    '''
+    For target acquisition tasks, get an (n_event, n_target) array encoding the position
+    of each target. When the target is off, its position is NaN. Can be used to generate a
+    sampled timeseries using :func:`~aopy.data.bmi3d.get_kinematic_segments`
+
+    Args:
+        exp_data (dict): A dictionary containing the experiment data.
+        exp_metadata (dict): A dictionary containing the experiment metadata.
+
+    Returns:
+        (n_event, n_target) array: position of each target at each event time.
+    '''
+    
+    events = exp_data['events']['code']
+    trials = exp_data['bmi3d_trials']
+    
+    target_idx, location_idx = np.unique(trials['index'], axis=0, return_index=True)
+    locations = [np.round(t[[0,2,1]], 4) for t in trials['target'][location_idx]]
+    
+    # Generate events for each unique target
+    target_events = []
+    for idx in range(len(locations)):
+        target_on_codes = [
+            exp_metadata['event_sync_dict']['TARGET_ON'] + target_idx[idx]
+        ]
+        target_off_codes = [
+            exp_metadata['event_sync_dict']['TARGET_OFF'] + target_idx[idx], 
+            exp_metadata['event_sync_dict']['TRIAL_END']
+        ]
+
+        target_location = locations[idx]
+    
+        # Create a nan mask encoding when the target is turned on
+        target_on = np.zeros((len(events),))
+        on = np.nan
+        for idx, e in enumerate(events):
+            if e in target_on_codes:
+                on = 1
+            elif e in target_off_codes:
+                on = np.nan
+            target_on[idx] = on
+        
+        # Set the non-nan values to the target location
+        event_target = target_location[None,:] * target_on[:,None]    
+        target_events.append(event_target)
+        
+    return np.array(target_events).T
+
+def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
@@ -392,8 +442,8 @@ def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
         .. code-block:: python
         
             exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, 'test',  3498, '2021-12-13')
-            cursor_interp = get_interp_kinematics(exp_data, datatype='cursor', samplerate=100)
-            hand_interp = get_interp_kinematics(exp_data, datatype='hand', samplerate=100)
+            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+            hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
 
             plt.figure()
             visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
@@ -410,6 +460,7 @@ def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
+        exp_metadata (dict): A dictionary containing the experiment metadata.
         datatype (str, optional): The type of kinematic data to interpolate. 
             For 'hand' kinematics, interp the 'clean_hand_position' experiment data
             For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
@@ -423,13 +474,18 @@ def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
     '''
     if datatype == 'hand':
         data_cycles = exp_data['clean_hand_position']
+        clock = exp_data['clock']['timestamp_sync']
     elif datatype == 'cursor':
         data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
+        clock = exp_data['clock']['timestamp_sync']
+    elif datatype == 'targets':
+        data_cycles = get_target_events(exp_data, exp_metadata)
+        clock = exp_data['events']['timestamp']
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
+        clock = exp_data['clock']['timestamp_sync']
     else:
         raise ValueError(f"Unknown datatype {datatype}")
-    clock = exp_data['clock']['timestamp_sync']
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
                                         upsamplerate=10000, append_time=10)
     data_time = precondition.filter_kinematics(data_time, samplerate)
@@ -493,7 +549,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
     else:
         raw_kinematics = get_interp_kinematics(
-            data, datatype, samplerate=samplerate
+            data, metadata, datatype, samplerate=samplerate
         )
 
     time = np.arange(len(raw_kinematics))/samplerate
@@ -707,9 +763,14 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, trigger_time, time_be
     filename = get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
 
-    samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
-    data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
-                                samplerate, trigger_time, time_before, time_after)
+    try:
+        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
+                                    samplerate, trigger_time, time_before, time_after)
+    except FileNotFoundError as e:
+        print(f"No data found in {preproc_dir} for subject {subject} on {date} ({te_id})")
+        raise e
+
     return data, samplerate
     
 def get_target_locations(preproc_dir, subject, te_id, date, target_indices):

@@ -471,12 +471,12 @@ def _prepare_bmi3d_v1(data, metadata):
     # Interpolate clean hand kinematics
     if 'timestamp_sync' in corrected_clock.dtype.names and 'clean_hand_position' in data:
         metadata['hand_interp_samplerate'] = 1000
-        data['hand_interp'] = aodata.get_interp_kinematics(data, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
+        data['hand_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
 
     # And interpolated cursor kinematics
     if 'timestamp_sync' in corrected_clock.dtype.names and isinstance(task, np.ndarray) and 'cursor' in task.dtype.names:
         metadata['cursor_interp_samplerate'] = 1000
-        data['cursor_interp'] = aodata.get_interp_kinematics(data, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
+        data['cursor_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
         
     return data, metadata
 

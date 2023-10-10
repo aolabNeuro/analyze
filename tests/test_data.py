@@ -414,8 +414,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
     def test_get_interp_kinematics(self):
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        cursor_interp = get_interp_kinematics(exp_data, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_kinematics(exp_data, datatype='hand', samplerate=100)
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(hand_interp.shape[1], 3)
