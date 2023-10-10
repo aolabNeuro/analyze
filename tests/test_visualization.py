@@ -298,6 +298,36 @@ class AnimationTests(unittest.TestCase):
                         bounds)
         
         aopy.visualization.saveanim(ani, docs_dir, 'test_anim.mp4')
+
+    def test_animate_behavior():
+
+        samplerate = 0.5
+        cursor = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
+        eye = np.array([[1, 0], [1, 2], [1, 2], [4, 5], [4, 5], [6, 6]])
+        targets = [
+            np.array([[np.nan, np.nan], 
+                     [5, 5], 
+                     [np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [5, 5], 
+                     [np.nan, np.nan]]),
+            np.array([[np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [-5, 5], 
+                     [-5, 5], 
+                     [-5, 5]])
+        ]
+        
+        target_radius = 2.5
+        target_colors = ['orange'] * len(targets)
+        cursor_radius = 0.5
+        bounds = [-10, 10, -10, 10]
+        
+        ani = animate_behavior(targets, cursor, eye, samplerate, bounds, target_radius, target_colors, cursor_radius, 
+                        cursor_color='blue', eye_radius=0.25, eye_color='purple')
+        
+        aopy.visualization.saveanim(ani, docs_dir, 'test_anim_behavior.mp4')
                 
 
 class OtherPlottingTests(unittest.TestCase):
