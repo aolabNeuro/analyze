@@ -299,7 +299,7 @@ class AnimationTests(unittest.TestCase):
         
         aopy.visualization.saveanim(ani, docs_dir, 'test_anim.mp4')
 
-    def test_animate_behavior():
+    def test_animate_behavior(self):
 
         samplerate = 0.5
         cursor = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
