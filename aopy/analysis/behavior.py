@@ -282,7 +282,7 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
-        te_id (int): Block number of Task entry object 
+        te_id (int): Block number of task entry object
         date (str): Date of recording
         reward_interval (float, optional): length of time (in s) between rewards while cursor is in target (i.e. while tracking in)
         cursor_enter_target_code (int, optional): event code for cursor entering target
@@ -291,7 +291,7 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
 
     Returns:
         tuple: tuple containing:
-        | **tracking_rewards (ntrials)**: number of tracking rewards acquired per reward trial
+        | **tracking_rewards (ntrials):** number of tracking rewards acquired per reward trial
         | **max_rewards (int):** maximum possible number of tracking rewards on a single trial
     '''
     # load preproc data file
@@ -301,6 +301,18 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
         reward_interval = exp_metadata['tracking_reward_interval']
     event_codes = exp_data['events']['code']
     event_times = exp_data['events']['timestamp']
+
+    # calculate max possible number of tracking rewards
+    seq_params = lookup_sessions(id=te_id, subject=subject, date=date)[0].sequence_params
+    if 'ramp_down' not in seq_params:
+        seq_params['ramp_down'] = 0
+    trial_length = seq_params['time_length']+seq_params['ramp']+seq_params['ramp_down']
+    max_rewards = int(trial_length/reward_interval)
+    if trial_length % reward_interval == 0:
+        max_rewards -= 1
+        
+    # calculate max consecutive tracking in time that would yield rewards
+    time_rewards_possible = max_rewards*reward_interval
 
     # get reward trial segments
     trial_start_codes = [trial_start_code]
@@ -321,12 +333,8 @@ def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=Non
 
         for _,(enter,leave) in enumerate(np.vstack((enter_ind, leave_ind)).T):
             time_in_target = reward_times_all[trial_id][leave] - reward_times_all[trial_id][enter]
+            if time_in_target > time_rewards_possible:
+                time_in_target = time_rewards_possible
             tracking_rewards[trial_id] += int(time_in_target/reward_interval)
-
-    # calculate max possible number of tracking rewards
-    seq_params = lookup_sessions(id=te_id, subject=subject, date=date)[0].sequence_params
-    if 'ramp_down' not in seq_params:
-        seq_params['ramp_down'] = 0
-    max_rewards = int((seq_params['time_length']+seq_params['ramp']+seq_params['ramp_down'])/reward_interval)
 
     return tracking_rewards, max_rewards
