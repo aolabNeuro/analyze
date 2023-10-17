@@ -1,3 +1,4 @@
+import sys
 from functools import lru_cache
 import traceback
 import warnings
@@ -13,7 +14,12 @@ import h5py
 import tables
 import pandas as pd
 from tqdm.auto import tqdm
-from importlib.resources import files, as_file
+
+# importlib_resources is a backport of importlib.resources from Python 3.9
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
 
 ############
 # Raw data #
