@@ -12,6 +12,7 @@ import numpy as np
 import h5py
 import tables
 import pandas as pd
+import json
 from tqdm.auto import tqdm
 from importlib.resources import files, as_file
 
@@ -885,6 +886,83 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     ]
     new_df['target_idx'] = target_idx
     new_df['target_location'] = target_location
+
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+
+def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, metadata=[], 
+                                      df=None, include_before_initiation=False, include_ramps=False):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for tracking task experiments. 
+    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
+    assign event codes for trial start, trial end, reward, penalty. 
+    Trial start can optionally include the time before trial initiation (i.e. hold).
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        include_before_initiation (bool, optional): If True, trials begin as soon as center target 
+            and trajectory appear. Otherwise trials begin once hold is initiated. Default False.
+        include_ramps (bool, optional): If True, trajectory_times correspond the start and end of 
+            the trajectory including the ramp up and down. Otherwise trajectory_times excludes 
+            ramp periods. Default False.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+    '''
+    # Use default "trial" definition
+    config_dir = files('aopy').joinpath('config')
+    params_file = as_file(config_dir.joinpath('task_codes.yaml'))
+    with params_file as f:
+        task_codes = yaml_read(f)[0]
+    trial_end_codes = [task_codes['REWARD'], task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    reward_codes = [task_codes['REWARD']]
+    
+    if include_before_initiation:
+        trial_start_codes = [task_codes['CENTER_TARGET_ON']]
+        penalty_codes = [task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    else:
+        trial_start_codes = [task_codes['TRIAL_START']]
+        penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    
+    # Concatenate base trial data
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata.append('sequence_params'), df=None)
+    
+    # Add trajectory timing info
+    trajectory_times = [
+        [new_df.iloc[i]['event_times'][np.where(code==task_codes['CURSOR_ENTER_TARGET'])[0][0]], new_df.iloc[i]['event_times'][-1]] # HOLD complete, REWARD/OTHER_PENALTY
+        if task_codes['CURSOR_ENTER_TARGET'] in code else [np.nan, np.nan]
+        for i,code
+        in enumerate(new_df['event_codes'])
+    ]
+    if not include_ramps:
+        ramp = [
+            json.loads(params)['ramp']
+            if 'ramp' in json.loads(params) else 0
+            for params
+            in new_df['sequence_params']
+        ]
+        ramp_down = [
+            json.loads(params)['ramp_down']
+            if 'ramp_down' in json.loads(params) else 0
+            for params
+            in new_df['sequence_params']
+        ]
+        trajectory_times = [
+            [times[0]+ramp[i], times[1]-ramp_down[i]]
+            if new_df.iloc[i]['reward'] else [times[0]+ramp[i], times[1]]
+            for i,times 
+            in enumerate(trajectory_times)
+        ]
+    new_df['trajectory_times'] = trajectory_times
+    
+    # TODO: Add generator index, sines_r, and sines_d
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
