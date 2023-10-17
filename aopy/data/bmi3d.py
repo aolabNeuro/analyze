@@ -930,9 +930,10 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
         penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
     
     # Concatenate base trial data
+    metadata.append('sequence_params')
     new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
-        reward_codes, penalty_codes, metadata.append('sequence_params'), df=None)
+        reward_codes, penalty_codes, metadata, df=None)
     
     # Add trajectory timing info
     trajectory_times = [
