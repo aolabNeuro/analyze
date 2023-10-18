@@ -737,7 +737,10 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
             
             try:
                 if method == 'sum':
-                    aggregate[idx_column, idx_day] = np.sum(values)
+                    if len(values) > 0:
+                        aggregate[idx_column, idx_day] = np.sum(values)
+                    else:
+                        aggregate[idx_column, idx_day] = np.nan
                 elif method == 'mean':
                     day_trials = np.array(trials)[dates == day.date()]
                     aggregate[idx_column, idx_day] = np.average(values, weights=day_trials)
