@@ -1,11 +1,14 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 
+import warnings
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import cm
+from matplotlib.collections import LineCollection
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -61,9 +64,9 @@ def savefig(base_dir, filename, **kwargs):
     plt.savefig(fname, **kwargs)
 
 
-def plot_timeseries(data, samplerate, ax=None):
+def plot_timeseries(data, samplerate, ax=None, **kwargs):
     '''
-    Plots data along time on the given axis
+    Plots data along time on the given axis. Default units are seconds and volts.
 
     Example:
         
@@ -81,6 +84,7 @@ def plot_timeseries(data, samplerate, ax=None):
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
+        kwargs (dict, optional): optional keyword arguments to pass to plt.plot
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -89,7 +93,62 @@ def plot_timeseries(data, samplerate, ax=None):
 
     time = np.arange(np.shape(data)[0]) / samplerate
     for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:, ch])
+        ax.plot(time, data[:, ch], **kwargs)
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Voltage (V)')
+
+def gradient_timeseries(data, samplerate, n_colors=100, color_palette='viridis', ax=None, **kwargs):
+    '''
+    Draw gradient lines of timeseries data. Default units are seconds and volts.
+
+    Args:
+        data (nt, nch): timeseries to plot, can be 1d or 2d.
+        samplerate (float): sampling rate of the data
+        n_colors (int, optional): number of colors in the gradient. Default 100.
+        color_palette (str, optional): colormap to use for the gradient. Default 'viridis'.
+        ax (plt.Axis, optional): axis to plot the targets on
+        kwargs (dict): keyword arguments to pass to the LineCollection function (similar to plt.plot)
+
+    Raises:
+        ValueError: if the data has more than 2 dimensions
+
+    Example:
+        .. code-block:: python
+
+            data = np.reshape(np.sin(np.pi*np.arange(1000)/100), (1000))
+            samplerate = 1000
+            gradient_timeseries(data, samplerate)
+
+        .. image:: _images/timeseries_gradient.png
+    '''           
+    if data.ndim == 1:
+        data = np.expand_dims(data, 1)
+    elif data.ndim > 2:
+        raise ValueError('Data with more than 2 dimensions not supported!')
+    if ax is None:
+        ax = plt.gca()
+
+    n_pt = data.shape[0]
+    time = np.arange(n_pt) / samplerate
+    colors = sns.color_palette(color_palette, min(n_colors, n_pt))
+
+    # Segment the line
+    labels = np.zeros((n_pt,), dtype='int')
+    size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
+    labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
+    labels[size:] = n_colors - 1 # leftovers also get the last color
+    times, _ = utils.segment_array(time, labels, duplicate_endpoints=True)
+    lines, line_labels = utils.segment_array(data, labels, duplicate_endpoints=True)
+
+    # Use linecollections to plot each channel of data
+    labels = np.array(line_labels).astype(int)
+    colors = [colors[i] for i in labels]
+    for dim in range(data.shape[1]):
+        segments = [np.vstack([t, l[:,dim]]).T for t, l in zip(times, lines)]
+        lc = LineCollection(segments, colors=colors, **kwargs)
+        ax.add_collection(lc)
+        
+    ax.margins(0.05) # add_collections doesn't autoscale
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (V)')
 
@@ -767,6 +826,99 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
 
     # Use the regular trajectory plotting function
     plot_trajectories(trajectories, ax=ax, **kwargs)
+
+def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', bounds=None, ax=None, **kwargs):
+    '''
+    Draw trajectories with a gradient of color from start to end of each trajectory. 
+    Works in 2D and 3D.
+
+    Note: this function applies the gradient evenly across the timepoints of the trajectory. 
+        It might be useful to use the sampling rate of the data instead of n_colors, so that
+        the time axis is consistent across sampling rates. 
+
+    Args:
+        trajectories (ntrials): list of 2D or 3D trajectories, in x, y[, z] coordinates
+        n_colors (int, optional): number of colors in the gradient. Default 100.
+        color_palette (str, optional): colormap to use for the gradient. Default 'viridis'.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) axes bounds
+        ax (plt.Axis, optional): axis to plot the targets on
+        kwargs (dict): keyword arguments to pass to the LineCollection function (similar to plt.plot)
+
+    Example:
+
+        Cursor trajectories in 2D
+        .. code-block:: python
+
+            subject = 'beignet'
+            te_id = 5974
+            date = '2022-07-01'
+            preproc_dir = data_dir
+            traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239])
+            gradient_trajectories(traj[:3])
+        
+        .. image:: _images/gradient_trajectories.png
+
+        Hand trajectories in 3D
+        .. code-block:: python
+
+            traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+            plt.figure()
+            ax = plt.axes(projection='3d')
+            gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
+
+        .. image:: _images/gradient_trajectories_3d.png
+
+    Note:
+        Automatic bounds aren't set in 3D plots. The best alternative is to first plot in 2D, then use
+        those bounds to manually set the first 2 axes bounds for the 3D plot.
+    '''
+
+    if ax is None:
+        ax = plt.gca()
+
+    color_list = sns.color_palette(color_palette, n_colors)
+    for traj in trajectories:
+        n_pt = len(traj)
+
+        if n_pt < n_colors:
+            warnings.warn("Not enough datapoints to divide into n_colors!")
+
+        # Assign labels to the trajectory according to color
+        labels = np.zeros((n_pt,), dtype='int')
+        size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
+        labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
+        labels[size:] = n_colors - 1 # leftovers also get the last color
+            
+        # Split the labeled trajectories into segments with unique colors
+        segments, labels = utils.segment_array(traj, labels, duplicate_endpoints=True)
+        labels = np.array(labels).astype(int)
+        colors = [color_list[i] for i in labels]
+
+        # Plot as line collections in 3D, fall back to 2D
+        try:
+            ax.set_zlabel('z')
+            segments = [np.vstack([s[:,0], s[:,1], s[:,2]]).T for s in segments]
+            lc = Line3DCollection(segments, colors=colors, **kwargs)
+            ax.add_collection(lc)
+            ax.set_box_aspect((1, 1, 1))
+        except:
+            segments = [np.vstack([s[:,0], s[:,1]]).T for s in segments]
+            lc = LineCollection(segments, colors=colors, **kwargs)
+            ax.add_collection(lc)
+                
+    try:
+        ax.set_zlabel('z')
+        ax.set_box_aspect((1, 1, 1))
+    except:
+        ax.set_aspect('equal', adjustable='box')
+
+    if bounds is not None: 
+        set_bounds(bounds, ax)
+    else:
+        ax.margins(0.05) # The ax.add_collection() call doesn't automatically set margins
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')        
 
 def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax=None):
     '''
