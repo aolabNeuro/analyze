@@ -415,7 +415,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     def test_get_target_events(self):
 
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        target = _get_target_events(exp_data, exp_metadata)
+        target = bmi3d._get_target_events(exp_data, exp_metadata)
         
         plt.figure()
         time = exp_data['events']['timestamp']
@@ -447,6 +447,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
         filename = 'get_interp_hand.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        time = np.arange(len(targets_interp))/100
+        plt.plot(time, targets_interp[:,:,0]) # plot just the x coordinate
+        plt.xlim(10, 20)
+        plt.xlabel('time (s)')
+        plt.ylabel('x position (cm)')
+        filename = 'get_interp_targets.png'
         visualization.savefig(docs_dir, filename)
 
     def test_get_kinematic_segments(self):

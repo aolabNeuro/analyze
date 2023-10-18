@@ -279,8 +279,8 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
     Returns:
         (ns, ...): cursor_data_time containing the sampled data.
     '''
-    assert len(data) == len(timestamps), f"Data and timestamps should "
-    f"have the same number of cycles ({len(data)} vs {len(timestamps)})"
+    assert len(data) == len(timestamps), (f"Data and timestamps should "
+        f"have the same number of cycles ({len(data)} vs {len(timestamps)})")
 
     if upsamplerate is None:
         upsamplerate = samplerate * 100

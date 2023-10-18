@@ -440,24 +440,40 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
     Examples:
         
+        Cursor kinematics
+
         .. code-block:: python
         
             exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, 'test',  3498, '2021-12-13')
             cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
-            hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
 
             plt.figure()
             visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         
         .. image:: _images/get_interp_cursor.png
+
+        Hand kinematics
        
         .. code-block:: python
 
-            plt.figure()
+            hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
             ax = plt.axes(projection='3d')
             visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
 
         .. image:: _images/get_interp_hand.png
+
+        Target positions
+
+        .. code-block:: python
+            
+            targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
+            time = np.arange(len(targets_interp))/100
+            plt.plot(time, targets_interp[:,:,0]) # plot just the x coordinate
+            plt.xlim(10, 20)
+            plt.xlabel('time (s)')
+            plt.ylabel('x position (cm)')
+
+        .. image:: _images/get_interp_targets.png
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
@@ -495,7 +511,8 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     # Interpolate
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
                                         upsamplerate=10000, append_time=10, **kwargs)
-    data_time = precondition.filter_kinematics(data_time, samplerate)
+    if 'remove_nan' not in kwargs:
+        data_time = precondition.filter_kinematics(data_time, samplerate)
     return data_time
 
 def get_velocity_segments(*args, norm=True, **kwargs):
