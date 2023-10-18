@@ -412,13 +412,29 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
+    def test_get_target_events(self):
+
+        exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
+        target = bmi3d._get_target_events(exp_data, exp_metadata)
+        
+        plt.figure()
+        time = exp_data['events']['timestamp']
+        plt.plot(time, target[:,:,0]) # plot just the x coordinate
+        plt.xlim(10, 20)
+        plt.xlabel('time (s)')
+        plt.ylabel('x position (cm)')
+        filename = 'get_target_events.png'
+        visualization.savefig(docs_dir, filename)
+
     def test_get_interp_kinematics(self):
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        cursor_interp = get_interp_kinematics(exp_data, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_kinematics(exp_data, datatype='hand', samplerate=100)
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
+        targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(targets_interp.shape[1], 9) # 9 targets including center
 
         self.assertEqual(len(cursor_interp), len(hand_interp))
 
@@ -431,6 +447,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
         filename = 'get_interp_hand.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        time = np.arange(len(targets_interp))/100
+        plt.plot(time, targets_interp[:,:,0]) # plot just the x coordinate
+        plt.xlim(10, 20)
+        plt.xlabel('time (s)')
+        plt.ylabel('x position (cm)')
+        filename = 'get_interp_targets.png'
         visualization.savefig(docs_dir, filename)
 
     def test_get_kinematic_segments(self):
