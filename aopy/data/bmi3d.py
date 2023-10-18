@@ -381,11 +381,12 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_target_events(exp_data, exp_metadata):
+def _get_target_events(exp_data, exp_metadata):
     '''
     For target acquisition tasks, get an (n_event, n_target) array encoding the position
-    of each target. When the target is off, its position is NaN. Can be used to generate a
-    sampled timeseries using :func:`~aopy.data.bmi3d.get_kinematic_segments`
+    of each target whenever an event is fired by BMI3D. The resulting sequence is used 
+    to generate a sampled timeseries in :func:`~aopy.data.bmi3d.get_kinematic_segments`. 
+    When targets are turned off, their position is replaced by np.nan. 
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
@@ -482,7 +483,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
         clock = exp_data['clock']['timestamp_sync']
     elif datatype == 'targets':
-        data_cycles = get_target_events(exp_data, exp_metadata)
+        data_cycles = _get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
     elif datatype in exp_data['task'].dtype.names:

@@ -415,7 +415,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     def test_get_target_events(self):
 
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        target = get_target_events(exp_data, exp_metadata)
+        target = _get_target_events(exp_data, exp_metadata)
         
         plt.figure()
         time = exp_data['events']['timestamp']

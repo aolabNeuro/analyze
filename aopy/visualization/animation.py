@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .base import plot_spatial_map, color_trajectories, plot_circles, plot_targets, set_bounds
+from .base import plot_spatial_map, plot_targets, set_bounds
 from .. import postproc
 
 def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
@@ -229,10 +229,10 @@ def get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, *c
     Args:
         samplerate (float): The sampling rate of the trajectories in Hz.
         bounds (tuple): Boundaries of the plot area. See :func:`~aopy.visualization.plot_targets`.
-        circle_radii (float): Radius of the targets.
-        circle_color (plt.color, optional): Color of the eye trajectory. Default is 'purple'.
-        circle_ts ((nt, ndim) array): Cursor positions over time for 2D or 3D trajectories.
-        history (float, optional): time in seconds to maintain the trajectory. Default 0.
+        circle_radii (list of float): Radius of each circle.
+        circle_colors (list of plt.color): Color of each circle.
+        circle_ts (list of (nt, 2) arrays): Circle positions over time for 2D trajectories.
+        history (float, optional): how long (in seconds) to animate lines trailing the circles. Default 1.
         ax (pyplot.Axes, optional): axis on which to plot the animation
 
     Returns:
@@ -276,12 +276,12 @@ def animate_behavior(targets, cursor, eye, samplerate, bounds,
         samplerate (float): The sampling rate of all the trajectories in Hz.
         bounds (tuple): Boundaries of the plot area. See :func:`~aopy.visualization.plot_targets`.
         target_radius (float): Radius of the targets.
-        target_color (plt.color, optional): Color of the eye trajectory. Default is 'purple'.
-        curosr_radius (float): Radius of the targets.
-        cursor_color (plt.color, optional): Color of the eye trajectory. Default is 'purple'.
-        eye_radius (float): Radius of the targets.
+        target_colors (list of plt.color): Color of each target.
+        cursor_radius (float): Radius of the cursor.
+        cursor_color (plt.color, optional): Color of the cursor. Default is 'blue'.
+        eye_radius (float): Radius of the eye circle.
         eye_color (plt.color, optional): Color of the eye trajectory. Default is 'purple'.
-        history (float, optional): time in seconds to maintain the trajectory. Default 0.
+        history (float, optional): how long (in seconds) to animate lines trailing the circles. Default 0.
 
     Returns:
         matplotlib.animation.FuncAnimation: animation object
