@@ -18,7 +18,7 @@ autodoc_mock_imports = ['numpy', 'pandas', 'psutil', 'h5py', 'tables', 'sklearn'
                         'scipy', 'pywt', 'PIL', 'matplotlib', 'seaborn', 'statsmodels', 
                         'nitime', 'torch', 'yaml', 'tqdm', 'xarray',
                         'open-ephys-python-tools', 'open_ephys', 'importlib',
-                        'db']
+                        'db', 'mpl_toolkits']
 
 # -- Project information -----------------------------------------------------
 
