@@ -1,6 +1,7 @@
 from .. import precondition
 from .. import analysis
 from ..utils import print_progress_bar
+from ..visualization.base import plot_image_by_time
 
 import numpy as np
 import numpy.linalg as npla
@@ -59,6 +60,16 @@ def detect_bad_ch_outliers(data, nbins=10000, thr=0.05, numsd=5.0, debug=False, 
         
     Returns:
         bad_ch (nch) : logical array indicating bad channels after 2nd screening
+
+    Example:
+        .. code-block:: python
+
+            test_data = np.random.normal(10,0.5,(10000, 200))
+            test_data[0, 10] = 25
+            test_data[5, 150] = 30
+            bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=True, verbose=False)
+
+        .. image:: _images/detect_bad_trials.png
     '''
     
     assert thr > 0 and thr < 1, "Threshold must be between 0 and 1"
@@ -103,6 +114,74 @@ def detect_bad_ch_outliers(data, nbins=10000, thr=0.05, numsd=5.0, debug=False, 
         
     return bad_ch
 
+def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
+    '''
+    Finds trials where a given fraction of channels contain outlier data.
+    
+    Args:
+        erp (nt, nch, ntr): trial-aligned continuous data
+        sd_thr (float): number of standard deviations away from the mean to threshold bad data
+        ch_frac (float): fraction (between 0. and 1.) of channels containing bad data to
+            consider a trial as bad
+        
+    Returns:
+        (ntr,) boolean mask: True for bad trials, False for good trials
+
+    Example:
+        .. code-block:: python
+
+            nt = 50
+            nch = 10
+            ntr = 100
+            erp = np.random.normal(size=(nt, nch, ntr)) 
+            erp[:,:,0] += 10 # entire trial is noisy across all electrodes
+            erp[:,:8,1] -= 10 # entire trial is noisy on most electrodes
+            erp[0,:,2] += 10 # single timepoint within the trial is noisy on all electrodes
+            for t in range(nt):
+                erp[t,t%nch,3] -= 10 # single timepoint is noisy but different timepoint for each channel
+                    
+            bad_trials = detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=True)
+
+        .. image:: _images/detect_bad_trials.png
+    '''
+    assert erp.ndim == 3
+    nt, nch, ntr = erp.shape
+    
+    median = np.nanmedian(erp, axis=(0,2), keepdims=True)
+    sd = np.std(erp, axis=(0,2), keepdims=True)
+    
+    bad_timepoints = abs(erp - median) > sd_thr*sd
+        
+    bad_ch_trials = np.any(bad_timepoints, axis=0) # (nch, ntr) mask where any timepoint is bad
+    bad_trials = np.sum(bad_ch_trials, axis=0) > ch_frac * nch # trials where most channels have an outlier
+
+    if debug:
+
+        # Highlight bad timepoints across trials
+        plt.figure(figsize=(11,4))
+        plt.subplot(1,2,1)
+        erp = abs(erp - median)/sd
+        erp = np.max(erp, axis=0)
+        erp[bad_ch_trials] = np.max(erp)
+        trials = np.arange(ntr)
+        plot_image_by_time(trials, erp.T, ylabel='channel', cmap='viridis')
+        plt.xlabel('trial')
+        
+        plt.title('SD threshold')
+        
+        # Plot number of bad channels for each trial
+        plt.subplot(1,2,2)
+        ch = np.sum(bad_ch_trials, axis=0)
+        trial = np.arange(ntr)
+        plt.scatter(trial[~bad_trials], ch[~bad_trials], marker='.', color='k')
+        plt.scatter(trial[bad_trials], ch[bad_trials], marker='x', color='r')
+        plt.xlabel('trial')
+        plt.ylabel('# channels')
+        plt.hlines(ch_frac*nch, 0, ntr, linestyles='dashed')
+        plt.title('channel fraction')
+        plt.tight_layout()
+
+    return bad_trials
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
 def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw=0.5):
