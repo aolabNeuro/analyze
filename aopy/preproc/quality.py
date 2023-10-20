@@ -1,3 +1,5 @@
+import copy
+import matplotlib
 from .. import precondition
 from .. import analysis
 from ..utils import print_progress_bar
@@ -148,7 +150,7 @@ def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
     nt, nch, ntr = erp.shape
     
     median = np.nanmedian(erp, axis=(0,2), keepdims=True)
-    sd = np.std(erp, axis=(0,2), keepdims=True)
+    sd = np.nanstd(erp, axis=(0,2), keepdims=True)
     
     bad_timepoints = abs(erp - median) > sd_thr*sd
         
@@ -158,29 +160,32 @@ def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
     if debug:
 
         # Highlight bad timepoints across trials
-        plt.figure(figsize=(11,4))
+        plt.figure(figsize=(11,4), layout='compressed')
         plt.subplot(1,2,1)
         erp = abs(erp - median)/sd
-        erp = np.max(erp, axis=0)
-        erp[bad_ch_trials] = np.max(erp)
+        erp = np.nanmax(erp, axis=0)
+        erp[bad_ch_trials] = np.nan
         trials = np.arange(ntr)
-        plot_image_by_time(trials, erp.T, ylabel='channel', cmap='viridis')
-        plt.xlabel('trial')
-        
-        plt.title('SD threshold')
+        cmap = copy.copy(matplotlib.cm.get_cmap('viridis'))
+        cmap.set_bad(color='w') # set the 'bad' color to white
+        im = plot_image_by_time(trials, erp.T, ylabel='channel', cmap=cmap)
+        cbar = plt.colorbar(im)
+        cbar.set_label('sd')
+        plt.xlabel('trial')        
+        plt.title('sd over threshold shown in white')
         
         # Plot number of bad channels for each trial
         plt.subplot(1,2,2)
         ch = np.sum(bad_ch_trials, axis=0)
         trial = np.arange(ntr)
-        plt.scatter(trial[~bad_trials], ch[~bad_trials], marker='.', color='k')
-        plt.scatter(trial[bad_trials], ch[bad_trials], marker='x', color='r')
+        plt.scatter(trial[~bad_trials], ch[~bad_trials], marker='.', color='k', label='good trials')
+        plt.scatter(trial[bad_trials], ch[bad_trials], marker='x', color='r', label='bad trials')
         plt.xlabel('trial')
         plt.ylabel('# channels')
-        plt.hlines(ch_frac*nch, 0, ntr, linestyles='dashed')
-        plt.title('channel fraction')
-        plt.tight_layout()
-
+        plt.hlines(ch_frac*nch, 0, ntr, linestyles='dashed', color='r')
+        plt.title('fraction of channels above threshold')
+        plt.legend()
+        
     return bad_trials
 
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
