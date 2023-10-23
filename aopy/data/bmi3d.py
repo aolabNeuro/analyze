@@ -438,7 +438,7 @@ def _get_target_events(exp_data, exp_metadata):
         
     return np.array(target_events).transpose(1,0,2)
 
-def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000, filter_kinematics=True):
+def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000, filter_kinematics=True):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
@@ -581,7 +581,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
     else:
         raw_kinematics = get_interp_kinematics(
-            data, datatype, samplerate=samplerate, filter_kinematics=filter_kinematics
+            data, metadata, datatype, samplerate=samplerate, filter_kinematics=filter_kinematics
         )
 
     time = np.arange(len(raw_kinematics))/samplerate
