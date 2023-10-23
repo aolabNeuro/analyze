@@ -891,11 +891,8 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
     '''
     # Use default "trial" definition
-    config_dir = files('aopy').joinpath('config')
-    params_file = as_file(config_dir.joinpath('task_codes.yaml'))
-    with params_file as f:
-        task_codes = yaml_read(f)[0]
-    trial_end_codes = [task_codes['REWARD'], task_codes['TRIAL_END']]
+    task_codes = load_bmi3d_task_codes()
+    trial_end_codes = [task_codes['TRIAL_END']]
     reward_codes = [task_codes['REWARD']]
     
     if include_center_target:
@@ -1005,3 +1002,19 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
         idx += 1
         
     return segments, samplerate
+        
+def load_bmi3d_task_codes(filename='task_codes.yaml'):
+    '''
+    Load the default BMI3D task codes. File-specific codes can be found in exp_metadata['event_sync_dict']
+
+    Args:
+        filename (str, optional): filename of the task codes to load. Defaults to 'task_codes.yaml'.
+
+    Returns:
+        dict: (name, code) task code dictionary
+    '''
+    config_dir = files('aopy').joinpath('config')
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        task_codes = yaml_read(f)[0]
+    return task_codes
