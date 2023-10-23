@@ -412,20 +412,6 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
-    def test_get_target_events(self):
-
-        exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        target = bmi3d._get_target_events(exp_data, exp_metadata)
-        
-        plt.figure()
-        time = exp_data['events']['timestamp']
-        plt.plot(time, target[:,:,0]) # plot just the x coordinate
-        plt.xlim(10, 20)
-        plt.xlabel('time (s)')
-        plt.ylabel('x position (cm)')
-        filename = 'get_target_events.png'
-        visualization.savefig(docs_dir, filename)
-
     def test_get_interp_kinematics(self):
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
         cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)

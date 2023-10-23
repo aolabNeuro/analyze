@@ -670,3 +670,52 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
         samplerate, sensor_voltsperbit, thr_width=thr_width, 
         thr_power=thr_power, debug=debug, **kwargs)
                                                                                 
+def get_target_events(exp_data, exp_metadata):
+    '''
+    For target acquisition tasks, get an (n_event, n_target) array encoding the position
+    of each target whenever an event is fired by BMI3D. The resulting sequence is used 
+    to generate a sampled timeseries in :func:`~aopy.data.bmi3d.get_kinematic_segments`. 
+    When targets are turned off, their position is replaced by np.nan. 
+
+    Args:
+        exp_data (dict): A dictionary containing the experiment data.
+        exp_metadata (dict): A dictionary containing the experiment metadata.
+
+    Returns:
+        (n_event, n_target, 3) array: position of each target at each event time.
+    '''
+    
+    events = exp_data['events']['code']
+    trials = exp_data['bmi3d_trials']
+    
+    target_idx, location_idx = np.unique(trials['index'], axis=0, return_index=True)
+    locations = [np.round(t[[0,2,1]], 4) for t in trials['target'][location_idx]]
+    
+    # Generate events for each unique target
+    target_events = []
+    for idx in range(len(locations)):
+        target_on_codes = [
+            exp_metadata['event_sync_dict']['TARGET_ON'] + target_idx[idx]
+        ]
+        target_off_codes = [
+            exp_metadata['event_sync_dict']['TARGET_OFF'] + target_idx[idx], 
+            exp_metadata['event_sync_dict']['TRIAL_END']
+        ]
+
+        target_location = locations[idx]
+    
+        # Create a nan mask encoding when the target is turned on
+        target_on = np.zeros((len(events),))
+        on = np.nan
+        for idx, e in enumerate(events):
+            if e in target_on_codes:
+                on = 1
+            elif e in target_off_codes:
+                on = np.nan
+            target_on[idx] = on
+        
+        # Set the non-nan values to the target location
+        event_target = target_location[None,:] * target_on[:,None]    
+        target_events.append(event_target)
+        
+    return np.array(target_events).transpose(1,0,2)

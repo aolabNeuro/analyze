@@ -5,6 +5,7 @@ import warnings
 
 from .. import precondition
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
+from ..preproc.bmi3d import get_target_events
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
@@ -386,56 +387,6 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def _get_target_events(exp_data, exp_metadata):
-    '''
-    For target acquisition tasks, get an (n_event, n_target) array encoding the position
-    of each target whenever an event is fired by BMI3D. The resulting sequence is used 
-    to generate a sampled timeseries in :func:`~aopy.data.bmi3d.get_kinematic_segments`. 
-    When targets are turned off, their position is replaced by np.nan. 
-
-    Args:
-        exp_data (dict): A dictionary containing the experiment data.
-        exp_metadata (dict): A dictionary containing the experiment metadata.
-
-    Returns:
-        (n_event, n_target, 3) array: position of each target at each event time.
-    '''
-    
-    events = exp_data['events']['code']
-    trials = exp_data['bmi3d_trials']
-    
-    target_idx, location_idx = np.unique(trials['index'], axis=0, return_index=True)
-    locations = [np.round(t[[0,2,1]], 4) for t in trials['target'][location_idx]]
-    
-    # Generate events for each unique target
-    target_events = []
-    for idx in range(len(locations)):
-        target_on_codes = [
-            exp_metadata['event_sync_dict']['TARGET_ON'] + target_idx[idx]
-        ]
-        target_off_codes = [
-            exp_metadata['event_sync_dict']['TARGET_OFF'] + target_idx[idx], 
-            exp_metadata['event_sync_dict']['TRIAL_END']
-        ]
-
-        target_location = locations[idx]
-    
-        # Create a nan mask encoding when the target is turned on
-        target_on = np.zeros((len(events),))
-        on = np.nan
-        for idx, e in enumerate(events):
-            if e in target_on_codes:
-                on = 1
-            elif e in target_off_codes:
-                on = np.nan
-            target_on[idx] = on
-        
-        # Set the non-nan values to the target location
-        event_target = target_location[None,:] * target_on[:,None]    
-        target_events.append(event_target)
-        
-    return np.array(target_events).transpose(1,0,2)
-
 def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
@@ -504,7 +455,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
         clock = exp_data['clock']['timestamp_sync']
     elif datatype == 'targets':
-        data_cycles = _get_target_events(exp_data, exp_metadata)
+        data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
     elif datatype in exp_data['task'].dtype.names:
