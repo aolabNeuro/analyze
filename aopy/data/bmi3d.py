@@ -4,6 +4,7 @@ import traceback
 import warnings
 
 from .. import precondition
+from .. import preproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..preproc.bmi3d import get_target_events
 from ..whitematter import ChunkedStream, Dataset
@@ -923,6 +924,38 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     ]
     new_df['target_idx'] = target_idx
     new_df['target_location'] = target_location
+
+    # Add trial segment timing
+    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['delay_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['delay_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['go_cue_time'] = np.nan*np.zeros(len(new_df))
+    new_df['reach_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['reach_end_time'] = np.nan*np.zeros(len(new_df))
+    for i in range(len(new_df)):
+        event_codes = new_df.iloc[i]['event_codes']
+        event_times = new_df.iloc[i]['event_times']
+
+        # Hold completed if peripheral target turns on (start of delay)
+        _, delay_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['CENTER_TARGET_ON']], task_codes['PERIPHERAL_TARGET_ON'])
+        new_df['hold_completed'][i] = len(delay_times) > 0
+        if new_df['hold_completed'][i]:
+            new_df['delay_start_time'][i] = delay_times[0][-1]
+
+        # Delay completed when center target turns off (go cue)
+        _, go_cue_times = get_trial_segments(event_codes, event_times,
+                                            task_codes['PERIPHERAL_TARGET_ON'], [task_codes['CENTER_TARGET_OFF']])
+        new_df['delay_completed'][i] = len(go_cue_times) > 0
+        if new_df['delay_completed'][i]:
+            new_df['go_cue_time'][i] = go_cue_times[0][-1]
+
+        # Reach completed if cursor enters target (regardless of whether the trial was successful)
+        _, reach_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['CENTER_TARGET_OFF']], task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])
+        new_df['reach_completed'] = len(reach_times) > 0
+        if new_df['reach_completed'][i]:
+            new_df['reach_end_time'][i] = reach_times[0][-1]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df

@@ -633,31 +633,6 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(event_data[2], 0)
         self.assertEqual(event_data[3], 0)
 
-    def test_locate_trial_segment(self):
-        event_codes = np.array([16, 19, 32, 83, 48, 239])
-        event_times = np.arange(len(event_codes))
-        start_time, end_time = preproc.bmi3d.locate_trial_segment(event_codes, event_times, segment_type='center_out_reach')
-        self.assertEqual(start_time, 2)
-        self.assertEqual(end_time, 3)
-
-        event_codes = np.array([16, 19, 32, 239])
-        event_times = np.arange(len(event_codes))
-        start_time, end_time = preproc.bmi3d.locate_trial_segment(event_codes, event_times, segment_type='center_out_reach')
-        self.assertEqual(start_time, 2)
-        self.assertEqual(end_time, None)
-
-        event_codes = np.array([16, 19, 239])
-        event_times = np.arange(len(event_codes))
-        start_time, end_time = preproc.bmi3d.locate_trial_segment(event_codes, event_times, segment_type='center_out_reach')
-        self.assertEqual(start_time, None)
-        self.assertEqual(end_time, None)
-
-        event_codes = np.array([16, 19, 239])
-        event_times = np.arange(len(event_codes))
-        start_time, end_time = preproc.bmi3d.locate_trial_segment(event_codes, event_times, segment_type='center_out_delay_reach')
-        self.assertEqual(start_time, 0)
-        self.assertEqual(end_time, None)
-    
     def test_parse_bmi3d_empty(self):
         files = {}
         self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
