@@ -854,11 +854,11 @@ def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
     np.random.seed(params['seed'])
     order = np.random.choice([0,1])
     if order == 0:
-        trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'])
-        trial_d_idx = np.array([odd_idx, even_idx]*params['ntrials'])
+        trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
     elif order == 1:
-        trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'])
-        trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'])
+        trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
         
     # get trajectory generator index used for each trial
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
@@ -871,8 +871,8 @@ def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
     gen_idx = [int(gen[0]) for gen in gen_trajectories]
 
     # use generator index to get reference & disturbance frequencies for each trial
-    freq_r = primes[trial_r_idx[gen_idx]]/base_period
-    freq_d = primes[trial_d_idx[gen_idx]]/base_period
+    freq_r = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_r_idx[gen_idx]]
+    freq_d = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_d_idx[gen_idx]]
     return freq_r, freq_d
 
 def get_source_files(preproc_dir, subject, te_id, date):
@@ -1063,7 +1063,15 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata, df=None)
     
-    # Add freq_r, freq_d
+    # Add frequency content of reference & disturbance trajectories
+    ref_freqs = []
+    dis_freqs = []
+    for s, te, d in zip(subjects, ids, dates):
+        r, d = get_trajectory_frequencies(preproc_dir, s, te, d)
+        ref_freqs.extend(r)
+        dis_freqs.extend(d)
+    new_df['ref_freqs'] = ref_freqs
+    new_df['dis_freqs'] = dis_freqs
     
     # # Add trajectory timing info
     # trajectory_times = [
