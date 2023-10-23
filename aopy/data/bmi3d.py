@@ -13,6 +13,7 @@ import h5py
 import tables
 import pandas as pd
 import json
+import sympy
 from tqdm.auto import tqdm
 from importlib.resources import files, as_file
 
@@ -381,7 +382,7 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
+def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000, filter_kinematics=True):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
@@ -433,7 +434,8 @@ def get_interp_kinematics(exp_data, datatype='cursor', samplerate=1000):
     clock = exp_data['clock']['timestamp_sync']
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
                                         upsamplerate=10000, append_time=10)
-    data_time = precondition.filter_kinematics(data_time, samplerate)
+    if filter_kinematics:
+        data_time = precondition.filter_kinematics(data_time, samplerate)
     return data_time
 
 def get_velocity_segments(*args, norm=True, **kwargs):
@@ -457,7 +459,7 @@ def get_velocity_segments(*args, norm=True, **kwargs):
     return get_kinematic_segments(*args, **kwargs, preproc=preproc)
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor'):
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', filter_kinematics=True):
     '''
     Return all kinds of kinematics from preprocessed data
 
@@ -494,7 +496,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
     else:
         raw_kinematics = get_interp_kinematics(
-            data, datatype, samplerate=samplerate
+            data, datatype, samplerate=samplerate, filter_kinematics=filter_kinematics
         )
 
     time = np.arange(len(raw_kinematics))/samplerate
@@ -505,7 +507,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
 
     return kinematics, samplerate
 
-def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, preproc=None, datatype='cursor'):
+def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, preproc=None, datatype='cursor', filter_kinematics=True):
     '''
     Return one segment of kinematics
 
@@ -526,14 +528,14 @@ def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_tim
             | **segment (nt, nch):** single kinematic segment from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''
-    kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype)
+    kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, filter_kinematics)
     assert kinematics is not None
 
     return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True, preproc=None, datatype='cursor',
-                           samplerate=1000):
+                           samplerate=1000, filter_kinematics=True):
     '''
     Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -586,7 +588,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
                                                                   trial_start_codes, trial_end_codes)
     segments = [
-        get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype)[0] 
+        get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, filter_kinematics)[0] 
         for t in trial_times
     ]
     trajectories = np.array(segments, dtype='object')
@@ -742,6 +744,46 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
         else:
             raise ValueError(f"Target index {target_indices[i]} not found")
     return np.round(locations,4)
+
+def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
+    # load task codes
+    config_dir = files('aopy').joinpath('config')
+    params_file = as_file(config_dir.joinpath('task_codes.yaml'))
+    with params_file as f:
+        task_codes = yaml_read(f)[0]
+
+    # load preproc data
+    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    params = json.loads(metadata['sequence_params'])
+    primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))
+    even_idx = np.arange(len(primes))[0::2]
+    odd_idx = np.arange(len(primes))[1::2]
+    base_period = 20
+
+    # recreate random trial order of reference & disturbance frequencies
+    np.random.seed(params['seed'])
+    order = np.random.choice([0,1])
+    if order == 0:
+        trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'])
+        trial_d_idx = np.array([odd_idx, even_idx]*params['ntrials'])
+    elif order == 1:
+        trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'])
+        trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'])
+        
+    # get trajectory generator index used for each trial
+    trial_start_codes = [task_codes['CENTER_TARGET_ON']]
+    trial_end_codes = [task_codes['REWARD'], task_codes['OTHER_PENALTY'], 
+                       task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']] # using TRIAL_END may not pass assertion
+    gen_trajectories, _ = get_kinematic_segments(preproc_dir, subject, te_id, date, 
+                                                 trial_start_codes, trial_end_codes, datatype='gen_idx', 
+                                                 samplerate=metadata['fps'], filter_kinematics=False)
+    assert np.all([int(gen[0])==int(gen[-1]) for gen in gen_trajectories])
+    gen_idx = [int(gen[0]) for gen in gen_trajectories]
+
+    # use generator index to get reference & disturbance frequencies for each trial
+    freq_r = primes[trial_r_idx[gen_idx]]/base_period
+    freq_d = primes[trial_d_idx[gen_idx]]/base_period
+    return freq_r, freq_d
 
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
@@ -919,54 +961,53 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     params_file = as_file(config_dir.joinpath('task_codes.yaml'))
     with params_file as f:
         task_codes = yaml_read(f)[0]
-    trial_end_codes = [task_codes['REWARD'], task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    trial_start_codes = [task_codes['CENTER_TARGET_ON']]
+    trial_end_codes = [task_codes['TRIAL_END']]
     reward_codes = [task_codes['REWARD']]
-    
-    if include_before_initiation:
-        trial_start_codes = [task_codes['CENTER_TARGET_ON']]
-        penalty_codes = [task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
-    else:
-        trial_start_codes = [task_codes['TRIAL_START']]
-        penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    penalty_codes = [task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
     
     # Concatenate base trial data
-    metadata.append('sequence_params')
+    if 'sequence_params' not in metadata:
+        metadata.append('sequence_params')
     new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata, df=None)
     
-    # Add trajectory timing info
-    trajectory_times = [
-        [new_df.iloc[i]['event_times'][np.where(code==task_codes['CURSOR_ENTER_TARGET'])[0][0]], new_df.iloc[i]['event_times'][-1]] # HOLD complete, REWARD/OTHER_PENALTY
-        if task_codes['CURSOR_ENTER_TARGET'] in code else [np.nan, np.nan]
-        for i,code
-        in enumerate(new_df['event_codes'])
-    ]
-    if not include_ramps:
-        ramp = [
-            json.loads(params)['ramp']
-            if 'ramp' in json.loads(params) else 0
-            for params
-            in new_df['sequence_params']
-        ]
-        ramp_down = [
-            json.loads(params)['ramp_down']
-            if 'ramp_down' in json.loads(params) else 0
-            for params
-            in new_df['sequence_params']
-        ]
-        trajectory_times = [
-            [times[0]+ramp[i], times[1]-ramp_down[i]]
-            if new_df.iloc[i]['reward'] else [times[0]+ramp[i], times[1]]
-            for i,times 
-            in enumerate(trajectory_times)
-        ]
-    new_df['trajectory_times'] = trajectory_times
+    # Add freq_r, freq_d
     
-    # TODO: Add generator index, sines_r, and sines_d
+    # # Add trajectory timing info
+    # trajectory_times = [
+    #     [new_df.iloc[i]['event_times'][np.where(code==task_codes['CURSOR_ENTER_TARGET'])[0][0]], new_df.iloc[i]['event_times'][-1]] # HOLD complete, REWARD/OTHER_PENALTY
+    #     if task_codes['CURSOR_ENTER_TARGET'] in code else [np.nan, np.nan]
+    #     for i,code
+    #     in enumerate(new_df['event_codes'])
+    # ]
+    # if not include_ramps:
+    #     ramp = [
+    #         json.loads(params)['ramp']
+    #         if 'ramp' in json.loads(params) else 0
+    #         for params
+    #         in new_df['sequence_params']
+    #     ]
+    #     ramp_down = [
+    #         json.loads(params)['ramp_down']
+    #         if 'ramp_down' in json.loads(params) else 0
+    #         for params
+    #         in new_df['sequence_params']
+    #     ]
+    #     trajectory_times = [
+    #         [times[0]+ramp[i], times[1]-ramp_down[i]]
+    #         if new_df.iloc[i]['reward'] else [times[0]+ramp[i], times[1]]
+    #         for i,times 
+    #         in enumerate(trajectory_times)
+    #     ]
+    # new_df['trajectory_times'] = trajectory_times
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
+
+# def function(event_codes, event_times, include_ramp=False)
+# get shorter trial segment based on no ramp, ramp
 
 def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
                             samplerate=1000, preproc=None, datatype='cursor'):
