@@ -30,6 +30,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
         savefig(write_dir, filename)
 
+    def test_gradient_timeseries(self):
+        filename = 'timeseries_gradient.png'
+        data = np.reshape(np.sin(np.pi*np.arange(1000)/100), (1000))
+        samplerate = 1000
+        plt.figure()
+        gradient_timeseries(data, samplerate)
+        savefig(docs_dir, filename)
+
     def test_spatial_map(self):
         data = np.linspace(-1, 1, 100)
         x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
@@ -298,6 +306,36 @@ class AnimationTests(unittest.TestCase):
                         bounds)
         
         aopy.visualization.saveanim(ani, docs_dir, 'test_anim.mp4')
+
+    def test_animate_behavior(self):
+
+        samplerate = 0.5
+        cursor = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
+        eye = np.array([[1, 0], [1, 2], [1, 2], [4, 5], [4, 5], [6, 6]])
+        targets = [
+            np.array([[np.nan, np.nan], 
+                     [5, 5], 
+                     [np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [5, 5], 
+                     [np.nan, np.nan]]),
+            np.array([[np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [-5, 5], 
+                     [-5, 5], 
+                     [-5, 5]])
+        ]
+        
+        target_radius = 2.5
+        target_colors = ['orange'] * len(targets)
+        cursor_radius = 0.5
+        bounds = [-10, 10, -10, 10]
+        
+        ani = animate_behavior(targets, cursor, eye, samplerate, bounds, target_radius, target_colors, cursor_radius, 
+                        cursor_color='blue', eye_radius=0.25, eye_color='purple')
+        
+        aopy.visualization.saveanim(ani, docs_dir, 'test_anim_behavior.mp4')
                 
 
 class OtherPlottingTests(unittest.TestCase):
@@ -431,6 +469,66 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'color_trajectories_segmented.png'
         savefig(docs_dir, filename)
 
+    def test_gradient_trajectories(self):
+
+        trajectories = [
+            np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [2, 2, 0],
+                [3, 3, 0],
+                [4, 2, 0]
+            ]),
+            np.array([
+                [-1, 1, 0],
+                [-2, 2, 0],
+                [-3, 3, 0],
+                [-3, 4, 0]
+            ]),
+            np.array([
+                [2, 1, 0],
+                [2, -1, 0],
+                [3, -5, 0],
+                [5, -5, 0]
+            ])
+        ]
+        plt.figure()
+        gradient_trajectories(trajectories, n_colors=4)
+        plt.title('Gradient trajectories')
+        filename = 'gradient_trajectories_simple.png'
+        savefig(write_dir, filename)
+        plt.close()
+
+        # Test what happens when the number of colors is higher than the number of points
+        plt.figure()
+        gradient_trajectories(trajectories, n_colors=5)
+        plt.title('Gradient trajectories')
+        filename = 'gradient_trajectories_error.png'
+        savefig(write_dir, filename)
+        plt.close()
+
+        # Load some test cursor data
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        preproc_dir = data_dir
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='cursor')
+        plt.figure()
+        gradient_trajectories(traj[:3])
+        filename = 'gradient_trajectories.png'
+        savefig(docs_dir, filename)
+        plt.close()
+
+        # Hand data plotted in 3d
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
+
+        filename = 'gradient_trajectories_3d.png'
+        savefig(docs_dir, filename)
+        plt.close()
+        
     def test_get_color_gradient_RGB(self):
         npts = 200
         x = np.linspace(0, 2*np.pi, npts)

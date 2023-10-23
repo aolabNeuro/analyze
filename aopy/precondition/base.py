@@ -710,7 +710,6 @@ def downsample(data, old_samplerate, new_samplerate):
         (nt, ...) downsampled data
     '''
     assert new_samplerate < old_samplerate, "New sampling rate must be less than old sampling rate"
-    assert data.ndim < 3, "Downsample doesn't work for more than 2 dimensions"
     assert int(old_samplerate) == old_samplerate, "Input samplerates must be integers"
     assert int(new_samplerate) == new_samplerate, "Input samplerates must be integers"
 
@@ -732,13 +731,19 @@ def downsample(data, old_samplerate, new_samplerate):
     data_padded = np.append(data, np.zeros(pad_shape)*np.NaN, axis=0)
 
     # Downsample using average
-    if data.ndim > 1:
-        downsampled = np.zeros((int(data_padded.shape[0]/downsample_factor), data.shape[1]), dtype=data.dtype)
-        for idx in range(data.shape[1]):
-            downsampled[:,idx] = np.nanmean(data_padded[:,idx].reshape(-1, downsample_factor), axis=1)
-        return downsampled
-    else:
+    if data.ndim == 1:
         return np.nanmean(data_padded.reshape(-1, downsample_factor), axis=1)
+    elif data.ndim == 2:
+        downsampled = np.zeros((int(data_padded.shape[0] / downsample_factor), *data.shape[1:]), dtype=data.dtype)
+        for idx in range(data.shape[1]):
+            downsampled[:, idx] = np.nanmean(data_padded[:, idx].reshape(-1, downsample_factor), axis=1)
+        return downsampled
+    elif data.ndim == 3:
+        downsampled = np.zeros((int(data_padded.shape[0] / downsample_factor), *data.shape[1:]), dtype=data.dtype)
+        for idx1 in range(data.shape[1]):
+            for idx2 in range(data.shape[2]):
+                downsampled[:, idx1, idx2] = np.nanmean(data_padded[:, idx1, idx2].reshape(-1, downsample_factor), axis=1)
+        return downsampled
 
 def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_cut=500., buttord=4):
     '''
