@@ -58,6 +58,56 @@ def decode_events(dictionary, values):
     tuples = [decode_event(dictionary, value) for value in values]
     return list(zip(*tuples))
 
+def locate_trial_segment(event_codes, event_times, segment_type='center_out_reach'):
+    '''
+    Find the start and end times of a trial segment based on the event codes.
+
+    Args:
+        event_codes (nevents): list of event codes from BMI3D
+        event_times (nevents): timing of each event code
+        segment_type (str, optional): the kind of segment to locate. Options include:
+        | **`center_out_reach`:** just the go cue until target entry
+        | **`center_out_delay_reach`:** entire trial from target onset to target entry
+        | Defaults to 'center_out_reach'.
+
+    Returns:
+        tuple: 2-tuple containing:
+            | **start_time (float):** start time of the trial segment, or None.
+            | **end_time (float):** end time of the trial segment, or None.
+            | Returns None, None if the segment was not found
+    '''
+    task_codes = aodata.load_bmi3d_task_codes()
+    if segment_type == 'center_out_reach':
+        start_code = task_codes['CENTER_TARGET_OFF']
+        end_code = task_codes['CURSOR_ENTER_PERIPHERAL_TARGET']
+    
+    elif segment_type == 'center_out_delay_reach':
+        start_code = task_codes['CENTER_TARGET_ON']
+        end_code = task_codes['CURSOR_ENTER_PERIPHERAL_TARGET']
+
+    else:
+        raise ValueError(f"Invalid trial segment {segment_type}")
+    
+    # Find the start and end times
+    start_idx = np.isin(event_codes, start_code)
+    end_idx = np.isin(event_codes, end_code)
+
+    # If there are multiple start or end times, take the first one
+    if np.count_nonzero(start_idx) > 1:
+        warnings.warn("Multiple start times detected")
+    if np.count_nonzero(end_idx) > 1:
+        warnings.warn("Multiple end times detected")
+
+    # If no start or end times, return None
+    if np.count_nonzero(start_idx) == 0:
+        return None, None
+    start_time = event_times[start_idx][0]
+    if np.count_nonzero(end_idx) == 0:
+        return start_time, None
+    end_time = event_times[end_idx][0]
+
+    return start_time, end_time
+
 def _correct_hand_traj(hand_position, cursor_position):
     '''
     This function removes hand position data points when the cursor is simultaneously stationary in all directions.
