@@ -1201,7 +1201,11 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_get_target_events(self):
 
-        exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
+        subject = 'test'
+        te_id = 8940
+        date = '2023-03-27'
+
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
         target = get_target_events(exp_data, exp_metadata)
         
         plt.figure()
