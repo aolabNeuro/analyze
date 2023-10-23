@@ -13,8 +13,6 @@ from .. import data as aodata
 from .. import utils
 from .. import analysis
 from .. import visualization
-from ..data import get_source_files
-from ..utils import detect_edges
 from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements
 
 def decode_event(dictionary, value):
@@ -523,7 +521,7 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
     ds_data = ds_data - np.mean(ds_data)
     threshold = thr_volts/sensor_voltsperbit
     digital_data = ds_data > threshold
-    times, values = detect_edges(digital_data, ds_fs)
+    times, values = utils.detect_edges(digital_data, ds_fs)
     if len(times) == 0:
         raise ValueError("No laser events detected. Try lowering the threshold")
     rising = times[values == 1]
@@ -613,7 +611,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
 
         # Load the trigger data if it's not already in the bmi3d data
         if laser_trigger not in exp_data:
-            files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
+            files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
             hdf_filepath = os.path.join(data_dir, files['hdf'])
             if not os.path.exists(hdf_filepath):
                 raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
@@ -656,7 +654,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
 
     # Load the sensor data if it's not already in the bmi3d data
     if laser_sensor not in exp_data:
-        files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
+        files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
         hdf_filepath = os.path.join(data_dir, files['hdf'])
         if not os.path.exists(hdf_filepath):
             raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
