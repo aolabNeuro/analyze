@@ -1022,8 +1022,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
-def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, metadata=[], 
-                                      df=None, include_before_initiation=False, include_ramps=False):
+def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, metadata=[], df=None):
     '''
     Wrapper around tabulate_behavior_data() specifically for tracking task experiments. 
     Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
@@ -1037,11 +1036,6 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
         dates (list of str): Date for each recording
         metadata (list, optional): list of metadata keys that should be included in the df
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        include_before_initiation (bool, optional): If True, trials begin as soon as center target 
-            and trajectory appear. Otherwise trials begin once hold is initiated. Default False.
-        include_ramps (bool, optional): If True, trajectory_times correspond the start and end of 
-            the trajectory including the ramp up and down. Otherwise trajectory_times excludes 
-            ramp periods. Default False.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
@@ -1073,33 +1067,54 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     new_df['ref_freqs'] = ref_freqs
     new_df['dis_freqs'] = dis_freqs
     
-    # # Add trajectory timing info
-    # trajectory_times = [
-    #     [new_df.iloc[i]['event_times'][np.where(code==task_codes['CURSOR_ENTER_TARGET'])[0][0]], new_df.iloc[i]['event_times'][-1]] # HOLD complete, REWARD/OTHER_PENALTY
-    #     if task_codes['CURSOR_ENTER_TARGET'] in code else [np.nan, np.nan]
-    #     for i,code
-    #     in enumerate(new_df['event_codes'])
-    # ]
-    # if not include_ramps:
-    #     ramp = [
-    #         json.loads(params)['ramp']
-    #         if 'ramp' in json.loads(params) else 0
-    #         for params
-    #         in new_df['sequence_params']
-    #     ]
-    #     ramp_down = [
-    #         json.loads(params)['ramp_down']
-    #         if 'ramp_down' in json.loads(params) else 0
-    #         for params
-    #         in new_df['sequence_params']
-    #     ]
-    #     trajectory_times = [
-    #         [times[0]+ramp[i], times[1]-ramp_down[i]]
-    #         if new_df.iloc[i]['reward'] else [times[0]+ramp[i], times[1]]
-    #         for i,times 
-    #         in enumerate(trajectory_times)
-    #     ]
-    # new_df['trajectory_times'] = trajectory_times
+    # Add trial segment timing
+    new_df['trial_initiated'] = np.zeros(len(new_df), dtype='bool')
+    new_df['hold_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['tracking_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['tracking_end_time'] = np.nan*np.zeros(len(new_df))
+    new_df['tracking_successful'] = np.zeros(len(new_df), dtype='bool')
+    new_df['trajectory_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['trajectory_end_time'] = np.nan*np.zeros(len(new_df))
+    ramp = [
+        json.loads(params)['ramp']
+        if 'ramp' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    ramp_down = [
+        json.loads(params)['ramp_down']
+        if 'ramp_down' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    for i in range(len(new_df)):
+        event_codes = new_df.iloc[i]['event_codes']
+        event_times = new_df.iloc[i]['event_times']
+
+        # Trial initiated when hold begins
+        _, initiation_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['CENTER_TARGET_ON']], [task_codes['TRIAL_START']])
+        new_df['trial_inititated'][i] = len(initiation_times) > 0 # if False, TIMEOUT_PENALTY
+        if new_df['trial_inititated'][i]:
+            new_df['hold_start_time'][i] = initiation_times[0][-1]
+
+        # Hold completed when tracking begins (first time cursor enters target)
+        tracking_events, tracking_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['TRIAL_START']], [task_codes['REWARD'],task_codes['OTHER_PENALTY']])
+        new_df['hold_completed'][i] = len(tracking_times) > 0 # if False, HOLD_PENALTY
+        if new_df['hold_completed'][i]:
+            new_df['tracking_start_time'][i] = tracking_times[0][1] # TRIAL_START, CURSOR_ENTER_TARGET ... REWARD/OTHER_PENALTY
+            new_df['tracking_end_time'][i] = tracking_times[0][-1]
+
+            # Trajectory excludes ramp period at beginning of tracking (regardless of tracking success)
+            new_df['trajectory_start_time'][i] = new_df['tracking_start_time'][i]+ramp[i]
+            new_df['trajectory_end_time'][i] = new_df['tracking_end_time'][i]
+
+            # If tracking successful, trajectory excludes ramp period at end of tracking
+            new_df['tracking_successful'][i] = task_codes['REWARD'] in tracking_events
+            if new_df['tracking_successful'][i]:
+                new_df['trajectory_end_time'][i] = new_df['tracking_end_time'][i]-ramp_down[i]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
