@@ -2,6 +2,18 @@ import sys
 from functools import lru_cache
 import traceback
 import warnings
+import os
+
+import numpy as np
+import h5py
+import tables
+import pandas as pd
+from tqdm.auto import tqdm
+from scipy import interpolate
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
 
 from .. import precondition
 from .. import preproc
@@ -10,18 +22,6 @@ from ..preproc.bmi3d import get_target_events
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
-import os
-import numpy as np
-import h5py
-import tables
-import pandas as pd
-from tqdm.auto import tqdm
-from scipy import interpolate
-
-if sys.version_info >= (3,9):
-    from importlib.resources import files, as_file
-else:
-    from importlib_resources import files, as_file
 
 ############
 # Raw data #
