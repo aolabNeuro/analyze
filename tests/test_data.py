@@ -564,9 +564,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-        self.assertEqual(len(df), 18) # should be the same df as above
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        self.assertEqual(len(df), 20) # 10 total trials, duplicated
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
         self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
@@ -574,18 +573,51 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertEqual(loc.shape[0], 3)
             self.assertLess(np.linalg.norm(loc), 7)
 
+        # Check that reaches are completed
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+        self.assertTrue(np.all(df['delay_completed'][df['reward']]))
+        self.assertTrue(np.all(df['reach_completed'][df['reward']]))
+
+        # Check a couple interesting trials
+        trial = df.iloc[0] # a successful trial
+        self.assertTrue(trial['reward'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 18, 32, 82, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertTrue(trial['hold_completed'])
+        self.assertTrue(trial['delay_completed'])
+        self.assertTrue(trial['reach_completed'])
+
+        trial = df.iloc[7] # a timeout penalty before anything happens
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 65, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        self.assertFalse(trial['trial_initiated'])
+        self.assertFalse(trial['hold_completed'])
+        self.assertFalse(trial['delay_completed'])
+        self.assertFalse(trial['reach_completed'])
+
+        trial = df.iloc[8] # a hold penalty on the center target
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 64, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertFalse(trial['hold_completed'])
+        self.assertFalse(trial['delay_completed'])
+        self.assertFalse(trial['reach_completed'])
+
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-
-        start_times = [t[0] for t in df['event_times']]
-        end_times = [t[-1] for t in df['event_times']]
-
-        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], start_times, end_times, 
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        
+        # Only consider completed reaches
+        df = df[df['reach_completed']]
+        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                             preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
 
         self.assertEqual(len(df), len(kin))
@@ -602,9 +634,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id]
         dates = [self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-        trigger_times = [t[0] for t in df['event_times']] 
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+
+        # Only consider initiated trials
+        df = df[df['trial_initiated']]
+
+        trigger_times = df['hold_start_time']
         time_before = 0.5
         time_after = 0.5
 
