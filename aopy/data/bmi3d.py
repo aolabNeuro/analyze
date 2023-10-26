@@ -9,7 +9,6 @@ import h5py
 import tables
 import pandas as pd
 import json
-import sympy
 from tqdm.auto import tqdm
 from scipy import interpolate
 if sys.version_info >= (3,9):
@@ -20,7 +19,7 @@ else:
 from .. import precondition
 from .. import preproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
-from ..preproc.bmi3d import get_target_events
+from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
@@ -390,7 +389,7 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000, filter_kinematics=True):
+def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
@@ -461,7 +460,6 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
-        filter_kinematics = False
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
         clock = exp_data['clock']['timestamp_sync']
@@ -471,7 +469,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     # Interpolate
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
                                         upsamplerate=10000, append_time=10, **kwargs)
-    if filter_kinematics:
+    if 'remove_nan' not in kwargs:
         data_time = precondition.filter_kinematics(data_time, samplerate)
     return data_time
 
@@ -496,7 +494,7 @@ def get_velocity_segments(*args, norm=True, **kwargs):
     return get_kinematic_segments(*args, **kwargs, preproc=preproc)
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', filter_kinematics=True):
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor'):
     '''
     Return all kinds of kinematics from preprocessed data
 
@@ -533,7 +531,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
     else:
         raw_kinematics = get_interp_kinematics(
-            data, metadata, datatype, samplerate=samplerate, filter_kinematics=filter_kinematics
+            data, metadata, datatype, samplerate=samplerate
         )
 
     time = np.arange(len(raw_kinematics))/samplerate
@@ -544,7 +542,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
 
     return kinematics, samplerate
 
-def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, preproc=None, datatype='cursor', filter_kinematics=True):
+def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, preproc=None, datatype='cursor'):
     '''
     Return one segment of kinematics
 
@@ -565,14 +563,14 @@ def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_tim
             | **segment (nt, nch):** single kinematic segment from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''
-    kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, filter_kinematics)
+    kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype)
     assert kinematics is not None
 
     return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True, preproc=None, datatype='cursor',
-                           samplerate=1000, filter_kinematics=True):
+                           samplerate=1000):
     '''
     Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -625,7 +623,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
                                                                   trial_start_codes, trial_end_codes)
     segments = [
-        get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, filter_kinematics)[0] 
+        get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype)[0] 
         for t in trial_times
     ]
     trajectories = np.array(segments, dtype='object')
@@ -788,43 +786,8 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     return np.round(locations,4)
 
 def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
-    # load task codes
-    config_dir = files('aopy').joinpath('config')
-    params_file = as_file(config_dir.joinpath('task_codes.yaml'))
-    with params_file as f:
-        task_codes = yaml_read(f)[0]
-
-    # load preproc data
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    params = json.loads(metadata['sequence_params'])
-    primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))
-    even_idx = np.arange(len(primes))[0::2]
-    odd_idx = np.arange(len(primes))[1::2]
-    base_period = 20
-
-    # recreate random trial order of reference & disturbance frequencies
-    np.random.seed(params['seed'])
-    order = np.random.choice([0,1])
-    if order == 0:
-        trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
-        trial_d_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
-    elif order == 1:
-        trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
-        trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
-        
-    # get trajectory generator index used for each trial
-    trial_start_codes = [task_codes['CENTER_TARGET_ON']]
-    trial_end_codes = [task_codes['REWARD'], task_codes['OTHER_PENALTY'], 
-                       task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']] # using TRIAL_END may not pass assertion
-    gen_trajectories, _ = get_kinematic_segments(preproc_dir, subject, te_id, date, 
-                                                 trial_start_codes, trial_end_codes, datatype='gen_idx', 
-                                                 samplerate=metadata['fps'], filter_kinematics=False)
-    assert np.all([int(gen[0])==int(gen[-1]) for gen in gen_trajectories])
-    gen_idx = [int(gen[0]) for gen in gen_trajectories]
-
-    # use generator index to get reference & disturbance frequencies for each trial
-    freq_r = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_r_idx[gen_idx]]
-    freq_d = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_d_idx[gen_idx]]
+    freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
     return freq_r, freq_d
 
 def get_source_files(preproc_dir, subject, te_id, date):

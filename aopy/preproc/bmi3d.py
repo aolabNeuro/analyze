@@ -7,13 +7,15 @@ import os
 from datetime import datetime
 from importlib.metadata import version
 import pandas as pd
+import json
+import sympy
 
 from .. import precondition
 from .. import data as aodata
 from .. import utils
 from .. import analysis
 from .. import visualization
-from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements
+from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements, get_trial_segments
 
 def decode_event(dictionary, value):
     '''
@@ -717,3 +719,39 @@ def get_target_events(exp_data, exp_metadata):
         target_events.append(event_target)
         
     return np.array(target_events).transpose(1,0,2)
+
+def get_ref_dis_frequencies(data, metadata):
+    # grab params relevant for generator
+    params = json.loads(metadata['sequence_params'])
+    primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))
+    even_idx = np.arange(len(primes))[0::2]
+    odd_idx = np.arange(len(primes))[1::2]
+    base_period = 20
+
+    # recreate random trial order of reference & disturbance frequencies
+    np.random.seed(params['seed'])
+    order = np.random.choice([0,1])
+    if order == 0:
+        trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
+    elif order == 1:
+        trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
+        
+    # get trajectory generator index used for each trial
+    events = data['bmi3d_events']['code']
+    cycles = data['bmi3d_events']['time']
+    start_codes = [metadata['event_sync_dict']['TARGET_ON']]
+    end_codes = [metadata['event_sync_dict']['TRIAL_END']]
+
+    _, segment_cycles = get_trial_segments(events, cycles, start_codes, end_codes)
+    generator_segments = np.array([data['task']['gen_idx'][cycle[0]:cycle[-1]] for cycle in segment_cycles], dtype='object')
+    assert np.all([gen[0]==gen[-1] for gen in generator_segments]), 'Generator index is not consistent throughout trial segment!'
+
+    generator_idx = [int(gen[0]) for gen in generator_segments]
+    assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
+
+    # use generator index to get reference & disturbance frequencies for each trial
+    freq_r = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_r_idx[generator_idx]]
+    freq_d = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_d_idx[generator_idx]]
+    return freq_r, freq_d
