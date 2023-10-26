@@ -168,7 +168,7 @@ def _parse_bmi3d_v0(data_dir, files):
 
     # Some data/metadata isn't always present
     if aodata.is_table_in_hdf('sync_events', bmi3d_hdf_full_filename):
-        bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events')
+        bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events') # exists in tablet data
         metadata.update(bmi3d_event_metadata)
         bmi3d_data['bmi3d_events'] = bmi3d_events
     if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
@@ -181,7 +181,7 @@ def _parse_bmi3d_v0(data_dir, files):
     if aodata.is_table_in_hdf('trials', bmi3d_hdf_full_filename): 
         bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials')
         bmi3d_data['bmi3d_trials'] = bmi3d_trials
-    if aodata.is_table_in_hdf('sync_clock', bmi3d_hdf_full_filename): 
+    if aodata.is_table_in_hdf('sync_clock', bmi3d_hdf_full_filename) and len(aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock')[0])>0: # exists but empty in tablet data
         bmi3d_clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
     else:
         # Estimate timestamps
@@ -211,7 +211,7 @@ def _parse_bmi3d_v1(data_dir, files):
     # Start by loading bmi3d data using the v0 parser
     data_dict, metadata_dict = _parse_bmi3d_v0(data_dir, files)
 
-    if 'ecube' in files:
+    if 'ecube' in files: # if not, there will be no sync_events or sync_clock in preproc data
         ecube_filename = files['ecube']
     
         # Load ecube digital data to find the strobe and events from bmi3d
@@ -438,7 +438,11 @@ def _prepare_bmi3d_v1(data, metadata):
     # By default use the internal events if they exist
     corrected_events = None
     if 'bmi3d_events' in data:
-        corrected_events = data['bmi3d_events']
+        corrected_events = np.empty((len(data['bmi3d_events']),), dtype=[('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
+        corrected_events['timestamp'] =  np.asarray([timestamp_bmi3d[cycle] for cycle in data['bmi3d_events']['time']])
+        corrected_events['code'] = data['bmi3d_events']['code']
+        corrected_events['event'] = data['bmi3d_events']['event']
+        corrected_events['data'] = data['bmi3d_events']['data']
 
     # But use the sync events if they exist and are valid
     if 'sync_events' in data and len(data['sync_events']) > 0:
