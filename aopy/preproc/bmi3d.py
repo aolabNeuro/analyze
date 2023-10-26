@@ -721,6 +721,21 @@ def get_target_events(exp_data, exp_metadata):
     return np.array(target_events).transpose(1,0,2)
 
 def get_ref_dis_frequencies(data, metadata):
+    '''
+    For continuous tracking tasks, get the set of frequencies (in Hz) used to 
+    generate the reference and disturbance trajectories that were preesented 
+    on each trial of the experiment.
+
+    Args:
+        data (dict): A dictionary containing the experiment data.
+        metadata (dict): A dictionary containing the experiment metadata.
+
+    Returns:
+        tuple: Tuple containing:
+            | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
+            | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
+    '''
+
     # grab params relevant for generator
     params = json.loads(metadata['sequence_params'])
     primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))

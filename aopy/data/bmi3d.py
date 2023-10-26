@@ -786,6 +786,22 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     return np.round(locations,4)
 
 def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
+    '''
+    For continuous tracking tasks, get the set of frequencies (in Hz) used to 
+    generate the trajectories that were preesented on each trial of the experiment, 
+    using :func:`~aopy.preproc.bmi3d.get_ref_dis_frequencies`. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+
+    Returns:
+        tuple: Tuple containing:
+            | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
+            | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
+    '''
     data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
     freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
     return freq_r, freq_d
