@@ -71,9 +71,10 @@ def subplots_with_labels(n_rows: int, n_cols: int, return_labeled_axes: bool = F
     The goal is to augment plt.subplots() with the ability to label subplots with letters.
     Create a figure with subplots labeled with letters. 
 
-    example:
+    Example:
     generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
-        fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
+        .. code-block:: python
+            fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
 
         .. image:: _images/labeled_subplots.png
 
