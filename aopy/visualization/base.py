@@ -75,6 +75,8 @@ def subplots_with_labels(n_rows: int, n_cols: int, return_labeled_axes: bool = F
     generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
         fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
 
+        .. image:: _images/labeled_subplots.png
+
     Args:
     - n_rows: int, number of rows of subplots.
     - n_cols: int, number of columns of subplots.
