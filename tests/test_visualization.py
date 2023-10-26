@@ -14,7 +14,7 @@ if not os.path.exists(write_dir):
 
 class NeuralDataPlottingTests(unittest.TestCase):
 
-    def test_subplots_with_labels():
+    def test_subplots_with_labels(self):
         # Test case 1: generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
         fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
         assert isinstance(fig, plt.Figure)
