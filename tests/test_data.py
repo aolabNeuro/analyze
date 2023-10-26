@@ -721,7 +721,11 @@ class TestYaml(unittest.TestCase):
                    'HOLD_PENALTY': 64,
                    'PAUSE': 254,
                    'TIME_ZERO': 238,
-                   'TRIAL_END': 239}
+                   'TRIAL_END': 239,
+                   'TRIAL_START': 2,
+                   'CURSOR_ENTER_TARGET': 80,
+                   'CURSOR_LEAVE_TARGET': 96,
+                   'OTHER_PENALTY': 79}
         yaml_write(params_file, params)
 
         # Testing pkl_read
