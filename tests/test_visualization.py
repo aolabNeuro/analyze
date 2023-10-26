@@ -14,6 +14,17 @@ if not os.path.exists(write_dir):
 
 class NeuralDataPlottingTests(unittest.TestCase):
 
+    def test_subplots_with_labels():
+        # Test case 1: generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+        fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
+        assert isinstance(fig, plt.Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.shape == (2, 2)
+        assert isinstance(axes[0, 0], plt.Axes)
+        assert isinstance(axes[0, 1], plt.Axes)
+        assert isinstance(axes[1, 0], plt.Axes)
+        assert isinstance(axes[1, 1], plt.Axes)
+
     def test_plot_timeseries(self):
         filename = 'timeseries.png'
         data = np.reshape(np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10), (1000))
