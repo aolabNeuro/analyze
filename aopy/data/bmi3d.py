@@ -1011,10 +1011,7 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
     '''
     # Use default "trial" definition
-    config_dir = files('aopy').joinpath('config')
-    params_file = as_file(config_dir.joinpath('task_codes.yaml'))
-    with params_file as f:
-        task_codes = yaml_read(f)[0]
+    task_codes = load_bmi3d_task_codes()
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     trial_end_codes = [task_codes['TRIAL_END']]
     reward_codes = [task_codes['REWARD']]
