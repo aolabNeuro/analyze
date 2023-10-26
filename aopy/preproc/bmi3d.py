@@ -13,8 +13,6 @@ from .. import data as aodata
 from .. import utils
 from .. import analysis
 from .. import visualization
-from ..data import get_source_files
-from ..utils import detect_edges
 from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements
 
 def decode_event(dictionary, value):
@@ -523,7 +521,7 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
     ds_data = ds_data - np.mean(ds_data)
     threshold = thr_volts/sensor_voltsperbit
     digital_data = ds_data > threshold
-    times, values = detect_edges(digital_data, ds_fs)
+    times, values = utils.detect_edges(digital_data, ds_fs)
     if len(times) == 0:
         raise ValueError("No laser events detected. Try lowering the threshold")
     rising = times[values == 1]
@@ -613,7 +611,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
 
         # Load the trigger data if it's not already in the bmi3d data
         if laser_trigger not in exp_data:
-            files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
+            files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
             hdf_filepath = os.path.join(data_dir, files['hdf'])
             if not os.path.exists(hdf_filepath):
                 raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
@@ -656,7 +654,7 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
 
     # Load the sensor data if it's not already in the bmi3d data
     if laser_sensor not in exp_data:
-        files, data_dir = get_source_files(preproc_dir, subject, te_id, date)
+        files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
         hdf_filepath = os.path.join(data_dir, files['hdf'])
         if not os.path.exists(hdf_filepath):
             raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
@@ -670,3 +668,52 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
         samplerate, sensor_voltsperbit, thr_width=thr_width, 
         thr_power=thr_power, debug=debug, **kwargs)
                                                                                 
+def get_target_events(exp_data, exp_metadata):
+    '''
+    For target acquisition tasks, get an (n_event, n_target) array encoding the position
+    of each target whenever an event is fired by BMI3D. The resulting sequence is used 
+    to generate a sampled timeseries in :func:`~aopy.data.bmi3d.get_kinematic_segments`. 
+    When targets are turned off, their position is replaced by np.nan. 
+
+    Args:
+        exp_data (dict): A dictionary containing the experiment data.
+        exp_metadata (dict): A dictionary containing the experiment metadata.
+
+    Returns:
+        (n_event, n_target, 3) array: position of each target at each event time.
+    '''
+    
+    events = exp_data['events']['code']
+    trials = exp_data['bmi3d_trials']
+    
+    target_idx, location_idx = np.unique(trials['index'], axis=0, return_index=True)
+    locations = [np.round(t[[0,2,1]], 4) for t in trials['target'][location_idx]]
+    
+    # Generate events for each unique target
+    target_events = []
+    for idx in range(len(locations)):
+        target_on_codes = [
+            exp_metadata['event_sync_dict']['TARGET_ON'] + target_idx[idx]
+        ]
+        target_off_codes = [
+            exp_metadata['event_sync_dict']['TARGET_OFF'] + target_idx[idx], 
+            exp_metadata['event_sync_dict']['TRIAL_END']
+        ]
+
+        target_location = locations[idx]
+    
+        # Create a nan mask encoding when the target is turned on
+        target_on = np.zeros((len(events),))
+        on = np.nan
+        for idx, e in enumerate(events):
+            if e in target_on_codes:
+                on = 1
+            elif e in target_off_codes:
+                on = np.nan
+            target_on[idx] = on
+        
+        # Set the non-nan values to the target location
+        event_target = target_location[None,:] * target_on[:,None]    
+        target_events.append(event_target)
+        
+    return np.array(target_events).transpose(1,0,2)
