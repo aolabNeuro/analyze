@@ -442,8 +442,11 @@ def _prepare_bmi3d_v1(data, metadata):
         corrected_events['timestamp'] =  np.asarray([timestamp_bmi3d[cycle] for cycle in data['bmi3d_events']['time']])
         corrected_events['code'] = data['bmi3d_events']['code']
         corrected_events['event'] = data['bmi3d_events']['event']
-        corrected_events['data'] = data['bmi3d_events']['data']
-
+        try:
+            corrected_events['data'] = data['bmi3d_events']['data']
+        except:
+            pass
+        
     # But use the sync events if they exist and are valid
     if 'sync_events' in data and len(data['sync_events']) > 0:
         if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
