@@ -13,6 +13,7 @@ import numpy as np
 import h5py
 import tables
 import pandas as pd
+import json
 from tqdm.auto import tqdm
 from scipy import interpolate
 
@@ -508,11 +509,13 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     elif datatype == 'cursor':
         data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
     elif datatype == 'user':
-        data_cycles = exp_data['task']['cursor'][:,2] - exp_data['task']['current_disturbance'][:,2] # 1d cursor position before disturbance added (bmi3d coords: y)
+        dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
+        data_cycles = exp_data['task']['cursor'][:,2] - exp_data['task']['current_disturbance'][:,2]*dis_on # 1d cursor position before disturbance added (bmi3d coords: y)
     elif datatype == 'reference':
         data_cycles =  exp_data['task']['current_target'][:,2] # 1d target position (bmi3d coords: y)
     elif datatype == 'disturbance':
-        data_cycles = exp_data['task']['current_disturbance'][:,2] # 1d disturbance value (bmi3d coords: y)
+        dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
+        data_cycles = exp_data['task']['current_disturbance'][:,2]*dis_on # 1d disturbance value (bmi3d coords: y)
     elif datatype == 'targets':
         data_cycles = _get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
