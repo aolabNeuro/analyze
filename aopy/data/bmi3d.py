@@ -496,20 +496,29 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     '''
     kwargs = {}
 
+    # Fetch the available timestamps
+    try:
+        clock = exp_data['clock']['timestamp_sync']
+    except:
+        clock = exp_data['clock']['timestamp_bmi3d']
+
     # Fetch the relevant BMI3D data
     if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position']
-        clock = exp_data['clock']['timestamp_sync']
+        data_cycles = exp_data['clean_hand_position'] # 3d hand position (optitrack coords: x,y,z) on each bmi3d cycle
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
-        clock = exp_data['clock']['timestamp_sync']
+        data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
+    elif datatype == 'user':
+        data_cycles = exp_data['task']['cursor'][:,2] - exp_data['task']['current_disturbance'][:,2] # 1d cursor position before disturbance added (bmi3d coords: y)
+    elif datatype == 'reference':
+        data_cycles =  exp_data['task']['current_target'][:,2] # 1d target position (bmi3d coords: y)
+    elif datatype == 'disturbance':
+        data_cycles = exp_data['task']['current_disturbance'][:,2] # 1d disturbance value (bmi3d coords: y)
     elif datatype == 'targets':
         data_cycles = _get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
-        clock = exp_data['clock']['timestamp_sync']
     else:
         raise ValueError(f"Unknown datatype {datatype}")
     
