@@ -1,6 +1,7 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
-
+import string
+from typing import Tuple, Union
 import warnings
 import seaborn as sns
 import matplotlib
@@ -62,6 +63,64 @@ def savefig(base_dir, filename, **kwargs):
     if 'transparent' not in kwargs:
         kwargs['transparent'] = True
     plt.savefig(fname, **kwargs)
+
+def subplots_with_labels(n_rows: int, n_cols: int, return_labeled_axes: bool = False,
+                         rel_label_x: float = -0.25, rel_label_y: float = 1.1, label_font_size: int = 11,
+                         constrained_layout: bool = True, **kwargs) -> Union[Tuple[plt.Figure, np.ndarray], Tuple[plt.Figure, np.ndarray, dict]]:
+    """
+    The goal is to augment plt.subplots() with the ability to label subplots with letters.
+    Create a figure with subplots labeled with letters. 
+
+    Example:
+    generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+        .. code-block:: python
+            fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
+
+        .. image:: _images/labeled_subplots.png
+
+    Args:
+    - n_rows: int, number of rows of subplots.
+    - n_cols: int, number of columns of subplots.
+    - return_labeled_axes: bool, whether to return the labeled axes.
+    - rel_label_x: float, the relative x position of the subplot label.
+    - rel_label_y: float, the relative y position of the subplot label.
+    - label_font_size: int, the font size of the subplot label.
+    - constrained_layout: bool, whether to use constrained layout.
+    - **kwargs: additional keyword arguments to pass to plt.subplot_mosaic.
+
+    Returns:
+    - fig: Figure, the created figure.
+    - axes: np.ndarray, the created axes.
+    - labels_axes: dict, the labeled axes if return_labeled_axes is True.
+    """
+    # if more than 26 subplots, raise an error
+    if n_rows * n_cols > 26:
+        raise ValueError("More than 26 subplots requested, running out of single letters to label them with!")
+
+    # make a list of letters to use as labels
+    alphabets = string.ascii_uppercase
+    labels = alphabets[:n_rows * n_cols]
+
+    # tabulate the labels into n_rows by n_cols array
+    labels = np.array(list(labels)).reshape((n_rows, n_cols))
+
+    # make a string where rows are separated by semicolons
+    labels = ";".join(["".join(row) for row in labels])
+
+    # make the figure and axes
+    fig, labels_axes = plt.subplot_mosaic(labels, constrained_layout=constrained_layout, **kwargs)
+
+    for n, (key, ax) in enumerate(labels_axes.items()):
+        ax.text(rel_label_x, rel_label_y, key, transform=ax.transAxes, size=label_font_size)
+
+    # just annotate the axes
+    axes = list(labels_axes.values())
+    axes = np.array(axes).reshape((n_rows, n_cols))
+
+    if return_labeled_axes:
+        return fig, axes, labels_axes
+    else:
+        return fig, axes
 
 
 def plot_timeseries(data, samplerate, ax=None, **kwargs):
