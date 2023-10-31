@@ -810,7 +810,7 @@ class TestPrepareExperiment(unittest.TestCase):
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_measure_clock.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
 
     def test_parse_bmi3d_v10(self):
