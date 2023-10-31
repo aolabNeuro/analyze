@@ -442,7 +442,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
     screen coordinates, while other kinematics are returned in their original
-    coordinate system (e.g. hand kinematis in optitrack coordinates).
+    coordinate system (e.g. hand kinematics in optitrack coordinates).
 
     Examples:
         
@@ -456,7 +456,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             plt.figure()
             visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         
-        .. image:: _images/get_interp_cursor.png
+        .. image:: _images/get_interp_cursor_centerout.png
 
         Hand kinematics
        
@@ -466,7 +466,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             ax = plt.axes(projection='3d')
             visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
 
-        .. image:: _images/get_interp_hand.png
+        .. image:: _images/get_interp_hand_centerout.png
 
         Target positions
 
@@ -479,7 +479,40 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             plt.xlabel('time (s)')
             plt.ylabel('x position (cm)')
 
-        .. image:: _images/get_interp_targets.png
+        .. image:: _images/get_interp_targets_centerout.png
+
+        Cursor and target (reference) kinematics
+
+        .. code-block:: python
+            
+            exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
+            plt.plot(time, cursor_interp[:int(exp_metadata['fps']*120),1], color='blueviolet', label='cursor') # plot just the y coordinate
+            plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
+            plt.xlabel('time (s)')
+            plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+            plt.legend()
+
+        .. image:: _images/get_interp_cursor_tracking.png
+
+        User, reference, and disturbance kinematics
+
+        .. code-block:: python
+            
+            user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps'])
+            time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
+            plt.plot(time, user_interp[:int(exp_metadata['fps']*120),1], color='darkturquoise', label='user')
+            plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
+            plt.plot(time, dis_interp[:int(exp_metadata['fps']*120),1], color='tab:red', linestyle='--', label='dis')
+            plt.xlabel('time (s)')
+            plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+            plt.legend()
+
+        .. image:: _images/get_interp_user_tracking.png
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
