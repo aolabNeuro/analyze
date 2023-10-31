@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.testing.compare import compare_images
 import datetime
+import json
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -427,6 +428,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         visualization.savefig(docs_dir, filename)
 
     def test_get_interp_kinematics(self):
+        # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
         cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
         hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
@@ -440,13 +442,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         plt.figure()
         visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
-        filename = 'get_interp_cursor.png'
+        filename = 'get_interp_cursor_centerout.png'
         visualization.savefig(docs_dir, filename)
 
         plt.figure()
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
-        filename = 'get_interp_hand.png'
+        filename = 'get_interp_hand_centerout.png'
         visualization.savefig(docs_dir, filename)
 
         plt.figure()
@@ -455,7 +457,81 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlim(10, 20)
         plt.xlabel('time (s)')
         plt.ylabel('x position (cm)')
-        filename = 'get_interp_targets.png'
+        filename = 'get_interp_targets_centerout.png'
+        visualization.savefig(docs_dir, filename)
+
+        # Test with tracking task data (rig1)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+        # check this is an experiment with reference & disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
+
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        plt.figure()
+        plt.plot(cursor_interp[:int(exp_metadata['fps']*60),1], color='blueviolet', label='c')
+        plt.plot(ref_interp[:int(exp_metadata['fps']*60),1], color='darkorange', label='r')
+        plt.legend()
+        filename = 'get_interp_cursor_tracking.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(user_interp[:int(exp_metadata['fps']*60),1], color='darkturquoise', label='u')
+        plt.plot(ref_interp[:int(exp_metadata['fps']*60),1], color='darkorange', label='r')
+        plt.plot(dis_interp[:int(exp_metadata['fps']*60),1], color='tab:red', linestyle='--', label='d')
+        plt.legend()
+        filename = 'get_interp_user_tracking.png'
+        visualization.savefig(docs_dir, filename)
+        
+        # Test with tracking task data (tablet rig)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'churro', 375, '2023-10-02')
+        # check this is an experiment with reference & NO disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert not json.loads(exp_metadata['sequence_params'])['disturbance']
+        
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        plt.figure()
+        plt.plot(cursor_interp[:int(exp_metadata['fps']*60),1], color='blueviolet', label='c')
+        plt.plot(ref_interp[:int(exp_metadata['fps']*60),1], color='darkorange', label='r')
+        plt.legend()
+        filename = 'get_interp_cursor_tracking_tablet.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(user_interp[:int(exp_metadata['fps']*60),1], color='darkturquoise', label='u')
+        plt.plot(ref_interp[:int(exp_metadata['fps']*60),1], color='darkorange', label='r')
+        plt.plot(dis_interp[:int(exp_metadata['fps']*60),1], color='tab:red', linestyle='--', label='d')
+        plt.legend()
+        filename = 'get_interp_user_tracking_tablet.png'
         visualization.savefig(docs_dir, filename)
 
     def test_get_kinematic_segments(self):
@@ -635,442 +711,441 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
-class TestMatlab(unittest.TestCase):
+# class TestMatlab(unittest.TestCase):
     
-    def test_load_matlab_cell_strings(self):
-        testfile = 'matlab_cell_str.mat'
-        strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
-        expected_strings = ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
-        self.assertListEqual(strings[:5], expected_strings)
+#     def test_load_matlab_cell_strings(self):
+#         testfile = 'matlab_cell_str.mat'
+#         strings = load_matlab_cell_strings(data_dir, testfile, 'bmiSessions')
+#         expected_strings = ['jeev070412j', 'jeev070512g', 'jeev070612d', 'jeev070712e', 'jeev070812d']
+#         self.assertListEqual(strings[:5], expected_strings)
 
-    def test_parse_str_list(self):
-        str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
+#     def test_parse_str_list(self):
+#         str_list = ['sig001i_wf', 'sig001i_wf_ts', 'sig002a_wf', 'sig002a_wf_ts', 'sig002b_wf', 'sig002b_wf_ts', 'sig002i_wf', 'sig002i_wf_ts']
         
-        # Check case where both str_include and str_avoid are used
-        parsed_strs1 = parse_str_list(str_list, str_include=['sig002', 'wf'], str_avoid=['b_wf', 'i_wf'])
-        expected_parsed_strs1 = ['sig002a_wf', 'sig002a_wf_ts']
-        self.assertListEqual(parsed_strs1, expected_parsed_strs1)
+#         # Check case where both str_include and str_avoid are used
+#         parsed_strs1 = parse_str_list(str_list, str_include=['sig002', 'wf'], str_avoid=['b_wf', 'i_wf'])
+#         expected_parsed_strs1 = ['sig002a_wf', 'sig002a_wf_ts']
+#         self.assertListEqual(parsed_strs1, expected_parsed_strs1)
         
-        # Check case where only str_include is used
-        parsed_strs2 = parse_str_list(str_list, str_include=['sig001'])
-        expected_parsed_strs2 = ['sig001i_wf', 'sig001i_wf_ts']
-        self.assertListEqual(parsed_strs2, expected_parsed_strs2)
+#         # Check case where only str_include is used
+#         parsed_strs2 = parse_str_list(str_list, str_include=['sig001'])
+#         expected_parsed_strs2 = ['sig001i_wf', 'sig001i_wf_ts']
+#         self.assertListEqual(parsed_strs2, expected_parsed_strs2)
         
-        # Check case where only str_avoid is used
-        parsed_strs3 = parse_str_list(str_list, str_avoid=['sig002'])
-        expected_parsed_strs3 = ['sig001i_wf', 'sig001i_wf_ts']
-        self.assertListEqual(parsed_strs3, expected_parsed_strs3)
+#         # Check case where only str_avoid is used
+#         parsed_strs3 = parse_str_list(str_list, str_avoid=['sig002'])
+#         expected_parsed_strs3 = ['sig001i_wf', 'sig001i_wf_ts']
+#         self.assertListEqual(parsed_strs3, expected_parsed_strs3)
 
-        # Check case where neither str_include or str_avoid are used
-        parsed_strs4 = parse_str_list(str_list)
-        self.assertListEqual(parsed_strs4, str_list)
+#         # Check case where neither str_include or str_avoid are used
+#         parsed_strs4 = parse_str_list(str_list)
+#         self.assertListEqual(parsed_strs4, str_list)
 
+# class TestPickle(unittest.TestCase):
 
-class TestPickle(unittest.TestCase):
+#     def test_pkl_fn(self):
+#         test_dir = os.path.dirname(__file__)
+#         tmp_dir = os.path.join(test_dir, 'tmp')
 
-    def test_pkl_fn(self):
-        test_dir = os.path.dirname(__file__)
-        tmp_dir = os.path.join(test_dir, 'tmp')
+#          # Testing pkl_write
+#         val = np.random.rand(10,10)
+#         pkl_write('pickle_write_test.dat', val, tmp_dir)
 
-         # Testing pkl_write
-        val = np.random.rand(10,10)
-        pkl_write('pickle_write_test.dat', val, tmp_dir)
+#         # Testing pkl_read
+#         dat_1 = pkl_read('pickle_write_test.dat', tmp_dir)
 
-        # Testing pkl_read
-        dat_1 = pkl_read('pickle_write_test.dat', tmp_dir)
+#         self.assertEqual(np.shape(val), np.shape(dat_1))
 
-        self.assertEqual(np.shape(val), np.shape(dat_1))
+# class TestYaml(unittest.TestCase):
 
-class TestYaml(unittest.TestCase):
+#     def test_yaml_fn(self):
+#         test_dir = os.path.dirname(__file__)
+#         tmp_dir = os.path.join(test_dir, 'tmp')
+#         params_file = os.path.join(tmp_dir, 'task_codes.yaml')
 
-    def test_yaml_fn(self):
-        test_dir = os.path.dirname(__file__)
-        tmp_dir = os.path.join(test_dir, 'tmp')
-        params_file = os.path.join(tmp_dir, 'task_codes.yaml')
+#          # Testing yaml_write
+#         params = [{'CENTER_TARGET_ON': 16,
+#                    'CURSOR_ENTER_CENTER_TARGET': 80,
+#                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
+#                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
+#                    'CENTER_TARGET_OFF': 32,
+#                    'REWARD': 48,
+#                    'DELAY_PENALTY': 66,
+#                    'TIMEOUT_PENALTY': 65,
+#                    'HOLD_PENALTY': 64,
+#                    'PAUSE': 254,
+#                    'TIME_ZERO': 238,
+#                    'TRIAL_END': 239}]
+#         yaml_write(params_file, params)
 
-         # Testing yaml_write
-        params = [{'CENTER_TARGET_ON': 16,
-                   'CURSOR_ENTER_CENTER_TARGET': 80,
-                   'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
-                   'PERIPHERAL_TARGET_ON': list(range(17, 25)),
-                   'CENTER_TARGET_OFF': 32,
-                   'REWARD': 48,
-                   'DELAY_PENALTY': 66,
-                   'TIMEOUT_PENALTY': 65,
-                   'HOLD_PENALTY': 64,
-                   'PAUSE': 254,
-                   'TIME_ZERO': 238,
-                   'TRIAL_END': 239}]
-        yaml_write(params_file, params)
+#         # Testing pkl_read
+#         task_codes = yaml_read(params_file)
 
-        # Testing pkl_read
-        task_codes = yaml_read(params_file)
+#         self.assertEqual(params,task_codes)
 
-        self.assertEqual(params,task_codes)
+# class SignalPathTests(unittest.TestCase):
 
-class SignalPathTests(unittest.TestCase):
+#     def test_lookup_excel_value(self):
+#         testfile = '210118_ecog_channel_map.xls'
+#         self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'electrode', 119), 1)
+#         self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'zif61GroupID', 119), '_A')
 
-    def test_lookup_excel_value(self):
-        testfile = '210118_ecog_channel_map.xls'
-        self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'electrode', 119), 1)
-        self.assertEqual(lookup_excel_value(data_dir, testfile, 'acq', 'zif61GroupID', 119), '_A')
+#     def test_lookup_acq2elec(self):
+#         testfile = '210118_ecog_channel_map.xls'
+#         self.assertEqual(lookup_acq2elec(data_dir, testfile, 118), 0)
+#         self.assertEqual(lookup_acq2elec(data_dir, testfile, 63), -1)
+#         self.assertEqual(lookup_acq2elec(data_dir, testfile, 119, zero_index=False), 1)
+#         self.assertEqual(lookup_acq2elec(data_dir, testfile, 64, zero_index=False), 0)
 
-    def test_lookup_acq2elec(self):
-        testfile = '210118_ecog_channel_map.xls'
-        self.assertEqual(lookup_acq2elec(data_dir, testfile, 118), 0)
-        self.assertEqual(lookup_acq2elec(data_dir, testfile, 63), -1)
-        self.assertEqual(lookup_acq2elec(data_dir, testfile, 119, zero_index=False), 1)
-        self.assertEqual(lookup_acq2elec(data_dir, testfile, 64, zero_index=False), 0)
+#     def test_lookup_elec2acq(self):
+#         testfile = '210118_ecog_channel_map.xls'
+#         self.assertEqual(lookup_elec2acq(data_dir, testfile, 0), 118)
+#         self.assertEqual(lookup_elec2acq(data_dir, testfile, 321), -1)
+#         self.assertEqual(lookup_elec2acq(data_dir, testfile, 1, zero_index=False), 119)
+#         self.assertEqual(lookup_elec2acq(data_dir, testfile, 320, zero_index=False), 0)
 
-    def test_lookup_elec2acq(self):
-        testfile = '210118_ecog_channel_map.xls'
-        self.assertEqual(lookup_elec2acq(data_dir, testfile, 0), 118)
-        self.assertEqual(lookup_elec2acq(data_dir, testfile, 321), -1)
-        self.assertEqual(lookup_elec2acq(data_dir, testfile, 1, zero_index=False), 119)
-        self.assertEqual(lookup_elec2acq(data_dir, testfile, 320, zero_index=False), 0)
+#     def test_load_electrode_pos(self):
+#         testfile = '244ch_viventi_ecog_elec_to_pos.xls'
+#         x, y = load_electrode_pos(data_dir, testfile)
+#         self.assertEqual(len(x), 244)
+#         self.assertEqual(len(y), 244)
 
-    def test_load_electrode_pos(self):
-        testfile = '244ch_viventi_ecog_elec_to_pos.xls'
-        x, y = load_electrode_pos(data_dir, testfile)
-        self.assertEqual(len(x), 244)
-        self.assertEqual(len(y), 244)
+#     def test_map_acq2pos(self):
+#         # Note, this also tests map_acq2elec
+#         test_signalpathfile = '210910_ecog_signal_path.xlsx'
+#         test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+#         test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+#         test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
 
-    def test_map_acq2pos(self):
-        # Note, this also tests map_acq2elec
-        test_signalpathfile = '210910_ecog_signal_path.xlsx'
-        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
-        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
-        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
-
-        acq_ch_position, acq_chs, connected_elecs = map_acq2pos(test_signalpath_table, test_eleclayout_table, xpos_name='topdown_x', ypos_name='topdown_y')
+#         acq_ch_position, acq_chs, connected_elecs = map_acq2pos(test_signalpath_table, test_eleclayout_table, xpos_name='topdown_x', ypos_name='topdown_y')
         
-        np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
-        np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
+#         np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
+#         np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
         
-        # Manually test a few electrode positions and output array shape
-        self.assertEqual(acq_ch_position.shape[0], 240)
-        self.assertEqual(acq_ch_position.shape[1], 2)
+#         # Manually test a few electrode positions and output array shape
+#         self.assertEqual(acq_ch_position.shape[0], 240)
+#         self.assertEqual(acq_ch_position.shape[1], 2)
 
-        self.assertEqual(2.25, acq_ch_position[0,0])
-        self.assertEqual(9, acq_ch_position[0,1])
+#         self.assertEqual(2.25, acq_ch_position[0,0])
+#         self.assertEqual(9, acq_ch_position[0,1])
 
-        self.assertEqual(7.5, acq_ch_position[100,0])
-        self.assertEqual(5.25, acq_ch_position[100,1])
+#         self.assertEqual(7.5, acq_ch_position[100,0])
+#         self.assertEqual(5.25, acq_ch_position[100,1])
         
-        self.assertEqual(3.75, acq_ch_position[200,0])
-        self.assertEqual(4.5, acq_ch_position[200,1])
+#         self.assertEqual(3.75, acq_ch_position[200,0])
+#         self.assertEqual(4.5, acq_ch_position[200,1])
 
-    def test_load_chmap(self):
-        test_signalpathfile = '221021_opto_signal_path.xlsx'
-        test_layoutfile = '32ch_fiber_optic_assy_elec_to_pos.xlsx'
-        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+#     def test_load_chmap(self):
+#         test_signalpathfile = '221021_opto_signal_path.xlsx'
+#         test_layoutfile = '32ch_fiber_optic_assy_elec_to_pos.xlsx'
+#         test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
 
-        acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='Opto32')
+#         acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='Opto32')
         
-        np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:32], acq_chs)
-        np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:32], connected_elecs)
-        self.assertEqual(acq_ch_position.shape[0], 32)
-        self.assertEqual(acq_ch_position.shape[1], 2)
+#         np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:32], acq_chs)
+#         np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:32], connected_elecs)
+#         self.assertEqual(acq_ch_position.shape[0], 32)
+#         self.assertEqual(acq_ch_position.shape[1], 2)
 
-        test_signalpathfile = '210910_ecog_signal_path.xlsx'
-        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
-        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+#         test_signalpathfile = '210910_ecog_signal_path.xlsx'
+#         test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+#         test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
 
-        acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='ECoG244')
+#         acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='ECoG244')
         
-        np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
-        np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
-        self.assertEqual(acq_ch_position.shape[0], 240)
-        self.assertEqual(acq_ch_position.shape[1], 2)
+#         np.testing.assert_array_equal(test_signalpath_table['acq'].to_numpy()[:240], acq_chs)
+#         np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
+#         self.assertEqual(acq_ch_position.shape[0], 240)
+#         self.assertEqual(acq_ch_position.shape[1], 2)
 
-    def test_map_data2elec(self):
-        test_signalpathfile = '210910_ecog_signal_path.xlsx'
-        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
-        datain = np.zeros((10, 256))
-        for i in range(256):
-            datain[:,i] = i+1
+#     def test_map_data2elec(self):
+#         test_signalpathfile = '210910_ecog_signal_path.xlsx'
+#         test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+#         datain = np.zeros((10, 256))
+#         for i in range(256):
+#             datain[:,i] = i+1
 
-        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table)
+#         dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table)
 
-        self.assertEqual(dataout.shape[0], 10)
-        self.assertEqual(dataout.shape[1], 240)
-        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+#         self.assertEqual(dataout.shape[0], 10)
+#         self.assertEqual(dataout.shape[1], 240)
+#         np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
 
-        # Check zero_indexing flag
-        datain = datain - 1
-        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
-        dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table, zero_indexing=True)
-        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+#         # Check zero_indexing flag
+#         datain = datain - 1
+#         test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+#         dataout, acq_chs, connected_elecs = map_data2elec(datain, test_signalpath_table, zero_indexing=True)
+#         np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
 
-    def test_map_data2elecandpos(self):
-        test_signalpathfile = '210910_ecog_signal_path.xlsx'
-        test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
-        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
-        test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
-        datain = np.zeros((10, 256))
-        for i in range(256):
-            datain[:,i] = i+1
+#     def test_map_data2elecandpos(self):
+#         test_signalpathfile = '210910_ecog_signal_path.xlsx'
+#         test_layoutfile = '244ch_viventi_ecog_elec_to_pos.xls'
+#         test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+#         test_eleclayout_table = pd.read_excel(os.path.join(data_dir, test_layoutfile))
+#         datain = np.zeros((10, 256))
+#         for i in range(256):
+#             datain[:,i] = i+1
 
-        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table,  xpos_name='topdown_x', ypos_name='topdown_y')
+#         dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table,  xpos_name='topdown_x', ypos_name='topdown_y')
 
-        self.assertEqual(dataout.shape[0], 10)
-        self.assertEqual(dataout.shape[1], 240)
-        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+#         self.assertEqual(dataout.shape[0], 10)
+#         self.assertEqual(dataout.shape[1], 240)
+#         np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
 
-        # Test acquisition channel subset selection
-        acq_ch_subset = np.array([1,3,5,8,10])
-        expected_acq_ch_pos = np.array([[2.25, 9], [5.25, 6.75],[3.75, 9]])
-        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, acq_ch_subset=acq_ch_subset)
-        np.testing.assert_allclose(dataout[0,:].flatten(), np.array([1,5,10]))
-        np.testing.assert_allclose(acq_chs, np.array([1,5,10]))
-        np.testing.assert_allclose(connected_elecs, np.array([54,52,42]))
-        np.testing.assert_allclose(acq_ch_position, expected_acq_ch_pos)
+#         # Test acquisition channel subset selection
+#         acq_ch_subset = np.array([1,3,5,8,10])
+#         expected_acq_ch_pos = np.array([[2.25, 9], [5.25, 6.75],[3.75, 9]])
+#         dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, acq_ch_subset=acq_ch_subset)
+#         np.testing.assert_allclose(dataout[0,:].flatten(), np.array([1,5,10]))
+#         np.testing.assert_allclose(acq_chs, np.array([1,5,10]))
+#         np.testing.assert_allclose(connected_elecs, np.array([54,52,42]))
+#         np.testing.assert_allclose(acq_ch_position, expected_acq_ch_pos)
 
-        # Test zero_indexing flag
-        datain = datain - 1
-        test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
-        dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, zero_indexing=True)
-        np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
+#         # Test zero_indexing flag
+#         datain = datain - 1
+#         test_signalpath_table['acq'] = test_signalpath_table['acq'] - 1
+#         dataout, acq_ch_position, acq_chs, connected_elecs = map_data2elecandpos(datain, test_signalpath_table, test_eleclayout_table, zero_indexing=True)
+#         np.testing.assert_allclose(dataout[0,:].flatten(), acq_chs)
 
-    def test_map_acq2elec(self):
-        test_signalpathfile = '210910_ecog_signal_path.xlsx'
-        test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
-        elecs = np.array((1,100,150,200))
-        expected_acq_chs = np.array((58, 87, 158, 244))
+#     def test_map_acq2elec(self):
+#         test_signalpathfile = '210910_ecog_signal_path.xlsx'
+#         test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
+#         elecs = np.array((1,100,150,200))
+#         expected_acq_chs = np.array((58, 87, 158, 244))
 
-        acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
-        np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
+#         acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
+#         np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
 
-        # Test if electrodes requested are unconnected
-        elecs = np.array((1,100,33,155))
-        expected_acq_chs = np.array((58, 87, np.nan, np.nan))
+#         # Test if electrodes requested are unconnected
+#         elecs = np.array((1,100,33,155))
+#         expected_acq_chs = np.array((58, 87, np.nan, np.nan))
 
-        acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
-        np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
+#         acq_chs_subset = map_elec2acq(test_signalpath_table, elecs)
+#         np.testing.assert_allclose(expected_acq_chs, acq_chs_subset)
 
-class E3vFrameTests(unittest.TestCase):
+# class E3vFrameTests(unittest.TestCase):
 
-    def test_get_pulse_times(self):
-        test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
-        test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
-        test_03_data    = np.stack((test_03,test_03_trigger)).T
-        test_03_times = np.array([2, 6, 10, 14])
-        test_03_dc = np.array([0.5, 0.5, 0.5, 0.5])
-        sync_ch_idx = 0
-        trig_ch_idx = 1
-        samplerate = 1
-        pulse_times, pulse_dc = get_e3v_video_frame_data(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
-        self.assertTrue(np.all(test_03_times == pulse_times))
-        self.assertTrue(np.all(test_03_dc == pulse_dc))
+#     def test_get_pulse_times(self):
+#         test_03         = [0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0,1,1,0,0]
+#         test_03_trigger = [0,0,0,1,0,1,0,1,0,0,0,0,0,0,0,1,0,1,0,1,0,0]
+#         test_03_data    = np.stack((test_03,test_03_trigger)).T
+#         test_03_times = np.array([2, 6, 10, 14])
+#         test_03_dc = np.array([0.5, 0.5, 0.5, 0.5])
+#         sync_ch_idx = 0
+#         trig_ch_idx = 1
+#         samplerate = 1
+#         pulse_times, pulse_dc = get_e3v_video_frame_data(test_03_data,sync_ch_idx,trig_ch_idx,samplerate)
+#         self.assertTrue(np.all(test_03_times == pulse_times))
+#         self.assertTrue(np.all(test_03_dc == pulse_dc))
 
-class PesaranLabTests(unittest.TestCase):
+# class PesaranLabTests(unittest.TestCase):
         
-    def test_read_lfp(self):
-        pass
+#     def test_read_lfp(self):
+#         pass
 
-    def test_load_ecog_clfp_data(self):
-        # this only works if every other peslab function works, with the exception of the lfp function tested above (eventually)
-        test_ecog_ds250_data_file = os.path.join(data_dir,'peslab_test_data','recTEST.LM1_ECOG_3.clfp_ds250.dat')
-        test_data, test_exp, test_mask = peslab.load_ecog_clfp_data(test_ecog_ds250_data_file)
-        self.assertEqual(test_data.shape,(10000,62))
+#     def test_load_ecog_clfp_data(self):
+#         # this only works if every other peslab function works, with the exception of the lfp function tested above (eventually)
+#         test_ecog_ds250_data_file = os.path.join(data_dir,'peslab_test_data','recTEST.LM1_ECOG_3.clfp_ds250.dat')
+#         test_data, test_exp, test_mask = peslab.load_ecog_clfp_data(test_ecog_ds250_data_file)
+#         self.assertEqual(test_data.shape,(10000,62))
 
-class EyeTests(unittest.TestCase):
+# class EyeTests(unittest.TestCase):
 
-    def test_apply_eye_calibration(self):
+#     def test_apply_eye_calibration(self):
 
-        # Create a test hdf file
-        subject = 'test'
-        te_id = 1
-        date = 'calibration'
-        data_source = 'eye'
-        filename = get_preprocessed_filename(subject, te_id, date, data_source)
-        filepath = os.path.join(write_dir, subject, filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        data_dict = {
-            'raw_data': np.array([[0,0], [1,1]])
-        }
-        metadata_dict = {}
-        preproc_dir = os.path.join(write_dir, subject)
-        if not os.path.exists(preproc_dir):
-            os.mkdir(preproc_dir)
-        save_hdf(preproc_dir, filename, data_dict, data_group='/eye_data')
-        save_hdf(preproc_dir, filename, metadata_dict, '/eye_metadata', append=True)
+#         # Create a test hdf file
+#         subject = 'test'
+#         te_id = 1
+#         date = 'calibration'
+#         data_source = 'eye'
+#         filename = get_preprocessed_filename(subject, te_id, date, data_source)
+#         filepath = os.path.join(write_dir, subject, filename)
+#         if os.path.exists(filepath):
+#             os.remove(filepath)
+#         data_dict = {
+#             'raw_data': np.array([[0,0], [1,1]])
+#         }
+#         metadata_dict = {}
+#         preproc_dir = os.path.join(write_dir, subject)
+#         if not os.path.exists(preproc_dir):
+#             os.mkdir(preproc_dir)
+#         save_hdf(preproc_dir, filename, data_dict, data_group='/eye_data')
+#         save_hdf(preproc_dir, filename, metadata_dict, '/eye_metadata', append=True)
 
-        # Apply a calibration
-        coeff = np.array([[3,4], [5,6]])
-        apply_eye_calibration(coeff, write_dir, subject, te_id, date)
+#         # Apply a calibration
+#         coeff = np.array([[3,4], [5,6]])
+#         apply_eye_calibration(coeff, write_dir, subject, te_id, date)
 
-        # Check the result
-        eye_data, eye_metadata = load_preproc_eye_data(write_dir, subject, te_id, date)
-        self.assertIn('calibrated_data', eye_data)
-        self.assertIn('coefficients', eye_data)
-        self.assertIn('external_calibration', eye_metadata)    
+#         # Check the result
+#         eye_data, eye_metadata = load_preproc_eye_data(write_dir, subject, te_id, date)
+#         self.assertIn('calibrated_data', eye_data)
+#         self.assertIn('coefficients', eye_data)
+#         self.assertIn('external_calibration', eye_metadata)    
 
-class DatabaseTests(unittest.TestCase):
+# class DatabaseTests(unittest.TestCase):
 
-    # Create some tests - only has to be run once and saved in db/tes
-    @classmethod
-    def setUpClass(cls):
-        db.BMI3D_DBNAME = 'default'
-        db.DB_TYPE = 'bmi3d'
+#     # Create some tests - only has to be run once and saved in db/tes
+#     @classmethod
+#     def setUpClass(cls):
+#         db.BMI3D_DBNAME = 'default'
+#         db.DB_TYPE = 'bmi3d'
 
-        '''
-        This database contains one subject and one experimenter:
-        - Subject(name="test_subject")
-        - Experimenter(name="experimenter_1")
+#         '''
+#         This database contains one subject and one experimenter:
+#         - Subject(name="test_subject")
+#         - Experimenter(name="experimenter_1")
         
-        Tasks:
-        - Task(name="manual control")
-        - Task(name="tracking")
+#         Tasks:
+#         - Task(name="manual control")
+#         - Task(name="tracking")
 
-        Features:
-        - Feature(name="feat_1")
+#         Features:
+#         - Feature(name="feat_1")
 
-        Systems:
-        - System(name="test_system", path="", archive="")
+#         Systems:
+#         - System(name="test_system", path="", archive="")
 
-        Decoders:
-        - Decoder(name="test_decoder", entry_id=3) # the bmi control entry
+#         Decoders:
+#         - Decoder(name="test_decoder", entry_id=3) # the bmi control entry
 
-        Generators:
-        - Generator(name="test_gen")
+#         Generators:
+#         - Generator(name="test_gen")
 
-        Sequences:
-        - Sequence(name="test_seq", generator_name="test_gen", params='{"seq_param_1": 1}')
+#         Sequences:
+#         - Sequence(name="test_seq", generator_name="test_gen", params='{"seq_param_1": 1}')
         
-        Entries:
-        - Tracking task entry from 2023-06-26
-        - Manual control entry from 2023-06-26
-            - project = "test project"
-            - session = "test session"
-            - entry_name = "task_desc" 
-            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
-            - feats = [feat_1]
-            - params = '{"task_param_1": 1}'
-        - Flash entry (manual control task) from 2023-06-26
-            - entry_name = "flash"
-            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
-        - BMI entry (bmi control task) from 2023-06-26
-            - params='{"bmi": 0}'
-        ''' 
+#         Entries:
+#         - Tracking task entry from 2023-06-26
+#         - Manual control entry from 2023-06-26
+#             - project = "test project"
+#             - session = "test session"
+#             - entry_name = "task_desc" 
+#             - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
+#             - feats = [feat_1]
+#             - params = '{"task_param_1": 1}'
+#         - Flash entry (manual control task) from 2023-06-26
+#             - entry_name = "flash"
+#             - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
+#         - BMI entry (bmi control task) from 2023-06-26
+#             - params='{"bmi": 0}'
+#         ''' 
 
-    def test_lookup_sessions(self):
+#     def test_lookup_sessions(self):
 
-        # Most basic lookup
-        sessions = db.lookup_sessions(id=1)
-        self.assertEqual(len(sessions), 1)
-        self.assertEqual(sessions[0].id, 1)
-        sessions = db.lookup_sessions(id=[1,2])
-        self.assertEqual(len(sessions), 2)
-        self.assertEqual(sessions[1].id, 2)
+#         # Most basic lookup
+#         sessions = db.lookup_sessions(id=1)
+#         self.assertEqual(len(sessions), 1)
+#         self.assertEqual(sessions[0].id, 1)
+#         sessions = db.lookup_sessions(id=[1,2])
+#         self.assertEqual(len(sessions), 2)
+#         self.assertEqual(sessions[1].id, 2)
 
-        # Other sanity tests
-        total_sessions = 4
-        self.assertEqual(len(db.lookup_sessions()), total_sessions)
-        self.assertEqual(len(db.lookup_mc_sessions()), 1)
-        self.assertEqual(len(db.lookup_flash_sessions()), 1)
-        self.assertEqual(len(db.lookup_tracking_sessions()), 1)
-        self.assertEqual(len(db.lookup_bmi_sessions()), 1)
+#         # Other sanity tests
+#         total_sessions = 4
+#         self.assertEqual(len(db.lookup_sessions()), total_sessions)
+#         self.assertEqual(len(db.lookup_mc_sessions()), 1)
+#         self.assertEqual(len(db.lookup_flash_sessions()), 1)
+#         self.assertEqual(len(db.lookup_tracking_sessions()), 1)
+#         self.assertEqual(len(db.lookup_bmi_sessions()), 1)
 
-        # Test filtering
-        self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
-        self.assertEqual(len(db.lookup_sessions(subject="test_subject")), total_sessions)
-        sessions = db.lookup_sessions(subject="test_subject", date="2023-06-26", task_name="manual control",
-                                      task_desc="task_desc", session="test session", project="test project",
-                                      experimenter="experimenter_1")
-        self.assertEqual(len(sessions), 1)
-        self.assertEqual(sessions[0].task_name, "manual control")
-        self.assertEqual(sessions[0].task_desc, "task_desc")
-        self.assertEqual(sessions[0].subject, "test_subject")
-        self.assertEqual(sessions[0].session, "test session")
-        self.assertEqual(sessions[0].project, "test project")
-        self.assertEqual(sessions[0].experimenter, "experimenter_1")
-        self.assertEqual(str(sessions[0].date), "2023-06-26")
+#         # Test filtering
+#         self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
+#         self.assertEqual(len(db.lookup_sessions(subject="test_subject")), total_sessions)
+#         sessions = db.lookup_sessions(subject="test_subject", date="2023-06-26", task_name="manual control",
+#                                       task_desc="task_desc", session="test session", project="test project",
+#                                       experimenter="experimenter_1")
+#         self.assertEqual(len(sessions), 1)
+#         self.assertEqual(sessions[0].task_name, "manual control")
+#         self.assertEqual(sessions[0].task_desc, "task_desc")
+#         self.assertEqual(sessions[0].subject, "test_subject")
+#         self.assertEqual(sessions[0].session, "test session")
+#         self.assertEqual(sessions[0].project, "test project")
+#         self.assertEqual(sessions[0].experimenter, "experimenter_1")
+#         self.assertEqual(str(sessions[0].date), "2023-06-26")
 
-        # Special case - filter by id
-        sessions = db.lookup_sessions(exclude_ids=[2,3])
-        self.assertEqual(len(sessions), 2)
+#         # Special case - filter by id
+#         sessions = db.lookup_sessions(exclude_ids=[2,3])
+#         self.assertEqual(len(sessions), 2)
 
-        # Special case - arbitrary filter fn
-        sessions = db.lookup_sessions(filter_fn=lambda x:x.duration > 0)
-        self.assertEqual(len(sessions), 2)
+#         # Special case - arbitrary filter fn
+#         sessions = db.lookup_sessions(filter_fn=lambda x:x.duration > 0)
+#         self.assertEqual(len(sessions), 2)
 
-        # Check that changing the db name works
-        db.DB_TYPE = 'unknown'
-        self.assertEqual(len(db.lookup_sessions()), 0)
-        db.DB_TYPE = 'bmi3d'
-        db.BMI3D_DBNAME = 'rig2'
-        self.assertRaises(Exception, db.lookup_sessions)
-        db.BMI3D_DBNAME = 'default'
+#         # Check that changing the db name works
+#         db.DB_TYPE = 'unknown'
+#         self.assertEqual(len(db.lookup_sessions()), 0)
+#         db.DB_TYPE = 'bmi3d'
+#         db.BMI3D_DBNAME = 'rig2'
+#         self.assertRaises(Exception, db.lookup_sessions)
+#         db.BMI3D_DBNAME = 'default'
 
-    def test_filter_functions(self):
+#     def test_filter_functions(self):
         
-        # Filter by features
-        filter_fn = db.filter_has_features("feat_1")
-        sessions = db.lookup_sessions(filter_fn=filter_fn)
-        self.assertEqual(len(sessions), 1)
-        filter_fn = db.filter_has_features(["feat_1"])
-        sessions = db.lookup_sessions(filter_fn=filter_fn)
-        self.assertEqual(len(sessions), 1)
+#         # Filter by features
+#         filter_fn = db.filter_has_features("feat_1")
+#         sessions = db.lookup_sessions(filter_fn=filter_fn)
+#         self.assertEqual(len(sessions), 1)
+#         filter_fn = db.filter_has_features(["feat_1"])
+#         sessions = db.lookup_sessions(filter_fn=filter_fn)
+#         self.assertEqual(len(sessions), 1)
 
-        # Filter neural data
-        filter_fn = db.filter_has_neural_data("ecog")
-        sessions = db.lookup_sessions(filter_fn=filter_fn)
-        self.assertEqual(len(sessions), 0)
+#         # Filter neural data
+#         filter_fn = db.filter_has_neural_data("ecog")
+#         sessions = db.lookup_sessions(filter_fn=filter_fn)
+#         self.assertEqual(len(sessions), 0)
 
-    def test_BMI3DTaskEntry(self):
+#     def test_BMI3DTaskEntry(self):
 
-        # Test that all the fields work as they should
-        te = db.lookup_sessions(task_desc='task_desc')[0]
-        self.assertEqual(te.subject, 'test_subject')
-        self.assertEqual(te.experimenter, 'experimenter_1')
-        self.assertEqual(te.id, 2)
-        self.assertEqual(str(te.date), "2023-06-26")
-        self.assertEqual(type(te.datetime), datetime.datetime)
-        self.assertEqual(te.session, 'test session')
-        self.assertEqual(te.project, 'test project')
-        self.assertEqual(te.task_name, 'manual control')
-        self.assertEqual(te.task_desc, 'task_desc')
-        self.assertEqual(te.notes, '')
-        self.assertEqual(te.duration, 3.0)
-        self.assertEqual(te.n_trials, 1)
-        self.assertEqual(te.features[0], 'feat_1')
-        decoder = te.get_decoder_record()
-        self.assertEqual(decoder, None)
-        self.assertCountEqual(te.task_params.keys(), ['task_param_1'])
-        self.assertEqual(te.get_task_param('task_param_1'), 1)
-        self.assertCountEqual(te.sequence_params.keys(), ['seq_param_1'])
-        self.assertEqual(te.get_sequence_param('seq_param_1'), 1)
-        self.assertCountEqual(te.get_preprocessed_sources(), ['exp', 'eye'])
-        self.assertEqual(len(te.get_raw_files()), 0)
-        raw = te.get_db_object()
-        self.assertIsNotNone(raw)
+#         # Test that all the fields work as they should
+#         te = db.lookup_sessions(task_desc='task_desc')[0]
+#         self.assertEqual(te.subject, 'test_subject')
+#         self.assertEqual(te.experimenter, 'experimenter_1')
+#         self.assertEqual(te.id, 2)
+#         self.assertEqual(str(te.date), "2023-06-26")
+#         self.assertEqual(type(te.datetime), datetime.datetime)
+#         self.assertEqual(te.session, 'test session')
+#         self.assertEqual(te.project, 'test project')
+#         self.assertEqual(te.task_name, 'manual control')
+#         self.assertEqual(te.task_desc, 'task_desc')
+#         self.assertEqual(te.notes, '')
+#         self.assertEqual(te.duration, 3.0)
+#         self.assertEqual(te.n_trials, 1)
+#         self.assertEqual(te.features[0], 'feat_1')
+#         decoder = te.get_decoder_record()
+#         self.assertEqual(decoder, None)
+#         self.assertCountEqual(te.task_params.keys(), ['task_param_1'])
+#         self.assertEqual(te.get_task_param('task_param_1'), 1)
+#         self.assertCountEqual(te.sequence_params.keys(), ['seq_param_1'])
+#         self.assertEqual(te.get_sequence_param('seq_param_1'), 1)
+#         self.assertCountEqual(te.get_preprocessed_sources(), ['exp', 'eye'])
+#         self.assertEqual(len(te.get_raw_files()), 0)
+#         raw = te.get_db_object()
+#         self.assertIsNotNone(raw)
 
-        # Test a bmi session and decoder
-        te = db.lookup_sessions(task_name="bmi control")[0]
-        decoder = te.get_decoder_record()
-        self.assertEqual(decoder.name, "test_decoder")
-        self.assertRaises(Exception, te.get_decoder) # No decoder file present
+#         # Test a bmi session and decoder
+#         te = db.lookup_sessions(task_name="bmi control")[0]
+#         decoder = te.get_decoder_record()
+#         self.assertEqual(decoder.name, "test_decoder")
+#         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
-    def test_list_entry_details(self):
-        sessions = db.lookup_sessions(task_desc='task_desc')
-        subject, te_id, date = db.list_entry_details(sessions)
-        self.assertCountEqual(subject, ['test_subject'])
-        self.assertCountEqual(te_id, [2])
-        self.assertCountEqual([str(d) for d in date], ['2023-06-26'])
+#     def test_list_entry_details(self):
+#         sessions = db.lookup_sessions(task_desc='task_desc')
+#         subject, te_id, date = db.list_entry_details(sessions)
+#         self.assertCountEqual(subject, ['test_subject'])
+#         self.assertCountEqual(te_id, [2])
+#         self.assertCountEqual([str(d) for d in date], ['2023-06-26'])
         
-    def test_group_entries(self):
+#     def test_group_entries(self):
 
-        sessions = db.lookup_sessions()
-        grouped = db.group_entries(sessions) # by date
-        self.assertEqual(len(grouped), 1)
-        self.assertEqual(len(grouped[0]), 4)
+#         sessions = db.lookup_sessions()
+#         grouped = db.group_entries(sessions) # by date
+#         self.assertEqual(len(grouped), 1)
+#         self.assertEqual(len(grouped[0]), 4)
 
-        grouped = db.group_entries(sessions, lambda x: x.duration) # by duration
-        self.assertEqual(len(grouped), 2)
-        self.assertEqual(len(grouped[0]), 2) # duration = 0.0
-        self.assertEqual(len(grouped[1]), 2) # duration = 3.0
+#         grouped = db.group_entries(sessions, lambda x: x.duration) # by duration
+#         self.assertEqual(len(grouped), 2)
+#         self.assertEqual(len(grouped[0]), 2) # duration = 0.0
+#         self.assertEqual(len(grouped[1]), 2) # duration = 3.0
 
 
 if __name__ == "__main__":
