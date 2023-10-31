@@ -14,7 +14,7 @@ import unittest
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
-img_dir = os.path.join(test_dir, '../docs/source/_images')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -192,7 +192,7 @@ class DigitalCalcTests(unittest.TestCase):
         plt.tight_layout()
 
         filename = 'sample_timestamped_data.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
     def test_get_dch_data(self):
         dig_data = [0, 1, 0, 1, 1, 0]
@@ -211,6 +211,7 @@ class DigitalCalcTests(unittest.TestCase):
         np.testing.assert_allclose(expected_ts, data['timestamp'])
         np.testing.assert_allclose(expected_values, data['value'])
         
+
 class EventFilterTests(unittest.TestCase):
 
     def test_trial_align_events(self):
@@ -787,7 +788,7 @@ class TestPrepareExperiment(unittest.TestCase):
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')        
         filename = 'parse_bmi3d_flash_events.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
         # Plot aligned flash times based on sync clock
         target_on_events = np.logical_and(16 <= data['bmi3d_events']['code'], data['bmi3d_events']['code'] < 32)
@@ -798,7 +799,7 @@ class TestPrepareExperiment(unittest.TestCase):
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_sync_clock.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
         # Plot aligned flash times based on measure clock
         target_on_events = np.logical_and(16 <= data['bmi3d_events']['code'], data['bmi3d_events']['code'] < 32)
@@ -810,6 +811,7 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_measure_clock.png'
         visualization.savefig(img_dir, filename)
+
 
     def test_parse_bmi3d_v10(self):
         pass
@@ -1002,13 +1004,13 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         visualization.plot_trajectories([raw_data], bounds=bounds)
         figname = 'eye_trajectories_raw.png'
-        visualization.savefig(img_dir, figname) # should have uncalibrated eye data
+        visualization.savefig(docs_dir, figname) # should have uncalibrated eye data
 
         plt.figure()
         eye_data = eye['calibrated_data']
         visualization.plot_trajectories([eye_data], bounds=bounds)
         figname = 'eye_trajectories_calibrated.png'
-        visualization.savefig(img_dir, figname) # should have centered eye data
+        visualization.savefig(docs_dir, figname) # should have centered eye data
 
         # Test putting eye data into a separate HDF file
         eye_filename = 'test_proc_eyetracking_short_eye.hdf'
@@ -1075,7 +1077,7 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,ch,:], ylabel='trials')
         im.set_clim(-100,100)
-        visualization.savefig(img_dir, 'laser_aligned_lfp.png')
+        visualization.savefig(docs_dir, 'laser_aligned_lfp.png')
         
         # And compare to the sensor data
         sensor_data = exp_data['laser_sensor']
@@ -1089,7 +1091,7 @@ class TestPrepareExperiment(unittest.TestCase):
         print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
-        visualization.savefig(img_dir, 'laser_aligned_sensor.png')
+        visualization.savefig(docs_dir, 'laser_aligned_sensor.png')
 
         plt.figure()
         plt.hist(trial_widths, 20)
@@ -1147,7 +1149,7 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,ch,:], ylabel='trials')
         im.set_clim(-100,100)
-        visualization.savefig(img_dir, 'laser_aligned_lfp_dch_trigger.png')
+        visualization.savefig(docs_dir, 'laser_aligned_lfp_dch_trigger.png')
         
         # And compare to the sensor data
         sensor_data = exp_data['qwalor_sensor']
@@ -1161,7 +1163,7 @@ class TestPrepareExperiment(unittest.TestCase):
         print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
-        visualization.savefig(img_dir, 'laser_aligned_sensor_dch_trigger.png')
+        visualization.savefig(docs_dir, 'laser_aligned_sensor_dch_trigger.png')
 
         # One more file, with no lfp data but it has multiple channels of stimulation using MultiQwalorLaser feature.
         subject = 'test'
@@ -1185,6 +1187,25 @@ class TestPrepareExperiment(unittest.TestCase):
             laser_sensor='qwalor_ch2_sensor', debug=True
         )
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
+
+    def test_get_target_events(self):
+
+        subject = 'test'
+        te_id = 8940
+        date = '2023-03-27'
+
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        target = get_target_events(exp_data, exp_metadata)
+        
+        plt.figure()
+        time = exp_data['events']['timestamp']
+        plt.plot(time, target[:,:,0]) # plot just the x coordinate
+        plt.xlim(10, 20)
+        plt.xlabel('time (s)')
+        plt.ylabel('x position (cm)')
+        filename = 'get_target_events.png'
+        visualization.savefig(docs_dir, filename)
+
 
 class ProcTests(unittest.TestCase):
 
@@ -1319,7 +1340,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].set_ylabel('100hz')
         plt.tight_layout()
         filename =  'proc_oculomatic_downsample.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
         fig,ax = plt.subplots(2,1)
         visualization.plot_freq_domain_amplitude(analog_data, old_samplerate, ax=ax[0])
@@ -1332,7 +1353,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].set_xlim(0,100)
         plt.tight_layout()
         filename =  'proc_oculomatic_freq.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
 
     def test_detect_noise(self):
@@ -1354,7 +1375,7 @@ class OculomaticTests(unittest.TestCase):
         plt.figure()
         plt.matshow(eye_closed_mask, aspect='auto')
         filename =  'proc_oculomatic_mask.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
 class NeuropixelTests(unittest.TestCase):
     

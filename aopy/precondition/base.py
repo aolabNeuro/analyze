@@ -24,7 +24,7 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
         cutoff_high (int): higher cutoff frequency (in Hz)
         fs (int): sampling rate (in Hz)
         order (int): Order of the butter worth filter
-        filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
+        filter_type (str) : Type of filter. Accepts one of the four values - {`lowpass`, `highpass`, `bandpass`, `bandstop`}
 
     Returns:
         tuple (b,a): bandpass filter parameters

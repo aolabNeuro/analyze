@@ -413,20 +413,6 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
-    def test_get_target_events(self):
-
-        exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        target = bmi3d._get_target_events(exp_data, exp_metadata)
-        
-        plt.figure()
-        time = exp_data['events']['timestamp']
-        plt.plot(time, target[:,:,0]) # plot just the x coordinate
-        plt.xlim(10, 20)
-        plt.xlabel('time (s)')
-        plt.ylabel('x position (cm)')
-        filename = 'get_target_events.png'
-        visualization.savefig(docs_dir, filename)
-
     def test_get_interp_kinematics(self):
         # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
@@ -664,9 +650,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-        self.assertEqual(len(df), 18) # should be the same df as above
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        self.assertEqual(len(df), 20) # 10 total trials, duplicated
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
         self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
@@ -674,18 +659,51 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertEqual(loc.shape[0], 3)
             self.assertLess(np.linalg.norm(loc), 7)
 
+        # Check that reaches are completed
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+        self.assertTrue(np.all(df['delay_completed'][df['reward']]))
+        self.assertTrue(np.all(df['reach_completed'][df['reward']]))
+
+        # Check a couple interesting trials
+        trial = df.iloc[0] # a successful trial
+        self.assertTrue(trial['reward'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 18, 32, 82, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertTrue(trial['hold_completed'])
+        self.assertTrue(trial['delay_completed'])
+        self.assertTrue(trial['reach_completed'])
+
+        trial = df.iloc[7] # a timeout penalty before anything happens
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 65, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        self.assertFalse(trial['trial_initiated'])
+        self.assertFalse(trial['hold_completed'])
+        self.assertFalse(trial['delay_completed'])
+        self.assertFalse(trial['reach_completed'])
+
+        trial = df.iloc[8] # a hold penalty on the center target
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 64, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertFalse(trial['hold_completed'])
+        self.assertFalse(trial['delay_completed'])
+        self.assertFalse(trial['reach_completed'])
+
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-
-        start_times = [t[0] for t in df['event_times']]
-        end_times = [t[-1] for t in df['event_times']]
-
-        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], start_times, end_times, 
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        
+        # Only consider completed reaches
+        df = df[df['reach_completed']]
+        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                             preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
 
         self.assertEqual(len(df), len(kin))
@@ -702,9 +720,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id]
         dates = [self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-        trigger_times = [t[0] for t in df['event_times']] 
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+
+        # Only consider initiated trials
+        df = df[df['trial_initiated']]
+
+        trigger_times = df['hold_start_time']
         time_before = 0.5
         time_after = 0.5
 
@@ -774,7 +795,7 @@ class TestYaml(unittest.TestCase):
         params_file = os.path.join(tmp_dir, 'task_codes.yaml')
 
          # Testing yaml_write
-        params = [{'CENTER_TARGET_ON': 16,
+        params = {'CENTER_TARGET_ON': 16,
                    'CURSOR_ENTER_CENTER_TARGET': 80,
                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
@@ -785,13 +806,17 @@ class TestYaml(unittest.TestCase):
                    'HOLD_PENALTY': 64,
                    'PAUSE': 254,
                    'TIME_ZERO': 238,
-                   'TRIAL_END': 239}]
+                   'TRIAL_END': 239}
         yaml_write(params_file, params)
 
         # Testing pkl_read
         task_codes = yaml_read(params_file)
 
         self.assertEqual(params,task_codes)
+
+        task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
+
+        self.assertDictEqual(params, task_codes_file)
 
 class SignalPathTests(unittest.TestCase):
 

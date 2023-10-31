@@ -2,13 +2,8 @@ import sys
 from functools import lru_cache
 import traceback
 import warnings
-
-from .. import precondition
-from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
-from ..whitematter import ChunkedStream, Dataset
-from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
-from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
 import os
+
 import numpy as np
 import h5py
 import tables
@@ -16,11 +11,18 @@ import pandas as pd
 import json
 from tqdm.auto import tqdm
 from scipy import interpolate
-
 if sys.version_info >= (3,9):
     from importlib.resources import files, as_file
 else:
     from importlib_resources import files, as_file
+
+from .. import precondition
+from .. import preproc
+from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
+from ..preproc.bmi3d import get_target_events
+from ..whitematter import ChunkedStream, Dataset
+from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
+from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
 
 ############
 # Raw data #
@@ -387,56 +389,6 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def _get_target_events(exp_data, exp_metadata):
-    '''
-    For target acquisition tasks, get an (n_event, n_target) array encoding the position
-    of each target whenever an event is fired by BMI3D. The resulting sequence is used 
-    to generate a sampled timeseries in :func:`~aopy.data.bmi3d.get_kinematic_segments`. 
-    When targets are turned off, their position is replaced by np.nan. 
-
-    Args:
-        exp_data (dict): A dictionary containing the experiment data.
-        exp_metadata (dict): A dictionary containing the experiment metadata.
-
-    Returns:
-        (n_event, n_target, 3) array: position of each target at each event time.
-    '''
-    
-    events = exp_data['events']['code']
-    trials = exp_data['bmi3d_trials']
-    
-    target_idx, location_idx = np.unique(trials['index'], axis=0, return_index=True)
-    locations = [np.round(t[[0,2,1]], 4) for t in trials['target'][location_idx]]
-    
-    # Generate events for each unique target
-    target_events = []
-    for idx in range(len(locations)):
-        target_on_codes = [
-            exp_metadata['event_sync_dict']['TARGET_ON'] + target_idx[idx]
-        ]
-        target_off_codes = [
-            exp_metadata['event_sync_dict']['TARGET_OFF'] + target_idx[idx], 
-            exp_metadata['event_sync_dict']['TRIAL_END']
-        ]
-
-        target_location = locations[idx]
-    
-        # Create a nan mask encoding when the target is turned on
-        target_on = np.zeros((len(events),))
-        on = np.nan
-        for idx, e in enumerate(events):
-            if e in target_on_codes:
-                on = 1
-            elif e in target_off_codes:
-                on = np.nan
-            target_on[idx] = on
-        
-        # Set the non-nan values to the target location
-        event_target = target_location[None,:] * target_on[:,None]    
-        target_events.append(event_target)
-        
-    return np.array(target_events).transpose(1,0,2)
-
 def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
     Gets interpolated and filtered kinematic data from preprocessed experiment 
@@ -550,7 +502,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
         data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 1d disturbance value (bmi3d coords: z)
     elif datatype == 'targets':
-        data_cycles = _get_target_events(exp_data, exp_metadata)
+        data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
     elif datatype in exp_data['task'].dtype.names:
@@ -916,7 +868,15 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
 
     Returns:
-        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of stimulation
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
     '''
     if df is None:
         df = pd.DataFrame()
@@ -964,7 +924,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
     return df
 
 def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadata=[], 
-                                      df=None, include_center_target=True):
+                                      df=None):
     '''
     Wrapper around tabulate_behavior_data() specifically for center-out experiments. 
     Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
@@ -978,29 +938,35 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         dates (list of str): Date for each recording
         metadata (list, optional): list of metadata keys that should be included in the df
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        include_center_target (bool, optional): If True, trials begin after the cursor enters
-            the center target. Otherwise trials begin after the go cue. Default True.
 
     Returns:
-        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of stimulation
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **target_idx (ntrial):** index of the target that was presented
+            | **target_location (ntrial):** location of the target that was presented
+            | **hold_start_time (ntrial):** time at which the hold period started
+            | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
+            | **delay_start_time (ntrial):** time at which the delay period started
+            | **delay_completed (ntrial):** boolean values indicating whether the delay period was completed
+            | **go_cue_time (ntrial):** time at which the go cue was presented
+            | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
+            | **reach_end_time (ntrial):** time at which the reach was completed
     '''
     # Use default "trial" definition
-    config_dir = files('aopy').joinpath('config')
-    params_file = as_file(config_dir.joinpath('task_codes.yaml'))
-    with params_file as f:
-        task_codes = yaml_read(f)[0]
-    trial_end_codes = [task_codes['REWARD'], task_codes['TRIAL_END']]
+    task_codes = load_bmi3d_task_codes()
+    trial_end_codes = [task_codes['TRIAL_END']]
+    trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
-    
-    if include_center_target:
-        trial_start_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']]
-        penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
-        target_codes = [task_codes['CENTER_TARGET_ON']] + task_codes['PERIPHERAL_TARGET_ON']
-    else:
-        trial_start_codes = [task_codes['CENTER_TARGET_OFF']]
-        penalty_codes = [task_codes['TIMEOUT_PENALTY']]
-        target_codes = [task_codes['CURSOR_ENTER_CENTER_TARGET']] + task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'] 
-    
+    penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    target_codes = task_codes['PERIPHERAL_TARGET_ON']
+
     # Concatenate base trial data
     new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
@@ -1008,8 +974,8 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     
     # Add target info
     target_idx = [
-        code[np.isin(code, target_codes)][0] - target_codes[0] 
-        if np.sum(np.isin(code, target_codes)) == 1 else 0 
+        code[np.isin(code, target_codes)][0] - target_codes[0] + 1 # add 1 for center target
+        if np.sum(np.isin(code, target_codes)) > 0 else 0 
         for code 
         in new_df['event_codes']
     ]
@@ -1020,6 +986,47 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     ]
     new_df['target_idx'] = target_idx
     new_df['target_location'] = target_location
+
+    # Add trial segment timing
+    new_df['trial_initiated'] = np.zeros(len(new_df), dtype='bool')
+    new_df['hold_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['delay_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['delay_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['go_cue_time'] = np.nan*np.zeros(len(new_df))
+    new_df['reach_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['reach_end_time'] = np.nan*np.zeros(len(new_df))
+    for i in range(len(new_df)):
+        event_codes = new_df.loc[i, 'event_codes']
+        event_times = new_df.loc[i, 'event_times']
+        
+        # Trial initiated if cursor enters the center target
+        _, hold_times = get_trial_segments(event_codes, event_times,
+                                            task_codes['CENTER_TARGET_ON'], [task_codes['CURSOR_ENTER_CENTER_TARGET']])
+        new_df.loc[i, 'trial_initiated'] = len(hold_times) > 0
+        if new_df.loc[i, 'trial_initiated']:
+            new_df.loc[i, 'hold_start_time'] = hold_times[0][-1]
+
+        # Hold completed if peripheral target turns on (start of delay)
+        _, delay_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['CURSOR_ENTER_CENTER_TARGET']], task_codes['PERIPHERAL_TARGET_ON'])
+        new_df.loc[i, 'hold_completed'] = len(delay_times) > 0
+        if new_df.loc[i, 'hold_completed']:
+            new_df.loc[i, 'delay_start_time'] = delay_times[0][-1]
+
+        # Delay completed when center target turns off (go cue)
+        _, go_cue_times = get_trial_segments(event_codes, event_times,
+                                            task_codes['PERIPHERAL_TARGET_ON'], [task_codes['CENTER_TARGET_OFF']])
+        new_df.loc[i, 'delay_completed'] = len(go_cue_times) > 0
+        if new_df.loc[i, 'delay_completed']:
+            new_df.loc[i, 'go_cue_time'] = go_cue_times[0][-1]
+
+        # Reach completed if cursor enters target (regardless of whether the trial was successful)
+        _, reach_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['CENTER_TARGET_OFF']], task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])
+        new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
+        if new_df.loc[i, 'reach_completed']:
+            new_df.loc[i, 'reach_end_time'] = reach_times[0][-1]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
@@ -1099,3 +1106,19 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
         idx += 1
         
     return segments, samplerate
+        
+def load_bmi3d_task_codes(filename='task_codes.yaml'):
+    '''
+    Load the default BMI3D task codes. File-specific codes can be found in exp_metadata['event_sync_dict']
+
+    Args:
+        filename (str, optional): filename of the task codes to load. Defaults to 'task_codes.yaml'.
+
+    Returns:
+        dict: (name, code) task code dictionary
+    '''
+    config_dir = files('aopy').joinpath('config')
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        task_codes = yaml_read(f)[0]
+    return task_codes
