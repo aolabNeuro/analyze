@@ -8,6 +8,7 @@ import numpy as np
 import h5py
 import tables
 import pandas as pd
+import json
 from tqdm.auto import tqdm
 from scipy import interpolate
 if sys.version_info >= (3,9):
@@ -393,7 +394,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
     screen coordinates, while other kinematics are returned in their original
-    coordinate system (e.g. hand kinematis in optitrack coordinates).
+    coordinate system (e.g. hand kinematics in optitrack coordinates).
 
     Examples:
         
@@ -407,7 +408,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             plt.figure()
             visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         
-        .. image:: _images/get_interp_cursor.png
+        .. image:: _images/get_interp_cursor_centerout.png
 
         Hand kinematics
        
@@ -417,7 +418,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             ax = plt.axes(projection='3d')
             visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
 
-        .. image:: _images/get_interp_hand.png
+        .. image:: _images/get_interp_hand_centerout.png
 
         Target positions
 
@@ -430,7 +431,40 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             plt.xlabel('time (s)')
             plt.ylabel('x position (cm)')
 
-        .. image:: _images/get_interp_targets.png
+        .. image:: _images/get_interp_targets_centerout.png
+
+        Cursor and target (reference) kinematics
+
+        .. code-block:: python
+            
+            exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
+            plt.plot(time, cursor_interp[:int(exp_metadata['fps']*120),1], color='blueviolet', label='cursor') # plot just the y coordinate
+            plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
+            plt.xlabel('time (s)')
+            plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+            plt.legend()
+
+        .. image:: _images/get_interp_cursor_tracking.png
+
+        User, reference, and disturbance kinematics
+
+        .. code-block:: python
+            
+            user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps'])
+            time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
+            plt.plot(time, user_interp[:int(exp_metadata['fps']*120),1], color='darkturquoise', label='user')
+            plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
+            plt.plot(time, dis_interp[:int(exp_metadata['fps']*120),1], color='tab:red', linestyle='--', label='dis')
+            plt.xlabel('time (s)')
+            plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+            plt.legend()
+
+        .. image:: _images/get_interp_user_tracking.png
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
@@ -448,20 +482,31 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     '''
     kwargs = {}
 
+    # Fetch the available timestamps
+    try:
+        clock = exp_data['clock']['timestamp_sync']
+    except:
+        clock = exp_data['clock']['timestamp_bmi3d']
+
     # Fetch the relevant BMI3D data
     if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position']
-        clock = exp_data['clock']['timestamp_sync']
+        data_cycles = exp_data['clean_hand_position'] # 3d hand position (optitrack coords: x,y,z) on each bmi3d cycle
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
-        clock = exp_data['clock']['timestamp_sync']
+        data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
+    elif datatype == 'user':
+        dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
+        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 1d cursor position before disturbance added (bmi3d coords: z)
+    elif datatype == 'reference':
+        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 1d target position (bmi3d coords: z)
+    elif datatype == 'disturbance':
+        dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
+        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 1d disturbance value (bmi3d coords: z)
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
-        clock = exp_data['clock']['timestamp_sync']
     else:
         raise ValueError(f"Unknown datatype {datatype}")
     

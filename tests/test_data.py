@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.testing.compare import compare_images
 import datetime
+import json
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -413,6 +414,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
     def test_get_interp_kinematics(self):
+        # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
         cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
         hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
@@ -426,13 +428,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         plt.figure()
         visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
-        filename = 'get_interp_cursor.png'
+        filename = 'get_interp_cursor_centerout.png'
         visualization.savefig(docs_dir, filename)
 
         plt.figure()
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
-        filename = 'get_interp_hand.png'
+        filename = 'get_interp_hand_centerout.png'
         visualization.savefig(docs_dir, filename)
 
         plt.figure()
@@ -441,7 +443,91 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlim(10, 20)
         plt.xlabel('time (s)')
         plt.ylabel('x position (cm)')
-        filename = 'get_interp_targets.png'
+        filename = 'get_interp_targets_centerout.png'
+        visualization.savefig(docs_dir, filename)
+
+        # Test with tracking task data (rig1)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+        # check this is an experiment with reference & disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
+
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        n_sec = 120
+        time = np.arange(exp_metadata['fps']*n_sec)/exp_metadata['fps']
+        plt.figure()
+        plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_cursor_tracking.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.plot(time, dis_interp[:int(exp_metadata['fps']*n_sec),1], color='tab:red', linestyle='--', label='dis')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_user_tracking.png'
+        visualization.savefig(docs_dir, filename)
+        
+        # Test with tracking task data (tablet rig)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'churro', 375, '2023-10-02')
+        # check this is an experiment with reference & NO disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert not json.loads(exp_metadata['sequence_params'])['disturbance']
+        
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        plt.figure()
+        plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_cursor_tracking_tablet.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.plot(time, dis_interp[:int(exp_metadata['fps']*n_sec),1], color='tab:red', linestyle='--', label='dis')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_user_tracking_tablet.png'
         visualization.savefig(docs_dir, filename)
 
     def test_get_kinematic_segments(self):
@@ -685,7 +771,6 @@ class TestMatlab(unittest.TestCase):
         # Check case where neither str_include or str_avoid are used
         parsed_strs4 = parse_str_list(str_list)
         self.assertListEqual(parsed_strs4, str_list)
-
 
 class TestPickle(unittest.TestCase):
 

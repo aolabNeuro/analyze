@@ -650,6 +650,20 @@ class TestPrepareExperiment(unittest.TestCase):
         n_cycles = data['clock']['time'][-1] + 1
         self.assertEqual(len(data['clock']), n_cycles)
 
+        # Test tablet data (sync version 0)
+        files = {}
+        files['hdf'] = 'chur20231002_02_te375.hdf'
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 0)
+        self.assertIn('fps', metadata)
+        self.assertAlmostEqual(metadata['fps'], 120.)
+        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
+        n_cycles = data['clock']['time'][-1] + 1
+        self.assertEqual(len(data['clock']), n_cycles)     
+        for key in ['timestamp','code','event']:
+            self.assertIn(key, data['events'].dtype.names)
+
     def test_parse_bmi3d_v1(self):
         pass
 
