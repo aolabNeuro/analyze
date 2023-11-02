@@ -615,6 +615,18 @@ class OtherPlottingTests(unittest.TestCase):
 
         aopy.visualization.savefig(write_dir, "axis_transparency.png", transparent=False)
 
+    def test_subplots_with_labels(self):
+
+        # Test case 1: generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+        fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
+        assert isinstance(fig, plt.Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.shape == (2, 2)
+        assert isinstance(axes[0, 0], plt.Axes)
+        assert isinstance(axes[0, 1], plt.Axes)
+        assert isinstance(axes[1, 0], plt.Axes)
+        assert isinstance(axes[1, 1], plt.Axes)
+        aopy.visualization.savefig(docs_dir, "labeled_subplots.png")
 
 if __name__ == "__main__":
     unittest.main()

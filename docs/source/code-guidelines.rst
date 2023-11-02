@@ -173,6 +173,37 @@ met:
 -  Plotting
 -  Saving
 
+Imports
+~~~~~~~
+
+Imports should be organized in the following order:
+
+-  standard library imports
+-  third party imports
+-  local application imports
+
+Imports should be grouped by a single blank line. For example:
+
+.. code-block:: python
+
+   import os
+   import sys
+
+   import numpy as np
+   import matplotlib.pyplot as plt
+
+   from .. import data as aodata
+
+To avoid circular import errors, do not import functions directly from within aopy. 
+Instead, import a module and use the module name to access the function. For example:
+
+.. code-block:: python
+
+   from ..data import load_ecube_data # wrong, will lead to circular imports!
+   
+   from .. import data as aodata
+   aodata.load_ecube_data()
+
 Adding new packages
 -------------------
 

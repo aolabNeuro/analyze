@@ -133,6 +133,7 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save
     if save_res:
         save_hdf(result_dir, result_filename, bmi3d_data, "/exp_data", append=True)
         save_hdf(result_dir, result_filename, bmi3d_metadata, "/exp_metadata", append=True)
+        print('done!')
     return bmi3d_data, bmi3d_metadata
 
 def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
