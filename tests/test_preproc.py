@@ -1237,38 +1237,75 @@ class ProcTests(unittest.TestCase):
     def test_proc_lfp(self):
 
         # Test proc from ecube
-        result_filename = 'test_proc_lfp.hdf'
+        ecube_result_filename = 'test_proc_lfp.hdf'
         files = {'ecube': 'fake ecube data'}
-        proc_lfp(data_dir, files, write_dir, result_filename, overwrite=True)
+        ecube_metadata = load_ecube_metadata(os.path.join(data_dir, files['ecube']), 'Headstages')
 
-        contents = get_hdf_dictionary(write_dir, result_filename)
+        proc_lfp(data_dir, files, write_dir, ecube_result_filename, max_memory_gb=0.0001, overwrite=True)
+
+        contents = get_hdf_dictionary(write_dir, ecube_result_filename)
         self.assertIn('lfp_data', contents)
         self.assertIn('lfp_metadata', contents)
 
-        lfp_data = load_hdf_data(write_dir, result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, ecube_result_filename, 'lfp_metadata')
 
-        self.assertEqual(lfp_data.shape, (1000, 8))
+        approx_n_samples = int(ecube_metadata['n_samples']*lfp_metadata['samplerate']/ecube_metadata['samplerate'])
+
+        self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
+        self.assertEqual(lfp_data.shape[1], 8)
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
         self.assertEqual(lfp_metadata['samplerate'], 1000)
 
         # Test proc from broadband hdf
         bb_filename = 'test_proc_lfp_bb.hdf'
-        result_filename = 'test_proc_lfp_from_bb.hdf'
-        files = {'ecube': 'fake ecube data', 'broadband': bb_filename}
+        bb_result_filename = 'test_proc_lfp_from_bb.hdf'
+        files['broadband'] = bb_filename
         proc_broadband(data_dir, files, write_dir, bb_filename, overwrite=True)
-        proc_lfp(data_dir, files, write_dir, result_filename, overwrite=True)
+        proc_lfp(data_dir, files, write_dir, bb_result_filename, max_memory_gb=0.0001, overwrite=True)
 
-        contents = get_hdf_dictionary(write_dir, result_filename)
+        contents = get_hdf_dictionary(write_dir, bb_result_filename)
         self.assertIn('lfp_data', contents)
         self.assertIn('lfp_metadata', contents)
 
-        lfp_data = load_hdf_data(write_dir, result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
 
-        self.assertEqual(lfp_data.shape, (1000, 8))
+        self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
+        self.assertEqual(lfp_data.shape[1], 8)
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
         self.assertEqual(lfp_metadata['samplerate'], 1000)
+
+        # Compare the two files
+        ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
+        bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+
+        ch = 0
+
+        fig, ax = plt.subplots(3,1, figsize=(5,8))
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[:100,ch], 1000, ax=ax[0])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[:100,ch], 1000, ax=ax[0])
+        ax[0].set_title('first 100ms')
+        ax[0].set_ylabel('Voltage (uV)')
+        ax[0].set_ylim(-2000,2000)
+        ax[0].legend(['from ecube', 'from hdf'])
+
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[-100:,ch], 1000, ax=ax[1])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[-100:,ch], 1000, ax=ax[1])
+        ax[1].set_title('last 100ms')
+        ax[1].set_ylabel('Voltage (uV)')
+        ax[1].set_ylim(-2000,2000)
+
+        chunksize = 250
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[chunksize-50:chunksize+50,ch], 1000, ax=ax[2])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[chunksize-50:chunksize+50,ch], 1000, ax=ax[2])
+        ax[2].set_title('chunk boundary')
+        ax[2].set_ylabel('Voltage (uV)')
+        ax[2].set_ylim(-2000,2000)
+
+        plt.tight_layout()
+        visualization.savefig(docs_dir, 'proc_lfp_comparison.png')
 
 class QualityTests(unittest.TestCase):
 
