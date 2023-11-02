@@ -22,7 +22,7 @@ from ..preproc.base import get_data_segment, get_data_segments, get_trial_segmen
 from ..preproc.bmi3d import get_target_events
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
-from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
+from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment, load_hdf_group
 
 ############
 # Raw data #
@@ -196,6 +196,149 @@ def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadb
         n_samples += chunk_len
 
     return dset, metadata
+
+def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    '''
+    Filters local field potential (LFP) data from a given broadband signal file into an hdf file.
+
+    Args:
+        broadband_filepath (str): Path to the input broadband signal file.
+        result_filepath (str): Path to save the filtered LFP data.
+        mean_subtract (bool, optional): Whether to subtract the mean from the filtered LFP signal.
+                                        Default is True.
+        dtype (str, optional): Data type for the filtered LFP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **filter_kwargs: Additional keyword arguments to customize the filtering process.
+                        These arguments will be passed to the filtering function.
+
+    Raises:
+        IOError: If the input broadband file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+    '''
+    lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+
+    metadata = load_hdf_group('', broadband_filepath, 'broadband_metadata')
+    samplerate = metadata['samplerate']
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
+    downsample_factor = int(samplerate/lfp_samplerate)
+    lfp_samples = int(np.ceil(n_samples/downsample_factor))
+
+    # Create an hdf dataset
+    lfp_hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
+    dset = lfp_hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
+    channel_chunksize = max(min(n_channels, max_samples // n_samples), 1)
+    time_chunksize = min(n_samples, max_samples // channel_chunksize)
+    print(f"{channel_chunksize} channels and {time_chunksize} samples in each chunk")
+    
+    # Load the broadband dataset
+    bb_hdf = h5py.File(broadband_filepath, 'r')
+    if 'broadband_data' not in bb_hdf:
+        raise ValueError(f'broadband_data not found in file {broadband_filepath}')
+    bb_data = bb_hdf['broadband_data']
+    
+    # Filter broadband data into LFP directly into the hdf file
+    n_bb_samples = 0
+    n_lfp_samples = 0
+    while n_bb_samples < n_samples:
+        n_ch = 0
+        while n_ch < n_channels:
+            broadband_chunk = bb_data[n_bb_samples:n_bb_samples+time_chunksize, n_ch:n_ch+channel_chunksize]
+            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+            chunk_len = lfp_chunk.shape[0]
+            dset[n_lfp_samples:n_lfp_samples+chunk_len,n_ch:n_ch+channel_chunksize] = lfp_chunk
+            n_ch += channel_chunksize
+        n_bb_samples += time_chunksize
+        n_lfp_samples += chunk_len
+        
+    if mean_subtract:
+        dset -= np.mean(dset, axis=0, dtype=dtype) # hopefully this isn't constrained by memory
+    lfp_hdf.close()
+    bb_hdf.close()
+
+    # Append the lfp metadata to the file
+    lfp_metadata = metadata
+    lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
+    lfp_metadata['samplerate'] = lfp_samplerate
+    lfp_metadata['n_samples'] = lfp_samples
+    lfp_metadata['low_cut'] = 500
+    lfp_metadata['buttord'] = 4
+    lfp_metadata.update(filter_kwargs)
+    
+    return dset, lfp_metadata
+
+def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    '''
+    Filters local field potential (LFP) data from an eCube recording file.
+
+    Args:
+        ecube_filepath (str): Path to the input eCube recording file.
+        result_filepath (str): Path to save the filtered LFP data.
+        mean_subtract (bool, optional): Whether to subtract the mean from the filtered LFP signal.
+                                        Default is True.
+        dtype (str, optional): Data type for the filtered LFP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **filter_kwargs: Additional keyword arguments to customize the filtering process.
+                        These arguments will be passed to the filtering function.
+
+    Raises:
+        IOError: If the input eCube recording file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+    '''
+    lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+
+    metadata = load_ecube_metadata(ecube_filepath, 'Headstages')
+    samplerate = metadata['samplerate']
+    downsample_factor = int(samplerate/lfp_samplerate)
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
+    chunksize = int(max_samples / metadata['n_channels'])
+    n_whole_chunks = int(n_samples / chunksize)
+    n_remaining = n_samples - (chunksize * n_whole_chunks)
+    lfp_samples = np.ceil(chunksize/downsample_factor) * n_whole_chunks + np.ceil(n_remaining/downsample_factor)
+    print("lfp chunks should be ", np.ceil(chunksize/downsample_factor))
+    print("last chunk should be ", np.ceil(n_remaining/downsample_factor))
+    print("total samples: ", lfp_samples)
+
+    # Create an hdf dataset
+    hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
+    dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+
+    # Filter broadband data into LFP directly into the hdf file
+    n_lfp_samples = 0
+    for broadband_chunk in load_ecube_data_chunked(ecube_filepath, 'Headstages', chunksize=chunksize):
+        lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+        chunk_len = lfp_chunk.shape[0]
+        print(n_lfp_samples, n_lfp_samples+chunk_len, lfp_samples)
+        dset[n_lfp_samples:n_lfp_samples+chunk_len,:] = lfp_chunk
+        n_lfp_samples += chunk_len
+        
+    if mean_subtract:
+        dset -= np.mean(dset, axis=0, dtype=dtype) # hopefully this isn't constrained by memory
+    hdf.close()
+
+    # Append the lfp metadata to the file
+    lfp_metadata = metadata
+    lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
+    lfp_metadata['samplerate'] = lfp_samplerate
+    lfp_metadata['n_samples'] = lfp_samples
+    lfp_metadata['low_cut'] = 500
+    lfp_metadata['buttord'] = 4
+    lfp_metadata.update(filter_kwargs)
+    
+    return dset, lfp_metadata
 
 def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
