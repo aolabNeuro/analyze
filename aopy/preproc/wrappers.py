@@ -70,6 +70,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         broadband_data, broadband_metadata = load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
         assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
+        files['broadband'] = broadband_filename # for proc_lfp()
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
         lfp_filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
@@ -343,7 +344,7 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
 
     # Preprocess neural data into lfp   
     if 'broadband' in files:
-        broadband_filepath = os.path.join(data_dir, files['broadband'])
+        broadband_filepath = os.path.join(result_dir, files['broadband'])
         result_filepath = os.path.join(result_dir, result_filename)
 
         _, lfp_metadata = aodata.filter_lfp_from_broadband(broadband_filepath, result_filepath, dtype='int16', 
