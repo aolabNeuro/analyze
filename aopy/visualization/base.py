@@ -64,8 +64,10 @@ def savefig(base_dir, filename, **kwargs):
         kwargs['transparent'] = True
     plt.savefig(fname, **kwargs)
 
-def subplots_with_labels(n_rows, n_cols, return_labeled_axes, rel_label_x, rel_label_y,
-                         label_font_size, constrained_layout=False, **kwargs):
+def subplots_with_labels(n_rows, n_cols, return_labeled_axes=False, 
+                         rel_label_x=-0.25, rel_label_y=1.1,
+                         label_font_size=11, constrained_layout=False, 
+                         **kwargs):
     '''
     Create a figure with subplots labeled with letters. Augments plt.subplots().
 
@@ -82,10 +84,10 @@ def subplots_with_labels(n_rows, n_cols, return_labeled_axes, rel_label_x, rel_l
     Args:
         n_rows (int): Number of rows of subplots.
         n_cols (int): Number of columns of subplots.
-        return_labeled_axes (bool): Whether to return the labeled axes.
-        rel_label_x (float): The relative x position of the subplot label.
-        rel_label_y (float): The relative y position of the subplot label.
-        label_font_size (int): The font size of the subplot label.
+        return_labeled_axes (bool, optional): Whether to return the labeled axes. Default False.
+        rel_label_x (float, optional): The relative x position of the subplot label. Default -0.25.
+        rel_label_y (float, optional): The relative y position of the subplot label. Default 1.1
+        label_font_size (int, optional): The font size of the subplot label. Default 11.
         constrained_layout (bool, optional): Whether to use constrained layout. Default is False.
         **kwargs: Additional keyword arguments to pass to plt.subplot_mosaic.
 
