@@ -1434,6 +1434,11 @@ class NeuropixelTests(unittest.TestCase):
         # concatenate data
         _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
         
+        # Remove the files after testing
+        concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
+        os.remove(os.path.join(concat_data_dir,'task_path.npy'))
+        os.remove(os.path.join(concat_data_dir,'datasize_entry.npy'))
+
         # load each data
         data1, _ = load_neuropixel_data(data_dir, np_recorddir1,'ap',port_number=1)
         sample_size1 = data1.samples.shape[0]
@@ -1441,7 +1446,6 @@ class NeuropixelTests(unittest.TestCase):
 
         # Check if the second part in con data is equal to the data2
         kilosort_dir = os.path.join(data_dir, 'kilosort')
-        concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
         con_data = np.memmap(os.path.join(concat_data_dir,'continuous.dat'), dtype='int16') # load continuous.dat file
         con_data = con_data.reshape(-1,384)
         self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
@@ -1449,6 +1453,11 @@ class NeuropixelTests(unittest.TestCase):
         
         # Check removing bad task id
         _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1, bad_taskid=['0001'])
+
+        # Remove the files after testing
+        os.remove(os.path.join(concat_data_dir,'task_path.npy'))
+        os.remove(os.path.join(concat_data_dir,'datasize_entry.npy'))
+        os.remove(os.path.join(concat_data_dir,'continuous.dat'))
 
         concat_dataname = f'{date}_Neuropixel_ks_{subject}2_bottom_port1'
         concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
@@ -1476,6 +1485,11 @@ class NeuropixelTests(unittest.TestCase):
         spike_indices_unit = classify_ks_unit(spike_indices, spike_label)
         self.assertTrue(np.all(spike_indices_unit['0']>0))
         self.assertTrue(np.all(spike_indices_unit['1']>0))
+
+        # Remove the files after testing
+        os.remove(os.path.join(parsed_data_dir,'ks_label.npy'))
+        os.remove(os.path.join(parsed_data_dir,'spike_indices_entry.npy'))
+        os.remove(os.path.join(parsed_data_dir,'spike_clusters_entry.npy'))
             
 if __name__ == "__main__":
     unittest.main()
