@@ -180,7 +180,7 @@ def validate_measurements(expected_values, measured_values, diff_thr):
     corrected_values[diff_above_thr] = expected_values[diff_above_thr]
     return corrected_values, diff_above_thr
 
-def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrapolate=False):
+def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrapolate=False, remove_nan=True):
     '''
     This function uses linear interpolation (scipy.interpolate.interp1d) to convert timestamped data to timeseries data given new sampling points.
     Timestamps must be monotonic. If the timestamps or timestamp_values include a nan, this function ignores the corresponding timestamp value and performs interpolation between the neighboring values.
@@ -207,10 +207,11 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     Args:
         timestamps (nstamps): Timestamps of original data to be interpolated between.
         timestamp_values (nstamps): Values corresponding to the timestamps.
-        samplerate (float): Optional argument if new sampling points should be calculated based on the timstamps. Sampling rate of newly sampled output array. [Hz]
-        output_array (nt): Optional argument to pass predefined sampling points. 
-        interp_kind (str): Optional argument to define the kind of interpolation used. Defaults to 'linear'
-        extrapolate (bool): If True, use scipy.interp1d's built-in extrapolate functionality. Otherwise, use the first and last valid data.
+        samplerate (float, optional): Optional argument if new sampling points should be calculated based on the timstamps. Sampling rate of newly sampled output array in Hz. Default None.
+        sampling_points ((nt,) array, optional): Optional argument to pass predefined sampling points. Default None.
+        interp_kind (str, optional): Optional argument to define the kind of interpolation used. Defaults to 'linear'
+        extrapolate (bool, optional): If True, use scipy.interp1d's built-in extrapolate functionality. Otherwise, use the first and last valid data.
+        remove_nan (bool, optional): If True, remove nan values before interpolation. Default True.
 
     Returns:
         tuple: tuple containing:
@@ -219,11 +220,11 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
 
     '''
     # Check for nans and remove them
-    if not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values))):
+    if remove_nan and (not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values)))):
         nanmask_stamps = np.logical_not(np.isnan(timestamps))
         nanmask_values = np.logical_not(np.isnan(timestamp_values))
         if timestamp_values.ndim > 1:
-            nanmask_values = nanmask_values[:,0] # assume if one is nan then the others are nan
+            nanmask_values = np.any(nanmask_values, axis=tuple(range(1,nanmask_values.ndim))) # all axes except 0
         nanmask = np.logical_and(nanmask_stamps, nanmask_values)
         timestamps = timestamps[nanmask]
         timestamp_values = timestamp_values[nanmask]
@@ -252,11 +253,12 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=fill_value, bounds_error=False, axis=0)
     timeseries = f_interp(sampling_points)
 
-    assert np.count_nonzero(np.isnan(timeseries)) == 0, f"{np.count_nonzero(np.isnan(timeseries))} NaNs present in output -- something has gone wrong!"
+    if remove_nan:
+        assert np.count_nonzero(np.isnan(timeseries)) == 0, f"{np.count_nonzero(np.isnan(timeseries))} NaNs present in output -- something has gone wrong!"
 
     return timeseries, sampling_points
 
-def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, append_time=0):
+def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, append_time=0, **kwargs):
     '''
     Convert irregularly spaced data into a timeseries at the given samplerate. 
     First interpolates the data (by default to 100 times the samplerate), then
@@ -272,18 +274,19 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
             Defaults to 100 times the samplerate.
         append_time (float, optional): The amount of extra time to add at the end 
             of the timeseries, in seconds. Defaults to 0.
+        kwargs (dict, optional): arguments to include in interpolation function
 
     Returns:
         (ns, ...): cursor_data_time containing the sampled data.
     '''
-    assert len(data) == len(timestamps), f"Data and timestamps should "
-    f"have the same number of cycles ({len(data)} vs {len(timestamps)})"
+    assert len(data) == len(timestamps), (f"Data and timestamps should "
+        f"have the same number of cycles ({len(data)} vs {len(timestamps)})")
 
     if upsamplerate is None:
         upsamplerate = samplerate * 100
 
     time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
-    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False)
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False, **kwargs)
     data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 

@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.testing.compare import compare_images
 import datetime
+import json
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -413,24 +414,120 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
     def test_get_interp_kinematics(self):
+        # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        cursor_interp = get_interp_kinematics(exp_data, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_kinematics(exp_data, datatype='hand', samplerate=100)
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
+        targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(targets_interp.shape[1], 9) # 9 targets including center
 
         self.assertEqual(len(cursor_interp), len(hand_interp))
 
         plt.figure()
         visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
-        filename = 'get_interp_cursor.png'
+        filename = 'get_interp_cursor_centerout.png'
         visualization.savefig(docs_dir, filename)
 
         plt.figure()
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
-        filename = 'get_interp_hand.png'
+        filename = 'get_interp_hand_centerout.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        time = np.arange(len(targets_interp))/100
+        plt.plot(time, targets_interp[:,:,0]) # plot just the x coordinate
+        plt.xlim(10, 20)
+        plt.xlabel('time (s)')
+        plt.ylabel('x position (cm)')
+        filename = 'get_interp_targets_centerout.png'
+        visualization.savefig(docs_dir, filename)
+
+        # Test with tracking task data (rig1)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+        # check this is an experiment with reference & disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
+
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        n_sec = 120
+        time = np.arange(exp_metadata['fps']*n_sec)/exp_metadata['fps']
+        plt.figure()
+        plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_cursor_tracking.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.plot(time, dis_interp[:int(exp_metadata['fps']*n_sec),1], color='tab:red', linestyle='--', label='dis')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_user_tracking.png'
+        visualization.savefig(docs_dir, filename)
+        
+        # Test with tracking task data (tablet rig)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'churro', 375, '2023-10-02')
+        # check this is an experiment with reference & NO disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert not json.loads(exp_metadata['sequence_params'])['disturbance']
+        
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        plt.figure()
+        plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_cursor_tracking_tablet.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.plot(time, dis_interp[:int(exp_metadata['fps']*n_sec),1], color='tab:red', linestyle='--', label='dis')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_user_tracking_tablet.png'
         visualization.savefig(docs_dir, filename)
 
     def test_get_kinematic_segments(self):
@@ -523,7 +620,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         files, raw_data_dir = get_source_files(preproc_dir, subject, te_id, date)
         self.assertEqual(files['hdf'], 'hdf/beig20220701_04_te5974.hdf')
         self.assertEqual(files['ecube'], 'ecube/2022-07-01_BMI3D_te5974')
-        self.assertEqual(raw_data_dir, '/data/raw')
+        self.assertEqual(raw_data_dir, '/media/moor-data/raw')
 
     def test_tabulate_behavior_data(self):
 
@@ -537,9 +634,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         penalty_codes = [64]
         df = tabulate_behavior_data(
             write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
-            reward_codes, penalty_codes, metadata=['target_radius'], df=None)
+            reward_codes, penalty_codes, metadata=['target_radius', 'rand_delay'], df=None)
         self.assertEqual(len(df), 18)
         np.testing.assert_allclose(df['target_radius'], 2.)
+        for delay in df['rand_delay']:
+             np.testing.assert_allclose(delay, [0.23, 0.3])
         expected_reward = np.ones(len(df))
         expected_reward[-2:] = 0
         expected_reward[-11:-9] = 0
@@ -551,24 +650,60 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-        self.assertEqual(len(df), 18) # should be the same df as above
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        self.assertEqual(len(df), 20) # 10 total trials, duplicated
         self.assertTrue(np.all(df['target_idx'] < 9))
+        self.assertTrue(np.all(df['target_idx'] >= 0))
+        self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
+        for loc in df['target_location']:
+            self.assertEqual(loc.shape[0], 3)
+            self.assertLess(np.linalg.norm(loc), 7)
 
+        # Check that reaches are completed
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+        self.assertTrue(np.all(df['delay_completed'][df['reward']]))
+        self.assertTrue(np.all(df['reach_completed'][df['reward']]))
+
+        # Check a couple interesting trials
+        trial = df.iloc[0] # a successful trial
+        self.assertTrue(trial['reward'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 18, 32, 82, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertTrue(trial['hold_completed'])
+        self.assertTrue(trial['delay_completed'])
+        self.assertTrue(trial['reach_completed'])
+
+        trial = df.iloc[7] # a timeout penalty before anything happens
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 65, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        self.assertFalse(trial['trial_initiated'])
+        self.assertFalse(trial['hold_completed'])
+        self.assertFalse(trial['delay_completed'])
+        self.assertFalse(trial['reach_completed'])
+
+        trial = df.iloc[8] # a hold penalty on the center target
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 64, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertFalse(trial['hold_completed'])
+        self.assertFalse(trial['delay_completed'])
+        self.assertFalse(trial['reach_completed'])
 
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-
-        start_times = [t[0] for t in df['event_times']]
-        end_times = [t[-1] for t in df['event_times']]
-
-        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], start_times, end_times, 
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        
+        # Only consider completed reaches
+        df = df[df['reach_completed']]
+        kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                             preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
 
         self.assertEqual(len(df), len(kin))
@@ -585,9 +720,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id]
         dates = [self.date]
 
-        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None, 
-                                               include_center_target=True)
-        trigger_times = [t[0] for t in df['event_times']] 
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+
+        # Only consider initiated trials
+        df = df[df['trial_initiated']]
+
+        trigger_times = df['hold_start_time']
         time_before = 0.5
         time_after = 0.5
 
@@ -643,7 +781,6 @@ class TestMatlab(unittest.TestCase):
         parsed_strs4 = parse_str_list(str_list)
         self.assertListEqual(parsed_strs4, str_list)
 
-
 class TestPickle(unittest.TestCase):
 
     def test_pkl_fn(self):
@@ -667,7 +804,7 @@ class TestYaml(unittest.TestCase):
         params_file = os.path.join(tmp_dir, 'task_codes.yaml')
 
          # Testing yaml_write
-        params = [{'CENTER_TARGET_ON': 16,
+        params = {'CENTER_TARGET_ON': 16,
                    'CURSOR_ENTER_CENTER_TARGET': 80,
                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
@@ -678,13 +815,17 @@ class TestYaml(unittest.TestCase):
                    'HOLD_PENALTY': 64,
                    'PAUSE': 254,
                    'TIME_ZERO': 238,
-                   'TRIAL_END': 239}]
+                   'TRIAL_END': 239}
         yaml_write(params_file, params)
 
         # Testing pkl_read
         task_codes = yaml_read(params_file)
 
         self.assertEqual(params,task_codes)
+
+        task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
+
+        self.assertDictEqual(params, task_codes_file)
 
 class SignalPathTests(unittest.TestCase):
 

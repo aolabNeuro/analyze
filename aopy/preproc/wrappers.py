@@ -133,6 +133,7 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save
     if save_res:
         save_hdf(result_dir, result_filename, bmi3d_data, "/exp_data", append=True)
         save_hdf(result_dir, result_filename, bmi3d_metadata, "/exp_metadata", append=True)
+        print('done!')
     return bmi3d_data, bmi3d_metadata
 
 def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
@@ -181,6 +182,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     The data is prepared into HDF datasets:
     
     eye_data:
+        eye_closed_mask (nt, nch): boolean mask of when the eyes are closed
         raw_data (nt, nch): raw eye data
         calibrated_data (nt, nch): calibrated eye data
         coefficients (nch, 2): linear regression coefficients
@@ -262,7 +264,10 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     except (KeyError, ValueError):
         # If there is no cursor data or there aren't enough trials, this will fail. 
         # We should still save the eye data, just don't include the calibrated data
-        eye_dict = {'raw_data': eye_data}
+        eye_dict = {
+            'eye_closed_mask': eye_mask,
+            'raw_data': eye_data
+        }
 
     # Save everything into the HDF file
     if save_res:
