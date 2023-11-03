@@ -4,7 +4,7 @@ import traceback
 import warnings
 from matplotlib import pyplot as plt
 import os
-
+import datetime
 import numpy as np
 import h5py
 import tables
@@ -1060,6 +1060,110 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
     trajectories = np.array(segments, dtype='object')
     return trajectories
 
+def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
+                       debug=True, df=None, **kwargs):
+    '''
+    Concatenate stimulation data from across experiments. Experiments are given as lists of 
+    subjects, task entry ids, and dates. Each list must be the same length. 
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df. By default,
+            only `stimulation_site` is included.
+        debug (bool, optional): Passed to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`, if True prints
+            an laser sensor alignment plot for each trial. Defaults to True.
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of stimulation
+            | **stimulation_site (int):** site of stimulation
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **trial_time (float):** time of stimulation within recording
+            | **trial_width (float):** width of stimulation pulse
+            | **trial_power (float):** gain of stimulation pulse
+            | **trial_found (bool):** whether an analog laser signal was recorded on this trial
+            | **width_above_thr (bool):** if the width of the analog signal was above the cutoff
+            | **power_above_thr (bool):** if the gain of the analog signal was above the cutoff
+
+    Note:
+        Only supports single-site stimulation.
+    '''
+    if df is None:
+        df = pd.DataFrame()
+
+    entries = list(zip(subjects, dates, ids))
+    for subject, date, te in tqdm(entries): 
+
+        # Load data from bmi3d hdf 
+        try:
+            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            continue
+
+        # Find laser trial times 
+        try:
+            (trial_times, trial_widths, trial_powers, times_not_found, widths_above_thr, 
+             powers_above_thr) = preproc.bmi3d.get_laser_trial_times(
+                preproc_dir, subject, te, date, debug=debug, **kwargs)
+        except:
+            print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
+            traceback.print_exc()
+            continue
+                        
+        # Tabulate everything together
+        exp = {
+            'subject': subject,
+            'te_id': te, 
+            'date': date, 
+            'trial_time': trial_times,
+            'trial_width': trial_widths, 
+            'trial_power': trial_powers,
+            'trial_found': ~times_not_found,
+            'width_above_thr': widths_above_thr,
+            'power_above_thr': powers_above_thr,
+        }
+
+        # Add requested metadata
+        for key in metadata:
+            if key in exp_metadata:
+                exp[key] = [exp_metadata[key] for _ in range(len(trial_times))]
+            else:
+                exp[key] = None
+                print(f"Entry {subject} {date} {te} does not have metadata {key}.")
+
+        # Convert power to units of watts
+        if not isinstance(date, datetime.date):
+            date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+        if 'qwalor_peak_watts' in exp_metadata:
+            peak_watts = exp_metadata['qwalor_peak_watts']
+        if date < datetime.datetime(2022,5,31).date():
+            if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
+                peak_watts = 1.5
+            else:
+                peak_watts = 20
+        elif date < datetime.datetime(2022,9,30).date():
+            peak_watts = 1.5
+        elif date < datetime.datetime(2023,1,23).date():
+            peak_watts = 20
+        else:
+            peak_watts = 25
+        exp['peak_power_watts'] = peak_watts
+        exp['trial_power_watts'] = [p*peak_watts for p in trial_powers]
+
+        # Concatenate with existing dataframe
+        df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+    
+    return df
+
 def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_before, time_after, 
                      datatype='lfp'):
     '''
@@ -1108,76 +1212,6 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
         
     return segments, samplerate
 
-def tabulate_stim_data(preproc_dir, subjects, ids, dates, debug=True, df=None, **kwargs):
-    '''
-    Concatenate stimulation data from across experiments. Experiments are given as lists of 
-    subjects, task entry ids, and dates. Each list must be the same length. 
-    
-    Args:
-        preproc_dir (str): base directory where the files live
-        subjects (list of str): Subject name for each recording
-        ids (list of int): Block number of Task entry object for each recording
-        dates (list of str): Date for each recording
-        debug (bool, optional): 
-        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`
-
-    Returns:
-        pd.DataFrame: pandas DataFrame containing the concatenated trial data
-            | **subject (str):** subject name
-            | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
-            | **stimulation_site (int):** site of stimulation
-            | **trial_time (float):** time of stimulation within recording
-            | **trial_width (float):** width of stimulation pulse
-            | **trial_power (float):** gain of stimulation pulse
-            | **trial_found (bool):** whether an analog laser signal was recorded on this trial
-            | **width_above_thr (bool):** if the width of the analog signal was above the cutoff
-            | **power_above_thr (bool):** if the gain of the analog signal was above the cutoff
-
-    Note:
-        Only supports single-site stimulation.
-    '''
-    if df is None:
-        df = pd.DataFrame()
-
-    entries = list(zip(subjects, dates, ids))
-    for subject, date, te in tqdm(entries): 
-
-        # Load data from bmi3d hdf 
-        try:
-            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
-        except:
-            print(f"Entry {subject} {date} {te} could not be loaded.")
-            traceback.print_exc()
-            continue
-
-        # Find laser trial times 
-        try:
-            (trial_times, trial_widths, trial_powers, times_not_found, widths_above_thr, 
-             powers_above_thr) = preproc.bmi3d.get_laser_trial_times(
-                preproc_dir, subject, te, date, debug=debug, **kwargs)
-        except:
-            print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
-            traceback.print_exc()
-            continue
-                        
-        # Tabulate everything together
-        exp = {
-            'subject': subject,
-            'te_id': te, 
-            'date': date, 
-            'stimulation_site': exp_metadata['stimulation_site'],
-            'trial_time': trial_times,
-            'trial_width': trial_widths, 
-            'trial_power': trial_powers,
-            'trial_found': ~times_not_found,
-            'width_above_thr': widths_above_thr,
-            'power_above_thr': powers_above_thr,
-        }
-        df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
-    
-    return df
         
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''
