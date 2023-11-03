@@ -111,6 +111,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
 
     def test_annotate_spatial_map(self):
+        plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
         annotate_spatial_map_channels(drive_type='ECoG244', color='k')
         annotate_spatial_map_channels(drive_type='Opto32', color='b')
@@ -251,7 +252,7 @@ class AnimationTests(unittest.TestCase):
         events = ["hello", "world", "", "!", ""]
         times = [0., 1.0, 1.5, 2.0, 2.5]
         fps = 10
-        filename = os.path.join(write_dir, "animate_test.mp4")
+        filename = os.path.join(docs_dir, "test_anim_events.mp4")
         ani = animate_events(events, times, fps)
 
         from matplotlib.animation import FFMpegFileWriter
@@ -277,8 +278,8 @@ class AnimationTests(unittest.TestCase):
         samplerate = 2
         axis_labels = ['x = Right', 'y = Forwards', 'z = Up']
         ani = animate_trajectory_3d(trajectory, samplerate, history=5, axis_labels=axis_labels)
-        filename = "animate_trajectory_test.mp4"
-        saveanim(ani, write_dir, filename)
+        filename = "test_anim_trajectory.mp4"
+        saveanim(ani, docs_dir, filename)
 
     def test_animate_spatial_map(self):
         samplerate = 20
@@ -292,7 +293,7 @@ class AnimationTests(unittest.TestCase):
 
         filename = 'spatial_map_animation.mp4'
         ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
-        saveanim(ani, write_dir, filename)
+        saveanim(ani, docs_dir, filename)
 
     def test_animate_cursor_eye(self):
         cursor_trajectory = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
@@ -305,7 +306,7 @@ class AnimationTests(unittest.TestCase):
         ani = animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_positions, target_radius, 
                         bounds)
         
-        aopy.visualization.saveanim(ani, docs_dir, 'test_anim.mp4')
+        aopy.visualization.saveanim(ani, docs_dir, 'test_anim_cursor_eye.mp4')
 
     def test_animate_behavior(self):
 

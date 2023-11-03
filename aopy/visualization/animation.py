@@ -6,7 +6,7 @@ import numpy as np
 from .base import plot_spatial_map, plot_targets, set_bounds
 from .. import postproc
 
-def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
+def saveanim(animation, base_dir, filename, dpi=100, **savefig_kwargs):
     '''
     Save an animation using ffmpeg
 
@@ -48,6 +48,11 @@ def animate_events(events, times, fps, xy=(0.3, 0.3), fontsize=30, color='g'):
 
     Returns:
         matplotlib.animation.FuncAnimation: animation object
+
+    Example:
+        .. raw:: html
+
+            <video controls src="_static/test_anim_events.mp4"></video>
     '''
     frame_events, event_names = postproc.sample_events(events, times, fps)
 
@@ -77,6 +82,11 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
     
     Returns:
         matplotlib.animation.FuncAnimation: animation object
+
+    Example:
+        .. raw:: html
+
+            <video controls src="_static/test_anim_trajectory.mp4"></video>    
     '''
 
     fig = plt.figure()
@@ -172,7 +182,7 @@ def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_pos
 
         .. raw:: html
 
-            <video controls src="_static/test_anim.mp4"></video>
+            <video controls src="_static/test_anim_cursor_eye.mp4"></video>
 
     Args:
         cursor_trajectory ((nt, ndim) array): Cursor positions over time for 2D or 3D trajectories.
@@ -219,12 +229,6 @@ def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_pos
 def get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, *circle_ts, history=1., ax=None):
     '''
     Draws an animation of an arbitrary number of circles. Used in :func:`~aopy.visualization.animation.animate_behavior`.
-
-    Example:
-
-        .. raw:: html
-
-            <video controls src="_static/demo_anim.mp4"></video>
 
     Args:
         samplerate (float): The sampling rate of the trajectories in Hz.
@@ -285,6 +289,41 @@ def animate_behavior(targets, cursor, eye, samplerate, bounds,
 
     Returns:
         matplotlib.animation.FuncAnimation: animation object
+
+    Example:
+
+        .. code-block:: python
+
+            samplerate = 0.5
+            cursor = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
+            eye = np.array([[1, 0], [1, 2], [1, 2], [4, 5], [4, 5], [6, 6]])
+            targets = [
+                np.array([[np.nan, np.nan], 
+                        [5, 5], 
+                        [np.nan, np.nan], 
+                        [np.nan, np.nan], 
+                        [5, 5], 
+                        [np.nan, np.nan]]),
+                np.array([[np.nan, np.nan], 
+                        [np.nan, np.nan], 
+                        [np.nan, np.nan], 
+                        [-5, 5], 
+                        [-5, 5], 
+                        [-5, 5]])
+            ]
+            
+            target_radius = 2.5
+            target_colors = ['orange'] * len(targets)
+            cursor_radius = 0.5
+            bounds = [-10, 10, -10, 10]
+            
+            ani = animate_behavior(targets, cursor, eye, samplerate, bounds, target_radius, target_colors, cursor_radius, 
+                            cursor_color='blue', eye_radius=0.25, eye_color='purple')
+            
+
+        .. raw:: html
+
+            <video controls src="_static/test_anim_behavior.mp4"></video>
     '''
 
     fig, ax = plt.subplots(1, 1)
