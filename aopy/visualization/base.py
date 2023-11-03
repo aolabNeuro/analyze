@@ -541,7 +541,7 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
             aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b')
             plt.axis('off')
 
-        .. image:: _/images/ecog244_opto32.png
+        .. image:: _images/ecog244_opto32.png
 
     Note: 
         The acq_ch returned from `func::aopy.data.load_chmap` are generally 1-indexed lists of acquisition 
