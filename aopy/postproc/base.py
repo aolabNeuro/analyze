@@ -47,21 +47,25 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
     '''
 
     # Check if input data is a single point and enfore that it is a row vector
-    if len(spatial_data.shape) == 1:
-        spatial_data.shape = (1,len(spatial_data))    
+    if np.ndim(spatial_data) == 1:
+        spatial_data = np.expand_dims(spatial_data, 0)
+    assert np.ndim(new_axis) == 1 and np.ndim(current_axis) == 1, "new_axis and current_axis must be 1D vectors"
 
-    # Initialize output array
-    output_spatial_data = np.empty((spatial_data.shape[0], 3))
-
-    # Check for a 2D or 3D trajectory and convert to 3D points
-    if spatial_data.shape[1] == 2:
-        spatial_data3d = np.concatenate((spatial_data, np.zeros((spatial_data.shape[0],1))), axis = 1)
+    # Check for a 2D or 3D input and convert to 3D points
+    if np.shape(spatial_data)[1] == 2:
+        spatial_data3d = np.concatenate((spatial_data, np.zeros((spatial_data.shape[0],1))), axis=1)
+    else:
+        spatial_data3d = np.array(spatial_data)
+    if len(new_axis) == 2:
         new_axis3d = np.concatenate((new_axis, np.array([0])))
+    else:
+        new_axis3d = np.array(new_axis)
+    if len(current_axis) == 2:
         current_axis3d = np.concatenate((current_axis, np.array([0])))
-    elif spatial_data.shape[1] == 3:
-        spatial_data3d = spatial_data
-        new_axis3d = new_axis
-        current_axis3d = current_axis
+    else:
+        current_axis3d = np.array(current_axis)
+    assert (np.shape(spatial_data3d)[1] == 3 and np.shape(new_axis3d)[0] == 3 and np.shape(current_axis3d)[0] == 3, 
+            "spatial_data, new_axis, and current_axis must be 2D or 3D")
 
     # Calcualte angle between 'new_axis3d' and target trajectory via dot product
     angle = np.arccos(np.dot(new_axis3d, current_axis3d)/(np.linalg.norm(new_axis3d)*np.linalg.norm(current_axis3d)))
@@ -69,9 +73,11 @@ def rotate_spatial_data(spatial_data, new_axis, current_axis):
     # If angle is 0, return the original data and warn
     if np.isclose(angle, 0, atol = 1e-8):
         warnings.warn("Starting and desired vector are the same. No rotation applied")
-        output_spatial_data = spatial_data3d
-        return output_spatial_data
-
+        if spatial_data.shape[1] == 2:
+            return spatial_data3d[:,:2]
+        elif spatial_data.shape[1] == 3:
+            return spatial_data3d
+        
     # If the angle is exactly 180 degrees, slightly nudge the starting vector by 1e-7
     elif (spatial_data.shape[1] == 2) and np.isclose(angle, np.pi, atol = 1e-8):
         current_axis3d = current_axis3d.astype('float64')
