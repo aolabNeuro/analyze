@@ -23,6 +23,7 @@ import copy
 import pandas as pd
 from tqdm import tqdm
 import pandas as pd
+from datetime import timedelta
 
 from .. import analysis
 from ..data import load_chmap
@@ -1023,13 +1024,16 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     for idx_day in range(n_days):
         day = plot_days[idx_day]
         for idx_column in range(n_columns):
-            values = np.array(columns[idx_column])[dates == day]
+            values = np.array(columns[idx_column])[dates == day.date()]
             
             try:
                 if method == 'sum':
-                    aggregate[idx_column, idx_day] = np.sum(values)
+                    if len(values) > 0:
+                        aggregate[idx_column, idx_day] = np.sum(values)
+                    else:
+                        aggregate[idx_column, idx_day] = np.nan
                 elif method == 'mean':
-                    day_trials = np.array(trials)[dates == day]
+                    day_trials = np.array(trials)[dates == day.date()]
                     aggregate[idx_column, idx_day] = np.average(values, weights=day_trials)
                 else:
                     raise ValueError("Unknown method for combining data")
@@ -1043,7 +1047,8 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
             ax.plot(plot_days, aggregate[idx_column,:], '.-', label=columns[idx_column].name)
         else:
             ax.plot(plot_days, aggregate[idx_column,:], '.-')
-    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=(mdates.MO, mdates.TU, mdates.WE, 
+                                                                mdates.TH, mdates.FR, mdates.SA, mdates.SU)))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     
@@ -1052,9 +1057,10 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     else:
         ax.legend()
 
-def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
+def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, labels=None, ax=None, **kwargs):
     '''
-    Plot session data by absolute number of trials completed
+    Plot session data by absolute number of trials completed. Optionally split up the sessions by date and
+    apply smoothing to each day's data.
     
     Example:
 
@@ -1074,26 +1080,48 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     Args:
         trials (nsessions): number of trials in each session
         *columns (nsessions): dataframe columns or numpy arrays to plot
+        dates (nsessions, optional): dataframe columns or numpy arrays of the date of each session
+        smoothing_window (int, optional): number of trials to smooth. Default no smoothing.
         labels (list, optional): string label for each column to go into the legend
         ax (pyplot.Axes, optional): axis on which to plot
     '''
     if ax == None:
-        ax = plt.gca()
+        ax = plt.gca()  
+
+    date_chg = []
+    if dates is not None:
+        trial_dates = np.repeat(np.array(dates), trials)
+        date_chg = np.insert(np.where(np.diff(trial_dates) > timedelta(0))[0] + 1, 0, 0)
+
     for idx_column in range(len(columns)):
-        values = columns[idx_column]
-        trial_values = []
         
         # Accumulate individual trials with the values given for each session
-        for v, t in zip(values, trials):
-            trial_values = np.concatenate((trial_values, np.tile(v, t)))
+        values = np.array(columns[idx_column])
+        trial_values = np.repeat(values, trials)
         
+        # Apply smoothing
+        if smoothing_window is not None and dates is not None:
+            split = np.split(trial_values, date_chg[1:])
+            split = [analysis.calc_rolling_average(s, window_size=smoothing_window, mode='nan') for s in split]
+            trial_values = np.concatenate(split)
+        elif smoothing_window is not None:
+            trial_values = analysis.calc_rolling_average(trial_values, window_size=smoothing_window)
+        
+        # Plot with additional kwargs
         if hasattr(columns[idx_column], 'name'):
-            ax.plot(trial_values,  '.-', label=values.name)
+            ax.plot(trial_values, label=columns[idx_column].name, **kwargs)
         else:
-            ax.plot(trial_values,  '.-')
+            ax.plot(trial_values, **kwargs)
+
+    # Add date labels
+    for i in date_chg:
+        date = trial_dates[i]
+        ax.axvline(i, ymin=0, ymax=1, color='gray', alpha=0.5, linestyle='dashed')
+        ax.text(i, 1, str(date), color='gray', rotation=90, ha='left', va='top', 
+                transform=ax.get_xaxis_transform())
 
     ax.set_xlabel('trials')
-    if labels:
+    if labels is not None:
         ax.legend(labels)
     else:
         ax.legend()
