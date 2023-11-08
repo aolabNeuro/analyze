@@ -57,12 +57,12 @@ def savefig(base_dir, filename, **kwargs):
     fname = os.path.join(base_dir, filename)
     if 'dpi' not in kwargs:
         kwargs['dpi'] = 300.
-    if 'facecolor' not in kwargs:
-        kwargs['facecolor'] = 'none'
     if 'edgecolor' not in kwargs:
         kwargs['edgecolor'] = 'none'
     if 'transparent' not in kwargs:
         kwargs['transparent'] = True
+    if kwargs['transparent'] and 'facecolor' not in kwargs:
+        kwargs['facecolor'] = 'none'
     plt.savefig(fname, **kwargs)
 
 def subplots_with_labels(n_rows: int, n_cols: int, return_labeled_axes: bool = False,
