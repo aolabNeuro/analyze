@@ -544,6 +544,46 @@ class ModelFitTests(unittest.TestCase):
         self.assertAlmostEqual(accuracy, 1.0)
         self.assertAlmostEqual(std, 0.0 )
 
+    def test_get_random_timestamps(self):
+        nshuffled_points = 5
+        
+        # Test random timestamps without time axis
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1)
+        self.assertTrue(np.min(random_timestamps) >= .999999) # Weird numbers to handle float to int comparison
+        self.assertTrue(np.max(random_timestamps) <= 3.00001)
+        self.assertTrue(len(random_timestamps)==5)
+        self.assertTrue(np.diff(random_timestamps).all()>0)
+
+        # Test random timestamps with time axis
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1.1, time_samplerate=10)
+        self.assertAlmostEqual(np.sum(random_timestamps%0.1), 0)
+        self.assertTrue(np.min(random_timestamps) >= 1.099999)
+        self.assertTrue(np.max(random_timestamps) <= 3.00001)
+        self.assertTrue(len(random_timestamps)==5)
+        self.assertTrue(np.diff(random_timestamps).all()>0)
+
+        # Test that warning message appears
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1, time_samplerate=0.1)
+        self.assertIsNone(random_timestamps)
+
+    def test_get_empirical_pvalue(self):
+        data_distribution = np.random.randn(1000000)
+
+        # Test two-sided test
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample)
+        self.assertAlmostEqual(1, 0.6827+pvalue, 2) # Data should be one standard dev away
+
+        # Test lower test
+        data_sample = -1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'lower')
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+
+        # Test upper test
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'upper')
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+
 class AccLLRTests(unittest.TestCase):
 
     def test_detect_accLLR(self, upper=10, lower=-10):

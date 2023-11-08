@@ -751,6 +751,64 @@ def classify_by_lda(X_train_lda, y_class_train,
 
     return mean_accuracy, std
 
+def get_random_timestamps(nshuffled_points, max_time, min_time=0, time_samplerate=None):
+    '''
+    This calculates random timestamps either within a range or from a discrete time axis.
+
+    Args:
+        nshuffled_points (int): How many randomly selected time points to
+        max_time (float): Max of time range to draw samples from (inclusive)
+        min_time (float): Min of time range to draw samples from. Defaults to 0
+        time_samplerate (int): Samplerate [samples/s] for the time range. Defaults to None. If None, a random time to machine precision will be calculated. If a value is input, the random samples will be in increments of the samplerate (without replacement).
+
+    Returns:
+        shuffled_timestamps (nshuffled_points): Ordered random timestamps
+    '''
+
+    # Check that that there are enough sample points to randomly select from if time_samplerate is not None.
+    if time_samplerate is not None and nshuffled_points > ((max_time-min_time)*time_samplerate):
+        warnings.warn('There are not enough possible sample points to randomly select from.')
+        return
+
+    if time_samplerate is None:
+        random_timestamps = np.random.uniform(min_time, max_time, size=nshuffled_points)
+    
+    else:
+        time_axis = np.arange(min_time, max_time+(1/time_samplerate), 1/time_samplerate)
+        random_timestamps = np.random.choice(time_axis, size=nshuffled_points, replace=False)
+    
+    return np.sort(random_timestamps)
+    
+def get_empirical_pvalue(data_distribution, data_sample, test_type='two_sided'):
+    '''
+    Assumes Gaussian distribution.
+    Ignores NaNs.
+
+    Args:
+        data_distribution (npts): Distribution of empirically determined data points
+        data_sample (float): Data sample to get pvalue of 
+        test_type (str): 'two_sided', 'lower', or 'upper'.
+
+    Returns:
+        significance (float): pvalue of the input data_sample based the parameters of the input data_distribution
+    '''
+    data_mean = np.nanmean(data_distribution)
+    data_std = np.nanstd(data_distribution)
+
+    # Find how many standard deviations away from the data_mean the data_sample is.
+    z_value = (data_sample - data_mean)/data_std
+    print(z_value)
+    if test_type == 'two_sided':
+        return((1-scipy.stats.norm.cdf(np.abs(z_value)))*2)
+    elif test_type == 'lower':
+        return(scipy.stats.norm.cdf(z_value))
+    elif test_type == 'upper':
+        return(1-scipy.stats.norm.cdf(z_value))
+    else:
+        warnings.warn('Please enter a valid test_type. Must be either two_sided, upper, or lower')
+        return
+
+
 '''
 Spectral Estimation and Analysis
 '''
