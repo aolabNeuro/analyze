@@ -566,6 +566,8 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
             eye_data = eye_data['raw_data']
+        elif datatype == 'eye_closed_mask':
+            eye_data = eye_data['eye_closed_mask']
         elif 'calibrated_data' in eye_data.keys():
             eye_data = eye_data['calibrated_data']
         else:
