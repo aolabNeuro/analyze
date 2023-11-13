@@ -1278,9 +1278,44 @@ def advance_plot_color(ax, n):
     Args:
         ax (pyplot.Axes): specify which axis to advance the color
         n (int): how many colors to skip in the cycle
+
+    Examples:
+
+        Using advance_plot_color to skip the first color in the cycle.
+
+        .. code-block:: python
+
+            plt.subplots()
+            aopy.visualization.advance_plot_color(plt.gca(), 1)
+            plt.plot(np.arange(10), np.arange(10))
+
+        .. image:: _images/advance_plot_color.png
+        
     '''
     for _ in range(n):
         next(ax._get_lines.prop_cycler)
+
+def reset_plot_color(ax):
+    '''
+    Utility to reset the color cycle on a given axis to the default.
+
+    Args:
+        ax (pyplot.Axes): specify which axis to reset the color
+
+    Examples:
+
+        Using reset_plot_color to reset the color cycle between calls to `plt.plot()`.
+        
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.ones(10))
+            aopy.visualization.reset_plot_color(plt.gca())
+            plt.plot(np.arange(10), 1 + np.ones(10))
+
+        .. image:: _images/reset_plot_color.png
+    '''
+    ax.set_prop_cycle(None)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """

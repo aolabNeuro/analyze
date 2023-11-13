@@ -609,8 +609,22 @@ class OtherPlottingTests(unittest.TestCase):
         savefig(write_dir,filename)
 
     def test_advance_plot_color(self):
-        # Nothing to test here ;-)
-        pass
+        plt.subplots()
+        aopy.visualization.advance_plot_color(plt.gca(), 1)
+        plt.plot(np.arange(10), np.arange(10))
+
+        filename = 'advance_plot_color.png'
+        savefig(docs_dir,filename)
+
+
+    def test_reset_plot_color(self):
+        plt.subplots()
+        plt.plot(np.arange(10), np.ones(10))
+        aopy.visualization.reset_plot_color(plt.gca())
+        plt.plot(np.arange(10), 1 + np.ones(10))
+
+        filename = 'reset_plot_color.png'
+        savefig(docs_dir,filename)
 
     def test_plot_corr_over_elec_distance(self):
 
