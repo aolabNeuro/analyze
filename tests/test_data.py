@@ -742,6 +742,22 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
+    def test_tabulate_behavior_data_flash(self):
+        files = {}
+        files['hdf'] = 'test20220311_07_te4298.hdf'
+        files['ecube'] = '2022-03-11_BMI3D_te4298'
+        subject = 'test'
+        te_id = 4298
+        date = '2022-03-11'
+        preproc_dir = os.path.join(write_dir, subject)
+        preproc.proc_single(data_dir, files, preproc_dir, subject, te_id, date, ['exp'], overwrite=True)
+
+        df = tabulate_behavior_data_flash(write_dir, [subject], [te_id], [date], df=None)
+        self.assertEqual(len(df), 13) # 13 total trials
+
+        # Check that flash times are in the correct order
+        self.assertTrue(np.all(df['flash_end_time'] - df['flash_start_time'] > 0))
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
