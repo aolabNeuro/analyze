@@ -962,6 +962,9 @@ def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[],
     new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata, df=None, event_code_type='event')
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
     
     # Remove any unrewarded trials and then get rid of the 'reward' column
     new_df.drop(new_df.index[~new_df['reward']], inplace=True)
@@ -1029,7 +1032,10 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata, df=None)
-    
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
+
     # Add target info
     target_idx = [
         code[np.isin(code, target_codes)][0] - target_codes[0] + 1 # add 1 for center target
