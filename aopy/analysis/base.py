@@ -1256,7 +1256,7 @@ def interp_nans(x):
     return x
 
 def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
-                dtype='float64', workers=None):
+                dtype='float64', errorbars=False, pval=0.05, workers=None):
     '''
     Computes moving window time-frequency coherence averaged across trials between selected channels.
     This is loosely based on pesaran lab code, modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
@@ -1299,6 +1299,9 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             Default is False.
         imaginary (bool, optional): if True, compute imaginary coherence.
         dtype (str, optional): dtype of the output. Default 'float64'
+        errorbars (bool, optional): if True, compute errorbars for coherence using jackknife method.
+            Default False.
+        pval (float, optional): p-value for errorbars. Default 0.05.
         workers (int, optional): Number of workers argument to pass to scipy.fft.fft. 
             Default None. 
                        
@@ -1427,7 +1430,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
     ch1 = ch[0]
     ch2 = ch[1]
         
-    coh = np.zeros((nwin,int(nfk[1]-nfk[0])), dtype=dtype)
+    coh = np.zeros((int(nfk[1]-nfk[0]),nwin), dtype=dtype)
+    coh_err = np.zeros((int(nfk[1]-nfk[0]),nwin,2), dtype=dtype)
     for win in range(nwin):
         if ref:
             mX = np.mean(data[dn*win:dn*win+win_size], axis=1, keepdims=True) # Mean across channels for that window
@@ -1455,12 +1459,41 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
     
         # Coherence
         if imaginary:
-            coh[win,:] = np.abs(np.imag(S12/np.sqrt(S1*S2)))
+            coh[:,win] = np.abs(np.imag(S12/np.sqrt(S1*S2)))
         else:
-            coh[win,:] = np.abs(S12/np.sqrt(S1*S2))**2
+            coh[:,win] = np.abs(S12/np.sqrt(S1*S2))**2
+
+        # Estimate error bars using Jacknife (very slow)       
+        if errorbars: 
+            jcoh = np.zeros((int(nfk[1]-nfk[0]), ntr * k))
+            jXlsp = np.zeros((int(nfk[1]-nfk[0]), ntr * k))
+            jYlsp = np.zeros((int(nfk[1]-nfk[0]), ntr * k))
+            for ik in range(ntr * k):
+                indices = np.setdiff1d(np.arange(ntr * k), ik)
+                Xj1 = Xk1[:,indices]
+                Xj2 = Xk2[:,indices]
+                t1 = np.sum(Xj1*Xj1.conj(), axis=1)
+                t2 = np.sum(Xj2*Xj2.conj(), axis=1)
+                t12 = np.sum(Xk1*Xk2.conj(), axis=1)
+
+                # Use atanh variance stabilizing transformation for coherence
+                if imaginary:
+                    tcoh = np.abs(np.imag(t12/np.sqrt(t1*t2)))
+                else:
+                    tcoh = np.abs(t12/np.sqrt(t1*t2))**2
+                jcoh[:,ik] = np.arctanh(tcoh)
+                jXlsp[:,ik] = np.log(t1)
+                jYlsp[:,ik] = np.log(t2)
+
+            lsigXY = np.sqrt(ntr * k - 1) * np.std(jcoh, axis=1)
+            crit = scipy.stats.t.ppf(1 - pval / 2, ntr * k - 1) # Determine the scaling factor
+            coh_err[:,win,0] = np.tanh(np.arctanh(coh[:,win]) + crit * lsigXY)
+            coh_err[:,win,1] = np.tanh(np.arctanh(coh[:,win]) - crit * lsigXY)
             
-    coh = coh.T
     t = np.arange(nwin)*step + n/2 # Center of each window is time axis
+
+    if errorbars:
+        return f, t, coh, coh_err
     
     return f, t, coh
 

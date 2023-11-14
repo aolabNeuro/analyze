@@ -1238,10 +1238,10 @@ class SpectrumTests(unittest.TestCase):
                                                               ref=False)
 
         # Calculate coherence
-        f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
-                                                              ref=False)
-        f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
-                                                              ref=False, imaginary=True)
+        f, t, coh, coh_err = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                              ref=False, errorbars=True, pval=1e-2)
+        f, t, coh_im, coh_im_err = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                              ref=False, errorbars=True, pval=1e-2, imaginary=True)
         
         # Calculate coherency from scipy
         f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=fs*n, noverlap=0, axis=0)
@@ -1265,13 +1265,15 @@ class SpectrumTests(unittest.TestCase):
 
         # Plot the average coherence across windows
         plt.subplot(4, 1, 4)
-        plt.plot(f, np.mean(coh, axis=1))
-        plt.plot(f, np.mean(coh_im, axis=1))
-        plt.plot(f_scipy, coh_scipy)
+        line1, = plt.plot(f, np.mean(coh, axis=1))
+        plt.fill_between(f, coh_err[:,0,0], coh_err[:,0,1], alpha=0.5)
+        line2, = plt.plot(f, np.mean(coh_im, axis=1))
+        plt.fill_between(f, coh_im_err[:,0,0], coh_im_err[:,0,1], alpha=0.5)
+        line3, = plt.plot(f_scipy, coh_scipy)
         plt.title('Average coherence across time')
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Coherency')
-        plt.legend(['coh', 'imag coh', 'scipy'])
+        plt.legend([line1, line2, line3], ['coh', 'imag coh', 'scipy'])
 
         plt.tight_layout()
         figname = 'coherency.png'
