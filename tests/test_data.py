@@ -1050,19 +1050,21 @@ class DatabaseTests(unittest.TestCase):
         - Sequence(name="test_seq", generator_name="test_gen", params='{"seq_param_1": 1}')
         
         Entries:
-        - Tracking task entry from 2023-06-26
-        - Manual control entry from 2023-06-26
+        - Tracking task entry from 2023-11-14
+        - Manual control entry from 2023-11-14
             - project = "test project"
             - session = "test session"
             - entry_name = "task_desc" 
             - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
             - feats = [feat_1]
             - params = '{"task_param_1": 1}'
-        - Flash entry (manual control task) from 2023-06-26
+        - Flash entry (manual control task) from 2023-11-14
             - entry_name = "flash"
             - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
-        - BMI entry (bmi control task) from 2023-06-26
+        - BMI entry (bmi control task) from 2023-11-14
             - params='{"bmi": 0}'
+        - BMI entry (bmi control task) from 2023-11-14
+            - rig_name = 'siberut-bmi'
         ''' 
 
     def test_lookup_sessions(self):
@@ -1076,17 +1078,17 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sessions[1].id, 2)
 
         # Other sanity tests
-        total_sessions = 4
+        total_sessions = 5
         self.assertEqual(len(db.lookup_sessions()), total_sessions)
         self.assertEqual(len(db.lookup_mc_sessions()), 1)
         self.assertEqual(len(db.lookup_flash_sessions()), 1)
         self.assertEqual(len(db.lookup_tracking_sessions()), 1)
-        self.assertEqual(len(db.lookup_bmi_sessions()), 1)
+        self.assertEqual(len(db.lookup_bmi_sessions()), 2)
 
         # Test filtering
         self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
         self.assertEqual(len(db.lookup_sessions(subject="test_subject")), total_sessions)
-        sessions = db.lookup_sessions(subject="test_subject", date="2023-06-26", task_name="manual control",
+        sessions = db.lookup_sessions(subject="test_subject", date="2023-11-14", task_name="manual control",
                                       task_desc="task_desc", session="test session", project="test project",
                                       experimenter="experimenter_1")
         self.assertEqual(len(sessions), 1)
@@ -1096,11 +1098,11 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sessions[0].session, "test session")
         self.assertEqual(sessions[0].project, "test project")
         self.assertEqual(sessions[0].experimenter, "experimenter_1")
-        self.assertEqual(str(sessions[0].date), "2023-06-26")
+        self.assertEqual(str(sessions[0].date), "2023-11-14")
 
         # Special case - filter by id
         sessions = db.lookup_sessions(exclude_ids=[2,3])
-        self.assertEqual(len(sessions), 2)
+        self.assertEqual(len(sessions), total_sessions-2)
 
         # Special case - arbitrary filter fn
         sessions = db.lookup_sessions(filter_fn=lambda x:x.duration > 0)
@@ -1113,6 +1115,10 @@ class DatabaseTests(unittest.TestCase):
         db.BMI3D_DBNAME = 'rig2'
         self.assertRaises(Exception, db.lookup_sessions)
         db.BMI3D_DBNAME = 'default'
+
+        # And the rig name
+        sessions = db.lookup_bmi_sessions(rig_name='siberut-bmi')
+        self.assertEqual(len(sessions), 1)
 
     def test_filter_functions(self):
         
@@ -1136,7 +1142,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(te.subject, 'test_subject')
         self.assertEqual(te.experimenter, 'experimenter_1')
         self.assertEqual(te.id, 2)
-        self.assertEqual(str(te.date), "2023-06-26")
+        self.assertEqual(str(te.date), "2023-11-14")
         self.assertEqual(type(te.datetime), datetime.datetime)
         self.assertEqual(te.session, 'test session')
         self.assertEqual(te.project, 'test project')
@@ -1168,18 +1174,18 @@ class DatabaseTests(unittest.TestCase):
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test_subject'])
         self.assertCountEqual(te_id, [2])
-        self.assertCountEqual([str(d) for d in date], ['2023-06-26'])
+        self.assertCountEqual([str(d) for d in date], ['2023-11-14'])
         
     def test_group_entries(self):
 
         sessions = db.lookup_sessions()
         grouped = db.group_entries(sessions) # by date
         self.assertEqual(len(grouped), 1)
-        self.assertEqual(len(grouped[0]), 4)
+        self.assertEqual(len(grouped[0]), 5)
 
         grouped = db.group_entries(sessions, lambda x: x.duration) # by duration
         self.assertEqual(len(grouped), 2)
-        self.assertEqual(len(grouped[0]), 2) # duration = 0.0
+        self.assertEqual(len(grouped[0]), 3) # duration = 0.0
         self.assertEqual(len(grouped[1]), 2) # duration = 3.0
 
 
