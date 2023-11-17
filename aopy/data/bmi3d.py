@@ -866,13 +866,15 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         penalty_codes (list): list of numeric codes representing penalties
         metadata (list, optional): list of metadata keys that should be included in the df
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        event_code_type (str, optional): type of event codes to use. Defaults to 'code'. Other
+            choices include 'event' and 'data'.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
             | **date (str):** date of stimulation
-            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_codes (ntrial):** numeric code segments for each trial (specified by `event_code_type`)
             | **event_times (ntrial):** time segments for each trial
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
             | **penalty (ntrial):** boolean values indicating whether each trial was penalized
@@ -926,10 +928,9 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
 def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[], 
                                       df=None):
     '''
-    Wrapper around tabulate_behavior_data() specifically for center-out experiments. 
-    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
-    assign event codes for trial start, trial end, reward, penalty, and targets. 
-    Trial start can optionally include the center target.
+    Wrapper around tabulate_behavior_data() specifically for flash experiments. 
+    Uses the task event names (b'TARGET_ON', b'REWARD', and b'TRIAL_END', specifically)
+    to find start and end times for flash experiments.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -944,10 +945,8 @@ def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[],
             | **subject (str):** subject name
             | **te_id (str):** task entry id
             | **date (str):** date of stimulation
-            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_names (ntrial):** event name segments for each trial
             | **event_times (ntrial):** time segments for each trial
-            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
-            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **flash_start_time (ntrial):** time the flash started
             | **flash_end_time (ntrial):** time the flash ended
