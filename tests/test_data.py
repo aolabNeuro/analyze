@@ -742,7 +742,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
-def test_tabulate_behavior_data_flash(self):
+    def test_tabulate_behavior_data_flash(self):
         files = {}
         files['hdf'] = 'test20220311_07_te4298.hdf'
         files['ecube'] = '2022-03-11_BMI3D_te4298'
