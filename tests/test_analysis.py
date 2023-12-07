@@ -1461,7 +1461,6 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target, skipping unrewarded trial
         np.testing.assert_allclose(target_dir, [81, 87, 83, 82, 81]) # there are two appearances of target 1
 
-
     def test_calc_segment_duration(self):
         events =  [80, 17, 32, 81, 48,
                    80, 23, 32, 87, 48,
@@ -1484,6 +1483,21 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
 
+    def test_movement_onset_and_cursor_leave_time(self):
+        fs = 1
+        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,1,1,0,0,1,1,1,1,1,]]).T,\
+            np.array([[1,0,0,0,0,0,0,-1,-1,-1],[0,1,0,0,0,0,0,1,1,1,]]).T])
+        trial_start = np.array([0,0])
+        target_onset = np.array([1,2])
+        gocue = np.array([4,5])
+        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=1)
+        self.assertTrue(np.all(movement_onset == np.array([5,7])))
+        
+        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
+            np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
+        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
+        self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
+        
 if __name__ == "__main__":
     unittest.main()
 
