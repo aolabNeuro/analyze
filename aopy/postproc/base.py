@@ -149,6 +149,55 @@ def get_trial_targets(trials, targets):
         trial_targets[trial].append(targets[idx])
     return trial_targets
 
+def get_minimum_trials_per_target(target_idx, cond_mask):
+    '''
+    Get the minimum number of trials per target after restricting trials
+    
+    Args:
+        target_index (ntr): target index
+        cond_mask (ntr): boolean array to remove trials
+        
+    Returns:
+        (int): minimum number of trials per target
+        
+    '''
+    
+    num_trial_targ = []
+    for itarget in np.unique(target_idx):
+        num_trial_targ.append(sum(target_idx[cond_mask] == itarget))
+    min_trial = min(num_trial_targ)
+    
+    return min_trial
+
+def get_conditioned_trials_per_target(target_idx, cond_mask, min_trial, replacement=False, seed=None):
+    '''
+    Get trial index to choose the same number of trials per target in removing trials by a certain condition
+    
+    Args:
+        target_index (ntr): target index
+        cond_mask (ntr): boolean array to remove trials
+        replacement (bool): whether to allow replacement in choosing trials. This can be used for bootstrapping.
+        
+    Returns:
+        (ntr): trial index to extract the same number of conditioned trials for each target
+        
+    '''
+    if seed:
+        np.random.seed(seed)
+        
+    # Get trial index to get the same number of trials per target
+    tmp = []
+    for itarget in np.unique(target_idx):
+        trial_mask_targ = np.where(cond_mask * (target_idx == itarget))[0] # get conditioned trial index for each target
+
+        if trial_mask_targ.size:
+            tmp = np.concatenate([tmp, np.random.choice(trial_mask_targ, min_trial, replace=replacement)])
+
+    trial_mask = np.array([int(a) for a in tmp]) # convert float to int
+    trial_mask = np.random.permutation(trial_mask) # because trial mask is well organized in the order of target number
+    
+    return trial_mask
+
 def get_relative_point_location(ref_point_pos, new_point_pos):
     '''
     This function calculates the relative location (angle and position) of a point compared to a reference point.
