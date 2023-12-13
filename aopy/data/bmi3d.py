@@ -122,8 +122,8 @@ def load_ecube_data(data_dir, data_source, channels=None):
     timeseries_data = np.zeros((n_samples, len(channels)), dtype=dtype)
     n_read = 0
     for chunk in _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype):
-        chunk_len = chunk.shape[0]
-        timeseries_data[n_read:n_read+chunk_len,:] = chunk
+        chunk_len = min(chunk.shape[0], n_samples-n_read)
+        timeseries_data[n_read:n_read+chunk_len,:] = chunk[:chunk_len,:] # Deal with potentially corrupted data
         n_read += chunk_len
     return timeseries_data
 
