@@ -1277,13 +1277,41 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(bad_ch.shape, (8,))
         # self.assertEqual(np.count_nonzero(bad_ch), 64)
         
-    def test_screenBadECoGchannels(self):
+    def test_detect_bad_ch_outliers(self):
+        np.random.seed(0)
         test_data = np.random.normal(10,0.5,(10000, 200))
         test_data[0, 10] = 25
         test_data[5, 150] = 30
-        bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=False, verbose=False)
+        bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=True, verbose=False)
         self.assertEqual(np.where(bad_ch)[0][0], 10)
         self.assertEqual(np.where(bad_ch)[0][1], 150)
+        
+        filename = 'detect_bad_ch_outliers.png'
+        visualization.savefig(docs_dir, filename)
+
+    def test_detect_bad_trials(self):
+        nt = 50
+        nch = 10
+        ntr = 100
+        np.random.seed(0)
+        erp = np.random.normal(size=(nt, nch, ntr)) 
+        erp[:,:,0] += 10 # entire trial is noisy across all electrodes
+        erp[:,:8,1] -= 10 # entire trial is noisy on most electrodes
+        erp[0,:,2] += 10 # single timepoint within the trial is noisy on all electrodes
+        for t in range(nt):
+            erp[t,t%nch,3] -= 10 # single timepoint is noisy but different timepoint for each channel
+                
+        bad_trials = detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=True)
+            
+        self.assertEqual(len(bad_trials), ntr)  
+        self.assertTrue(bad_trials[0])
+        self.assertTrue(bad_trials[1])
+        self.assertTrue(bad_trials[2])
+        self.assertTrue(bad_trials[3])
+        self.assertTrue(np.all(~bad_trials[4:]))
+
+        filename = 'detect_bad_trials.png'
+        visualization.savefig(docs_dir, filename)
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
