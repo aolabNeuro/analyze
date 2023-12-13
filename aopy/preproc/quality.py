@@ -122,9 +122,11 @@ def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
     
     Args:
         erp (nt, nch, ntr): trial-aligned continuous data
-        sd_thr (float): number of standard deviations away from the mean to threshold bad data
-        ch_frac (float): fraction (between 0. and 1.) of channels containing bad data to
-            consider a trial as bad
+        sd_thr (float, optional): number of standard deviations away from the mean to threshold
+            bad data. Default 5
+        ch_frac (float, optional): fraction (between 0. and 1.) of channels containing bad data to
+            consider a trial as bad. Default 0.5
+        debug (bool, optional): if True, display a figure showing the threshold crossings
         
     Returns:
         (ntr,) boolean mask: True for bad trials, False for good trials
