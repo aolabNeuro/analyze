@@ -151,25 +151,25 @@ class TestDigitalCalc(unittest.TestCase):
         # see test_data:E3vFrameTests
         pass
 
-    def test_mask_and_shift(self):
+    def test_extract_bits(self):
         mask = 0x0000000000ff0000 # bits 17-24
         digital_data = np.array([2, 4, 12*0x10000, 140*0x10000, 0xff0000, 0xff0000], dtype='uint64')
-        masked = mask_and_shift(digital_data, mask)
+        masked = extract_bits(digital_data, mask)
         np.testing.assert_allclose(masked, [0, 0, 12, 140, 255, 255])
 
         mask = 0b0000001111001111
         digital_data = 0b0001000011001100
-        masked = mask_and_shift(digital_data, mask)
+        masked = extract_bits(digital_data, mask)
         np.testing.assert_allclose(masked, 0b00111100)
 
         mask = 0b01001
         digital_data = np.array([0b01000, 0b01111, 0b00001])
-        masked = mask_and_shift(digital_data, mask)
+        masked = extract_bits(digital_data, mask)
         np.testing.assert_allclose(masked, [0b010, 0b011, 0b001])
 
         mask = 0b1
         digital_data = np.array([True, True, False])
-        masked = mask_and_shift(digital_data, mask)
+        masked = extract_bits(digital_data, mask)
         np.testing.assert_allclose(masked, [0b1, 0b1, 0b0])
 
     def test_convert_channels_to_mask(self):

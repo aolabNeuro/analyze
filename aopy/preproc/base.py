@@ -304,7 +304,7 @@ def get_dch_data(digital_data, digital_samplerate, dch):
         (nedges,): structured np.ndarray of the form [('timestamp', 'f8'), ('value', 'f8')])
     '''
     dch_bit_mask = utils.convert_channels_to_mask(dch)
-    dch_ts_data = utils.mask_and_shift(digital_data, dch_bit_mask)
+    dch_ts_data = utils.extract_bits(digital_data, dch_bit_mask)
     dch_timestamps, dch_values = utils.detect_edges(dch_ts_data, digital_samplerate, rising=True, falling=True)
     dch_data = np.empty((len(dch_timestamps),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
     dch_data['timestamp'] = dch_timestamps

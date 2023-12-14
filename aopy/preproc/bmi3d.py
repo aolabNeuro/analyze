@@ -222,7 +222,7 @@ def _parse_bmi3d_v1(data_dir, files):
 
         # Mask and detect BMI3D computer events from ecube
         event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
-        ecube_sync_data = utils.mask_and_shift(digital_data, event_bit_mask)
+        ecube_sync_data = utils.extract_bits(digital_data, event_bit_mask)
         ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
             rising=True, falling=False)
         if len(ecube_sync_timestamps) > 2 and np.min(np.diff(ecube_sync_timestamps)) < metadata_dict['sync_pulse_width']:
@@ -242,7 +242,7 @@ def _parse_bmi3d_v1(data_dir, files):
             clock_sync_bit_mask = 0x1000000 # wrong in 1 and 2
         else:
             clock_sync_bit_mask = utils.convert_channels_to_mask(metadata_dict['screen_sync_dch']) 
-        clock_sync_data = utils.mask_and_shift(digital_data, clock_sync_bit_mask)
+        clock_sync_data = utils.extract_bits(digital_data, clock_sync_bit_mask)
         clock_sync_timestamps, _ = utils.detect_edges(clock_sync_data, digital_samplerate, rising=True, falling=False)
         sync_clock = np.empty((len(clock_sync_timestamps),), dtype=[('timestamp', 'f8')])
         sync_clock['timestamp'] = clock_sync_timestamps

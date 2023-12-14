@@ -217,13 +217,13 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alte
     time = np.arange(np.size(digital_data))/samplerate
     return time[logical_idx], digital_data[logical_idx]
 
-def mask_and_shift(data, mask):
+def extract_bits(data, mask):
     '''
     Apply bit mask and shift data to the least significant set bit in the mask. 
     For example,
-    mask_and_shift(0001000011110000, 1111111100000000) => 00010000
-    mask_and_shift(0001000011110000, 0000000011111111) => 11110000
-    mask_and_shift(0001000011001100, 0000001111001111) => 00111100
+    extract_bits(0001000011110000, 1111111100000000) => 00010000
+    extract_bits(0001000011110000, 0000000011111111) => 11110000
+    extract_bits(0001000011001100, 0000001111001111) => 00111100
 
     Args:
         data (ntime): digital data
