@@ -217,35 +217,30 @@ def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alte
     time = np.arange(np.size(digital_data))/samplerate
     return time[logical_idx], digital_data[logical_idx]
 
-def mask_and_shift(data, bit_mask):
+def mask_and_shift(data, mask):
     '''
     Apply bit mask and shift data to the least significant set bit in the mask. 
     For example,
     mask_and_shift(0001000011110000, 1111111100000000) => 00010000
     mask_and_shift(0001000011110000, 0000000011111111) => 11110000
+    mask_and_shift(0001000011001100, 0000001111001111) => 00111100
 
     Args:
         data (ntime): digital data
-        bit_mask (int): which bits to filter
+        mask (int): which bits to filter
 
     Returns:
         (nt): masked and shifted data
     '''
+    data = np.array(data)
+    result = np.zeros(shape=data.shape, dtype=data.dtype)
+    mask_bit_positions = [i for i, bit in enumerate(reversed(bin(mask)[2:])) if bit == '1']
 
-    return np.bitwise_and(data, bit_mask) >> find_first_significant_bit(bit_mask)
+    for pos in mask_bit_positions[::-1]:
+        result <<= 1
+        result |= (data >> pos) & 1
 
-def find_first_significant_bit(x):
-    '''
-    Find first significant big. Returns the index, counting from 0, of the
-    least significant set bit in x. Helper function for mask_and_shift
-
-    Args:
-        x (int): a number
-
-    Returns:
-        int: index of first significant nonzero bit
-    '''
-    return (x & -x).bit_length() - 1 # no idea how it works! thanks stack overflow --LRS
+    return result
 
 def convert_channels_to_mask(channels):
     '''
