@@ -232,13 +232,13 @@ def mask_and_shift(data, mask):
     Returns:
         (nt): masked and shifted data
     '''
-    data = np.array(data)
+    data = np.array(data).astype(int)
     result = np.zeros(shape=data.shape, dtype=data.dtype)
     mask_bit_positions = [i for i, bit in enumerate(reversed(bin(mask)[2:])) if bit == '1']
 
     for pos in mask_bit_positions[::-1]:
         result <<= 1
-        result |= (data >> pos) & 1
+        result |= ((data >> pos) & 1).astype(data.dtype)
 
     return result
 
