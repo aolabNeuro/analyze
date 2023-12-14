@@ -1239,24 +1239,55 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='
     '''
     This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
 
-    .. image:: _images/boxplot_example.png
-
     Args:
-        data (ncol): Data to plot. A different boxplot is created for each entry of the list.
+        data (ncol list or (m, ncol) array): Data to plot. A different boxplot is created for each entry of the list.
         plt_xaxis (ncol): X-axis locations or labels to plot the boxplot of each column
         trendline (bool): If a line should be used to connect boxplots
         facecolor (color): Color of the box faces. Can be any input that pyplot interprets as a color.
         linecolor (color): Color of the connecting lines.
         ax (axes handle): Axes to plot
+
+    Examples:
+
+        Using a rectangular array and numeric x-axis points.
+
+        .. code-block:: python
+            
+            data = np.random.normal(0, 2, size=(20, 5))
+            xaxis_pts = np.array([2,3,4,4.75,5.5])
+            fig, ax = plt.subplots(1,1)
+            plot_boxplots(data, xaxis_pts, ax=ax)
+
+        .. image:: _images/boxplot_example.png
+
+        Using a list of nonrectangular arrays with categorical x-axis points.
+
+        .. code-block:: python
+        
+            data = [np.random.normal(0, 2, size=(10)), np.random.normal(0, 1, size=(20))]
+            xaxis_pts = ['foo', 'bar']
+            fig, ax = plt.subplots(1,1)
+            plot_boxplots(data, xaxis_pts, ax=ax)
+
+        .. image:: _images/boxplot_example_nonrectangular.png
+
     '''
     if ax is None:
         ax = plt.gca()
-        
-    if np.ndim(data) > 1:
+
+    # If data is 2D, turn the columns into lists
+    if hasattr(data, 'ndim') and data.ndim == 2:
         data = [data[:,i] for i in range(data.shape[1])]
 
+    # If data is a single column, make it a list
+    try:
+        int(data[0])
+        data = [data]
+    except:
+        pass
+        
     if trendline:
-        ax.plot(plt_xaxis, np.nanmedian(data, axis=1), color=facecolor)
+        ax.plot(plt_xaxis, [np.nanmedian(data[i]) for i in range(len(data))], color=facecolor)
     
     for featidx, ifeat in enumerate(plt_xaxis):
         temp_data = data[featidx]
