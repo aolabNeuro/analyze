@@ -1,6 +1,7 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
-
+import string
+from typing import Tuple, Union
 import warnings
 import seaborn as sns
 import matplotlib
@@ -22,6 +23,7 @@ import copy
 import pandas as pd
 from tqdm import tqdm
 import pandas as pd
+from datetime import timedelta
 
 from .. import analysis
 from ..data import load_chmap
@@ -55,13 +57,71 @@ def savefig(base_dir, filename, **kwargs):
     fname = os.path.join(base_dir, filename)
     if 'dpi' not in kwargs:
         kwargs['dpi'] = 300.
-    if 'facecolor' not in kwargs:
-        kwargs['facecolor'] = 'none'
     if 'edgecolor' not in kwargs:
         kwargs['edgecolor'] = 'none'
     if 'transparent' not in kwargs:
         kwargs['transparent'] = True
+    if kwargs['transparent'] and 'facecolor' not in kwargs:
+        kwargs['facecolor'] = 'none'
     plt.savefig(fname, **kwargs)
+
+def subplots_with_labels(n_rows: int, n_cols: int, return_labeled_axes: bool = False,
+                         rel_label_x: float = -0.25, rel_label_y: float = 1.1, label_font_size: int = 11,
+                         constrained_layout: bool = True, **kwargs) -> Union[Tuple[plt.Figure, np.ndarray], Tuple[plt.Figure, np.ndarray, dict]]:
+    """
+    The goal is to augment plt.subplots() with the ability to label subplots with letters.
+    Create a figure with subplots labeled with letters. 
+
+    Example:
+    generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+        .. code-block:: python
+            fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
+
+        .. image:: _images/labeled_subplots.png
+
+    Args:
+    - n_rows: int, number of rows of subplots.
+    - n_cols: int, number of columns of subplots.
+    - return_labeled_axes: bool, whether to return the labeled axes.
+    - rel_label_x: float, the relative x position of the subplot label.
+    - rel_label_y: float, the relative y position of the subplot label.
+    - label_font_size: int, the font size of the subplot label.
+    - constrained_layout: bool, whether to use constrained layout.
+    - **kwargs: additional keyword arguments to pass to plt.subplot_mosaic.
+
+    Returns:
+    - fig: Figure, the created figure.
+    - axes: np.ndarray, the created axes.
+    - labels_axes: dict, the labeled axes if return_labeled_axes is True.
+    """
+    # if more than 26 subplots, raise an error
+    if n_rows * n_cols > 26:
+        raise ValueError("More than 26 subplots requested, running out of single letters to label them with!")
+
+    # make a list of letters to use as labels
+    alphabets = string.ascii_uppercase
+    labels = alphabets[:n_rows * n_cols]
+
+    # tabulate the labels into n_rows by n_cols array
+    labels = np.array(list(labels)).reshape((n_rows, n_cols))
+
+    # make a string where rows are separated by semicolons
+    labels = ";".join(["".join(row) for row in labels])
+
+    # make the figure and axes
+    fig, labels_axes = plt.subplot_mosaic(labels, constrained_layout=constrained_layout, **kwargs)
+
+    for n, (key, ax) in enumerate(labels_axes.items()):
+        ax.text(rel_label_x, rel_label_y, key, transform=ax.transAxes, size=label_font_size)
+
+    # just annotate the axes
+    axes = list(labels_axes.values())
+    axes = np.array(axes).reshape((n_rows, n_cols))
+
+    if return_labeled_axes:
+        return fig, axes, labels_axes
+    else:
+        return fig, axes
 
 
 def plot_timeseries(data, samplerate, ax=None, **kwargs):
@@ -482,7 +542,7 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
             aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b')
             plt.axis('off')
 
-        .. image:: _/images/ecog244_opto32.png
+        .. image:: _images/ecog244_opto32.png
 
     Note: 
         The acq_ch returned from `func::aopy.data.load_chmap` are generally 1-indexed lists of acquisition 
@@ -964,13 +1024,16 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     for idx_day in range(n_days):
         day = plot_days[idx_day]
         for idx_column in range(n_columns):
-            values = np.array(columns[idx_column])[dates == day]
+            values = np.array(columns[idx_column])[dates == day.date()]
             
             try:
                 if method == 'sum':
-                    aggregate[idx_column, idx_day] = np.sum(values)
+                    if len(values) > 0:
+                        aggregate[idx_column, idx_day] = np.sum(values)
+                    else:
+                        aggregate[idx_column, idx_day] = np.nan
                 elif method == 'mean':
-                    day_trials = np.array(trials)[dates == day]
+                    day_trials = np.array(trials)[dates == day.date()]
                     aggregate[idx_column, idx_day] = np.average(values, weights=day_trials)
                 else:
                     raise ValueError("Unknown method for combining data")
@@ -984,7 +1047,8 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
             ax.plot(plot_days, aggregate[idx_column,:], '.-', label=columns[idx_column].name)
         else:
             ax.plot(plot_days, aggregate[idx_column,:], '.-')
-    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=(mdates.MO, mdates.TU, mdates.WE, 
+                                                                mdates.TH, mdates.FR, mdates.SA, mdates.SU)))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     
@@ -993,9 +1057,10 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     else:
         ax.legend()
 
-def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
+def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, labels=None, ax=None, **kwargs):
     '''
-    Plot session data by absolute number of trials completed
+    Plot session data by absolute number of trials completed. Optionally split up the sessions by date and
+    apply smoothing to each day's data.
     
     Example:
 
@@ -1015,26 +1080,48 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     Args:
         trials (nsessions): number of trials in each session
         *columns (nsessions): dataframe columns or numpy arrays to plot
+        dates (nsessions, optional): dataframe columns or numpy arrays of the date of each session
+        smoothing_window (int, optional): number of trials to smooth. Default no smoothing.
         labels (list, optional): string label for each column to go into the legend
         ax (pyplot.Axes, optional): axis on which to plot
     '''
     if ax == None:
-        ax = plt.gca()
+        ax = plt.gca()  
+
+    date_chg = []
+    if dates is not None:
+        trial_dates = np.repeat(np.array(dates), trials)
+        date_chg = np.insert(np.where(np.diff(trial_dates) > timedelta(0))[0] + 1, 0, 0)
+
     for idx_column in range(len(columns)):
-        values = columns[idx_column]
-        trial_values = []
         
         # Accumulate individual trials with the values given for each session
-        for v, t in zip(values, trials):
-            trial_values = np.concatenate((trial_values, np.tile(v, t)))
+        values = np.array(columns[idx_column])
+        trial_values = np.repeat(values, trials)
         
+        # Apply smoothing
+        if smoothing_window is not None and dates is not None:
+            split = np.split(trial_values, date_chg[1:])
+            split = [analysis.calc_rolling_average(s, window_size=smoothing_window, mode='nan') for s in split]
+            trial_values = np.concatenate(split)
+        elif smoothing_window is not None:
+            trial_values = analysis.calc_rolling_average(trial_values, window_size=smoothing_window)
+        
+        # Plot with additional kwargs
         if hasattr(columns[idx_column], 'name'):
-            ax.plot(trial_values,  '.-', label=values.name)
+            ax.plot(trial_values, label=columns[idx_column].name, **kwargs)
         else:
-            ax.plot(trial_values,  '.-')
+            ax.plot(trial_values, **kwargs)
+
+    # Add date labels
+    for i in date_chg:
+        date = trial_dates[i]
+        ax.axvline(i, ymin=0, ymax=1, color='gray', alpha=0.5, linestyle='dashed')
+        ax.text(i, 1, str(date), color='gray', rotation=90, ha='left', va='top', 
+                transform=ax.get_xaxis_transform())
 
     ax.set_xlabel('trials')
-    if labels:
+    if labels is not None:
         ax.legend(labels)
     else:
         ax.legend()
@@ -1191,9 +1278,44 @@ def advance_plot_color(ax, n):
     Args:
         ax (pyplot.Axes): specify which axis to advance the color
         n (int): how many colors to skip in the cycle
+
+    Examples:
+
+        Using advance_plot_color to skip the first color in the cycle.
+
+        .. code-block:: python
+
+            plt.subplots()
+            aopy.visualization.advance_plot_color(plt.gca(), 1)
+            plt.plot(np.arange(10), np.arange(10))
+
+        .. image:: _images/advance_plot_color.png
+        
     '''
     for _ in range(n):
         next(ax._get_lines.prop_cycler)
+
+def reset_plot_color(ax):
+    '''
+    Utility to reset the color cycle on a given axis to the default.
+
+    Args:
+        ax (pyplot.Axes): specify which axis to reset the color
+
+    Examples:
+
+        Using reset_plot_color to reset the color cycle between calls to `plt.plot()`.
+        
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.ones(10))
+            aopy.visualization.reset_plot_color(plt.gca())
+            plt.plot(np.arange(10), 1 + np.ones(10))
+
+        .. image:: _images/reset_plot_color.png
+    '''
+    ax.set_prop_cycle(None)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """

@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.testing.compare import compare_images
 import datetime
+import json
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -413,6 +414,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
     def test_get_interp_kinematics(self):
+        # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
         cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
         hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
@@ -426,13 +428,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         plt.figure()
         visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
-        filename = 'get_interp_cursor.png'
+        filename = 'get_interp_cursor_centerout.png'
         visualization.savefig(docs_dir, filename)
 
         plt.figure()
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
-        filename = 'get_interp_hand.png'
+        filename = 'get_interp_hand_centerout.png'
         visualization.savefig(docs_dir, filename)
 
         plt.figure()
@@ -441,7 +443,91 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlim(10, 20)
         plt.xlabel('time (s)')
         plt.ylabel('x position (cm)')
-        filename = 'get_interp_targets.png'
+        filename = 'get_interp_targets_centerout.png'
+        visualization.savefig(docs_dir, filename)
+
+        # Test with tracking task data (rig1)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+        # check this is an experiment with reference & disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
+
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        n_sec = 120
+        time = np.arange(exp_metadata['fps']*n_sec)/exp_metadata['fps']
+        plt.figure()
+        plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_cursor_tracking.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.plot(time, dis_interp[:int(exp_metadata['fps']*n_sec),1], color='tab:red', linestyle='--', label='dis')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_user_tracking.png'
+        visualization.savefig(docs_dir, filename)
+        
+        # Test with tracking task data (tablet rig)
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'churro', 375, '2023-10-02')
+        # check this is an experiment with reference & NO disturbance
+        assert exp_metadata['trajectory_amplitude'] > 0
+        assert not json.loads(exp_metadata['sequence_params'])['disturbance']
+        
+        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
+        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
+        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
+        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+
+        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(ref_interp.shape[1], 2)
+        self.assertEqual(dis_interp.shape[1], 2)
+        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(hand_interp.shape[1], 3)
+        self.assertEqual(len(cursor_interp), len(ref_interp))
+        self.assertEqual(len(ref_interp), len(dis_interp))
+        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
+        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+
+        plt.figure()
+        plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_cursor_tracking_tablet.png'
+        visualization.savefig(docs_dir, filename)
+
+        plt.figure()
+        plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
+        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.plot(time, dis_interp[:int(exp_metadata['fps']*n_sec),1], color='tab:red', linestyle='--', label='dis')
+        plt.xlabel('time (s)')
+        plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+        plt.legend()
+        filename = 'get_interp_user_tracking_tablet.png'
         visualization.savefig(docs_dir, filename)
 
     def test_get_kinematic_segments(self):
@@ -656,6 +742,46 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
+    def test_tabulate_behavior_data_flash(self):
+        files = {}
+        files['hdf'] = 'test20220311_07_te4298.hdf'
+        files['ecube'] = '2022-03-11_BMI3D_te4298'
+        subject = 'test'
+        te_id = 4298
+        date = '2022-03-11'
+        preproc_dir = os.path.join(write_dir, subject)
+        preproc.proc_single(data_dir, files, preproc_dir, subject, te_id, date, ['exp'], overwrite=True)
+
+        df = tabulate_behavior_data_flash(write_dir, [subject], [te_id], [date], df=None)
+        self.assertEqual(len(df), 13) # 13 total trials
+
+        # Check that flash times are in the correct order
+        self.assertTrue(np.all(df['flash_end_time'] - df['flash_start_time'] > 0))
+
+    def test_tabulate_stim_data(self):
+        subjects = ['test']
+        ids = [6577]
+        dates = ['2022-08-19']
+        df = tabulate_stim_data(data_dir, subjects, ids, dates, debug=True, df=None, laser_trigger='laser_trigger', 
+            laser_sensor='laser_sensor') # note in this old file the laser_trigger is not called qwalor_trigger
+
+        figname = 'tabulate_stim_data.png' # should be the same as laser_aligned_sensor_debug.png
+        visualization.savefig(write_dir, figname)
+
+        self.assertEqual(len(df), 51)
+        for trial in range(len(df)):
+            self.assertLessEqual(df['trial_width'][trial], 0.1)
+            self.assertGreater(df['trial_power'][trial], 0.)
+            self.assertLessEqual(df['trial_power'][trial], 1.0)
+            self.assertGreater(df['trial_time'][trial], 0.)
+            self.assertLessEqual(df['trial_time'][trial], 100.)
+            self.assertGreater(df['trial_power_watts'][trial], 0.)
+            self.assertEqual(df['peak_power_watts'][trial], 1.5)
+            self.assertTrue(df['trial_found'][trial])
+
+        self.assertEqual(np.sum(df['width_above_thr']), 0)
+        self.assertEqual(np.sum(df['power_above_thr']), 4)
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
@@ -685,7 +811,6 @@ class TestMatlab(unittest.TestCase):
         # Check case where neither str_include or str_avoid are used
         parsed_strs4 = parse_str_list(str_list)
         self.assertListEqual(parsed_strs4, str_list)
-
 
 class TestPickle(unittest.TestCase):
 

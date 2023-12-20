@@ -2,8 +2,9 @@ import sys
 from functools import lru_cache
 import traceback
 import warnings
+from matplotlib import pyplot as plt
 import os
-
+import datetime
 import numpy as np
 import h5py
 import tables
@@ -121,8 +122,8 @@ def load_ecube_data(data_dir, data_source, channels=None):
     timeseries_data = np.zeros((n_samples, len(channels)), dtype=dtype)
     n_read = 0
     for chunk in _process_channels(data_dir, data_source, channels, metadata['n_samples'], dtype=dtype):
-        chunk_len = chunk.shape[0]
-        timeseries_data[n_read:n_read+chunk_len,:] = chunk
+        chunk_len = min(chunk.shape[0], n_samples-n_read)
+        timeseries_data[n_read:n_read+chunk_len,:] = chunk[:chunk_len,:] # Deal with potentially corrupted data
         n_read += chunk_len
     return timeseries_data
 
@@ -394,7 +395,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     Gets interpolated and filtered kinematic data from preprocessed experiment 
     data to the desired sampling rate. Cursor kinematics are returned in 
     screen coordinates, while other kinematics are returned in their original
-    coordinate system (e.g. hand kinematis in optitrack coordinates).
+    coordinate system (e.g. hand kinematics in optitrack coordinates).
 
     Examples:
         
@@ -408,7 +409,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             plt.figure()
             visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         
-        .. image:: _images/get_interp_cursor.png
+        .. image:: _images/get_interp_cursor_centerout.png
 
         Hand kinematics
        
@@ -418,7 +419,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             ax = plt.axes(projection='3d')
             visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
 
-        .. image:: _images/get_interp_hand.png
+        .. image:: _images/get_interp_hand_centerout.png
 
         Target positions
 
@@ -431,7 +432,40 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
             plt.xlabel('time (s)')
             plt.ylabel('x position (cm)')
 
-        .. image:: _images/get_interp_targets.png
+        .. image:: _images/get_interp_targets_centerout.png
+
+        Cursor and target (reference) kinematics
+
+        .. code-block:: python
+            
+            exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
+            plt.plot(time, cursor_interp[:int(exp_metadata['fps']*120),1], color='blueviolet', label='cursor') # plot just the y coordinate
+            plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
+            plt.xlabel('time (s)')
+            plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+            plt.legend()
+
+        .. image:: _images/get_interp_cursor_tracking.png
+
+        User, reference, and disturbance kinematics
+
+        .. code-block:: python
+            
+            user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps'])
+            time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
+            plt.plot(time, user_interp[:int(exp_metadata['fps']*120),1], color='darkturquoise', label='user')
+            plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
+            plt.plot(time, dis_interp[:int(exp_metadata['fps']*120),1], color='tab:red', linestyle='--', label='dis')
+            plt.xlabel('time (s)')
+            plt.ylabel('y position (cm)'); plt.ylim(-10,10)
+            plt.legend()
+
+        .. image:: _images/get_interp_user_tracking.png
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
@@ -449,20 +483,31 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     '''
     kwargs = {}
 
+    # Fetch the available timestamps
+    try:
+        clock = exp_data['clock']['timestamp_sync']
+    except:
+        clock = exp_data['clock']['timestamp_bmi3d']
+
     # Fetch the relevant BMI3D data
     if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position']
-        clock = exp_data['clock']['timestamp_sync']
+        data_cycles = exp_data['clean_hand_position'] # 3d hand position (optitrack coords: x,y,z) on each bmi3d cycle
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] # cursor (x, z) position on each bmi3d cycle
-        clock = exp_data['clock']['timestamp_sync']
+        data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
+    elif datatype == 'user':
+        dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
+        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 1d cursor position before disturbance added (bmi3d coords: z)
+    elif datatype == 'reference':
+        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 1d target position (bmi3d coords: z)
+    elif datatype == 'disturbance':
+        dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
+        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 1d disturbance value (bmi3d coords: z)
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
-        clock = exp_data['clock']['timestamp_sync']
     else:
         raise ValueError(f"Unknown datatype {datatype}")
     
@@ -522,6 +567,8 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
             eye_data = eye_data['raw_data']
+        elif datatype == 'eye_closed_mask':
+            eye_data = eye_data['eye_closed_mask']
         elif 'calibrated_data' in eye_data.keys():
             eye_data = eye_data['calibrated_data']
         else:
@@ -826,7 +873,7 @@ def get_source_files(preproc_dir, subject, te_id, date):
 
 def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
                            trial_end_codes, reward_codes, penalty_codes, metadata=[],
-                           df=None):
+                           df=None, event_code_type='code'):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of 
     subjects, task entry ids, and dates. Each list must be the same length. Trials 
@@ -843,13 +890,15 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         penalty_codes (list): list of numeric codes representing penalties
         metadata (list, optional): list of metadata keys that should be included in the df
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        event_code_type (str, optional): type of event codes to use. Defaults to 'code'. Other
+            choices include 'event' and 'data'.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
             | **date (str):** date of stimulation
-            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_codes (ntrial):** numeric code segments for each trial (specified by `event_code_type`)
             | **event_times (ntrial):** time segments for each trial
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
             | **penalty (ntrial):** boolean values indicating whether each trial was penalized
@@ -868,7 +917,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
             continue
-        event_codes = exp_data['events']['code']
+        event_codes = exp_data['events'][event_code_type]
         event_times = exp_data['events']['timestamp']
 
         # Trial aligned event codes and event times
@@ -900,6 +949,64 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
     
     return df
 
+def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[], 
+                                      df=None):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for flash experiments. 
+    Uses the task event names (b'TARGET_ON', b'REWARD', and b'TRIAL_END', specifically)
+    to find start and end times for flash experiments.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of stimulation
+            | **event_names (ntrial):** event name segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **flash_start_time (ntrial):** time the flash started
+            | **flash_end_time (ntrial):** time the flash ended
+'''
+    # Use default "trial" definition
+    trial_end_codes = [b'TRIAL_END']
+    trial_start_codes = [b'TARGET_ON']
+    reward_codes = [b'REWARD']
+    penalty_codes = []
+
+    # Concatenate base trial data
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata, df=None, event_code_type='event')
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
+    
+    # Remove any unrewarded trials and then get rid of the 'reward' column
+    new_df.drop(new_df.index[~new_df['reward']], inplace=True)
+    new_df.drop(['reward', 'penalty'], axis=1, inplace=True)
+    new_df.reset_index()
+    
+    # Add trial segment timing
+    new_df['flash_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['flash_end_time'] = np.nan*np.zeros(len(new_df))
+    for i in range(len(new_df)):
+        event_times = new_df.loc[i, 'event_times']
+        
+        # Flash starts when trial starts
+        new_df.loc[i, 'flash_start_time'] = event_times[0]
+        new_df.loc[i, 'flash_end_time'] = event_times[2]
+            
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+    
 def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadata=[], 
                                       df=None):
     '''
@@ -948,7 +1055,10 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata, df=None)
-    
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
+
     # Add target info
     target_idx = [
         code[np.isin(code, target_codes)][0] - target_codes[0] + 1 # add 1 for center target
@@ -1133,6 +1243,110 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
     trajectories = np.array(segments, dtype='object')
     return trajectories
 
+def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
+                       debug=True, df=None, **kwargs):
+    '''
+    Concatenate stimulation data from across experiments. Experiments are given as lists of 
+    subjects, task entry ids, and dates. Each list must be the same length. 
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df. By default,
+            only `stimulation_site` is included.
+        debug (bool, optional): Passed to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`, if True prints
+            an laser sensor alignment plot for each trial. Defaults to True.
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of stimulation
+            | **stimulation_site (int):** site of stimulation
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **trial_time (float):** time of stimulation within recording
+            | **trial_width (float):** width of stimulation pulse
+            | **trial_power (float):** gain of stimulation pulse
+            | **trial_found (bool):** whether an analog laser signal was recorded on this trial
+            | **width_above_thr (bool):** if the width of the analog signal was above the cutoff
+            | **power_above_thr (bool):** if the gain of the analog signal was above the cutoff
+
+    Note:
+        Only supports single-site stimulation.
+    '''
+    if df is None:
+        df = pd.DataFrame()
+
+    entries = list(zip(subjects, dates, ids))
+    for subject, date, te in tqdm(entries): 
+
+        # Load data from bmi3d hdf 
+        try:
+            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            continue
+
+        # Find laser trial times 
+        try:
+            (trial_times, trial_widths, trial_powers, times_not_found, widths_above_thr, 
+             powers_above_thr) = preproc.bmi3d.get_laser_trial_times(
+                preproc_dir, subject, te, date, debug=debug, **kwargs)
+        except:
+            print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
+            traceback.print_exc()
+            continue
+                        
+        # Tabulate everything together
+        exp = {
+            'subject': subject,
+            'te_id': te, 
+            'date': date, 
+            'trial_time': trial_times,
+            'trial_width': trial_widths, 
+            'trial_power': trial_powers,
+            'trial_found': ~times_not_found,
+            'width_above_thr': widths_above_thr,
+            'power_above_thr': powers_above_thr,
+        }
+
+        # Add requested metadata
+        for key in metadata:
+            if key in exp_metadata:
+                exp[key] = [exp_metadata[key] for _ in range(len(trial_times))]
+            else:
+                exp[key] = None
+                print(f"Entry {subject} {date} {te} does not have metadata {key}.")
+
+        # Convert power to units of watts
+        if not isinstance(date, datetime.date):
+            date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
+        if 'qwalor_peak_watts' in exp_metadata:
+            peak_watts = exp_metadata['qwalor_peak_watts']
+        if date < datetime.datetime(2022,5,31).date():
+            if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
+                peak_watts = 1.5
+            else:
+                peak_watts = 20
+        elif date < datetime.datetime(2022,9,30).date():
+            peak_watts = 1.5
+        elif date < datetime.datetime(2023,1,23).date():
+            peak_watts = 20
+        else:
+            peak_watts = 25
+        exp['peak_power_watts'] = peak_watts
+        exp['trial_power_watts'] = [p*peak_watts for p in trial_powers]
+
+        # Concatenate with existing dataframe
+        df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+    
+    return df
+
 def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_before, time_after, 
                      datatype='lfp'):
     '''
@@ -1180,6 +1394,7 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
         idx += 1
         
     return segments, samplerate
+
         
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''
