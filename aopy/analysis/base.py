@@ -779,31 +779,52 @@ def get_random_timestamps(nshuffled_points, max_time, min_time=0, time_samplerat
     
     return np.sort(random_timestamps)
     
-def get_empirical_pvalue(data_distribution, data_sample, test_type='two_sided'):
+def get_empirical_pvalue(data_distribution, data_sample, test_type='two_sided', assume_gaussian=False, nbins=None):
     '''
-    Assumes Gaussian distribution.
-    Ignores NaNs.
+    Calculates the cumulative density function (CDF) from the input data distribution, then calculates the probability (p-value) that a data sample is part of that distribution.
 
     Args:
         data_distribution (npts): Distribution of empirically determined data points
-        data_sample (float): Data sample to get pvalue of 
+        data_sample (npts): Data sample(s) to get pvalue of 
         test_type (str): 'two_sided', 'lower', or 'upper'.
-
+        assume_gaussian (bool): Assumes the data represents a gaussian distribution when calculating the pvalue
+        nbins (int): Number of bins to use to calculate the data distribution. Default is len(data_distribution)/100 if input is None (if necessary)
+        
     Returns:
         significance (float): pvalue of the input data_sample based the parameters of the input data_distribution
     '''
+    # Assume input data is a gaussian distribution
     data_mean = np.nanmean(data_distribution)
-    data_std = np.nanstd(data_distribution)
+    if assume_gaussian:
+        data_std = np.nanstd(data_distribution)
+        z_value = (data_sample - data_mean)/data_std
+        cdf_sample = scipy.stats.norm.cdf(z_value)
+    
+    # Get CDF from input data distribution
+    else: 
+        if nbins is None:
+            nbins = len(data_distribution/100)
+        count, bin_edges = np.histogram(data_distribution, bins=nbins)
+        pdf = count / sum(count)
+        cdf = np.cumsum(pdf)
+        if np.isscalar(data_sample):
+            cdf_sample = cdf[np.where(bin_edges > data_sample)[0][0]]
+        else:
+            cdf_sample = np.array([cdf[np.where(bin_edges > isample)[0][0]] for isample in data_sample])
 
-    # Find how many standard deviations away from the data_mean the data_sample is.
-    z_value = (data_sample - data_mean)/data_std
-    print(z_value)
     if test_type == 'two_sided':
-        return((1-scipy.stats.norm.cdf(np.abs(z_value)))*2)
+        if np.isscalar(data_sample):
+            if data_sample > data_mean:
+                return 2*(1-cdf_sample)
+            else: 
+                return 2*cdf_sample
+        else:
+            return 2*np.array([(1-isample) if data_sample[idx] > data_mean else isample for idx, isample in enumerate(cdf_sample)])
+        
     elif test_type == 'lower':
-        return(scipy.stats.norm.cdf(z_value))
+        return(cdf_sample)
     elif test_type == 'upper':
-        return(1-scipy.stats.norm.cdf(z_value))
+        return(1-cdf_sample)
     else:
         warnings.warn('Please enter a valid test_type. Must be either two_sided, upper, or lower')
         return
