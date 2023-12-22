@@ -1206,6 +1206,34 @@ class TestPrepareExperiment(unittest.TestCase):
         filename = 'get_target_events.png'
         visualization.savefig(docs_dir, filename)
 
+    def test_get_ref_dis_frequencies(self):
+        subject = 'test'
+        te_id = '8461'
+        date = '2023-02-25'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_test.png'
+        visualization.savefig(docs_dir, filename)
+
+        subject = 'churro'
+        te_id = '375'
+        date = '2023-10-02'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_churro.png'
+        visualization.savefig(docs_dir, filename)       
 
 class ProcTests(unittest.TestCase):
 
