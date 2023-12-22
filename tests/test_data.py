@@ -694,6 +694,78 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
 
+    def test_tabulate_behavior_data_tracking_task(self):
+        subjects = ['test', 'test']
+        ids = [8461, 8461]
+        dates = ['2023-02-25', '2023-02-25']
+        df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)  # no penalties in this session
+        self.assertEqual(len(df), 42) # 21 total trials, duplicated
+        self.assertTrue(np.all(df['reward']))
+        self.assertFalse(np.all(df['penalty']))
+        self.assertTrue(np.all(df['trial_initiated']))
+        self.assertTrue(np.all(df['hold_completed']))
+
+        # Check sequence params
+        self.assertTrue(np.all([json.loads(params)['ramp']>0 for params in df['sequence_params']]))
+        self.assertTrue(np.all([json.loads(params)['ramp_down']>0 for params in df['sequence_params']]))
+
+        # Check that rewarded trials are complete
+        self.assertTrue(np.all(df['trial_initiated'][df['reward']]))
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+
+        # Check that trial segments occur in the correct order
+        trial_lengths, traj_lengths = [], []
+        for i in range(len(df)):
+            self.assertLess(df.loc[i,'hold_start_time'], df.loc[i,'tracking_start_time'])
+            self.assertLess(df.loc[i,'tracking_start_time'], df.loc[i,'tracking_end_time'])
+            self.assertLess(df.loc[i,'trajectory_start_time'], df.loc[i,'trajectory_end_time'])
+            self.assertLess(df.loc[i,'tracking_start_time'], df.loc[i,'trajectory_start_time']) # ramp period
+            self.assertLess(df.loc[i,'trajectory_end_time'], df.loc[i,'tracking_end_time'])
+            trial_lengths.append(df.loc[i,'tracking_end_time'] - df.loc[i,'tracking_start_time'])
+            traj_lengths.append(df.loc[i,'trajectory_end_time'] - df.loc[i,'trajectory_start_time'])
+
+        # Check that trajectory timing doesn't include ramp periods
+        plt.figure()
+        plt.plot(trial_lengths, label='total tracking'); plt.plot(traj_lengths, label='trajectory (no ramps)')
+        plt.xlabel('Reward trial #'); plt.ylabel('Time (sec)'); 
+        plt.ylim(15,25); plt.legend()
+        figname = 'tabulate_tracking_trial_segment_lengths_test.png'
+        visualization.savefig(write_dir, figname)
+
+        subjects = ['churro', 'churro']
+        ids = [375, 375]
+        dates = ['2023-10-02', '2023-10-02']
+        df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)
+        self.assertEqual(len(df), 212)
+
+        # Check sequence params
+        self.assertTrue(np.all([json.loads(params)['ramp']==0 for params in df['sequence_params']]))
+        self.assertTrue(np.all([json.loads(params)['ramp_down']==0 for params in df['sequence_params']]))
+
+        # Check that rewarded trials are complete
+        self.assertTrue(np.all(df['trial_initiated'][df['reward']]))
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+
+        # Check that trial segments occur in the correct order
+        trial_lengths, traj_lengths = [], []
+        for i in df[df['hold_completed']].index:
+            self.assertLess(df.loc[i,'hold_start_time'], df.loc[i,'tracking_start_time'])
+            self.assertLess(df.loc[i,'tracking_start_time'], df.loc[i,'tracking_end_time'])
+            self.assertLess(df.loc[i,'trajectory_start_time'], df.loc[i,'trajectory_end_time'])
+            self.assertEqual(df.loc[i,'tracking_start_time'], df.loc[i,'trajectory_start_time']) # no ramp period
+            self.assertEqual(df.loc[i,'tracking_end_time'], df.loc[i,'trajectory_end_time'])
+            if df.loc[i,'reward']:
+                trial_lengths.append(df.loc[i,'tracking_end_time'] - df.loc[i,'tracking_start_time'])
+                traj_lengths.append(df.loc[i,'trajectory_end_time'] - df.loc[i,'trajectory_start_time'])
+
+        # Check that trajectory timing matches total tracking
+        plt.figure()
+        plt.plot(trial_lengths, label='total tracking'); plt.plot(traj_lengths, label='trajectory (no ramps)')
+        plt.xlabel('Reward trial #'); plt.ylabel('Time (sec)')
+        plt.ylim(15,25); plt.legend()
+        figname = 'tabulate_tracking_trial_segment_lengths_churro.png'
+        visualization.savefig(write_dir, figname)       
+
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
