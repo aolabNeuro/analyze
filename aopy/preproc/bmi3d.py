@@ -5,7 +5,11 @@ import warnings
 import numpy as np
 import os
 from datetime import datetime
-from importlib.metadata import version
+import sys
+if sys.version_info >= (3,9):
+    from importlib.metadata import version
+else:
+    from importlib_metadata import version
 import pandas as pd
 
 from .. import precondition
