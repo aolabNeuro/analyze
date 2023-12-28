@@ -93,10 +93,6 @@ def parse_bmi3d(data_dir, files):
             | **data (dict):** bmi3d data
             | **metadata (dict):** bmi3d metadata
     '''
-    # Check that there is hdf data in files
-    if not 'hdf' in files:
-        raise ValueError('Cannot parse nonexistent data!')
-
     # Load bmi3d data to see which sync protocol is used
     try:
         events, event_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
@@ -125,7 +121,12 @@ def parse_bmi3d(data_dir, files):
         metadata['bmi3d_preproc_version'] = version('aopy')
     except:
         metadata['bmi3d_preproc_version'] = 'unknown'
-    metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
+    
+    # And where the data came from
+    try:
+        metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
+    except:
+        metadata['bmi3d_source'] = None
 
     # Standardize the parsed variable names and perform some error checking
     return _prepare_bmi3d_v1(data, metadata)
@@ -143,9 +144,16 @@ def _parse_bmi3d_v0(data_dir, files):
             | **data (dict):** bmi3d data
             | **metadata (dict):** bmi3d metadata
     '''
+    metadata = {}
+    metadata['source_dir'] = data_dir
+    metadata['source_files'] = files
+
+    if 'hdf' not in files:
+        warnings.warn("No hdf file found, cannot parse bmi3d data")
+        return {}, metadata
+
     bmi3d_hdf_filename = files['hdf']
     bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
-    metadata = {}
 
     # Load bmi3d data
     bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
@@ -154,10 +162,6 @@ def _parse_bmi3d_v0(data_dir, files):
     # Copy metadata
     metadata.update(bmi3d_task_metadata)
     metadata.update(bmi3d_root_metadata)
-    metadata.update({
-        'source_dir': data_dir,
-        'source_files': files,
-    }) 
 
     # Put data into dictionary
     bmi3d_data = dict(
@@ -323,9 +327,17 @@ def _prepare_bmi3d_v1(data, metadata):
             | **metadata (dict):** prepared bmi3d metadata
     '''
     # Must be present: clock, task
-    internal_clock = data['bmi3d_clock']
-    task = data['bmi3d_task']
-
+    if 'bmi3d_clock' in data and 'bmi3d_task' in data:
+        internal_clock = data['bmi3d_clock']
+        task = data['bmi3d_task']
+    elif 'sync_clock' in data:
+        warnings.warn('Critical error! No internal clock found, using sync clock instead. Task data will be missing')
+        internal_clock = data['sync_clock']
+        task = None
+    else:
+        warnings.warn("No clock or task data found! Cannot prepare bmi3d data")
+        return data, metadata
+    
     # Estimate display latency
     if 'sync_clock' in data and 'measure_clock_offline' in data and len(data['sync_clock']) > 0:
 
@@ -474,12 +486,17 @@ def _prepare_bmi3d_v1(data, metadata):
             data['clean_hand_position'] = clean_hand_position
 
     # Interpolate clean hand kinematics
-    if 'timestamp_sync' in corrected_clock.dtype.names and 'clean_hand_position' in data:
+    if ('timestamp_sync' in corrected_clock.dtype.names and 
+        'clean_hand_position' in data and
+        len(data['clean_hand_position']) > 0):
         metadata['hand_interp_samplerate'] = 1000
         data['hand_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
 
     # And interpolated cursor kinematics
-    if 'timestamp_sync' in corrected_clock.dtype.names and isinstance(task, np.ndarray) and 'cursor' in task.dtype.names:
+    if ('timestamp_sync' in corrected_clock.dtype.names and 
+        isinstance(task, np.ndarray) and 
+        'cursor' in task.dtype.names and
+        len(task['cursor']) > 0):
         metadata['cursor_interp_samplerate'] = 1000
         data['cursor_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
         
