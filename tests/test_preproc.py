@@ -635,7 +635,8 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_parse_bmi3d_empty(self):
         files = {}
-        self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.assertRaises(AssertionError, lambda: self.check_required_fields(data, metadata))
 
     def test_parse_bmi3d_v0(self):
         # Test sync version 0 (and -1)
