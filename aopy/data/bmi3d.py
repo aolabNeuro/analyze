@@ -226,6 +226,10 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
     n_samples = int(metadata['n_samples'])
     downsample_factor = int(samplerate/lfp_samplerate)
     lfp_samples = int(np.ceil(n_samples/downsample_factor))
+    if 'low_cut' not in filter_kwargs:
+        filter_kwargs['low_cut'] = 500
+    if 'buttord' not in filter_kwargs:
+        filter_kwargs['buttord'] = 4
 
     # Create an hdf dataset
     lfp_hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
@@ -267,8 +271,6 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
     lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
     lfp_metadata['samplerate'] = lfp_samplerate
     lfp_metadata['n_samples'] = lfp_samples
-    lfp_metadata['low_cut'] = 500
-    lfp_metadata['buttord'] = 4
     lfp_metadata.update(filter_kwargs)
     
     return dset, lfp_metadata
@@ -301,6 +303,10 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
     downsample_factor = int(samplerate/lfp_samplerate)
     n_channels = int(metadata['n_channels'])
     n_samples = int(metadata['n_samples'])
+    if 'low_cut' not in filter_kwargs:
+        filter_kwargs['low_cut'] = 500
+    if 'buttord' not in filter_kwargs:
+        filter_kwargs['buttord'] = 4
 
     # Figure out how much data we can load at once
     max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
@@ -333,8 +339,6 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
     lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
     lfp_metadata['samplerate'] = lfp_samplerate
     lfp_metadata['n_samples'] = lfp_samples
-    lfp_metadata['low_cut'] = 500
-    lfp_metadata['buttord'] = 4
     lfp_metadata.update(filter_kwargs)
     
     return dset, lfp_metadata
