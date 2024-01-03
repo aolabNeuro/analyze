@@ -321,7 +321,6 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
     for broadband_chunk in load_ecube_data_chunked(ecube_filepath, 'Headstages', chunksize=chunksize):
         lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
         chunk_len = lfp_chunk.shape[0]
-        print(n_lfp_samples, n_lfp_samples+chunk_len, lfp_samples)
         dset[n_lfp_samples:n_lfp_samples+chunk_len,:] = lfp_chunk
         n_lfp_samples += chunk_len
         
