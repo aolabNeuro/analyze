@@ -18,7 +18,7 @@ install_requires = [
     'nitime',
     'xlrd',
     'openpyxl',
-    'matplotlib>=3.6',
+    'matplotlib',
     'scipy',
     'PyWavelets',
     'Pillow',
