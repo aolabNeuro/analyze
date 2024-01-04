@@ -27,6 +27,8 @@ install_requires = [
     'tqdm',
     'open-ephys-python-tools',
     'aolab-bmi3d',
+    'importlib_resources; python_version < "3.9.0"',
+    'importlib_metadata; python_version < "3.8.0"',
 ]
 
 setuptools.setup(
