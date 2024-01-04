@@ -555,7 +555,6 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
     laser_on_samples = (laser_on_times * ds_fs).astype(int)
     laser_sensor_volts = (ds_data[laser_on_samples])*sensor_voltsperbit
     
-    # Normalize sensor power to the highest power, then multiply by the highest trial power
     laser_sensor_powers = laser_sensor_volts / np.max(laser_sensor_volts)
     laser_sensor_powers *= np.max(laser_event_powers)
 
@@ -585,7 +584,7 @@ def find_laser_stim_times(laser_event_times, laser_event_widths, laser_event_pow
 
     return corrected_times, corrected_widths, corrected_powers, times_not_found, widths_above_thr, powers_above_thr
 
-def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwalor_trigger', 
+def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger', 
                           laser_sensor='qwalor_sensor', debug=False, **kwargs):
     '''
     Get the laser trial times, trial widths, and trial powers from the given experiment. Returned
@@ -593,10 +592,8 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
     BMI3D's hdf records.
 
     Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
+        exp_data (dict): bmi3d data
+        exp_metadata (dict): bmi3d metadata
         laser_trigger (str, optional): Specifies the name of the digital laser trigger
         laser_sensor (str, optional): Specifies the name of the analog laser sensor
         kwargs (dict): to be passed to `:func:~aopy.preproc.bmi3d.find_laser_stim_times`
@@ -610,19 +607,11 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
             | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
             | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
     '''
-    
-    exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    if laser_sensor not in exp_data:
+        raise ValueError(f"Could not find laser sensor data ({laser_sensor}). Try preprocessing the data first")
 
     # Get ground truth timestamps of when the laser should have been turned on
     if exp_metadata['sync_protocol_version'] > 12:
-
-        # Load the trigger data if it's not already in the bmi3d data
-        if laser_trigger not in exp_data:
-            files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
-            hdf_filepath = os.path.join(data_dir, files['hdf'])
-            if not os.path.exists(hdf_filepath):
-                raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
-            exp_data, exp_metadata = parse_bmi3d(data_dir, files)
         
         # Use the digital trigger as the ground truth of timing
         timestamps = exp_data[laser_trigger]['timestamp']
@@ -655,17 +644,9 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
         else:
             # Can't use the exp data as ground truth, so just load the analog sensor data
             widths = np.zeros((len(times),))
-            powers = np.zeros((len(times),))
+            powers = np.ones((len(times),))
             thr_width = 999
             thr_power = 1
-
-    # Load the sensor data if it's not already in the bmi3d data
-    if laser_sensor not in exp_data:
-        files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
-        hdf_filepath = os.path.join(data_dir, files['hdf'])
-        if not os.path.exists(hdf_filepath):
-            raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
-        exp_data, exp_metadata = parse_bmi3d(data_dir, files)
 
     # Correct the event timings using the sensor data
     sensor_data = exp_data[laser_sensor]
@@ -674,6 +655,46 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
     return find_laser_stim_times(times, widths, powers, sensor_data, 
         samplerate, sensor_voltsperbit, thr_width=thr_width, 
         thr_power=thr_power, debug=debug, **kwargs)
+
+def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwalor_trigger', 
+                          laser_sensor='qwalor_sensor', debug=False, **kwargs):
+    '''
+    Get the laser trial times, trial widths, and trial powers from the given experiment. Returned
+    values are computed from the laser sensor in combination with the expected laser events from
+    BMI3D's hdf records.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        laser_trigger (str, optional): Specifies the name of the digital laser trigger
+        laser_sensor (str, optional): Specifies the name of the analog laser sensor
+        kwargs (dict): to be passed to `:func:~aopy.preproc.bmi3d.find_laser_stim_times`
+
+    Returns:
+        tuple: tuple containing:
+            | **corrected_times (nevent):** corrected laser timings (seconds)
+            | **corrected_widths (nevent):** corrected laser widths (seconds)
+            | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
+            | **times_not_found (nevent):** boolean array of times without onset and offset sensor measurements
+            | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
+            | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
+    '''
+    exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+    # Load the trigger and sensor data if it's not already in the bmi3d data
+    if laser_trigger not in exp_data or laser_sensor not in exp_data:
+        files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
+        hdf_filepath = os.path.join(data_dir, files['hdf'])
+        if not os.path.exists(hdf_filepath):
+            raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
+        exp_data, exp_metadata = parse_bmi3d(data_dir, files)
+        
+    return _get_laser_trial_times(
+        exp_data, exp_metadata, laser_trigger=laser_trigger, 
+        laser_sensor=laser_sensor, debug=debug, **kwargs
+    )
                                                                                 
 def get_target_events(exp_data, exp_metadata):
     '''
