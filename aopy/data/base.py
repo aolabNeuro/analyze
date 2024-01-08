@@ -14,6 +14,7 @@ from pandas import read_excel
 import warnings
 import yaml
 import pandas as pd
+import datetime
 
 # importlib_resources is a backport of importlib.resources from Python 3.9
 if sys.version_info >= (3,9):
@@ -48,6 +49,67 @@ def get_filenames_in_dir(base_dir, te):
         filename = os.path.relpath(file, base_dir)
         files[system] = filename
     return files
+
+def sort_by_te_number(file_names):
+    '''
+    Sorts a list of file names in order of TE number.
+
+    Args:
+        file_names (list): list of file names
+
+    Returns:
+        list: a list of the same file names, sorted
+        
+    '''    
+    return int(file_names.split('_te')[1].split('.')[0])
+
+def grab_files(data_dir, prefix, start_date_str):
+    ''' 
+    Retrieves files in a specified directory that share a common prefix (usually the
+    name of the subject) and have been created since a specified start date. The files
+    are then arranged based on their TE number, and the number of days between each
+    consecutive file is calculated.
+    
+    Args:
+        data_dir (str): directory where the files will be
+        prefix (str): prefix of files to extract, usually the name of the monkey
+                      subject (i.e.: chur, beig, etc.)
+        start_date_str (str): start date of files to extract, formmatted as
+                              YYYMMDD
+
+    Returns:
+        pd dataframe: dataframe of file information, including file names and days
+        since previous file
+        list: a list of sorted file names in the provided directory
+    '''
+    file_names = [f for f in os.listdir(data_dir) if f.startswith(prefix+'2023')]
+
+    file_names_filtered = []
+    for name in file_names:
+        date_str = name.split('_')[0].replace(prefix, '')
+        if date_str >= start_date_str:
+            file_names_filtered.append(name)
+
+    file_names_sorted = sorted(file_names_filtered, key=sort_by_te_number)
+    
+    print(f'{(len(file_names_sorted))} files parsed.')
+
+    dates = [name.split('_')[0].replace(prefix, '') for name in file_names_sorted]
+    dates = [datetime.strptime(d, '%Y%m%d').date() for d in dates]
+    prev_date = None
+    deltas = []
+
+    for date in dates:
+        if prev_date:
+            delta = (date - prev_date).days
+        else:
+            delta = 0
+        deltas.append(delta)
+        prev_date = date
+
+    df = pd.DataFrame({'File Name': file_names_sorted, 'Days Since Prev': deltas})
+ 
+    return df, file_names_sorted
 
 def get_preprocessed_filename(subject, te_id, date, data_source):
     '''
