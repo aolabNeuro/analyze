@@ -300,7 +300,7 @@ class HDFTests(unittest.TestCase):
         self.assertEqual(result, te_ids)
     
     def test_grab_files(self):
-        hdf_dir = '/tests/data/sample_hdfs'
+        hdf_dir = 'sample_hdfs'
         df, sorted_file_names = grab_files(hdf_dir, 'beig', '20220101')
         correct_file_names = ['beig20221002_09_te6890.hdf', 'beig20230109_15_te7977.hdf']
         self.assertEqual(sorted_file_names, correct_file_names)
