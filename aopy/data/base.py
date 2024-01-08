@@ -82,7 +82,7 @@ def grab_files(data_dir, prefix, start_date_str):
         since previous file
         list: a list of sorted file names in the provided directory
     '''
-    file_names = [f for f in os.listdir(data_dir) if f.startswith(prefix+'2023')]
+    file_names = [f for f in os.listdir(data_dir) if f.startswith(prefix+'20')]
 
     file_names_filtered = []
     for name in file_names:
