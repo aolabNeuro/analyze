@@ -724,3 +724,45 @@ def get_target_events(exp_data, exp_metadata):
         target_events.append(event_target)
         
     return np.array(target_events).transpose(1,0,2)
+
+def segment(start_events, end_events, data):
+    '''
+    Processes BMI3D events data and retrieves segments of events and corresponding timestamps
+    based on specified start and end events.
+    
+    This function is similar to get_trial_segments_and_times(), except that it is more
+    specialized to work with BMI3D events. 
+    
+    Args:
+        start_events (list): list of start events to identify the beginning of each segment
+        end_events (list): list of end events to mark the end of each segment
+        data (dict): dictionary of BMI3D events data with keys 'bmi3d_events', 'code', and 'time'.
+        
+    Returns:
+        tuple: A tuple containing:
+            | **segments (list of lists of events):** A list of segments, each represented as a list of events.
+            | **segment_times (list of lists of times):** A list of corresponding timestamps for each event in the segments.    
+    '''
+    bmi3d_events = data['bmi3d_events']
+
+    event_code = bmi3d_events['code']
+    event_inds = bmi3d_events['time']
+    
+    evt_start_idx = np.where(np.in1d(event_code, start_events))[0]
+
+    segments = []
+    segment_times = []
+    for idx_evt in range(len(evt_start_idx)):
+        idx_start = evt_start_idx[idx_evt]
+        idx_end = evt_start_idx[idx_evt] + 1
+
+        while idx_end < len(event_code):
+            if np.in1d(event_code[idx_end], start_events):
+                break
+            if np.in1d(event_code[idx_end], end_events):
+                segments.append(event_code[idx_start:idx_end+1])
+                segment_times.append(event_inds[idx_start:idx_end+1])
+                break
+            idx_end += 1
+            
+    return segments, segment_times
