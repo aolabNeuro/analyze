@@ -50,18 +50,18 @@ def get_filenames_in_dir(base_dir, te):
         files[system] = filename
     return files
 
-def sort_by_te_number(file_names):
+def get_te_number(file_name):
     '''
-    Sorts a list of file names in order of TE number.
+    Extracts TE number from a file name.
 
     Args:
-        file_names (list): list of file names
+        file_names (str): a single file names
 
     Returns:
-        list: a list of the same file names, sorted
+        int: TE number
         
     '''    
-    return int(file_names.split('_te')[1].split('.')[0])
+    return int(file_name.split('_te')[1].split('.')[0])
 
 def grab_files(data_dir, prefix, start_date_str):
     ''' 
@@ -90,7 +90,7 @@ def grab_files(data_dir, prefix, start_date_str):
         if date_str >= start_date_str:
             file_names_filtered.append(name)
 
-    file_names_sorted = sorted(file_names_filtered, key=sort_by_te_number)
+    file_names_sorted = sorted(file_names_filtered, key=get_te_number)
     
     print(f'{(len(file_names_sorted))} files parsed.')
 

@@ -292,6 +292,19 @@ class NeuropixelTest(unittest.TestCase):
         self.assertEqual(ch_name, 'bottom')
                 
 class HDFTests(unittest.TestCase):
+    
+    def test_get_te_number(self):
+        file_names = ['chur20231002_02_te375','beig20230109_15_te7977.hdf', 'beig20221002_09_te6890.hdf']
+        te_ids = [375, 7977, 6890]
+        result = [get_te_number(file_name) for file_name in file_names]
+        self.assertEqual(result, te_ids)
+    
+    def test_grab_files(self):
+        hdf_dir = '/tests/data/sample_hdfs'
+        df, sorted_file_names = grab_files(hdf_dir, 'beig', '20220101')
+        correct_file_names = ['beig20221002_09_te6890.hdf', 'beig20230109_15_te7977.hdf']
+        self.assertEqual(sorted_file_names, correct_file_names)
+        self.assertEqual(list(df['Days Since Prev']), [0, 99])
 
     def test_save_hdf(self):
         import os
