@@ -280,15 +280,15 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
     Baseline is defined as the period between target onset and gocue because speed still exists soon after the cursor enters the center target.
     
     Args:
-        cursor_traj (ntr) : cursor trajectory
+        cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
         fs (float) : sampling rate in Hz
-        trial_start (ntr) : trial start time relative to experiment start time in sec
+        trial_start (ntr) : trial start time (the time when the cursor enters the center target) relative to experiment start time in sec
         target_onset (ntr) : target onset relative to experiment start time in sec
         gocue (ntr) : gocue (the time when the center target disappears) relative to experiment start time in sec
         numsd (float) : for determining threshold
         
     Returns:
-        movement_onset (ntr) : timings when movement happens at each trial
+        movement_onset (ntr) : movement onset relative to trial start time (the time when the cursor enters the center target) in sec
     '''
     
     target_from_start = target_onset - trial_start # target onset relative to trial start time
@@ -319,12 +319,12 @@ def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
     Compute the times when the cursor leaves the center target radius
     
     Args:
-        cursor_traj (ntr) : cursor trajectory
+        cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
         fs (float) : sampling rate in Hz
         target_radius (float) : the radius of the center target
         
     Returns:
-        cursor_leave_time (ntr): the times when the cursor leaves the center target radius
+        cursor_leave_time (ntr): cursor leave times relative to the time when the cursor enters the center target
     '''
     
     ntr = len(cursor_traj)
