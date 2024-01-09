@@ -751,6 +751,86 @@ def classify_by_lda(X_train_lda, y_class_train,
 
     return mean_accuracy, std
 
+def get_random_timestamps(nshuffled_points, max_time, min_time=0, time_samplerate=None):
+    '''
+    This calculates random timestamps either within a range or from a discrete time axis.
+
+    Args:
+        nshuffled_points (int): How many randomly selected time points to
+        max_time (float): Max of time range to draw samples from (inclusive)
+        min_time (float): Min of time range to draw samples from. Defaults to 0
+        time_samplerate (int): Samplerate [samples/s] for the time range. Defaults to None. If None, a random time to machine precision will be calculated. If a value is input, the random samples will be in increments of the samplerate (without replacement).
+
+    Returns:
+        shuffled_timestamps (nshuffled_points): Ordered random timestamps
+    '''
+
+    # Check that that there are enough sample points to randomly select from if time_samplerate is not None.
+    if time_samplerate is not None and nshuffled_points > ((max_time-min_time)*time_samplerate):
+        warnings.warn('There are not enough possible sample points to randomly select from.')
+        return
+
+    if time_samplerate is None:
+        random_timestamps = np.random.uniform(min_time, max_time, size=nshuffled_points)
+    
+    else:
+        time_axis = np.arange(min_time, max_time+(1/time_samplerate), 1/time_samplerate)
+        random_timestamps = np.random.choice(time_axis, size=nshuffled_points, replace=False)
+    
+    return np.sort(random_timestamps)
+    
+def get_empirical_pvalue(data_distribution, data_sample, test_type='two_sided', assume_gaussian=False, nbins=None):
+    '''
+    Calculates the cumulative density function (CDF) from the input data distribution, then calculates the probability (p-value) that a data sample is part of that distribution.
+
+    Args:
+        data_distribution (npts): Distribution of empirically determined data points
+        data_sample (npts): Data sample(s) to get pvalue of 
+        test_type (str): 'two_sided', 'lower', or 'upper'.
+        assume_gaussian (bool): Assumes the data represents a gaussian distribution when calculating the pvalue
+        nbins (int): Number of bins to use to calculate the data distribution. Default is len(data_distribution)/100 if input is None (if necessary)
+        
+    Returns:
+        significance (float): pvalue of the input data_sample based the parameters of the input data_distribution
+    '''
+    # Assume input data is a gaussian distribution
+    data_mean = np.nanmean(data_distribution)
+    if assume_gaussian:
+        data_std = np.nanstd(data_distribution)
+        z_value = (data_sample - data_mean)/data_std
+        cdf_sample = scipy.stats.norm.cdf(z_value)
+    
+    # Get CDF from input data distribution
+    else: 
+        if nbins is None:
+            nbins = len(data_distribution/100)
+        count, bin_edges = np.histogram(data_distribution, bins=nbins)
+        bin_edges += (bin_edges[1] - bin_edges[0])/2 # Use center of bins
+        pdf = count / sum(count)
+        cdf = np.cumsum(pdf)
+        if np.isscalar(data_sample):
+            cdf_sample = cdf[np.where(bin_edges > data_sample)[0][0]]
+        else:
+            cdf_sample = np.array([cdf[np.where(bin_edges > isample)[0][0]] for isample in data_sample])
+
+    if test_type == 'two_sided':
+        if np.isscalar(data_sample):
+            if data_sample > data_mean:
+                return 2*(1-cdf_sample)
+            else: 
+                return 2*cdf_sample
+        else:
+            return 2*np.array([(1-isample) if data_sample[idx] > data_mean else isample for idx, isample in enumerate(cdf_sample)])
+        
+    elif test_type == 'lower':
+        return(cdf_sample)
+    elif test_type == 'upper':
+        return(1-cdf_sample)
+    else:
+        warnings.warn('Please enter a valid test_type. Must be either two_sided, upper, or lower')
+        return
+
+
 '''
 Spectral Estimation and Analysis
 '''
