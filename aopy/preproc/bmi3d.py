@@ -741,6 +741,40 @@ def get_ref_dis_frequencies(data, metadata):
         tuple: Tuple containing:
             | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
             | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
+
+    Examples:
+        .. code-block:: python
+
+            subject = 'test'
+            te_id = '8461'
+            date = '2023-02-25'
+
+            data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+            freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+            plt.figure()
+            plt.plot(freq_r, 'darkorange')
+            plt.plot(freq_d, 'tab:red', linestyle='--')
+            plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+            
+        .. image:: _images/get_ref_dis_freqs_test.png
+        
+        .. code-block:: python
+
+            subject = 'churro'
+            te_id = '375'
+            date = '2023-10-02'
+
+            data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+            freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+            plt.figure()
+            plt.plot(freq_r, 'darkorange')
+            plt.plot(freq_d, 'tab:red', linestyle='--')
+            plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+
+        .. image:: _images/get_ref_dis_freqs_churro.png
+
     '''
 
     # grab params relevant for generator
