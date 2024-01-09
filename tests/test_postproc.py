@@ -252,7 +252,7 @@ class TestGetFuncs(unittest.TestCase):
         target_idx_test = np.array([1,2,3,1,2,3,1,1,3,2,3,1,2,1,3])
         cond_mask_test = np.array([False,False,False,False,True,True,True,True,True,True,True,True,True,True,True])
         min_trial = get_minimum_trials_per_target(target_idx_test, cond_mask_test)
-        trial_mask = get_conditioned_trials_per_target(target_idx_test, cond_mask_test, min_trial, replacement=False, seed=None)
+        trial_mask = get_conditioned_trials_per_target(target_idx_test, min_trial, cond_mask_test, replacement=False, seed=None)
         self.assertEqual(min_trial,3)
         self.assertTrue(sum(target_idx_test[trial_mask] == 1) == min_trial)
         self.assertTrue(sum(target_idx_test[trial_mask] == 2) == min_trial)

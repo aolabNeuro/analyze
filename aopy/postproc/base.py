@@ -162,7 +162,7 @@ def get_minimum_trials_per_target(target_idx, cond_mask=None):
         
     '''
     
-    if cond_mask == None:
+    if cond_mask is None:
         min_trial = min([sum(target_idx == itarget) for itarget in np.unique(target_idx)])
     else:
         min_trial = min([sum(target_idx[cond_mask] == itarget) for itarget in np.unique(target_idx)])
@@ -190,13 +190,12 @@ def get_conditioned_trials_per_target(target_idx, min_trial, cond_mask=None, rep
         
     # Get trial index to get the same number of trials per target
     tmp = []
-    if cond_mask is None:
-        for itarget in np.unique(target_idx):
+    for itarget in np.unique(target_idx):
+        if cond_mask is None:
             trial_mask_targ = np.where(target_idx == itarget)[0]
-    else:
-        for itarget in np.unique(target_idx):
-            trial_mask_targ = np.where(cond_mask * (target_idx == itarget))[0]        
-
+        else:
+            trial_mask_targ = np.where(cond_mask * (target_idx == itarget))[0] 
+                   
         if trial_mask_targ.size:
             tmp = np.concatenate([tmp, np.random.choice(trial_mask_targ, min_trial, replace=replacement)])
 
