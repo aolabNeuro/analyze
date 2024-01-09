@@ -239,12 +239,21 @@ class CurveFittingTests(unittest.TestCase):
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
         
     def test_plot_boxplots(self):
+        # Rectangular array
         data = np.random.normal(0, 2, size=(20, 5))
         xaxis_pts = np.array([2,3,4,4.75,5.5])
         fig, ax = plt.subplots(1,1)
         plot_boxplots(data, xaxis_pts, ax=ax)
         filename = 'boxplot_example.png'
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
+
+        # List of nonrectangular arrays
+        data = [np.random.normal(0, 2, size=(10)), np.random.normal(0, 1, size=(20))]
+        xaxis_pts = ['foo', 'bar']
+        fig, ax = plt.subplots(1,1)
+        plot_boxplots(data, xaxis_pts, ax=ax)
+        filename = 'boxplot_example_nonrectangular.png'
+        savefig(docs_dir, filename)
 
 class AnimationTests(unittest.TestCase):
 

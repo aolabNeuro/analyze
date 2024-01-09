@@ -544,6 +544,74 @@ class ModelFitTests(unittest.TestCase):
         self.assertAlmostEqual(accuracy, 1.0)
         self.assertAlmostEqual(std, 0.0 )
 
+    def test_get_random_timestamps(self):
+        nshuffled_points = 5
+        
+        # Test random timestamps without time axis
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1)
+        self.assertTrue(np.min(random_timestamps) >= .999999) # Weird numbers to handle float to int comparison
+        self.assertTrue(np.max(random_timestamps) <= 3.00001)
+        self.assertTrue(len(random_timestamps)==5)
+        self.assertTrue(np.diff(random_timestamps).all()>0)
+
+        # Test random timestamps with time axis
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1.1, time_samplerate=10)
+        self.assertAlmostEqual(np.sum(random_timestamps%0.1), 0)
+        self.assertTrue(np.min(random_timestamps) >= 1.099999)
+        self.assertTrue(np.max(random_timestamps) <= 3.00001)
+        self.assertTrue(len(random_timestamps)==5)
+        self.assertTrue(np.diff(random_timestamps).all()>0)
+
+        # Test that warning message appears
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1, time_samplerate=0.1)
+        self.assertIsNone(random_timestamps)
+
+    def test_get_empirical_pvalue(self):
+        data_distribution = np.random.randn(1000000)
+
+        # Test distribution calculated from data
+        # Test two-sided test 
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample)
+        self.assertAlmostEqual(1, 0.6827+pvalue, 2) # Data should be one standard dev away
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)))
+        self.assertAlmostEqual(1, 0.6827+pvalue[0], 2) # Data should be one standard dev away
+        self.assertAlmostEqual(1, 0.6827+pvalue[1], 2) # Data should be one standard dev away
+
+        # Test lower test
+        data_sample = -1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'lower')
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)), 'lower')
+        self.assertAlmostEqual(len(pvalue), 2) 
+
+        # Test upper test
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'upper')
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)), 'upper')
+        self.assertAlmostEqual(len(pvalue), 2) 
+
+        # Test Gaussian assumption
+        # Test two-sided test 
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+pvalue, 2) # Data should be one standard dev away
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)), assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+pvalue[0], 2) # Data should be one standard dev away
+        self.assertAlmostEqual(1, 0.6827+pvalue[1], 2) # Data should be one standard dev away
+
+
+        # Test lower test
+        data_sample = -1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'lower', assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+
+        # Test upper test
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'upper', assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+
 class AccLLRTests(unittest.TestCase):
 
     def test_detect_accLLR(self, upper=10, lower=-10):
@@ -1461,7 +1529,6 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target, skipping unrewarded trial
         np.testing.assert_allclose(target_dir, [81, 87, 83, 82, 81]) # there are two appearances of target 1
 
-
     def test_calc_segment_duration(self):
         events =  [80, 17, 32, 81, 48,
                    80, 23, 32, 87, 48,
@@ -1484,6 +1551,21 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
 
+    def test_movement_onset_and_cursor_leave_time(self):
+        fs = 1
+        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,1,1,0,0,1,1,1,1,1,]]).T,\
+            np.array([[1,0,0,0,0,0,0,-1,-1,-1],[0,1,0,0,0,0,0,1,1,1,]]).T])
+        trial_start = np.array([0,0])
+        target_onset = np.array([1,2])
+        gocue = np.array([4,5])
+        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=1)
+        self.assertTrue(np.all(movement_onset == np.array([5,7])))
+        
+        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
+            np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
+        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
+        self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
+        
 if __name__ == "__main__":
     unittest.main()
 
