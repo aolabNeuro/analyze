@@ -805,6 +805,7 @@ def get_empirical_pvalue(data_distribution, data_sample, test_type='two_sided', 
         if nbins is None:
             nbins = len(data_distribution/100)
         count, bin_edges = np.histogram(data_distribution, bins=nbins)
+        bin_edges += (bin_edges[1] - bin_edges[0])/2 # Use center of bins
         pdf = count / sum(count)
         cdf = np.cumsum(pdf)
         if np.isscalar(data_sample):
