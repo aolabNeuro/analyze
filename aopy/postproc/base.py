@@ -149,7 +149,7 @@ def get_trial_targets(trials, targets):
         trial_targets[trial].append(targets[idx])
     return trial_targets
 
-def get_minimum_trials_per_target(target_idx, cond_mask):
+def get_minimum_trials_per_target(target_idx, cond_mask=None):
     '''
     Get the minimum number of trials per target after restricting trials
     
@@ -162,21 +162,24 @@ def get_minimum_trials_per_target(target_idx, cond_mask):
         
     '''
     
-    num_trial_targ = []
-    for itarget in np.unique(target_idx):
-        num_trial_targ.append(sum(target_idx[cond_mask] == itarget))
-    min_trial = min(num_trial_targ)
+    if cond_mask == None:
+        min_trial = min([sum(target_idx == itarget) for itarget in np.unique(target_idx)])
+    else:
+        min_trial = min([sum(target_idx[cond_mask] == itarget) for itarget in np.unique(target_idx)])
     
     return min_trial
 
-def get_conditioned_trials_per_target(target_idx, cond_mask, min_trial, replacement=False, seed=None):
+def get_conditioned_trials_per_target(target_idx, min_trial, cond_mask=None, replacement=False, seed=None):
     '''
     Get trial index to choose the same number of trials per target in removing trials by a certain condition
+    min_trial can be taken from 'get_minimum_trials_per_target' function.
     
     Args:
         target_index (ntr): target index
+        min_trial (int): minimum trial across conditions
         cond_mask (ntr): boolean array to remove trials
         replacement (bool): whether to allow replacement in choosing trials. This can be used for bootstrapping.
+        seed (int): random seed
         
     Returns:
         (ntr): trial index to extract the same number of conditioned trials for each target
@@ -187,8 +190,12 @@ def get_conditioned_trials_per_target(target_idx, cond_mask, min_trial, replacem
         
     # Get trial index to get the same number of trials per target
     tmp = []
-    for itarget in np.unique(target_idx):
-        trial_mask_targ = np.where(cond_mask * (target_idx == itarget))[0] # get conditioned trial index for each target
+    if cond_mask is None:
+        for itarget in np.unique(target_idx):
+            trial_mask_targ = np.where(target_idx == itarget)[0]
+    else:
+        for itarget in np.unique(target_idx):
+            trial_mask_targ = np.where(cond_mask * (target_idx == itarget))[0]        
 
         if trial_mask_targ.size:
             tmp = np.concatenate([tmp, np.random.choice(trial_mask_targ, min_trial, replace=replacement)])
