@@ -20,7 +20,7 @@ else:
 from .. import precondition
 from .. import preproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
-from ..preproc.bmi3d import get_target_events
+from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
 from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
@@ -832,6 +832,27 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
             raise ValueError(f"Target index {target_indices[i]} not found")
     return np.round(locations,4)
 
+def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
+    '''
+    For continuous tracking tasks, get the set of frequencies (in Hz) used to 
+    generate the trajectories that were preesented on each trial of the experiment, 
+    using :func:`~aopy.preproc.bmi3d.get_ref_dis_frequencies`. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+
+    Returns:
+        tuple: Tuple containing:
+            | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
+            | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
+    '''
+    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+    return freq_r, freq_d
+
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
     Retrieves the dictionary of source files from a preprocessed file
@@ -876,7 +897,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
+            | **date (str):** date of recording
             | **event_codes (ntrial):** numeric code segments for each trial (specified by `event_code_type`)
             | **event_times (ntrial):** time segments for each trial
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
@@ -947,7 +968,7 @@ def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[],
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
+            | **date (str):** date of recording
             | **event_names (ntrial):** event name segments for each trial
             | **event_times (ntrial):** time segments for each trial
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
@@ -992,7 +1013,6 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     Wrapper around tabulate_behavior_data() specifically for center-out experiments. 
     Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
     assign event codes for trial start, trial end, reward, penalty, and targets. 
-    Trial start can optionally include the center target.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -1006,7 +1026,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
+            | **date (str):** date of recording
             | **event_codes (ntrial):** numeric code segments for each trial
             | **event_times (ntrial):** time segments for each trial
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
@@ -1093,6 +1113,115 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
         if new_df.loc[i, 'reach_completed']:
             new_df.loc[i, 'reach_end_time'] = reach_times[0][-1]
+
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+
+def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, metadata=[], df=None):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for tracking task experiments. 
+    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
+    assign event codes for trial start, trial end, reward, penalty.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **sequence_params (ntrial):** string of params used to generate all trajectories in the same task entry
+            | **ref_freqs (ntrial):** array of frequencies used to generate reference trajectory for each trial
+            | **dis_freqs (ntrial):** array of frequencies used to generate disturbance trajectory for each trial
+            | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated (i.e. hold was attempted)
+            | **hold_start_time (ntrial):** time at which the hold period started
+            | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
+            | **tracking_start_time (ntrial):** time at which the hold period ended and tracking started
+            | **tracking_end_time (ntrial):** time at which tracking ended (whether with a reward or tracking out penalty)
+            | **trajectory_start_time (ntrial):** time at which the ref & dis trajectories started (excluding the ramp up period)
+            | **trajectory_end_time (ntrial):** time at which the ref & dis trajectories ended (excluding the ramp down period if the trial was rewarded)
+    '''
+    # Use default "trial" definition
+    task_codes = load_bmi3d_task_codes()
+    trial_start_codes = [task_codes['CENTER_TARGET_ON']]
+    trial_end_codes = [task_codes['TRIAL_END']]
+    reward_codes = [task_codes['REWARD']]
+    penalty_codes = [task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    
+    # Concatenate base trial data
+    if 'sequence_params' not in metadata:
+        metadata.append('sequence_params')
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata, df=None)
+    
+    # Add frequency content of reference & disturbance trajectories
+    ref_freqs = []
+    dis_freqs = []
+    for s, te, d in zip(subjects, ids, dates):
+        r, d = get_trajectory_frequencies(preproc_dir, s, te, d)
+        ref_freqs.extend(r)
+        dis_freqs.extend(d)
+    new_df['ref_freqs'] = ref_freqs
+    new_df['dis_freqs'] = dis_freqs
+    
+    # Add trial segment timing
+    new_df['trial_initiated'] = np.zeros(len(new_df), dtype='bool')
+    new_df['hold_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['tracking_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['tracking_end_time'] = np.nan*np.zeros(len(new_df))
+    new_df['trajectory_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['trajectory_end_time'] = np.nan*np.zeros(len(new_df))
+    ramp = [
+        json.loads(params)['ramp']
+        if 'ramp' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    ramp_down = [
+        json.loads(params)['ramp_down']
+        if 'ramp_down' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    for i in range(len(new_df)):
+        event_codes = new_df.iloc[i]['event_codes']
+        event_times = new_df.iloc[i]['event_times']
+
+        # Trial initiated when hold begins
+        _, initiation_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['CENTER_TARGET_ON']], [task_codes['TRIAL_START']])
+        new_df.loc[i,'trial_initiated'] = len(initiation_times) > 0 # if False, TIMEOUT_PENALTY
+        if new_df.loc[i,'trial_initiated']:
+            new_df.loc[i,'hold_start_time'] = initiation_times[0][-1]
+
+        # Hold completed when tracking begins (first time cursor enters target)
+        tracking_events, tracking_times = get_trial_segments_and_times(event_codes, event_times,
+                                            [task_codes['TRIAL_START']], [task_codes['REWARD'],task_codes['OTHER_PENALTY']])
+        new_df.loc[i,'hold_completed'] = len(tracking_times) > 0 # if False, HOLD_PENALTY
+        if new_df.loc[i,'hold_completed']:
+            new_df.loc[i,'tracking_start_time'] = tracking_times[0][1] # TRIAL_START, CURSOR_ENTER_TARGET ... REWARD/OTHER_PENALTY
+            new_df.loc[i,'tracking_end_time'] = tracking_times[0][-1]
+
+            # Trajectory excludes ramp period at beginning of tracking (regardless of tracking success)
+            new_df.loc[i,'trajectory_start_time'] = new_df.loc[i,'tracking_start_time']+ramp[i]
+            new_df.loc[i,'trajectory_end_time'] = new_df.loc[i,'tracking_end_time']
+
+            # If tracking successful, trajectory excludes ramp period at end of tracking
+            if new_df.loc[i,'reward']:
+                new_df.loc[i,'trajectory_end_time'] = new_df.loc[i,'tracking_end_time']-ramp_down[i]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df

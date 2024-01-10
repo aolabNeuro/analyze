@@ -7,13 +7,15 @@ import os
 from datetime import datetime
 from importlib.metadata import version
 import pandas as pd
+import json
+import sympy
 
 from .. import precondition
 from .. import data as aodata
 from .. import utils
 from .. import analysis
 from .. import visualization
-from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements
+from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements, get_trial_segments
 
 def decode_event(dictionary, value):
     '''
@@ -724,3 +726,88 @@ def get_target_events(exp_data, exp_metadata):
         target_events.append(event_target)
         
     return np.array(target_events).transpose(1,0,2)
+
+def get_ref_dis_frequencies(data, metadata):
+    '''
+    For continuous tracking tasks, get the set of frequencies (in Hz) used to 
+    generate the reference and disturbance trajectories that were preesented 
+    on each trial of the experiment.
+
+    Args:
+        data (dict): A dictionary containing the experiment data.
+        metadata (dict): A dictionary containing the experiment metadata.
+
+    Returns:
+        tuple: Tuple containing:
+            | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
+            | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
+
+    Examples:
+        .. code-block:: python
+
+            subject = 'test'
+            te_id = '8461'
+            date = '2023-02-25'
+
+            data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+            freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+            plt.figure()
+            plt.plot(freq_r, 'darkorange')
+            plt.plot(freq_d, 'tab:red', linestyle='--')
+            plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+            
+        .. image:: _images/get_ref_dis_freqs_test.png
+        
+        .. code-block:: python
+
+            subject = 'churro'
+            te_id = '375'
+            date = '2023-10-02'
+
+            data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+            freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+            plt.figure()
+            plt.plot(freq_r, 'darkorange')
+            plt.plot(freq_d, 'tab:red', linestyle='--')
+            plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+
+        .. image:: _images/get_ref_dis_freqs_churro.png
+
+    '''
+
+    # grab params relevant for generator
+    params = json.loads(metadata['sequence_params'])
+    primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))
+    even_idx = np.arange(len(primes))[0::2]
+    odd_idx = np.arange(len(primes))[1::2]
+    base_period = 20
+
+    # recreate random trial order of reference & disturbance frequencies
+    np.random.seed(params['seed'])
+    order = np.random.choice([0,1])
+    if order == 0:
+        trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
+    elif order == 1:
+        trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
+        
+    # get trajectory generator index used for each trial
+    events = data['bmi3d_events']['code']
+    cycles = data['bmi3d_events']['time']
+    start_codes = [metadata['event_sync_dict']['TARGET_ON']]
+    end_codes = [metadata['event_sync_dict']['TRIAL_END']]
+
+    _, segment_cycles = get_trial_segments(events, cycles, start_codes, end_codes)
+    generator_segments = np.array([data['task']['gen_idx'][cycle[0]:cycle[-1]] for cycle in segment_cycles], dtype='object')
+    assert np.all([gen[0]==gen[-1] for gen in generator_segments]), 'Generator index is not consistent throughout trial segment!'
+
+    generator_idx = [int(gen[0]) for gen in generator_segments]
+    assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
+
+    # use generator index to get reference & disturbance frequencies for each trial
+    freq_r = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_r_idx[generator_idx]]
+    freq_d = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_d_idx[generator_idx]]
+    return freq_r, freq_d
