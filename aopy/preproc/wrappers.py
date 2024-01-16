@@ -127,10 +127,6 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save
             return
     
     # Prepare the BMI3D data
-    if 'hdf' not in files:
-        print("No HDF data found.")
-        return
-
     bmi3d_data, bmi3d_metadata = parse_bmi3d(data_dir, files)
     if save_res:
         save_hdf(result_dir, result_filename, bmi3d_data, "/exp_data", append=True)
