@@ -65,35 +65,38 @@ def savefig(base_dir, filename, **kwargs):
         kwargs['facecolor'] = 'none'
     plt.savefig(fname, **kwargs)
 
-def subplots_with_labels(n_rows: int, n_cols: int, return_labeled_axes: bool = False,
-                         rel_label_x: float = -0.25, rel_label_y: float = 1.1, label_font_size: int = 11,
-                         constrained_layout: bool = True, **kwargs) -> Union[Tuple[plt.Figure, np.ndarray], Tuple[plt.Figure, np.ndarray, dict]]:
-    """
-    The goal is to augment plt.subplots() with the ability to label subplots with letters.
-    Create a figure with subplots labeled with letters. 
+def subplots_with_labels(n_rows, n_cols, return_labeled_axes=False, 
+                         rel_label_x=-0.25, rel_label_y=1.1,
+                         label_font_size=11, constrained_layout=False, 
+                         **kwargs):
+    '''
+    Create a figure with subplots labeled with letters. Augments plt.subplots().
 
-    Example:
-    generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+    Examples:
+
+        Generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+
         .. code-block:: python
+            
             fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
 
         .. image:: _images/labeled_subplots.png
 
     Args:
-    - n_rows: int, number of rows of subplots.
-    - n_cols: int, number of columns of subplots.
-    - return_labeled_axes: bool, whether to return the labeled axes.
-    - rel_label_x: float, the relative x position of the subplot label.
-    - rel_label_y: float, the relative y position of the subplot label.
-    - label_font_size: int, the font size of the subplot label.
-    - constrained_layout: bool, whether to use constrained layout.
-    - **kwargs: additional keyword arguments to pass to plt.subplot_mosaic.
+        n_rows (int): Number of rows of subplots.
+        n_cols (int): Number of columns of subplots.
+        return_labeled_axes (bool, optional): Whether to return the labeled axes. Default False.
+        rel_label_x (float, optional): The relative x position of the subplot label. Default -0.25.
+        rel_label_y (float, optional): The relative y position of the subplot label. Default 1.1
+        label_font_size (int, optional): The font size of the subplot label. Default 11.
+        constrained_layout (bool, optional): Whether to use constrained layout. Default is False.
+        **kwargs: Additional keyword arguments to pass to plt.subplot_mosaic.
 
     Returns:
-    - fig: Figure, the created figure.
-    - axes: np.ndarray, the created axes.
-    - labels_axes: dict, the labeled axes if return_labeled_axes is True.
-    """
+        fig (Figure): The created figure.
+        axes (np.ndarray): The created axes.
+        labels_axes (dict, optional): The labeled axes if return_labeled_axes is True.
+    '''
     # if more than 26 subplots, raise an error
     if n_rows * n_cols > 26:
         raise ValueError("More than 26 subplots requested, running out of single letters to label them with!")
