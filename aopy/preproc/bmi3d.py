@@ -733,6 +733,10 @@ def get_ref_dis_frequencies(data, metadata):
     generate the reference and disturbance trajectories that were preesented 
     on each trial of the experiment.
 
+    Note:
+        Prior to 11-16-2022, bmi3d did not allow the number of experimental frequencies 
+        to be set by the experimenter, and this parameter defaulted to 8.
+
     Args:
         data (dict): A dictionary containing the experiment data.
         metadata (dict): A dictionary containing the experiment metadata.
@@ -779,6 +783,8 @@ def get_ref_dis_frequencies(data, metadata):
 
     # grab params relevant for generator
     params = json.loads(metadata['sequence_params'])
+    if 'num_primes' not in params.keys():
+        params['num_primes'] = 8
     primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))
     even_idx = np.arange(len(primes))[0::2]
     odd_idx = np.arange(len(primes))[1::2]
