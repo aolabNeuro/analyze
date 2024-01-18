@@ -1236,8 +1236,8 @@ class TestPrepareExperiment(unittest.TestCase):
         visualization.savefig(docs_dir, filename)
 
         subject = 'beignet'
-        te_id = '8348'
-        date = '2023-02-06'
+        te_id = '8380'
+        date = '2023-02-13'
 
         data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
         freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
