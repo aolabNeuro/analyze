@@ -1233,7 +1233,21 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.plot(freq_d, 'tab:red', linestyle='--')
         plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
         filename = 'get_ref_dis_freqs_churro.png'
-        visualization.savefig(docs_dir, filename)       
+        visualization.savefig(docs_dir, filename)
+
+        subject = 'beignet'
+        te_id = '8348'
+        date = '2023-02-06'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_before_gen_idx_saved.png'
+        visualization.savefig(docs_dir, filename) 
 
 class ProcTests(unittest.TestCase):
 
