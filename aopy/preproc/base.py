@@ -335,22 +335,17 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
     '''
 
     # Pad the arrays a bit in case there is an evt_start at the beginning or end
-    if np.issubdtype(events.dtype, np.number):
-        if nevent_offset < 0:
-            events = events.astype('int32')
-            events = np.pad(events, (-nevent_offset, n_events), constant_values=(-1,))
-            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
-        else:
-            events = events.astype('int32')
-            events = np.pad(events, (0, n_events+nevent_offset), constant_values=(-1,))
-            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))
+    if np.issubdtype(np.array(events).dtype, np.number):
+        events = np.array(events).astype('int32')
+        fill_value = -1
     else:
-        if nevent_offset < 0:
-            events = np.pad(events, (-nevent_offset, n_events), constant_values=('',))
-            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
-        else:
-            events = np.pad(events, (0, n_events+nevent_offset), constant_values=('',))
-            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
+        fill_value = ''
+    if nevent_offset < 0:
+        events = np.pad(events, (-nevent_offset, n_events), constant_values=(fill_value,))
+        times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
+    else:
+        events = np.pad(events, (0, n_events+nevent_offset), constant_values=(fill_value,))
+        times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
     
 
     # Find the indices in events that correspond to evt_start 
