@@ -18,7 +18,8 @@ def plot_eye_calibration_result(eye_calibration_data, cursor_calibration_data, c
 
     Examples:
 
-
+        Beignet center-out task (5974) from 2022-07-01:
+        .. image:: _images/eye_calibration.png
     '''
     
     estimated_calibration_pos = postproc.get_calibrated_eye_data(eye_calibration_data, coefficients)
