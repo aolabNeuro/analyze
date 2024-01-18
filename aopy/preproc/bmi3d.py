@@ -16,7 +16,6 @@ from .. import utils
 from .. import analysis
 from .. import visualization
 from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements, get_trial_segments
-from ..data.bmi3d import load_bmi3d_task_codes
 
 def decode_event(dictionary, value):
     '''
@@ -807,9 +806,8 @@ def get_ref_dis_frequencies(data, metadata):
     events = data['bmi3d_events']['code']
     cycles = data['bmi3d_events']['time'] # bmi3d cycle number
 
-    task_codes = load_bmi3d_task_codes()
-    start_codes = [task_codes['CENTER_TARGET_ON']]
-    end_codes = [task_codes['TRIAL_END']]
+    start_codes = [metadata['event_sync_dict']['TARGET_ON']]
+    end_codes = [metadata['event_sync_dict']['TRIAL_END']]
     
     _, segment_cycles = get_trial_segments(events, cycles, start_codes, end_codes)
 
