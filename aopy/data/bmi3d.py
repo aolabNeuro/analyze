@@ -1138,10 +1138,10 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
         dates (list of str): Date for each recording
         metadata (list, optional): list of metadata keys that should be included in the df. By default,
             only `stimulation_site` is included.
-        debug (bool, optional): Passed to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`, if True prints
+        debug (bool, optional): Passed to :func:`~aopy.preproc.laser.find_stim_times`, if True prints
             an laser sensor alignment plot for each trial. Defaults to True.
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`
+        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.laser.find_stim_times`
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data

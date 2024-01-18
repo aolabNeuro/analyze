@@ -1620,3 +1620,32 @@ def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
     ct[:,1] = np.flip(np.linspace(rgb_end[1], rgb_start[1], npts))
     ct[:,2] = np.flip(np.linspace(rgb_end[2], rgb_start[2], npts))
     return ct
+
+def plot_laser_sensor_alignment(sensor_volts, samplerate, stim_times, ax=None):
+    '''
+    Plot laser sensor data aligned to the stimulus times. Useful to debug laser timing issues to
+    make sure the laser is actually on when you think it is.
+
+    Args:
+        sensor_volts ((nstim,) float array): laser sensor data
+        samplerate (float): sampling rate of the sensor data
+        stim_times ((nstim,) array): times at which the laser was turned on
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to pyplot
+    
+    Returns:
+        pyplot.Image: image object returned from pyplot.pcolormesh. Useful for adding colorbars, etc.
+
+    Examples:
+        .. image:: _images/laser_sensor_alignment.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+    time_before = 0.1 # seconds
+    time_after = 0.1 # seconds
+    analog_erp = analysis.calc_erp(sensor_volts, stim_times, time_before, time_after, samplerate)
+    t = 1000*(np.arange(analog_erp.shape[0])/samplerate - time_before) # milliseconds
+    im = plot_image_by_time(t, analog_erp[:,0,:], ylabel='trials')
+    plt.xlabel('time (ms)')
+    plt.title('laser sensor aligned')
+    return im
