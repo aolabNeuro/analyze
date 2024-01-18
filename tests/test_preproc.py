@@ -1507,9 +1507,9 @@ class NeuropixelTests(unittest.TestCase):
             
 class LaserTests(unittest.TestCase):
 
-    def test_calibrate_laser_gain(self):
+    def test_calibrate_gain(self):
         gain = np.arange(0.4,1.0,0.01)
-        powers = preproc.laser.calibrate_laser_gain(gain, 12.)
+        powers = preproc.laser.calibrate_gain(gain, 12.)
         plt.figure()
         plt.plot(gain, powers)
         plt.xlabel('gain')
@@ -1517,9 +1517,9 @@ class LaserTests(unittest.TestCase):
 
         visualization.savefig(docs_dir, 'calibrate_laser_gain.png')
         
-    def test_calibrate_laser_sensor(self):
+    def test_calibrate_sensor(self):
         voltage = [0.12, 0.08, 0.14]
-        powers = preproc.laser.calibrate_laser_sensor(voltage, 12.)
+        powers = preproc.laser.calibrate_sensor(voltage, 12.)
         np.testing.assert_allclose(powers, [8.57,  5.07, 10.32], atol=1e-2)
 
 if __name__ == "__main__":

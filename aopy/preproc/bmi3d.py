@@ -487,7 +487,7 @@ def _prepare_bmi3d_v1(data, metadata):
     return data, metadata
 
 def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor_sensor', 
-                                    debug=False, **kwargs):
+                                    calibration_file='qwalor_447nm_ch2.yaml', debug=False, **kwargs):
     '''
     Get the laser trial times, trial widths, and trial powers from the given experiment. Returned
     values are computed from the laser sensor in combination with the expected laser events from
@@ -497,6 +497,7 @@ def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor
         exp_data (dict): bmi3d data
         exp_metadata (dict): bmi3d metadata
         laser_sensor (str, optional): Specifies the name of the analog laser sensor
+        calibration_file (str, optional): Specifies the name of the calibration file for the laser sensor
         debug (bool, optional): print a plot of the laser sensor aligned to the computed times
         kwargs (dict): to be passed to `:func:~aopy.preproc.laser.find_stim_times`
 
@@ -526,7 +527,7 @@ def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor
     # Get width and power from the 'trials' data
     if 'bmi3d_trials' in exp_data:
         trials = exp_data['bmi3d_trials']
-        powers = trials['power'][:len(times)]
+        gains = trials['power'][:len(times)]
         edges = trials['edges'][:len(times)]
         widths = np.array([t[1] - t[0] for t in edges])
         thr_width=0.001
@@ -535,17 +536,45 @@ def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor
         # In the very old experiments, the laser width and power were not recorded. Since we
         # can't use the exp data as ground truth, so just trust the analog sensor data. Timing may be off.
         widths = np.zeros((len(times),))
-        powers = np.ones((len(times),))
+        gains = np.ones((len(times),))
         thr_width = 999
         thr_power = 1
+
+    # Estimate the peak power from the date
+    date = datetime.fromisoformat(exp_metadata['date']).date()
+    if 'qwalor_peak_watts' in exp_metadata:
+        peak_power_mW = exp_metadata['qwalor_peak_watts']
+    elif date < datetime.datetime(2022,5,31).date():
+        if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
+            peak_power_mW = 1.5
+        else:
+            peak_power_mW = 20
+    elif date < datetime.datetime(2022,9,30).date():
+        peak_power_mW = 1.5
+    elif date < datetime.datetime(2023,1,23).date():
+        peak_power_mW = 20
+    else:
+        peak_power_mW = 25
 
     # Correct the event timings using the sensor data
     sensor_data = exp_data[laser_sensor]
     sensor_voltsperbit = exp_metadata['analog_voltsperbit']
     samplerate = exp_metadata['analog_samplerate']   
-    return laser.find_stim_times(times, widths, powers, sensor_data, 
-        samplerate, sensor_voltsperbit, thr_width=thr_width, 
-        thr_power=thr_power, debug=debug, **kwargs)
+    (corrected_times, corrected_widths, corrected_powers, times_not_found, widths_above_thr, 
+         powers_above_thr) = laser.find_stim_times(times, widths, gains, sensor_data, 
+        samplerate, sensor_voltsperbit, peak_power_mW, thr_width=thr_width, 
+        thr_power=thr_power, calibration_file=calibration_file, debug=debug, **kwargs)
+
+    if np.sum(times_not_found) > 0:
+        warnings.warn(f"{np.sum(times_not_found)} laser trials missing onset and/or offset sensor measurements")
+
+    if np.sum(widths_above_thr) > 0:
+        warnings.warn(f"{np.sum(widths_above_thr)} laser trials have widths above the given threshold")
+
+    if np.sum(powers_above_thr) > 0:
+        warnings.warn(f"{np.sum(powers_above_thr)} laser trials have powers above the given threshold")
+
+    return corrected_times, corrected_widths, gains, corrected_powers
 
 def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger', 
                            laser_sensor='qwalor_sensor', debug=False, **kwargs):
@@ -577,6 +606,14 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
     times = timestamps[values == 1]
     widths = timestamps[values == 0] - timestamps[values == 1]
 
+    # Figure out the intended gain of each pulse
+    if 'bmi3d_trials' in exp_data:
+        trials = exp_data['bmi3d_trials']
+        gains = trials['power'][:len(times)]
+    else:
+        # In the very old experiments, the laser width and power were not recorded.
+        gains = np.ones((len(times),))
+
     sensor_data = exp_data[laser_sensor]
     sensor_voltsperbit = exp_metadata['analog_voltsperbit']
     samplerate = exp_metadata['analog_samplerate']   
@@ -588,7 +625,7 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
     laser_sensor_powers = np.median(laser_sensor_volts, axis=1)
     powers = laser.calibrate_sensor_power(laser_sensor_powers)  
 
-    return times, widths, powers
+    return times, widths, gains, powers
 
 def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwalor_trigger', 
                           laser_sensor='qwalor_sensor', debug=False, **kwargs):
@@ -608,12 +645,10 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
 
     Returns:
         tuple: tuple containing:
-            | **corrected_times (nevent):** corrected laser timings (seconds)
-            | **corrected_widths (nevent):** corrected laser widths (seconds)
-            | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
-            | **times_not_found (nevent):** boolean array of times without onset and offset sensor measurements
-            | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
-            | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
+            | **times (nevent):** laser timings (seconds)
+            | **widths (nevent):** laser widths (seconds)
+            | **gains (nevent):** laser gains (fraction)
+            | **powers (nevent):** calibrated laser powers (mW)
     '''
     exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
 
@@ -625,29 +660,17 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
             raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
         exp_data, exp_metadata = parse_bmi3d(data_dir, files)
         
-    # Return ground truth timestamps of when the laser should have been turned on
+    # Older experiments need to be handled differently
     if exp_metadata['sync_protocol_version'] > 12:
-        
+
+        # Return ground truth timestamps of when the laser should have been turned on
         return _get_laser_trial_times(exp_data, exp_metadata, laser_trigger=laser_trigger,
                                       laser_sensor=laser_sensor, debug=debug, **kwargs)
-
     else:
 
         # Use the bmi3d events as an estimate of timing, then locate the nearby sensor measurements
-        (corrected_times, corrected_widths, corrected_powers, times_not_found, widths_above_thr, 
-         powers_above_thr) = _get_laser_trial_times_old_data(
-            exp_data, exp_metadata, laser_sensor=laser_sensor, debug=debug, **kwargs
-        )
-        if np.sum(times_not_found) > 0:
-            warnings.warn(f"{np.sum(times_not_found)} laser trials missing onset and/or offset sensor measurements")
-
-        if np.sum(widths_above_thr) > 0:
-            warnings.warn(f"{np.sum(widths_above_thr)} laser trials have widths above the given threshold")
-
-        if np.sum(powers_above_thr) > 0:
-            warnings.warn(f"{np.sum(powers_above_thr)} laser trials have powers above the given threshold")
-
-        return corrected_times, corrected_widths, corrected_powers
+        return _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor=laser_sensor, 
+                                               debug=debug, **kwargs)
                                                                                 
 def get_target_events(exp_data, exp_metadata):
     '''

@@ -14,8 +14,9 @@ from .. import precondition
 from .. import utils
 from . import base
 
-def find_stim_times(laser_event_times, laser_event_widths, laser_event_powers, sensor_data, samplerate, sensor_voltsperbit, 
-                          thr_volts=0.005, ds_fs=5000, search_radius=0.015, thr_width=0.001, thr_power=0.05, debug=False):
+def find_stim_times(laser_event_times, laser_event_widths, laser_event_gains, sensor_data, samplerate, 
+                    sensor_voltsperbit, peak_power_mW, thr_volts=0.005, ds_fs=5000, search_radius=0.015, 
+                    thr_width=0.001, calibration_file='qwalor_447nm_ch2.yaml', thr_power=1., debug=False):
     '''
     Given expected laser timing and measured laser sensor data, find the measured timing and power that most likely
     corresponds to actual laser events. 
@@ -31,10 +32,11 @@ def find_stim_times(laser_event_times, laser_event_widths, laser_event_powers, s
     Args:
         laser_event_times (nevent): timestamps of when laser was supposed to fire
         laser_event_widths (nevent): supposed width of each laser event
-        laser_event_powers (nevent): supposed power of each laser event
+        laser_event_gains (nevent): supposed gain of each laser event
         sensor_data (nt): timeseries data from the laser sensor from the ecube analog port
         samplerate (float): sampling rate of the laser sensor data
         sensor_voltsperbit (float): volts per bit of the laser sensor data
+        peak_power_mW (float): peak power of the laser in mW
         thr_volts (float, optional): threshold in volts above which laser sensor data is counted. Defaults to 0.005.
         ds_fs (int, optional): downsampling rate, helps to smooth noise from the sensor. Defaults to 5000.
         search_radius (float, optional): time in seconds around the expected events to search for measured sensor readings. Defaults to 0.015.
@@ -46,7 +48,7 @@ def find_stim_times(laser_event_times, laser_event_widths, laser_event_powers, s
         tuple: tuple containing:
             | **corrected_times (nevent):** corrected laser timings (seconds)
             | **corrected_widths (nevent):** corrected laser widths (seconds)
-            | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
+            | **corrected_powers (nevent):** corrected laser powers (mW)
             | **times_not_found (nevent):** boolean array of times without onset and offset sensor measurements
             | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
             | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
@@ -83,11 +85,10 @@ def find_stim_times(laser_event_times, laser_event_widths, laser_event_powers, s
     laser_on_times = np.mean([corrected_off_times, corrected_times], axis=0)
     laser_on_samples = (laser_on_times * ds_fs).astype(int)
     laser_sensor_volts = (ds_data[laser_on_samples])*sensor_voltsperbit
-    
-    laser_sensor_powers = laser_sensor_volts / np.max(laser_sensor_volts)
-    laser_sensor_powers *= np.max(laser_event_powers)
+    laser_sensor_powers = calibrate_sensor(laser_sensor_volts, peak_power_mW)  
 
     # Correct the widths and powers with the given thresholds
+    laser_event_powers = calibrate_gain(laser_event_gains, peak_power_mW)
     corrected_widths, widths_above_thr = base.validate_measurements(laser_event_widths, laser_sensor_widths, thr_width)
     corrected_powers, powers_above_thr = base.validate_measurements(laser_event_powers, laser_sensor_powers, thr_power)
 
@@ -106,7 +107,7 @@ def find_stim_times(laser_event_times, laser_event_widths, laser_event_powers, s
 
     return corrected_times, corrected_widths, corrected_powers, times_not_found, widths_above_thr, powers_above_thr
 
-def calibrate_laser_gain(gain, peak_power_mW, calibration_file='qwalor_447nm_ch2.yaml'):
+def calibrate_gain(gain, peak_power_mW, calibration_file='qwalor_447nm_ch2.yaml'):
     '''
     Convert gain into laser power in mW
 
@@ -143,7 +144,7 @@ def calibrate_laser_gain(gain, peak_power_mW, calibration_file='qwalor_447nm_ch2
     powers = (voltages - min_voltage)/rng * peak_power_mW
     return powers
 
-def calibrate_laser_sensor(sensor_voltage, peak_power_mW, 
+def calibrate_sensor(sensor_voltage, peak_power_mW, 
                            calibration_file='qwalor_447nm_ch2.yaml'):
     '''
     Convert sensor voltage into laser power in mW

@@ -1208,19 +1208,6 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
         # Convert power to units of watts
         if not isinstance(date, datetime.date):
             date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-        if 'qwalor_peak_watts' in exp_metadata:
-            peak_watts = exp_metadata['qwalor_peak_watts']
-        if date < datetime.datetime(2022,5,31).date():
-            if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
-                peak_watts = 1.5
-            else:
-                peak_watts = 20
-        elif date < datetime.datetime(2022,9,30).date():
-            peak_watts = 1.5
-        elif date < datetime.datetime(2023,1,23).date():
-            peak_watts = 20
-        else:
-            peak_watts = 25
         exp['peak_power_watts'] = peak_watts
         exp['trial_power_watts'] = [p*peak_watts for p in trial_powers]
 
