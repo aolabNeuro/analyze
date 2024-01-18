@@ -823,7 +823,7 @@ def get_ref_dis_frequencies(data, metadata):
         # get generator index from number of previous wait states (wait state parses next trial)
         states = data['bmi3d_state']['msg']
         state_cycles = data['bmi3d_state']['time'] # bmi3d cycle number
-        generator_idx = [sum(states[state_cycles <= cycle[0]] == b'wait') for cycle in segment_cycles]
+        generator_idx = [sum(states[state_cycles <= cycle[0]] == b'wait')-1 for cycle in segment_cycles]
         assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
 
     # use generator index to get reference & disturbance frequencies for each trial
