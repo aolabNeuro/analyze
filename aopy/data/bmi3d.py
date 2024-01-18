@@ -873,7 +873,7 @@ def get_source_files(preproc_dir, subject, te_id, date):
 
 def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
                            trial_end_codes, reward_codes, penalty_codes, metadata=[],
-                           df=None, event_code_type='code'):
+                           df=None, event_code_type='code', return_bad_entries=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of 
     subjects, task entry ids, and dates. Each list must be the same length. Trials 
@@ -892,6 +892,8 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
         event_code_type (str, optional): type of event codes to use. Defaults to 'code'. Other
             choices include 'event' and 'data'.
+        return_bad_entries (bool, optional): If True, returns the list of task entries that could 
+            not be loaded. Defaults to False.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
@@ -904,6 +906,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             | **penalty (ntrial):** boolean values indicating whether each trial was penalized
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
     '''
+    bad_entries = []
     if df is None:
         df = pd.DataFrame()
 
@@ -916,6 +919,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         except:
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
+            bad_entries.append([subject,date,te])
             continue
         event_codes = exp_data['events'][event_code_type]
         event_times = exp_data['events']['timestamp']
@@ -947,7 +951,10 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         # Concatenate with existing dataframes
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
     
-    return df
+    if return_bad_entries:
+        return df, bad_entries
+    else:
+        return df
 
 def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[], 
                                       df=None):
@@ -1162,14 +1169,16 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     # Concatenate base trial data
     if 'sequence_params' not in metadata:
         metadata.append('sequence_params')
-    new_df = tabulate_behavior_data(
+    new_df, bad_entries = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
-        reward_codes, penalty_codes, metadata, df=None)
+        reward_codes, penalty_codes, metadata, df=None, return_bad_entries=True)
     
     # Add frequency content of reference & disturbance trajectories
     ref_freqs = []
     dis_freqs = []
     for s, te, d in zip(subjects, ids, dates):
+        if [s,d,te] in bad_entries:
+            continue
         r, d = get_trajectory_frequencies(preproc_dir, s, te, d)
         ref_freqs.extend(r)
         dis_freqs.extend(d)
