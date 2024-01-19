@@ -274,3 +274,67 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
     target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
 
     return segment_duration, target_codes
+def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0):
+    '''
+    Compute movement onset when cursor speed crosses threshold based on mean and standard deviation in baseline period.
+    Baseline is defined as the period between target onset and gocue because speed still exists soon after the cursor enters the center target.
+    
+    Args:
+        cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
+        fs (float) : sampling rate in Hz
+        trial_start (ntr) : trial start time (the time when the cursor enters the center target) relative to experiment start time in sec
+        target_onset (ntr) : target onset relative to experiment start time in sec
+        gocue (ntr) : gocue (the time when the center target disappears) relative to experiment start time in sec
+        numsd (float) : for determining threshold
+        
+    Returns:
+        movement_onset (ntr) : movement onset relative to trial start time (the time when the cursor enters the center target) in sec
+    '''
+    
+    target_from_start = target_onset - trial_start # target onset relative to trial start time
+    gocue_from_start = gocue - trial_start # gocue relative to trial start time
+    dt = 1/fs
+    
+    movement_onset = []
+    for itr in range(cursor_traj.shape[0]):
+        # compute speed
+        dist = np.linalg.norm(cursor_traj[itr],axis=1)
+        speed = np.diff(dist)
+        speed = np.insert(speed,0,speed[0]) # complement the first data point
+        
+        # compute threshold based on mean and std in baseline
+        t_cursor = np.arange(dist.shape[0])*dt
+        baseline_idx = (t_cursor<gocue_from_start[itr]) & (t_cursor>target_from_start[itr])
+        baseline_speed = np.mean(speed[baseline_idx])
+        baseline_std = np.std(speed[baseline_idx],ddof=1)
+        thr = baseline_speed + numsd*baseline_std
+        
+        # get movement onset
+        movement_onset.append(t_cursor[np.where((speed>thr)&(t_cursor>target_from_start[itr]))[0][0]])
+        
+    return np.array(movement_onset)
+
+def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
+    '''
+    Compute the times when the cursor leaves the center target radius
+    
+    Args:
+        cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
+        fs (float) : sampling rate in Hz
+        target_radius (float) : the radius of the center target
+        
+    Returns:
+        cursor_leave_time (ntr): cursor leave times relative to the time when the cursor enters the center target
+    '''
+    
+    ntr = len(cursor_traj)
+    cursor_leave_time = []
+    
+    for itr in range(ntr):
+        t_axis = np.arange(cursor_traj[itr].shape[0])/samplerate
+        
+        dist = np.linalg.norm(cursor_traj[itr],axis=1)
+        leave_idx = np.where(dist>target_radius)[0][0]
+        cursor_leave_time.append(t_axis[leave_idx])
+    
+    return np.array(cursor_leave_time)

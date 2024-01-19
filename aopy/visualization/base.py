@@ -1,11 +1,15 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
-
+import string
+from typing import Tuple, Union
+import warnings
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import cm
+from matplotlib.collections import LineCollection
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -19,6 +23,7 @@ import copy
 import pandas as pd
 from tqdm import tqdm
 import pandas as pd
+from datetime import timedelta
 
 from .. import analysis
 from ..data import load_chmap
@@ -52,18 +57,79 @@ def savefig(base_dir, filename, **kwargs):
     fname = os.path.join(base_dir, filename)
     if 'dpi' not in kwargs:
         kwargs['dpi'] = 300.
-    if 'facecolor' not in kwargs:
-        kwargs['facecolor'] = 'none'
     if 'edgecolor' not in kwargs:
         kwargs['edgecolor'] = 'none'
     if 'transparent' not in kwargs:
         kwargs['transparent'] = True
+    if kwargs['transparent'] and 'facecolor' not in kwargs:
+        kwargs['facecolor'] = 'none'
     plt.savefig(fname, **kwargs)
 
-
-def plot_timeseries(data, samplerate, ax=None):
+def subplots_with_labels(n_rows, n_cols, return_labeled_axes=False, 
+                         rel_label_x=-0.25, rel_label_y=1.1,
+                         label_font_size=11, constrained_layout=False, 
+                         **kwargs):
     '''
-    Plots data along time on the given axis
+    Create a figure with subplots labeled with letters. Augments plt.subplots().
+
+    Examples:
+
+        Generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+
+        .. code-block:: python
+            
+            fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
+
+        .. image:: _images/labeled_subplots.png
+
+    Args:
+        n_rows (int): Number of rows of subplots.
+        n_cols (int): Number of columns of subplots.
+        return_labeled_axes (bool, optional): Whether to return the labeled axes. Default False.
+        rel_label_x (float, optional): The relative x position of the subplot label. Default -0.25.
+        rel_label_y (float, optional): The relative y position of the subplot label. Default 1.1
+        label_font_size (int, optional): The font size of the subplot label. Default 11.
+        constrained_layout (bool, optional): Whether to use constrained layout. Default is False.
+        **kwargs: Additional keyword arguments to pass to plt.subplot_mosaic.
+
+    Returns:
+        fig (Figure): The created figure.
+        axes (np.ndarray): The created axes.
+        labels_axes (dict, optional): The labeled axes if return_labeled_axes is True.
+    '''
+    # if more than 26 subplots, raise an error
+    if n_rows * n_cols > 26:
+        raise ValueError("More than 26 subplots requested, running out of single letters to label them with!")
+
+    # make a list of letters to use as labels
+    alphabets = string.ascii_uppercase
+    labels = alphabets[:n_rows * n_cols]
+
+    # tabulate the labels into n_rows by n_cols array
+    labels = np.array(list(labels)).reshape((n_rows, n_cols))
+
+    # make a string where rows are separated by semicolons
+    labels = ";".join(["".join(row) for row in labels])
+
+    # make the figure and axes
+    fig, labels_axes = plt.subplot_mosaic(labels, constrained_layout=constrained_layout, **kwargs)
+
+    for n, (key, ax) in enumerate(labels_axes.items()):
+        ax.text(rel_label_x, rel_label_y, key, transform=ax.transAxes, size=label_font_size)
+
+    # just annotate the axes
+    axes = list(labels_axes.values())
+    axes = np.array(axes).reshape((n_rows, n_cols))
+
+    if return_labeled_axes:
+        return fig, axes, labels_axes
+    else:
+        return fig, axes
+
+
+def plot_timeseries(data, samplerate, ax=None, **kwargs):
+    '''
+    Plots data along time on the given axis. Default units are seconds and volts.
 
     Example:
         
@@ -81,6 +147,7 @@ def plot_timeseries(data, samplerate, ax=None):
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
         ax (pyplot axis, optional): where to plot
+        kwargs (dict, optional): optional keyword arguments to pass to plt.plot
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -89,7 +156,62 @@ def plot_timeseries(data, samplerate, ax=None):
 
     time = np.arange(np.shape(data)[0]) / samplerate
     for ch in range(np.shape(data)[1]):
-        ax.plot(time, data[:, ch])
+        ax.plot(time, data[:, ch], **kwargs)
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Voltage (V)')
+
+def gradient_timeseries(data, samplerate, n_colors=100, color_palette='viridis', ax=None, **kwargs):
+    '''
+    Draw gradient lines of timeseries data. Default units are seconds and volts.
+
+    Args:
+        data (nt, nch): timeseries to plot, can be 1d or 2d.
+        samplerate (float): sampling rate of the data
+        n_colors (int, optional): number of colors in the gradient. Default 100.
+        color_palette (str, optional): colormap to use for the gradient. Default 'viridis'.
+        ax (plt.Axis, optional): axis to plot the targets on
+        kwargs (dict): keyword arguments to pass to the LineCollection function (similar to plt.plot)
+
+    Raises:
+        ValueError: if the data has more than 2 dimensions
+
+    Example:
+        .. code-block:: python
+
+            data = np.reshape(np.sin(np.pi*np.arange(1000)/100), (1000))
+            samplerate = 1000
+            gradient_timeseries(data, samplerate)
+
+        .. image:: _images/timeseries_gradient.png
+    '''           
+    if data.ndim == 1:
+        data = np.expand_dims(data, 1)
+    elif data.ndim > 2:
+        raise ValueError('Data with more than 2 dimensions not supported!')
+    if ax is None:
+        ax = plt.gca()
+
+    n_pt = data.shape[0]
+    time = np.arange(n_pt) / samplerate
+    colors = sns.color_palette(color_palette, min(n_colors, n_pt))
+
+    # Segment the line
+    labels = np.zeros((n_pt,), dtype='int')
+    size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
+    labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
+    labels[size:] = n_colors - 1 # leftovers also get the last color
+    times, _ = utils.segment_array(time, labels, duplicate_endpoints=True)
+    lines, line_labels = utils.segment_array(data, labels, duplicate_endpoints=True)
+
+    # Use linecollections to plot each channel of data
+    labels = np.array(line_labels).astype(int)
+    colors = [colors[i] for i in labels]
+    for dim in range(data.shape[1]):
+        segments = [np.vstack([t, l[:,dim]]).T for t, l in zip(times, lines)]
+        lc = LineCollection(segments, colors=colors, **kwargs)
+        ax.add_collection(lc)
+        
+    ax.margins(0.05) # add_collections doesn't autoscale
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Voltage (V)')
 
@@ -423,7 +545,7 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
             aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b')
             plt.axis('off')
 
-        .. image:: _/images/ecog244_opto32.png
+        .. image:: _images/ecog244_opto32.png
 
     Note: 
         The acq_ch returned from `func::aopy.data.load_chmap` are generally 1-indexed lists of acquisition 
@@ -768,6 +890,99 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     # Use the regular trajectory plotting function
     plot_trajectories(trajectories, ax=ax, **kwargs)
 
+def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', bounds=None, ax=None, **kwargs):
+    '''
+    Draw trajectories with a gradient of color from start to end of each trajectory. 
+    Works in 2D and 3D.
+
+    Note: this function applies the gradient evenly across the timepoints of the trajectory. 
+        It might be useful to use the sampling rate of the data instead of n_colors, so that
+        the time axis is consistent across sampling rates. 
+
+    Args:
+        trajectories (ntrials): list of 2D or 3D trajectories, in x, y[, z] coordinates
+        n_colors (int, optional): number of colors in the gradient. Default 100.
+        color_palette (str, optional): colormap to use for the gradient. Default 'viridis'.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) axes bounds
+        ax (plt.Axis, optional): axis to plot the targets on
+        kwargs (dict): keyword arguments to pass to the LineCollection function (similar to plt.plot)
+
+    Example:
+
+        Cursor trajectories in 2D
+        .. code-block:: python
+
+            subject = 'beignet'
+            te_id = 5974
+            date = '2022-07-01'
+            preproc_dir = data_dir
+            traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239])
+            gradient_trajectories(traj[:3])
+        
+        .. image:: _images/gradient_trajectories.png
+
+        Hand trajectories in 3D
+        .. code-block:: python
+
+            traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+            plt.figure()
+            ax = plt.axes(projection='3d')
+            gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
+
+        .. image:: _images/gradient_trajectories_3d.png
+
+    Note:
+        Automatic bounds aren't set in 3D plots. The best alternative is to first plot in 2D, then use
+        those bounds to manually set the first 2 axes bounds for the 3D plot.
+    '''
+
+    if ax is None:
+        ax = plt.gca()
+
+    color_list = sns.color_palette(color_palette, n_colors)
+    for traj in trajectories:
+        n_pt = len(traj)
+
+        if n_pt < n_colors:
+            warnings.warn("Not enough datapoints to divide into n_colors!")
+
+        # Assign labels to the trajectory according to color
+        labels = np.zeros((n_pt,), dtype='int')
+        size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
+        labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
+        labels[size:] = n_colors - 1 # leftovers also get the last color
+            
+        # Split the labeled trajectories into segments with unique colors
+        segments, labels = utils.segment_array(traj, labels, duplicate_endpoints=True)
+        labels = np.array(labels).astype(int)
+        colors = [color_list[i] for i in labels]
+
+        # Plot as line collections in 3D, fall back to 2D
+        try:
+            ax.set_zlabel('z')
+            segments = [np.vstack([s[:,0], s[:,1], s[:,2]]).T for s in segments]
+            lc = Line3DCollection(segments, colors=colors, **kwargs)
+            ax.add_collection(lc)
+            ax.set_box_aspect((1, 1, 1))
+        except:
+            segments = [np.vstack([s[:,0], s[:,1]]).T for s in segments]
+            lc = LineCollection(segments, colors=colors, **kwargs)
+            ax.add_collection(lc)
+                
+    try:
+        ax.set_zlabel('z')
+        ax.set_box_aspect((1, 1, 1))
+    except:
+        ax.set_aspect('equal', adjustable='box')
+
+    if bounds is not None: 
+        set_bounds(bounds, ax)
+    else:
+        ax.margins(0.05) # The ax.add_collection() call doesn't automatically set margins
+
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')        
+
 def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax=None):
     '''
     Plot session data organized by date and aggregated such that if there are multiple rows on 
@@ -812,13 +1027,16 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     for idx_day in range(n_days):
         day = plot_days[idx_day]
         for idx_column in range(n_columns):
-            values = np.array(columns[idx_column])[dates == day]
+            values = np.array(columns[idx_column])[dates == day.date()]
             
             try:
                 if method == 'sum':
-                    aggregate[idx_column, idx_day] = np.sum(values)
+                    if len(values) > 0:
+                        aggregate[idx_column, idx_day] = np.sum(values)
+                    else:
+                        aggregate[idx_column, idx_day] = np.nan
                 elif method == 'mean':
-                    day_trials = np.array(trials)[dates == day]
+                    day_trials = np.array(trials)[dates == day.date()]
                     aggregate[idx_column, idx_day] = np.average(values, weights=day_trials)
                 else:
                     raise ValueError("Unknown method for combining data")
@@ -832,7 +1050,8 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
             ax.plot(plot_days, aggregate[idx_column,:], '.-', label=columns[idx_column].name)
         else:
             ax.plot(plot_days, aggregate[idx_column,:], '.-')
-    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=0))
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(byweekday=(mdates.MO, mdates.TU, mdates.WE, 
+                                                                mdates.TH, mdates.FR, mdates.SA, mdates.SU)))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     plt.setp(ax.get_xticklabels(), rotation=80)
     
@@ -841,9 +1060,10 @@ def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax
     else:
         ax.legend()
 
-def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
+def plot_sessions_by_trial(trials, *columns, dates=None, smoothing_window=None, labels=None, ax=None, **kwargs):
     '''
-    Plot session data by absolute number of trials completed
+    Plot session data by absolute number of trials completed. Optionally split up the sessions by date and
+    apply smoothing to each day's data.
     
     Example:
 
@@ -863,26 +1083,48 @@ def plot_sessions_by_trial(trials, *columns, labels=None, ax=None):
     Args:
         trials (nsessions): number of trials in each session
         *columns (nsessions): dataframe columns or numpy arrays to plot
+        dates (nsessions, optional): dataframe columns or numpy arrays of the date of each session
+        smoothing_window (int, optional): number of trials to smooth. Default no smoothing.
         labels (list, optional): string label for each column to go into the legend
         ax (pyplot.Axes, optional): axis on which to plot
     '''
     if ax == None:
-        ax = plt.gca()
+        ax = plt.gca()  
+
+    date_chg = []
+    if dates is not None:
+        trial_dates = np.repeat(np.array(dates), trials)
+        date_chg = np.insert(np.where(np.diff(trial_dates) > timedelta(0))[0] + 1, 0, 0)
+
     for idx_column in range(len(columns)):
-        values = columns[idx_column]
-        trial_values = []
         
         # Accumulate individual trials with the values given for each session
-        for v, t in zip(values, trials):
-            trial_values = np.concatenate((trial_values, np.tile(v, t)))
+        values = np.array(columns[idx_column])
+        trial_values = np.repeat(values, trials)
         
+        # Apply smoothing
+        if smoothing_window is not None and dates is not None:
+            split = np.split(trial_values, date_chg[1:])
+            split = [analysis.calc_rolling_average(s, window_size=smoothing_window, mode='nan') for s in split]
+            trial_values = np.concatenate(split)
+        elif smoothing_window is not None:
+            trial_values = analysis.calc_rolling_average(trial_values, window_size=smoothing_window)
+        
+        # Plot with additional kwargs
         if hasattr(columns[idx_column], 'name'):
-            ax.plot(trial_values,  '.-', label=values.name)
+            ax.plot(trial_values, label=columns[idx_column].name, **kwargs)
         else:
-            ax.plot(trial_values,  '.-')
+            ax.plot(trial_values, **kwargs)
+
+    # Add date labels
+    for i in date_chg:
+        date = trial_dates[i]
+        ax.axvline(i, ymin=0, ymax=1, color='gray', alpha=0.5, linestyle='dashed')
+        ax.text(i, 1, str(date), color='gray', rotation=90, ha='left', va='top', 
+                transform=ax.get_xaxis_transform())
 
     ax.set_xlabel('trials')
-    if labels:
+    if labels is not None:
         ax.legend(labels)
     else:
         ax.legend()
@@ -1000,24 +1242,55 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='
     '''
     This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
 
-    .. image:: _images/boxplot_example.png
-
     Args:
-        data (ncol): Data to plot. A different boxplot is created for each entry of the list.
+        data (ncol list or (m, ncol) array): Data to plot. A different boxplot is created for each entry of the list.
         plt_xaxis (ncol): X-axis locations or labels to plot the boxplot of each column
         trendline (bool): If a line should be used to connect boxplots
         facecolor (color): Color of the box faces. Can be any input that pyplot interprets as a color.
         linecolor (color): Color of the connecting lines.
         ax (axes handle): Axes to plot
+
+    Examples:
+
+        Using a rectangular array and numeric x-axis points.
+
+        .. code-block:: python
+            
+            data = np.random.normal(0, 2, size=(20, 5))
+            xaxis_pts = np.array([2,3,4,4.75,5.5])
+            fig, ax = plt.subplots(1,1)
+            plot_boxplots(data, xaxis_pts, ax=ax)
+
+        .. image:: _images/boxplot_example.png
+
+        Using a list of nonrectangular arrays with categorical x-axis points.
+
+        .. code-block:: python
+        
+            data = [np.random.normal(0, 2, size=(10)), np.random.normal(0, 1, size=(20))]
+            xaxis_pts = ['foo', 'bar']
+            fig, ax = plt.subplots(1,1)
+            plot_boxplots(data, xaxis_pts, ax=ax)
+
+        .. image:: _images/boxplot_example_nonrectangular.png
+
     '''
     if ax is None:
         ax = plt.gca()
-        
-    if np.ndim(data) > 1:
+
+    # If data is 2D, turn the columns into lists
+    if hasattr(data, 'ndim') and data.ndim == 2:
         data = [data[:,i] for i in range(data.shape[1])]
 
+    # If data is a single column, make it a list
+    try:
+        int(data[0])
+        data = [data]
+    except:
+        pass
+        
     if trendline:
-        ax.plot(plt_xaxis, np.nanmedian(data, axis=1), color=facecolor)
+        ax.plot(plt_xaxis, [np.nanmedian(data[i]) for i in range(len(data))], color=facecolor)
     
     for featidx, ifeat in enumerate(plt_xaxis):
         temp_data = data[featidx]
@@ -1039,9 +1312,44 @@ def advance_plot_color(ax, n):
     Args:
         ax (pyplot.Axes): specify which axis to advance the color
         n (int): how many colors to skip in the cycle
+
+    Examples:
+
+        Using advance_plot_color to skip the first color in the cycle.
+
+        .. code-block:: python
+
+            plt.subplots()
+            aopy.visualization.advance_plot_color(plt.gca(), 1)
+            plt.plot(np.arange(10), np.arange(10))
+
+        .. image:: _images/advance_plot_color.png
+        
     '''
     for _ in range(n):
         next(ax._get_lines.prop_cycler)
+
+def reset_plot_color(ax):
+    '''
+    Utility to reset the color cycle on a given axis to the default.
+
+    Args:
+        ax (pyplot.Axes): specify which axis to reset the color
+
+    Examples:
+
+        Using reset_plot_color to reset the color cycle between calls to `plt.plot()`.
+        
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.ones(10))
+            aopy.visualization.reset_plot_color(plt.gca())
+            plt.plot(np.arange(10), 1 + np.ones(10))
+
+        .. image:: _images/reset_plot_color.png
+    '''
+    ax.set_prop_cycle(None)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """

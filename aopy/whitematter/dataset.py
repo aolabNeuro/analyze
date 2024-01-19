@@ -311,6 +311,11 @@ class Dataset:
                 chancount = fileattr[1]
                 dattype = fileattr[6]
 
+                if chunksize % chancount != 0:
+                    chunksize -= chunksize % chancount
+                    chunkidx[2] -= chunksize % chancount
+                    print("Warning: incomplete binary file samples dropped in {}.".format(filename))
+
                 if debug is True:
                     print("    {} [{}:{}]: {}ch x {}".format(\
                     os.path.basename(filename), \

@@ -30,6 +30,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_freq_domain_amplitude(data, samplerate) # Expect 100 and 50 Hz peaks at 1 V each
         savefig(write_dir, filename)
 
+    def test_gradient_timeseries(self):
+        filename = 'timeseries_gradient.png'
+        data = np.reshape(np.sin(np.pi*np.arange(1000)/100), (1000))
+        samplerate = 1000
+        plt.figure()
+        gradient_timeseries(data, samplerate)
+        savefig(docs_dir, filename)
+
     def test_spatial_map(self):
         data = np.linspace(-1, 1, 100)
         x_pos, y_pos = np.meshgrid(np.arange(0.5,10.5),np.arange(0.5, 10.5))
@@ -103,6 +111,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
 
     def test_annotate_spatial_map(self):
+        plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
         annotate_spatial_map_channels(drive_type='ECoG244', color='k')
         annotate_spatial_map_channels(drive_type='Opto32', color='b')
@@ -230,12 +239,21 @@ class CurveFittingTests(unittest.TestCase):
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
         
     def test_plot_boxplots(self):
+        # Rectangular array
         data = np.random.normal(0, 2, size=(20, 5))
         xaxis_pts = np.array([2,3,4,4.75,5.5])
         fig, ax = plt.subplots(1,1)
         plot_boxplots(data, xaxis_pts, ax=ax)
         filename = 'boxplot_example.png'
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
+
+        # List of nonrectangular arrays
+        data = [np.random.normal(0, 2, size=(10)), np.random.normal(0, 1, size=(20))]
+        xaxis_pts = ['foo', 'bar']
+        fig, ax = plt.subplots(1,1)
+        plot_boxplots(data, xaxis_pts, ax=ax)
+        filename = 'boxplot_example_nonrectangular.png'
+        savefig(docs_dir, filename)
 
 class AnimationTests(unittest.TestCase):
 
@@ -243,7 +261,7 @@ class AnimationTests(unittest.TestCase):
         events = ["hello", "world", "", "!", ""]
         times = [0., 1.0, 1.5, 2.0, 2.5]
         fps = 10
-        filename = os.path.join(write_dir, "animate_test.mp4")
+        filename = os.path.join(docs_dir, "test_anim_events.mp4")
         ani = animate_events(events, times, fps)
 
         from matplotlib.animation import FFMpegFileWriter
@@ -269,8 +287,8 @@ class AnimationTests(unittest.TestCase):
         samplerate = 2
         axis_labels = ['x = Right', 'y = Forwards', 'z = Up']
         ani = animate_trajectory_3d(trajectory, samplerate, history=5, axis_labels=axis_labels)
-        filename = "animate_trajectory_test.mp4"
-        saveanim(ani, write_dir, filename)
+        filename = "test_anim_trajectory.mp4"
+        saveanim(ani, docs_dir, filename)
 
     def test_animate_spatial_map(self):
         samplerate = 20
@@ -284,7 +302,7 @@ class AnimationTests(unittest.TestCase):
 
         filename = 'spatial_map_animation.mp4'
         ani = animate_spatial_map(data_map, x_pos, y_pos, samplerate, cmap='bwr')
-        saveanim(ani, write_dir, filename)
+        saveanim(ani, docs_dir, filename)
 
     def test_animate_cursor_eye(self):
         cursor_trajectory = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
@@ -297,7 +315,37 @@ class AnimationTests(unittest.TestCase):
         ani = animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_positions, target_radius, 
                         bounds)
         
-        aopy.visualization.saveanim(ani, docs_dir, 'test_anim.mp4')
+        aopy.visualization.saveanim(ani, docs_dir, 'test_anim_cursor_eye.mp4')
+
+    def test_animate_behavior(self):
+
+        samplerate = 0.5
+        cursor = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
+        eye = np.array([[1, 0], [1, 2], [1, 2], [4, 5], [4, 5], [6, 6]])
+        targets = [
+            np.array([[np.nan, np.nan], 
+                     [5, 5], 
+                     [np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [5, 5], 
+                     [np.nan, np.nan]]),
+            np.array([[np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [np.nan, np.nan], 
+                     [-5, 5], 
+                     [-5, 5], 
+                     [-5, 5]])
+        ]
+        
+        target_radius = 2.5
+        target_colors = ['orange'] * len(targets)
+        cursor_radius = 0.5
+        bounds = [-10, 10, -10, 10]
+        
+        ani = animate_behavior(targets, cursor, eye, samplerate, bounds, target_radius, target_colors, cursor_radius, 
+                        cursor_color='blue', eye_radius=0.25, eye_color='purple')
+        
+        aopy.visualization.saveanim(ani, docs_dir, 'test_anim_behavior.mp4')
                 
 
 class OtherPlottingTests(unittest.TestCase):
@@ -431,6 +479,66 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'color_trajectories_segmented.png'
         savefig(docs_dir, filename)
 
+    def test_gradient_trajectories(self):
+
+        trajectories = [
+            np.array([
+                [0, 0, 0],
+                [1, 1, 0],
+                [2, 2, 0],
+                [3, 3, 0],
+                [4, 2, 0]
+            ]),
+            np.array([
+                [-1, 1, 0],
+                [-2, 2, 0],
+                [-3, 3, 0],
+                [-3, 4, 0]
+            ]),
+            np.array([
+                [2, 1, 0],
+                [2, -1, 0],
+                [3, -5, 0],
+                [5, -5, 0]
+            ])
+        ]
+        plt.figure()
+        gradient_trajectories(trajectories, n_colors=4)
+        plt.title('Gradient trajectories')
+        filename = 'gradient_trajectories_simple.png'
+        savefig(write_dir, filename)
+        plt.close()
+
+        # Test what happens when the number of colors is higher than the number of points
+        plt.figure()
+        gradient_trajectories(trajectories, n_colors=5)
+        plt.title('Gradient trajectories')
+        filename = 'gradient_trajectories_error.png'
+        savefig(write_dir, filename)
+        plt.close()
+
+        # Load some test cursor data
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        preproc_dir = data_dir
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='cursor')
+        plt.figure()
+        gradient_trajectories(traj[:3])
+        filename = 'gradient_trajectories.png'
+        savefig(docs_dir, filename)
+        plt.close()
+
+        # Hand data plotted in 3d
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
+
+        filename = 'gradient_trajectories_3d.png'
+        savefig(docs_dir, filename)
+        plt.close()
+        
     def test_get_color_gradient_RGB(self):
         npts = 200
         x = np.linspace(0, 2*np.pi, npts)
@@ -442,7 +550,8 @@ class OtherPlottingTests(unittest.TestCase):
 
     def test_plot_sessions_by_date(self):
         from datetime import date, timedelta
-        dates = [date.today() - timedelta(days=2), date.today() - timedelta(days=2), date.today()]
+        today = date(1991, 9, 26)
+        dates = [today - timedelta(days=2), today - timedelta(days=2), today]
         success = [70, 65, 65]
         trials = [10, 20, 10]
 
@@ -451,7 +560,7 @@ class OtherPlottingTests(unittest.TestCase):
         ax.set_ylabel('success (%)')
 
         filename = 'sessions_by_date.png'
-        savefig(write_dir, filename) 
+        savefig(docs_dir, filename) 
         # expect a plot of success with three days, with success rate of 
         # (70 * 10 + 65 * 20)/30 = 66.6% on the first day and 65% on the last day with a gap in between
 
@@ -461,8 +570,8 @@ class OtherPlottingTests(unittest.TestCase):
         plot_sessions_by_date(df['trials'], df['dates'], df['success'], method='mean', ax=ax)
 
     def test_plot_sessions_by_trial(self):
-        success = [70, 65, 60]
-        trials = [10, 20, 10]
+        success = [70, 65, 60, 70, 59, 62, 71]
+        trials = [5, 12, 7, 8, 12, 4, 10]
 
         fig, ax = plt.subplots(1,1)
         plot_sessions_by_trial(trials, success, labels=['success rate'], ax=ax)
@@ -474,8 +583,26 @@ class OtherPlottingTests(unittest.TestCase):
 
         # Also make sure it works with dataframe columns
         df = pd.DataFrame({'trials': trials, 'success': success})
-        fig, ax = plt.subplots(1,1)
-        plot_sessions_by_trial(df['trials'], df['success'], ax=ax)
+        fig, ax = plt.subplots(3,1, figsize=(4,6))
+        plot_sessions_by_trial(df['trials'], df['success'], ax=ax[0])
+        ax[0].set_ylabel('success (%)')
+        ax[0].set_title('plot trials')
+
+        # Split by date
+        from datetime import date, timedelta
+        today = date(1991, 9, 26)
+        df['date'] = [today - timedelta(days=len(trials)-np.floor(n/2)) for n in range(len(trials))]
+        plot_sessions_by_trial(df['trials'], df['success'], dates=df['date'], ax=ax[1])
+        ax[1].set_ylabel('success (%)')
+        ax[1].set_title('separate by date')
+
+        # Smoothing
+        plot_sessions_by_trial(df['trials'], df['success'], dates=df['date'], smoothing_window=3, ax=ax[2])
+        ax[2].set_ylabel('success (%)')
+        ax[2].set_title('smoothing window = 3 trials')
+
+        plt.tight_layout()
+        savefig(docs_dir, filename)
 
     def test_plot_events_time(self):
         events = np.zeros(10)
@@ -490,9 +617,24 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'events_time'
         savefig(write_dir,filename)
 
+    @unittest.skip("bug in new versions of matplotlib, waiting for resolution")
     def test_advance_plot_color(self):
-        # Nothing to test here ;-)
-        pass
+        plt.subplots()
+        aopy.visualization.advance_plot_color(plt.gca(), 1)
+        plt.plot(np.arange(10), np.arange(10))
+
+        filename = 'advance_plot_color.png'
+        savefig(docs_dir,filename)
+
+
+    def test_reset_plot_color(self):
+        plt.subplots()
+        plt.plot(np.arange(10), np.ones(10))
+        aopy.visualization.reset_plot_color(plt.gca())
+        plt.plot(np.arange(10), 1 + np.ones(10))
+
+        filename = 'reset_plot_color.png'
+        savefig(docs_dir,filename)
 
     def test_plot_corr_over_elec_distance(self):
 
@@ -517,6 +659,18 @@ class OtherPlottingTests(unittest.TestCase):
 
         aopy.visualization.savefig(write_dir, "axis_transparency.png", transparent=False)
 
+    def test_subplots_with_labels(self):
+
+        # Test case 1: generate a figure with 2 rows and 2 columns of subplots, labeled A, B, C, D
+        fig, axes = subplots_with_labels(2, 2, constrained_layout=True)
+        assert isinstance(fig, plt.Figure)
+        assert isinstance(axes, np.ndarray)
+        assert axes.shape == (2, 2)
+        assert isinstance(axes[0, 0], plt.Axes)
+        assert isinstance(axes[0, 1], plt.Axes)
+        assert isinstance(axes[1, 0], plt.Axes)
+        assert isinstance(axes[1, 1], plt.Axes)
+        aopy.visualization.savefig(docs_dir, "labeled_subplots.png")
 
 if __name__ == "__main__":
     unittest.main()

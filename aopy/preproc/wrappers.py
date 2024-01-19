@@ -4,6 +4,7 @@ from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
+from .. import data as aodata
 from ..precondition import eye
 from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
 from ..data import load_preproc_lfp_data, load_preproc_broadband_data, load_preproc_eye_data
@@ -69,6 +70,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         broadband_data, broadband_metadata = load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
         assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
+        files['broadband'] = broadband_filename # for proc_lfp()
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
         lfp_filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
@@ -125,14 +127,11 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save
             return
     
     # Prepare the BMI3D data
-    if 'hdf' not in files:
-        print("No HDF data found.")
-        return
-
     bmi3d_data, bmi3d_metadata = parse_bmi3d(data_dir, files)
     if save_res:
         save_hdf(result_dir, result_filename, bmi3d_data, "/exp_data", append=True)
         save_hdf(result_dir, result_filename, bmi3d_metadata, "/exp_metadata", append=True)
+        print('done!')
     return bmi3d_data, bmi3d_metadata
 
 def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
@@ -316,8 +315,8 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
 def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
     Process lfp data:
-        Loads 'ecube' headstage data and metadata
-    Saves broadband data into the HDF datasets:
+        Loads 'broadband' hdf data or 'ecube' headstage data and metadata
+    Saves lfp data into the HDF datasets:
         lfp_data (nt, nch)
         lfp_metadata (dict)
     
@@ -328,8 +327,6 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
         overwrite (bool, optional): whether to remove existing processed files if they exist
         max_memory_gb (float, optional): max memory used to load binary data at one time
         filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
-    Returns:
-        None
     '''  
     # Check if a processed file already exists
     filepath = os.path.join(result_dir, result_filename)
@@ -339,41 +336,20 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
             print("File {} already preprocessed, doing nothing.".format(result_filename))
             return
     elif os.path.exists(filepath):
-        os.remove(filepath) # maybe bad, since it deletes everything, not just lfp_data
+        os.remove(filepath)
 
     # Preprocess neural data into lfp   
-    dtype = 'int16'
-    if 'ecube' in files:
-        data_path = os.path.join(data_dir, files['ecube'])
-        metadata = load_ecube_metadata(data_path, 'Headstages')
-        samplerate = metadata['samplerate']
-        chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / metadata['n_channels'])
-        lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
-        downsample_factor = int(samplerate/lfp_samplerate)
-        lfp_samples = int(np.ceil(metadata['n_samples']/downsample_factor))
-        n_channels = int(metadata['n_channels'])
-
-        # Create an hdf dataset
+    if 'broadband' in files:
+        broadband_filepath = os.path.join(result_dir, files['broadband'])
         result_filepath = os.path.join(result_dir, result_filename)
-        hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-        dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
 
-        # Filter broadband data into LFP directly into the hdf file
-        n_samples = 0
-        for broadband_chunk in load_ecube_data_chunked(data_path, 'Headstages', chunksize=chunksize):
-            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
-            chunk_len = lfp_chunk.shape[0]
-            dset[n_samples:n_samples+chunk_len,:] = lfp_chunk
-            n_samples += chunk_len
-        hdf.close()
+        _, lfp_metadata = aodata.filter_lfp_from_broadband(broadband_filepath, result_filepath, dtype='int16', 
+                                                    max_memory_gb=max_memory_gb, **filter_kwargs)
+    elif 'ecube' in files:
+        ecube_filepath = os.path.join(data_dir, files['ecube'])
+        result_filepath = os.path.join(result_dir, result_filename)
 
-        # Append the lfp metadata to the file
-        lfp_metadata = metadata
-        lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
-        lfp_metadata['samplerate'] = lfp_samplerate
-        lfp_metadata['n_samples'] = lfp_samples
-        lfp_metadata['low_cut'] = 500
-        lfp_metadata['buttord'] = 4
-        lfp_metadata.update(filter_kwargs)
-
+        _, lfp_metadata = aodata.filter_lfp_from_ecube(ecube_filepath, result_filepath, dtype='int16', 
+                                                max_memory_gb=max_memory_gb, **filter_kwargs)
+        
     save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)

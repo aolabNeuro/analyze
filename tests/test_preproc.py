@@ -14,7 +14,7 @@ import unittest
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
-img_dir = os.path.join(test_dir, '../docs/source/_images')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -192,7 +192,7 @@ class DigitalCalcTests(unittest.TestCase):
         plt.tight_layout()
 
         filename = 'sample_timestamped_data.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
     def test_get_dch_data(self):
         dig_data = [0, 1, 0, 1, 1, 0]
@@ -635,7 +635,8 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_parse_bmi3d_empty(self):
         files = {}
-        self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.assertRaises(AssertionError, lambda: self.check_required_fields(data, metadata))
 
     def test_parse_bmi3d_v0(self):
         # Test sync version 0 (and -1)
@@ -649,6 +650,20 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
         n_cycles = data['clock']['time'][-1] + 1
         self.assertEqual(len(data['clock']), n_cycles)
+
+        # Test tablet data (sync version 0)
+        files = {}
+        files['hdf'] = 'chur20231002_02_te375.hdf'
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 0)
+        self.assertIn('fps', metadata)
+        self.assertAlmostEqual(metadata['fps'], 120.)
+        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
+        n_cycles = data['clock']['time'][-1] + 1
+        self.assertEqual(len(data['clock']), n_cycles)     
+        for key in ['timestamp','code','event']:
+            self.assertIn(key, data['events'].dtype.names)
 
     def test_parse_bmi3d_v1(self):
         pass
@@ -774,7 +789,7 @@ class TestPrepareExperiment(unittest.TestCase):
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')        
         filename = 'parse_bmi3d_flash_events.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
         # Plot aligned flash times based on sync clock
         target_on_events = np.logical_and(16 <= data['bmi3d_events']['code'], data['bmi3d_events']['code'] < 32)
@@ -785,7 +800,7 @@ class TestPrepareExperiment(unittest.TestCase):
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_sync_clock.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
         # Plot aligned flash times based on measure clock
         target_on_events = np.logical_and(16 <= data['bmi3d_events']['code'], data['bmi3d_events']['code'] < 32)
@@ -796,7 +811,7 @@ class TestPrepareExperiment(unittest.TestCase):
         im.set_clim(-300, 300)
         plt.colorbar(im, label='uV')
         filename = 'parse_bmi3d_flash_measure_clock.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
 
     def test_parse_bmi3d_v10(self):
@@ -888,6 +903,27 @@ class TestPrepareExperiment(unittest.TestCase):
         # There is a pause bug that should be corrected
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
         self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+
+        # Test what happens if no HDF file is provided
+        n_events = len(data['bmi3d_events'])
+        files = {}
+        files['ecube'] = '2023-01-09_BMI3D_te7977'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.assertRaises(AssertionError, lambda: self.check_required_fields(data, metadata))
+
+        # Test if a dummy HDF file is provided
+        files['hdf'] = 'dummy_hdf_rig1_v13.hdf'
+
+        # Make a dummy HDF file by copying an existing HDF file from the same experiment
+        import shutil
+        shutil.copy(os.path.join(data_dir, 'beig20230109_15_te7977.hdf'), os.path.join(data_dir, files['hdf']))
+        with tables.open_file(os.path.join(data_dir, files['hdf']), 'r+') as f:
+            f.get_node('/task').truncate(0)
+
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.assertEqual(n_events, len(data['events']))
+        self.check_required_fields(data, metadata)
+
 
     def test_parse_optitrack(self):
         files = {}
@@ -990,13 +1026,13 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         visualization.plot_trajectories([raw_data], bounds=bounds)
         figname = 'eye_trajectories_raw.png'
-        visualization.savefig(img_dir, figname) # should have uncalibrated eye data
+        visualization.savefig(docs_dir, figname) # should have uncalibrated eye data
 
         plt.figure()
         eye_data = eye['calibrated_data']
         visualization.plot_trajectories([eye_data], bounds=bounds)
         figname = 'eye_trajectories_calibrated.png'
-        visualization.savefig(img_dir, figname) # should have centered eye data
+        visualization.savefig(docs_dir, figname) # should have centered eye data
 
         # Test putting eye data into a separate HDF file
         eye_filename = 'test_proc_eyetracking_short_eye.hdf'
@@ -1063,7 +1099,7 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,ch,:], ylabel='trials')
         im.set_clim(-100,100)
-        visualization.savefig(img_dir, 'laser_aligned_lfp.png')
+        visualization.savefig(docs_dir, 'laser_aligned_lfp.png')
         
         # And compare to the sensor data
         sensor_data = exp_data['laser_sensor']
@@ -1077,7 +1113,7 @@ class TestPrepareExperiment(unittest.TestCase):
         print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
-        visualization.savefig(img_dir, 'laser_aligned_sensor.png')
+        visualization.savefig(docs_dir, 'laser_aligned_sensor.png')
 
         plt.figure()
         plt.hist(trial_widths, 20)
@@ -1135,7 +1171,7 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.figure()
         im = visualization.plot_image_by_time(t, 1e6*lfp_metadata['voltsperbit']*erp[:,ch,:], ylabel='trials')
         im.set_clim(-100,100)
-        visualization.savefig(img_dir, 'laser_aligned_lfp_dch_trigger.png')
+        visualization.savefig(docs_dir, 'laser_aligned_lfp_dch_trigger.png')
         
         # And compare to the sensor data
         sensor_data = exp_data['qwalor_sensor']
@@ -1149,7 +1185,7 @@ class TestPrepareExperiment(unittest.TestCase):
         print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
-        visualization.savefig(img_dir, 'laser_aligned_sensor_dch_trigger.png')
+        visualization.savefig(docs_dir, 'laser_aligned_sensor_dch_trigger.png')
 
         # One more file, with no lfp data but it has multiple channels of stimulation using MultiQwalorLaser feature.
         subject = 'test'
@@ -1174,6 +1210,52 @@ class TestPrepareExperiment(unittest.TestCase):
         )
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
 
+    def test_get_target_events(self):
+
+        subject = 'test'
+        te_id = 8940
+        date = '2023-03-27'
+
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        target = get_target_events(exp_data, exp_metadata)
+        
+        plt.figure()
+        time = exp_data['events']['timestamp']
+        plt.plot(time, target[:,:,0]) # plot just the x coordinate
+        plt.xlim(10, 20)
+        plt.xlabel('time (s)')
+        plt.ylabel('x position (cm)')
+        filename = 'get_target_events.png'
+        visualization.savefig(docs_dir, filename)
+
+    def test_get_ref_dis_frequencies(self):
+        subject = 'test'
+        te_id = '8461'
+        date = '2023-02-25'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_test.png'
+        visualization.savefig(docs_dir, filename)
+
+        subject = 'churro'
+        te_id = '375'
+        date = '2023-10-02'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_churro.png'
+        visualization.savefig(docs_dir, filename)       
 
 class ProcTests(unittest.TestCase):
 
@@ -1203,20 +1285,77 @@ class ProcTests(unittest.TestCase):
         proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
 
     def test_proc_lfp(self):
-        result_filename = 'test_proc_lfp.hdf'
-        files = {'ecube': 'fake ecube data'}
-        proc_lfp(data_dir, files, write_dir, result_filename, overwrite=True)
 
-        contents = get_hdf_dictionary(write_dir, result_filename)
+        # Test proc from ecube
+        ecube_result_filename = 'test_proc_lfp.hdf'
+        files = {'ecube': 'fake ecube data'}
+        ecube_metadata = load_ecube_metadata(os.path.join(data_dir, files['ecube']), 'Headstages')
+
+        proc_lfp(data_dir, files, write_dir, ecube_result_filename, max_memory_gb=0.0001, overwrite=True)
+
+        contents = get_hdf_dictionary(write_dir, ecube_result_filename)
         self.assertIn('lfp_data', contents)
         self.assertIn('lfp_metadata', contents)
 
-        lfp_data = load_hdf_data(write_dir, result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, ecube_result_filename, 'lfp_metadata')
 
-        self.assertEqual(lfp_data.shape, (1000, 8))
+        approx_n_samples = int(ecube_metadata['n_samples']*lfp_metadata['samplerate']/ecube_metadata['samplerate'])
+
+        self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
+        self.assertEqual(lfp_data.shape[1], 8)
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
         self.assertEqual(lfp_metadata['samplerate'], 1000)
+
+        # Test proc from broadband hdf
+        bb_filename = 'test_proc_lfp_bb.hdf'
+        bb_result_filename = 'test_proc_lfp_from_bb.hdf'
+        files['broadband'] = bb_filename
+        proc_broadband(data_dir, files, write_dir, bb_filename, overwrite=True)
+        proc_lfp(data_dir, files, write_dir, bb_result_filename, max_memory_gb=0.0001, overwrite=True)
+
+        contents = get_hdf_dictionary(write_dir, bb_result_filename)
+        self.assertIn('lfp_data', contents)
+        self.assertIn('lfp_metadata', contents)
+
+        lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+
+        self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
+        self.assertEqual(lfp_data.shape[1], 8)
+        self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
+        self.assertEqual(lfp_metadata['samplerate'], 1000)
+
+        # Compare the two files
+        ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
+        bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+
+        ch = 0
+
+        fig, ax = plt.subplots(3,1, figsize=(5,8))
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[:100,ch], 1000, ax=ax[0])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[:100,ch], 1000, ax=ax[0])
+        ax[0].set_title('first 100ms')
+        ax[0].set_ylabel('Voltage (uV)')
+        ax[0].set_ylim(-2000,2000)
+        ax[0].legend(['from ecube', 'from hdf'])
+
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[-100:,ch], 1000, ax=ax[1])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[-100:,ch], 1000, ax=ax[1])
+        ax[1].set_title('last 100ms')
+        ax[1].set_ylabel('Voltage (uV)')
+        ax[1].set_ylim(-2000,2000)
+
+        chunksize = 250
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[chunksize-50:chunksize+50,ch], 1000, ax=ax[2])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[chunksize-50:chunksize+50,ch], 1000, ax=ax[2])
+        ax[2].set_title('chunk boundary')
+        ax[2].set_ylabel('Voltage (uV)')
+        ax[2].set_ylim(-2000,2000)
+
+        plt.tight_layout()
+        visualization.savefig(docs_dir, 'proc_lfp_comparison.png')
 
 class QualityTests(unittest.TestCase):
 
@@ -1245,13 +1384,41 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(bad_ch.shape, (8,))
         # self.assertEqual(np.count_nonzero(bad_ch), 64)
         
-    def test_screenBadECoGchannels(self):
+    def test_detect_bad_ch_outliers(self):
+        np.random.seed(0)
         test_data = np.random.normal(10,0.5,(10000, 200))
         test_data[0, 10] = 25
         test_data[5, 150] = 30
-        bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=False, verbose=False)
+        bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=True, verbose=False)
         self.assertEqual(np.where(bad_ch)[0][0], 10)
         self.assertEqual(np.where(bad_ch)[0][1], 150)
+        
+        filename = 'detect_bad_ch_outliers.png'
+        visualization.savefig(docs_dir, filename)
+
+    def test_detect_bad_trials(self):
+        nt = 50
+        nch = 10
+        ntr = 100
+        np.random.seed(0)
+        erp = np.random.normal(size=(nt, nch, ntr)) 
+        erp[:,:,0] += 10 # entire trial is noisy across all electrodes
+        erp[:,:8,1] -= 10 # entire trial is noisy on most electrodes
+        erp[0,:,2] += 10 # single timepoint within the trial is noisy on all electrodes
+        for t in range(nt):
+            erp[t,t%nch,3] -= 10 # single timepoint is noisy but different timepoint for each channel
+                
+        bad_trials = detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=True)
+            
+        self.assertEqual(len(bad_trials), ntr)  
+        self.assertTrue(bad_trials[0])
+        self.assertTrue(bad_trials[1])
+        self.assertTrue(bad_trials[2])
+        self.assertTrue(bad_trials[3])
+        self.assertTrue(np.all(~bad_trials[4:]))
+
+        filename = 'detect_bad_trials.png'
+        visualization.savefig(docs_dir, filename)
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
@@ -1308,7 +1475,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].set_ylabel('100hz')
         plt.tight_layout()
         filename =  'proc_oculomatic_downsample.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
         fig,ax = plt.subplots(2,1)
         visualization.plot_freq_domain_amplitude(analog_data, old_samplerate, ax=ax[0])
@@ -1321,7 +1488,7 @@ class OculomaticTests(unittest.TestCase):
         ax[1].set_xlim(0,100)
         plt.tight_layout()
         filename =  'proc_oculomatic_freq.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
 
     def test_detect_noise(self):
@@ -1343,7 +1510,7 @@ class OculomaticTests(unittest.TestCase):
         plt.figure()
         plt.matshow(eye_closed_mask, aspect='auto')
         filename =  'proc_oculomatic_mask.png'
-        visualization.savefig(img_dir, filename)
+        visualization.savefig(docs_dir, filename)
 
 class NeuropixelTests(unittest.TestCase):
     

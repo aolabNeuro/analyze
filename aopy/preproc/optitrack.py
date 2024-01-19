@@ -39,7 +39,7 @@ def parse_optitrack(data_dir, files):
         digital_data, metadata = aodata.load_ecube_digital(data_dir, files['ecube'])
         samplerate = metadata['samplerate']
         optitrack_bit_mask = 1 << optitrack_strobe_channel
-        optitrack_strobe = utils.mask_and_shift(digital_data, optitrack_bit_mask)
+        optitrack_strobe = utils.extract_bits(digital_data, optitrack_bit_mask)
         optitrack_strobe_timestamps, _ = utils.detect_edges(optitrack_strobe, samplerate, rising=True, falling=False)
         # - check that eCube captured the same number of timestamps from esync as there are positions/rotations in the file
         if len(optitrack_pos) == len(optitrack_strobe_timestamps):
