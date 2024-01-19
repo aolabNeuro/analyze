@@ -88,7 +88,7 @@ def find_stim_times(laser_event_times, laser_event_widths, laser_event_gains, se
     laser_sensor_powers = calibrate_sensor(laser_sensor_volts, peak_power_mW)  
 
     # Correct the widths and powers with the given thresholds
-    laser_event_powers = calibrate_gain(laser_event_gains, peak_power_mW)
+    laser_event_powers = calibrate_gain(laser_event_gains, peak_power_mW, calibration_file=calibration_file)
     corrected_widths, widths_above_thr = base.validate_measurements(laser_event_widths, laser_sensor_widths, thr_width)
     corrected_powers, powers_above_thr = base.validate_measurements(laser_event_powers, laser_sensor_powers, thr_power)
 

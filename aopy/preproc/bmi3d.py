@@ -646,7 +646,7 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
     
     # Estimate the peak power from the date
     peak_power_mW = get_peak_power_mW(exp_metadata)
-    powers = laser.calibrate_sensor(laser_sensor_values * sensor_voltsperbit, peak_power_mW)  
+    powers = laser.calibrate_sensor(laser_sensor_values * sensor_voltsperbit, peak_power_mW, **kwargs)  
 
     if debug:
         print(f"eCube recorded {len(times)} stims")
