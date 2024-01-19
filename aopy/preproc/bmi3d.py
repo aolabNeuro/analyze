@@ -750,6 +750,12 @@ def get_ref_dis_frequencies(data, metadata):
     generate the reference and disturbance trajectories that were preesented 
     on each trial of the experiment.
 
+    Note:
+        Prior to 11-16-2022, bmi3d did not allow the number of experimental frequencies to be set by the experimenter, 
+            and this parameter defaulted to 8.
+        Prior to 2-23-2023, bmi3d did not save the generator index in the task data, and this had to be calculated 
+            by the number of times bmi3d entered the 'wait' state.
+
     Args:
         data (dict): A dictionary containing the experiment data.
         metadata (dict): A dictionary containing the experiment metadata.
@@ -796,6 +802,8 @@ def get_ref_dis_frequencies(data, metadata):
 
     # grab params relevant for generator
     params = json.loads(metadata['sequence_params'])
+    if 'num_primes' not in params.keys():
+        params['num_primes'] = 8
     primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))
     even_idx = np.arange(len(primes))[0::2]
     odd_idx = np.arange(len(primes))[1::2]
@@ -811,18 +819,29 @@ def get_ref_dis_frequencies(data, metadata):
         trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
         trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
         
-    # get trajectory generator index used for each trial
+    # get trial segments
     events = data['bmi3d_events']['code']
-    cycles = data['bmi3d_events']['time']
+    cycles = data['bmi3d_events']['time'] # bmi3d cycle number
+
     start_codes = [metadata['event_sync_dict']['TARGET_ON']]
     end_codes = [metadata['event_sync_dict']['TRIAL_END']]
-
+    
     _, segment_cycles = get_trial_segments(events, cycles, start_codes, end_codes)
-    generator_segments = np.array([data['task']['gen_idx'][cycle[0]:cycle[-1]] for cycle in segment_cycles], dtype='object')
-    assert np.all([gen[0]==gen[-1] for gen in generator_segments]), 'Generator index is not consistent throughout trial segment!'
 
-    generator_idx = [int(gen[0]) for gen in generator_segments]
-    assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
+    # get trajectory generator index used for each trial
+    if 'gen_idx' in data['task'].dtype.names:
+        # get generator index from task data (saved on every bmi3d cycle) 
+        generator_segments = np.array([data['task']['gen_idx'][cycle[0]:cycle[-1]] for cycle in segment_cycles], dtype='object')
+        assert np.all([gen[0]==gen[-1] for gen in generator_segments]), 'Generator index is not consistent throughout trial segment!'
+
+        generator_idx = [int(gen[0]) for gen in generator_segments]
+        assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
+    else:
+        # get generator index from number of previous wait states (wait state parses next trial)
+        states = data['bmi3d_state']['msg']
+        state_cycles = data['bmi3d_state']['time'] # bmi3d cycle number
+        generator_idx = [sum(states[state_cycles <= cycle[0]] == b'wait')-1 for cycle in segment_cycles]
+        assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
 
     # use generator index to get reference & disturbance frequencies for each trial
     freq_r = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_r_idx[generator_idx]]
