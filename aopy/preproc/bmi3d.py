@@ -824,7 +824,10 @@ def get_ref_dis_frequencies(data, metadata):
     cycles = data['bmi3d_events']['time'] # bmi3d cycle number
 
     start_codes = [metadata['event_sync_dict']['TARGET_ON']]
-    end_codes = [metadata['event_sync_dict']['TRIAL_END']]
+    if 'PAUSE_START' in metadata['event_sync_dict']:
+        end_codes = [metadata['event_sync_dict']['TRIAL_END'], metadata['event_sync_dict']['PAUSE_START']]
+    else:
+        end_codes = [metadata['event_sync_dict']['TRIAL_END'], metadata['event_sync_dict']['PAUSE']]
     
     _, segment_cycles = get_trial_segments(events, cycles, start_codes, end_codes)
 
