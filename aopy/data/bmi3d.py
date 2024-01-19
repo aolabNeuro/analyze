@@ -1152,10 +1152,8 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **trial_time (float):** time of stimulation within recording
             | **trial_width (float):** width of stimulation pulse
-            | **trial_power (float):** gain of stimulation pulse
-            | **trial_found (bool):** whether an analog laser signal was recorded on this trial
-            | **width_above_thr (bool):** if the width of the analog signal was above the cutoff
-            | **power_above_thr (bool):** if the gain of the analog signal was above the cutoff
+            | **trial_gain (float):** laser gain (fraction) of stimulation pulse
+            | **trial_power (float):** power (in mW) of stimulation pulse
 
     Note:
         Only supports single-site stimulation.
@@ -1176,8 +1174,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
         # Find laser trial times 
         try:
-            (trial_times, trial_widths, trial_powers, times_not_found, widths_above_thr, 
-             powers_above_thr) = preproc.bmi3d.get_laser_trial_times(
+            trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
                 preproc_dir, subject, te, date, debug=debug, **kwargs)
         except:
             print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
@@ -1191,10 +1188,8 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             'date': date, 
             'trial_time': trial_times,
             'trial_width': trial_widths, 
+            'trial_gain': trial_gains,
             'trial_power': trial_powers,
-            'trial_found': ~times_not_found,
-            'width_above_thr': widths_above_thr,
-            'power_above_thr': powers_above_thr,
         }
 
         # Add requested metadata
@@ -1204,12 +1199,6 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             else:
                 exp[key] = None
                 print(f"Entry {subject} {date} {te} does not have metadata {key}.")
-
-        # Convert power to units of watts
-        if not isinstance(date, datetime.date):
-            date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-        exp['peak_power_watts'] = peak_watts
-        exp['trial_power_watts'] = [p*peak_watts for p in trial_powers]
 
         # Concatenate with existing dataframe
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
