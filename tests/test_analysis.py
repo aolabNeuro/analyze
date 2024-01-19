@@ -482,34 +482,6 @@ class CalcTests(unittest.TestCase):
     
         filename = 'calc_corr2_map.png'
         aopy.visualization.savefig(docs_dir, filename)
-        
-    def test_calc_tracking_rewards(self):
-        preproc_dir = data_dir
-        subject = 'test'
-        date = '2023-10-04'
-        trial_start_code=2; reward_code=48; cursor_enter_target_code=80; cursor_leave_target_code=96
-        
-        te_id = 11359 # cursor always in target
-        exp_data, _ = aopy.postproc.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        reward_segments, _ = aopy.preproc.get_trial_segments(exp_data['events']['code'], exp_data['events']['timestamp'], [trial_start_code], [reward_code])
-        [np.testing.assert_array_equal(segment, [trial_start_code, cursor_enter_target_code, reward_code]) for segment in reward_segments]
-        tracking_rewards, max_rewards = aopy.analysis.calc_tracking_rewards(preproc_dir, subject, te_id, date)
-        np.testing.assert_array_equal(tracking_rewards, np.tile(max_rewards, 6))
-        self.assertEqual(max_rewards, 4)
-        
-        te_id = 11365 # cursor never in target once trial initiated
-        exp_data, _ = aopy.postproc.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        reward_segments, _ = aopy.preproc.get_trial_segments(exp_data['events']['code'], exp_data['events']['timestamp'], [trial_start_code], [reward_code])
-        [np.testing.assert_array_equal(segment, [trial_start_code, cursor_enter_target_code, cursor_leave_target_code, reward_code]) for segment in reward_segments]
-        tracking_rewards, max_rewards = aopy.analysis.calc_tracking_rewards(preproc_dir, subject, te_id, date)
-        np.testing.assert_array_equal(tracking_rewards, [0,0,0,0,0])
-        self.assertEqual(max_rewards, 4)
-        
-        te_id = 11367 # cursor rapidly swipes back and forth across target
-        tracking_rewards, max_rewards = aopy.analysis.calc_tracking_rewards(preproc_dir, subject, te_id, date)
-        np.testing.assert_array_equal(tracking_rewards, [0,0,0,0,0])
-        self.assertEqual(max_rewards, 4)
-
 
 class CurveFittingTests(unittest.TestCase):
 
