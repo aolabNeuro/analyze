@@ -2,6 +2,7 @@
 # Code for parsing and preparing data from BMI3D
 
 import warnings
+from matplotlib import pyplot as plt
 import numpy as np
 import os
 from datetime import datetime
@@ -486,6 +487,33 @@ def _prepare_bmi3d_v1(data, metadata):
         
     return data, metadata
 
+def get_peak_power_mW(exp_metadata):
+    """
+    Estimate the peak power from the date
+
+    Args:
+        exp_metadata (dict): bmi3d metadata
+
+    Returns:
+        float: peak power in mW
+    """
+    date = datetime.fromisoformat(exp_metadata['date']).date()
+    if 'qwalor_peak_watts' in exp_metadata:
+        peak_power_mW = exp_metadata['qwalor_peak_watts']
+    elif date < datetime(2022,5,31).date():
+        if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
+            peak_power_mW = 1.5
+        else:
+            peak_power_mW = 20
+    elif date < datetime(2022,9,30).date():
+        peak_power_mW = 1.5
+    elif date < datetime(2023,1,23).date():
+        peak_power_mW = 20
+    else:
+        peak_power_mW = 25  
+
+    return peak_power_mW
+
 def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor_sensor', 
                                     calibration_file='qwalor_447nm_ch2.yaml', debug=False, **kwargs):
     '''
@@ -540,26 +568,11 @@ def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor
         thr_width = 999
         thr_power = 1
 
-    # Estimate the peak power from the date
-    date = datetime.fromisoformat(exp_metadata['date']).date()
-    if 'qwalor_peak_watts' in exp_metadata:
-        peak_power_mW = exp_metadata['qwalor_peak_watts']
-    elif date < datetime.datetime(2022,5,31).date():
-        if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
-            peak_power_mW = 1.5
-        else:
-            peak_power_mW = 20
-    elif date < datetime.datetime(2022,9,30).date():
-        peak_power_mW = 1.5
-    elif date < datetime.datetime(2023,1,23).date():
-        peak_power_mW = 20
-    else:
-        peak_power_mW = 25
-
     # Correct the event timings using the sensor data
     sensor_data = exp_data[laser_sensor]
     sensor_voltsperbit = exp_metadata['analog_voltsperbit']
     samplerate = exp_metadata['analog_samplerate']   
+    peak_power_mW = get_peak_power_mW(exp_metadata)
     (corrected_times, corrected_widths, corrected_powers, times_not_found, widths_above_thr, 
          powers_above_thr) = laser.find_stim_times(times, widths, gains, sensor_data, 
         samplerate, sensor_voltsperbit, peak_power_mW, thr_width=thr_width, 
@@ -607,9 +620,14 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
     widths = timestamps[values == 0] - timestamps[values == 1]
 
     # Figure out the intended gain of each pulse
-    if 'bmi3d_trials' in exp_data:
+    if 'bmi3d_trials' in exp_data and 'power' in exp_data['bmi3d_trials'].dtype.names:
         trials = exp_data['bmi3d_trials']
         gains = trials['power'][:len(times)]
+    elif 'laser_power' in exp_metadata:
+        try:
+            gains = np.ones((len(times),)) * exp_metadata['laser_power']
+        except:
+            gains = np.ones((len(times),))
     else:
         # In the very old experiments, the laser width and power were not recorded.
         gains = np.ones((len(times),))
@@ -618,12 +636,24 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
     sensor_voltsperbit = exp_metadata['analog_voltsperbit']
     samplerate = exp_metadata['analog_samplerate']   
 
-    laser_on_times = np.hstack([timestamps[values == 0], timestamps[values == 1]])
+    laser_on_times = np.vstack([timestamps[values == 1], timestamps[values == 0]]).T
+    print(laser_on_times.shape)
     laser_on_samples = (laser_on_times * samplerate).astype(int)
-    laser_sensor_volts = (sensor_data[laser_on_samples[:,0]:laser_on_samples[:,1]])*sensor_voltsperbit
+    print(laser_on_samples)
+
+    laser_sensor_values = np.array([np.median(sensor_data[laser_on_samples[t,0]:laser_on_samples[t,1]]) 
+                            for t in range(len(laser_on_samples))], dtype='float')
     
-    laser_sensor_powers = np.median(laser_sensor_volts, axis=1)
-    powers = laser.calibrate_sensor_power(laser_sensor_powers)  
+    # Estimate the peak power from the date
+    peak_power_mW = get_peak_power_mW(exp_metadata)
+    powers = laser.calibrate_sensor(laser_sensor_values * sensor_voltsperbit, peak_power_mW)  
+
+    if debug:
+        print(f"eCube recorded {len(times)} stims")
+
+        plt.figure()
+        visualization.plot_laser_sensor_alignment(sensor_data*sensor_voltsperbit, samplerate, times)
+
 
     return times, widths, gains, powers
 
@@ -652,8 +682,8 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
     '''
     exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
 
-    # Load the trigger and sensor data if it's not already in the bmi3d data
-    if laser_trigger not in exp_data or laser_sensor not in exp_data:
+    # Load the sensor data if it's not already in the bmi3d data
+    if laser_sensor not in exp_data:
         files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
         hdf_filepath = os.path.join(data_dir, files['hdf'])
         if not os.path.exists(hdf_filepath):

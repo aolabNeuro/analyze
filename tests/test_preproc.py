@@ -1052,7 +1052,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertNotIn('qwalor_trigger_dch', exp_metadata.keys())
         self.assertNotIn('laser_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(
             preproc_dir, subject, te_id, date, laser_trigger='laser_trigger', 
             laser_sensor='laser_sensor', debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
@@ -1126,7 +1126,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('qwalor_trigger_dch', exp_metadata.keys())
         self.assertIn('qwalor_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
 
         print(trial_powers)
@@ -1182,7 +1182,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('qwalor_ch2_trigger_dch', exp_metadata.keys())
         self.assertIn('qwalor_ch2_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(
             preproc_dir, subject, te_id, date, laser_trigger='qwalor_ch2_trigger', 
             laser_sensor='qwalor_ch2_sensor', debug=True
         )
