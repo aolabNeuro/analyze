@@ -1184,6 +1184,10 @@ class DatabaseTests(unittest.TestCase):
         te.feats.set([feat])
         te.save()
 
+        # Add a decoder entry that was "trained" on the manual control task entry
+        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
+        decoder.save()
+
         # And a flash task entry
         task = models.Task.objects.get(name="manual control")
         expm = models.Experimenter.objects.get(name="experimenter_1")
@@ -1199,7 +1203,8 @@ class DatabaseTests(unittest.TestCase):
         task.save()
         subj = models.Subject.objects.get(name="test_subject")
         expm = models.Experimenter.objects.get(name="experimenter_1")
-        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, params='{"bmi": 1}')
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, 
+                              experimenter_id=expm.id, params='{"bmi": '+str(decoder.id)+'}')
         te.save()
 
         # Add a task entry from a different rig
@@ -1208,19 +1213,17 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, rig_name="siberut-bmi")
         te.save()
 
-        # Add a decoder entry
-        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
-        decoder.save()
 
     def test_lookup_sessions(self):
 
         # Most basic lookup
-        sessions = db.lookup_sessions(id=1)
+        all_sessions = db.lookup_sessions()
+        sessions = db.lookup_sessions(id=all_sessions[0].id)
         self.assertEqual(len(sessions), 1)
-        self.assertEqual(sessions[0].id, 1)
-        sessions = db.lookup_sessions(id=[1,2])
+        self.assertEqual(sessions[0].id, sessions[0].id)
+        sessions = db.lookup_sessions(id=[all_sessions[0].id, all_sessions[1].id])
         self.assertEqual(len(sessions), 2)
-        self.assertEqual(sessions[1].id, 2)
+        self.assertEqual(sessions[1].id, all_sessions[1].id)
 
         # Other sanity tests
         total_sessions = 5
@@ -1233,7 +1236,7 @@ class DatabaseTests(unittest.TestCase):
         # Test filtering
         self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
         self.assertEqual(len(db.lookup_sessions(subject="test_subject")), total_sessions)
-        sessions = db.lookup_sessions(subject="test_subject", date="2023-11-14", task_name="manual control",
+        sessions = db.lookup_sessions(subject="test_subject", task_name="manual control",
                                       task_desc="task_desc", session="test session", project="test project",
                                       experimenter="experimenter_1")
         self.assertEqual(len(sessions), 1)
@@ -1243,10 +1246,10 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sessions[0].session, "test session")
         self.assertEqual(sessions[0].project, "test project")
         self.assertEqual(sessions[0].experimenter, "experimenter_1")
-        self.assertEqual(str(sessions[0].date), "2023-11-14")
+        self.assertEqual(str(sessions[0].date), str(datetime.datetime.today().date()))
 
         # Special case - filter by id
-        sessions = db.lookup_sessions(exclude_ids=[2,3])
+        sessions = db.lookup_sessions(exclude_ids=[all_sessions[0].id,all_sessions[1].id])
         self.assertEqual(len(sessions), total_sessions-2)
 
         # Special case - arbitrary filter fn
@@ -1286,8 +1289,7 @@ class DatabaseTests(unittest.TestCase):
         te = db.lookup_sessions(task_desc='task_desc')[0]
         self.assertEqual(te.subject, 'test_subject')
         self.assertEqual(te.experimenter, 'experimenter_1')
-        self.assertEqual(te.id, 2)
-        self.assertEqual(str(te.date), "2023-11-14")
+        self.assertEqual(str(te.date), str(datetime.datetime.today().date()))
         self.assertEqual(type(te.datetime), datetime.datetime)
         self.assertEqual(te.session, 'test session')
         self.assertEqual(te.project, 'test project')
@@ -1318,8 +1320,7 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test_subject'])
-        self.assertCountEqual(te_id, [2])
-        self.assertCountEqual([str(d) for d in date], ['2023-11-14'])
+        self.assertCountEqual([str(d) for d in date], [str(datetime.datetime.today().date())])
         
     def test_group_entries(self):
 
