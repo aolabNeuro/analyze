@@ -922,7 +922,9 @@ class TestYaml(unittest.TestCase):
                    'TRIAL_START': 2,
                    'CURSOR_ENTER_TARGET': 80,
                    'CURSOR_LEAVE_TARGET': 96,
-                   'OTHER_PENALTY': 79}
+                   'OTHER_PENALTY': 79,
+                   'PAUSE_START': 128,
+                   'PAUSE_END': 129}
         yaml_write(params_file, params)
 
         # Testing pkl_read
