@@ -10,6 +10,7 @@ import warnings
 import traceback
 try:
     from db import dbfunctions as bmi3d
+    from db.tracker import dbq
 except:
     warnings.warn("Database not configured")
     traceback.print_exc()
@@ -114,6 +115,82 @@ def lookup_bmi_sessions(bmi_task_name='bmi control', **kwargs):
     '''
     return lookup_sessions(task_name=bmi_task_name, **kwargs)
 
+def lookup_decoder_parent(task_name='nothing', task_desc='decoder parent', **kwargs):
+    '''
+    Lookup by project and session
+    '''
+    return lookup_sessions(task_name=task_name, task_desc=task_desc, **kwargs)
+
+def lookup_decoders(id=None, parent_id=None, **kwargs):
+    '''
+    Returns list of decoders with the given filter parameters
+
+    Args:
+        id (int or list, optional): Lookup decoders with the given ids, if provided.
+        parent_id (int, optional): Lookup decoders with the given parent ids, if provided.
+        kwargs (dict, optional): optional keyword arguments to pass to database lookup function.
+
+    Returns:
+        list: list of Decoder records matching the query
+    '''
+    if id is not None and isinstance(id, list):
+        kwargs['id__in'] = id
+    elif id is not None:
+        kwargs['id'] = id
+    if parent_id is not None:
+        kwargs['entry_id'] = parent_id
+
+    records = bmi3d.models.Decoder.objects.filter(**kwargs)
+    return [BMI3DDecoder(r) for r in records]
+    
+'''
+Create functions
+'''
+def create_decoder_parent(project, session, task_name='nothing', task_desc='decoder parent'):
+    '''
+    
+    '''
+    subj = bmi3d.models.Subject.objects.get(name='test')
+    task = bmi3d.models.Task.objects.get(name=task_name)
+    
+    te = bmi3d.models.TaskEntry(subject_id=subj.id, task_id=task.id)
+    te.entry_name = task_desc
+    te.project = project
+    te.session = session
+    
+    te.save()
+    
+    return te
+
+def save_decoder(project, session, decoder, suffix):
+    '''
+    Save a new decoder to the database
+
+    Args:
+        project (str): project name
+        session (str): session name
+        decoder (Decoder): decoder object
+        suffix (str): suffix to append to the decoder name
+
+    Note:
+        Only works if you have the Decoder system path locally
+    '''
+    # Try to look up an existing parent decoder with the same information
+    parents = lookup_decoder_parent(project=project, session=session)
+    if len(parents):
+        te = parents[0]
+    else:
+        # Otherwise make a new parent
+        te = create_decoder_parent(project, session)
+        
+    te_id = te.id
+    new_decoder_fname = decoder.save()
+    new_decoder_name = f"{project}_{session}_{suffix}" 
+        
+    print("Saving new decoder:", new_decoder_name)
+    dbq.save_bmi(new_decoder_name, te_id, new_decoder_fname)
+
+
 '''
 Filter functions
 '''
@@ -162,7 +239,7 @@ class BMI3DTaskEntry():
     the same methods without needing to modfiy their database model.
     '''
 
-    def __init__(self, task_entry, dbname='default', **kwargs):
+    def __init__(self, task_entry, dbname='default'):
         '''
         Constructor
 
@@ -413,6 +490,96 @@ class BMI3DTaskEntry():
             models.TaskEntry: bmi3d task entry object
         '''
         return self.record
+
+class BMI3DDecoder():
+    '''
+    Wrapper for BMI3D Decoder objects
+    '''
+    
+    def __init__(self, decoder, dbname='default'):
+        '''
+        Constructor
+
+        Args:
+            task_entry (TaskEntry): a database task entry from BMI3D
+            dbname (str, optional): name of the database to connect to. Defaults to 'default'.
+        '''
+        self.dbname = dbname
+        self.record = decoder
+        self.id = self.record.id
+        self.parent = lookup_sessions(id=decoder.entry_id)[0]
+        self.project = self.parent.project
+        self.session = self.parent.session
+        self.name = self.record.name
+        
+    def __repr__(self):
+        '''
+        Call __repr__ on the database record
+
+        Returns:
+            str: repr
+        '''
+        return f"Decoder[{self.id}:{self.name}] trained from {repr(self.parent)}"
+    
+    def __str__(self):
+        '''
+        Call __str__ on the database record
+
+        Returns:
+            str: str
+        '''
+        return str(self.record)
+        
+    @property
+    def decoder(self):
+        '''
+        The decoder object
+
+        Returns:
+            object: decoder object
+        '''
+        if hasattr(self, 'dec'):
+            return self.dec
+        else:
+            self.dec = self.get()
+            return self.dec
+        
+    @property
+    def channels(self):
+        '''
+        The decoder channels
+
+        Returns:
+            list: channels used by the decoder
+        '''
+        return self.decoder.channels
+
+    @property
+    def filt(self):
+        '''
+        The decoder filter
+
+        Returns:
+            object: decoder filter
+        '''
+        return self.decoder.filt
+
+    def get(self, decoder_dir=None):
+        '''
+        Fetch the decoder object from the database, if there is one.
+
+        Returns:
+            Decoder: decoder object (type depends on which decoder is being loaded)
+        '''
+        filename = self.record.path
+        if decoder_dir is not None:
+            filepath = os.path.join(decoder_dir, filename)
+        else:
+            sys_path = bmi3d.models.System.objects.using(self.dbname).get(name='bmi').path
+            filepath =  os.path.join(sys_path, filename)
+        dec = pickle.load(open(filepath, 'rb'))
+        self.dec = dec
+        return dec
 
 '''
 Wrappers
