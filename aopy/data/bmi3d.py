@@ -1067,8 +1067,22 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             traceback.print_exc()
             bad_entries.append([subject,date,te])
             continue
+        
+        # Get events and times
         event_codes = exp_data['events'][event_code_type]
-        event_times = exp_data['events']['timestamp']
+        try:
+            event_times = exp_data['events']['timestamp']
+        except:
+            print(f"Entry {subject} {date} {te} was excluded due to missing event timestamps (likely missing ecube data).")
+            print('source files:', exp_metadata['source_files'])
+            bad_entries.append([subject,date,te])
+            continue
+        
+        # Exclude data with known bugs
+        if len(exp_data['events']) != len(exp_data['bmi3d_events']):
+            print(f"Entry {subject} {date} {te} was excluded due to mismatched sync and bmi3d events (this will likely cause problems).")
+            bad_entries.append([subject,date,te])
+            continue            
 
         # Trial aligned event codes and event times
         tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
@@ -1322,10 +1336,10 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     # Add frequency content of reference & disturbance trajectories
     ref_freqs = []
     dis_freqs = []
-    for s, te, d in zip(subjects, ids, dates):
-        if [s,d,te] in bad_entries:
+    for subject, te, date in zip(subjects, ids, dates):
+        if [subject,date,te] in bad_entries:
             continue
-        r, d = get_trajectory_frequencies(preproc_dir, s, te, d)
+        r, d = get_trajectory_frequencies(preproc_dir, subject, te, date)
         ref_freqs.extend(r)
         dis_freqs.extend(d)
     new_df['ref_freqs'] = ref_freqs

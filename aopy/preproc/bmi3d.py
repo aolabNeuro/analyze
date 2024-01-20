@@ -751,6 +751,7 @@ def get_ref_dis_frequencies(data, metadata):
     on each trial of the experiment.
 
     Note:
+        This function should be used with caution on task entries that have mismatched sync and bmi3d events!
         Prior to 11-16-2022, bmi3d did not allow the number of experimental frequencies to be set by the experimenter, 
             and this parameter defaulted to 8.
         Prior to 2-23-2023, bmi3d did not save the generator index in the task data, and this had to be calculated 
