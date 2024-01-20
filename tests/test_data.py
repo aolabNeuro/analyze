@@ -1135,51 +1135,82 @@ class EyeTests(unittest.TestCase):
 
 class DatabaseTests(unittest.TestCase):
 
-    # Create some tests - only has to be run once and saved in db/tes
     @classmethod
     def setUpClass(cls):
-        db.BMI3D_DBNAME = 'default'
+        db.BMI3D_DBNAME = 'test_aopy'
         db.DB_TYPE = 'bmi3d'
-
-        '''
-        This database contains one subject and one experimenter:
-        - Subject(name="test_subject")
-        - Experimenter(name="experimenter_1")
+        from db.tracker import models
         
-        Tasks:
-        - Task(name="manual control")
-        - Task(name="tracking")
+        # Clear the database
+        models.Decoder.objects.all().delete()
+        models.TaskEntry.objects.all().delete()
+        models.Subject.objects.all().delete()
+        models.Experimenter.objects.all().delete()
+        models.Sequence.objects.all().delete()
+        models.Task.objects.all().delete()
+        models.Feature.objects.all().delete()
+        models.Generator.objects.all().delete()
+        models.System.objects.all().delete()
 
-        Features:
-        - Feature(name="feat_1")
+        # Make some test entries for subject, experimenter, and task 
+        subj = models.Subject(name="test_subject")
+        subj.save()
+        expm = models.Experimenter(name="experimenter_1")
+        expm.save()
+        task = models.Task(name="manual control")
+        task.save()
+        task = models.Task(name="tracking")
+        task.save()
+        feat = models.Feature(name="feat_1")
+        feat.save()
+        gen = models.Generator(name="test_gen", static=False)
+        gen.save()
+        seq = models.Sequence(generator_id=gen.id, task_id=task.id, name="test_seq", params='{"seq_param_1": 1}')
+        seq.save()
 
-        Systems:
-        - System(name="test_system", path="", archive="")
+        # Make a basic task entry
+        subj = models.Subject.objects.get(name="test_subject")
+        task = models.Task.objects.get(name="tracking")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id)
+        te.save()
 
-        Decoders:
-        - Decoder(name="test_decoder", entry_id=3) # the bmi control entry
+        # Make a manual control task entry
+        task = models.Task.objects.get(name="manual control")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
+                            session="test session", project="test project", params='{"task_param_1": 1}', sequence_id=seq.id)
+        te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
+        te.save()
+        te.feats.set([feat])
+        te.save()
 
-        Generators:
-        - Generator(name="test_gen")
+        # And a flash task entry
+        task = models.Task.objects.get(name="manual control")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
+        te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
+        te.save()
 
-        Sequences:
-        - Sequence(name="test_seq", generator_name="test_gen", params='{"seq_param_1": 1}')
-        
-        Entries:
-        - Tracking task entry from 2023-06-26
-        - Manual control entry from 2023-06-26
-            - project = "test project"
-            - session = "test session"
-            - entry_name = "task_desc" 
-            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
-            - feats = [feat_1]
-            - params = '{"task_param_1": 1}'
-        - Flash entry (manual control task) from 2023-06-26
-            - entry_name = "flash"
-            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
-        - BMI entry (bmi control task) from 2023-06-26
-            - params='{"bmi": 0}'
-        ''' 
+        system = models.System(name="test_system", path="", archive="")
+        system.save()
+
+        # Add a bmi task entry
+        task = models.Task(name="bmi control")
+        task.save()
+        subj = models.Subject.objects.get(name="test_subject")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, params='{"bmi": 1}')
+        te.save()
+
+        # Add a task entry from a different rig
+        subj = models.Subject.objects.get(name="test_subject")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, rig_name="siberut-bmi")
+        te.save()
+
+        # Add a decoder entry
+        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
+        decoder.save()
 
     def test_lookup_sessions(self):
 
