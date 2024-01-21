@@ -142,54 +142,6 @@ def lookup_decoders(id=None, parent_id=None, **kwargs):
 
     records = bmi3d.models.Decoder.objects.filter(**kwargs)
     return [BMI3DDecoder(r) for r in records]
-    
-'''
-Create functions
-'''
-def create_decoder_parent(project, session, task_name='nothing', task_desc='decoder parent'):
-    '''
-    
-    '''
-    subj = bmi3d.models.Subject.objects.get(name='test')
-    task = bmi3d.models.Task.objects.get(name=task_name)
-    
-    te = bmi3d.models.TaskEntry(subject_id=subj.id, task_id=task.id)
-    te.entry_name = task_desc
-    te.project = project
-    te.session = session
-    
-    te.save()
-    
-    return te
-
-def save_decoder(project, session, decoder, suffix):
-    '''
-    Save a new decoder to the database
-
-    Args:
-        project (str): project name
-        session (str): session name
-        decoder (Decoder): decoder object
-        suffix (str): suffix to append to the decoder name
-
-    Note:
-        Only works if you have the Decoder system path locally
-    '''
-    # Try to look up an existing parent decoder with the same information
-    parents = lookup_decoder_parent(project=project, session=session)
-    if len(parents):
-        te = parents[0]
-    else:
-        # Otherwise make a new parent
-        te = create_decoder_parent(project, session)
-        
-    te_id = te.id
-    new_decoder_fname = decoder.save()
-    new_decoder_name = f"{project}_{session}_{suffix}" 
-        
-    print("Saving new decoder:", new_decoder_name)
-    dbq.save_bmi(new_decoder_name, te_id, new_decoder_fname)
-
 
 '''
 Filter functions
