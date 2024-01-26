@@ -63,7 +63,7 @@ def get_te_number(file_name):
     '''    
     return int(file_name.split('_te')[1].split('.')[0])
 
-def test_load_raw_hdf(data_dir, prefix, start_date_str):
+def load_raw_hdf(data_dir, prefix, start_date_str):
     ''' 
     Retrieves files in a specified directory that share a common prefix (usually the
     name of the subject) and have been created since a specified start date. The files

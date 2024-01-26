@@ -302,7 +302,7 @@ class HDFTests(unittest.TestCase):
     def test_load_raw_hdf(self):
         hdf_dir = 'data/sample_hdfs'
         os.path.join(data_dir, hdf_dir)
-        df, sorted_file_names = test_load_raw_hdf(hdf_dir, 'beig', '20220101')
+        df, sorted_file_names = load_raw_hdf(hdf_dir, 'beig', '20220101')
         correct_file_names = ['beig20221002_09_te6890.hdf', 'beig20230109_15_te7977.hdf']
         self.assertEqual(sorted_file_names, correct_file_names)
         self.assertEqual(list(df['Days Since Prev']), [0, 99])
