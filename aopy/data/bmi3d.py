@@ -1187,6 +1187,9 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **target_idx (ntrial):** index of the target that was presented
             | **target_location (ntrial):** location of the target that was presented
+            | **trial_start_time (ntrial):** time at which the trial started
+            | **trial_end_time (ntrial):** time at which the trial ended
+            | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated
             | **hold_start_time (ntrial):** time at which the hold period started
             | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
             | **delay_start_time (ntrial):** time at which the delay period started
@@ -1194,6 +1197,11 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **go_cue_time (ntrial):** time at which the go cue was presented
             | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
             | **reach_end_time (ntrial):** time at which the reach was completed
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **reward_end_time (ntrial):** time at which the reward was completed
+            | **penalty_start_time (ntrial):** time at which the penalty was presented
+            | **penalty_end_time (ntrial):** time at which the penalty was completed
+            | **penalty_event (ntrial):** numeric code for the penalty event
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
@@ -1227,20 +1235,21 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     new_df['target_location'] = target_location
 
     # Add trial segment timing
-    new_df['trial_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['trial_initiated'] = np.zeros(len(new_df), dtype='bool')
-    new_df['hold_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['delay_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['delay_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['go_cue_time'] = np.nan*np.zeros(len(new_df))
-    new_df['reach_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['reach_end_time'] = np.nan*np.zeros(len(new_df))
-    new_df['reward_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['reward_end_time'] = np.nan*np.zeros(len(new_df))
-    new_df['penalty_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['penalty_end_time'] = np.nan*np.zeros(len(new_df))
-    new_df['penalty_event'] = np.nan*np.zeros(len(new_df))
+    new_df['trial_start_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['trial_initiated'] = False
+    new_df['hold_start_time'] = np.nan
+    new_df['hold_completed'] = False
+    new_df['delay_start_time'] = np.nan
+    new_df['delay_completed'] = False
+    new_df['go_cue_time'] = np.nan
+    new_df['reach_completed'] = False
+    new_df['reach_end_time'] = np.nan
+    new_df['reward_start_time'] = np.nan
+    new_df['reward_end_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_end_time'] = np.nan
+    new_df['penalty_event'] = np.nan
     for i in range(len(new_df)):
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
@@ -1250,6 +1259,9 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             new_df.loc[i, 'trial_start_time'] = new_df.loc[i-1, 'event_times'][-1]
         else:
             new_df.loc[i, 'trial_start_time'] = 0.
+
+        # Trial end time
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
         
         # Trial initiated if cursor enters the center target
         _, hold_times = get_trial_segments(event_codes, event_times,
@@ -1332,9 +1344,15 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **target_idx (ntrial):** index of the target that was presented
             | **target_location (ntrial):** location of the target that was presented
-            | **hold_start_time (ntrial):** time at which the hold period started
+            | **trial_start_time (ntrial):** time at which the trial started
+            | **trial_end_time (ntrial):** time at which the trial ended
             | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
             | **reach_end_time (ntrial):** time at which the reach was completed
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **reward_end_time (ntrial):** time at which the reward was completed
+            | **penalty_start_time (ntrial):** time at which the penalty was presented
+            | **penalty_end_time (ntrial):** time at which the penalty was completed
+            | **penalty_event (ntrial):** numeric code for the penalty event
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
@@ -1368,14 +1386,15 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
     new_df['target_location'] = target_location
 
     # Add trial segment timing
-    new_df['trial_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['reach_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['reach_end_time'] = np.nan*np.zeros(len(new_df))
-    new_df['reward_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['reward_end_time'] = np.nan*np.zeros(len(new_df))
-    new_df['penalty_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['penalty_end_time'] = np.nan*np.zeros(len(new_df))
-    new_df['penalty_event'] = np.nan*np.zeros(len(new_df))
+    new_df['trial_start_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['reach_completed'] = False
+    new_df['reach_end_time'] = np.nan
+    new_df['reward_start_time'] = np.nan
+    new_df['reward_end_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_end_time'] = np.nan
+    new_df['penalty_event'] = np.nan
     for i in range(len(new_df)):
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
@@ -1385,6 +1404,9 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
             new_df.loc[i, 'trial_start_time'] = new_df.loc[i-1, 'event_times'][-1]
         else:
             new_df.loc[i, 'trial_start_time'] = 0.
+
+        # Trial end time
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
         
         # Reach completed if cursor enters target (regardless of whether the trial was successful)
         _, reach_times = get_trial_segments(event_codes, event_times,
