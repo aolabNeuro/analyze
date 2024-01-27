@@ -7,13 +7,15 @@ import os
 from datetime import datetime
 from importlib.metadata import version
 import pandas as pd
+import json
+import sympy
 
 from .. import precondition
 from .. import data as aodata
 from .. import utils
 from .. import analysis
 from .. import visualization
-from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements
+from .base import get_dch_data, get_measured_clock_timestamps, find_measured_event_times, validate_measurements, get_trial_segments
 
 def decode_event(dictionary, value):
     '''
@@ -93,10 +95,6 @@ def parse_bmi3d(data_dir, files):
             | **data (dict):** bmi3d data
             | **metadata (dict):** bmi3d metadata
     '''
-    # Check that there is hdf data in files
-    if not 'hdf' in files:
-        raise ValueError('Cannot parse nonexistent data!')
-
     # Load bmi3d data to see which sync protocol is used
     try:
         events, event_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['hdf'], 'sync_events')
@@ -125,7 +123,12 @@ def parse_bmi3d(data_dir, files):
         metadata['bmi3d_preproc_version'] = version('aopy')
     except:
         metadata['bmi3d_preproc_version'] = 'unknown'
-    metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
+    
+    # And where the data came from
+    try:
+        metadata['bmi3d_source'] = os.path.join(data_dir, files['hdf'])
+    except:
+        metadata['bmi3d_source'] = None
 
     # Standardize the parsed variable names and perform some error checking
     return _prepare_bmi3d_v1(data, metadata)
@@ -143,9 +146,16 @@ def _parse_bmi3d_v0(data_dir, files):
             | **data (dict):** bmi3d data
             | **metadata (dict):** bmi3d metadata
     '''
+    metadata = {}
+    metadata['source_dir'] = data_dir
+    metadata['source_files'] = files
+
+    if 'hdf' not in files:
+        warnings.warn("No hdf file found, cannot parse bmi3d data")
+        return {}, metadata
+
     bmi3d_hdf_filename = files['hdf']
     bmi3d_hdf_full_filename = os.path.join(data_dir, bmi3d_hdf_filename)
-    metadata = {}
 
     # Load bmi3d data
     bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
@@ -154,10 +164,6 @@ def _parse_bmi3d_v0(data_dir, files):
     # Copy metadata
     metadata.update(bmi3d_task_metadata)
     metadata.update(bmi3d_root_metadata)
-    metadata.update({
-        'source_dir': data_dir,
-        'source_files': files,
-    }) 
 
     # Put data into dictionary
     bmi3d_data = dict(
@@ -323,9 +329,17 @@ def _prepare_bmi3d_v1(data, metadata):
             | **metadata (dict):** prepared bmi3d metadata
     '''
     # Must be present: clock, task
-    internal_clock = data['bmi3d_clock']
-    task = data['bmi3d_task']
-
+    if 'bmi3d_clock' in data and 'bmi3d_task' in data:
+        internal_clock = data['bmi3d_clock']
+        task = data['bmi3d_task']
+    elif 'sync_clock' in data:
+        warnings.warn('Critical error! No internal clock found, using sync clock instead. Task data will be missing')
+        internal_clock = data['sync_clock']
+        task = None
+    else:
+        warnings.warn("No clock or task data found! Cannot prepare bmi3d data")
+        return data, metadata
+    
     # Estimate display latency
     if 'sync_clock' in data and 'measure_clock_offline' in data and len(data['sync_clock']) > 0:
 
@@ -474,12 +488,17 @@ def _prepare_bmi3d_v1(data, metadata):
             data['clean_hand_position'] = clean_hand_position
 
     # Interpolate clean hand kinematics
-    if 'timestamp_sync' in corrected_clock.dtype.names and 'clean_hand_position' in data:
+    if ('timestamp_sync' in corrected_clock.dtype.names and 
+        'clean_hand_position' in data and
+        len(data['clean_hand_position']) > 0):
         metadata['hand_interp_samplerate'] = 1000
         data['hand_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
 
     # And interpolated cursor kinematics
-    if 'timestamp_sync' in corrected_clock.dtype.names and isinstance(task, np.ndarray) and 'cursor' in task.dtype.names:
+    if ('timestamp_sync' in corrected_clock.dtype.names and 
+        isinstance(task, np.ndarray) and 
+        'cursor' in task.dtype.names and
+        len(task['cursor']) > 0):
         metadata['cursor_interp_samplerate'] = 1000
         data['cursor_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
         
@@ -724,3 +743,107 @@ def get_target_events(exp_data, exp_metadata):
         target_events.append(event_target)
         
     return np.array(target_events).transpose(1,0,2)
+
+def get_ref_dis_frequencies(data, metadata):
+    '''
+    For continuous tracking tasks, get the set of frequencies (in Hz) used to 
+    generate the reference and disturbance trajectories that were preesented 
+    on each trial of the experiment.
+
+    Note:
+        Prior to 11-16-2022, bmi3d did not allow the number of experimental frequencies to be set by the experimenter, 
+            and this parameter defaulted to 8.
+        Prior to 2-23-2023, bmi3d did not save the generator index in the task data, and this had to be calculated 
+            by the number of times bmi3d entered the 'wait' state.
+
+    Args:
+        data (dict): A dictionary containing the experiment data.
+        metadata (dict): A dictionary containing the experiment metadata.
+
+    Returns:
+        tuple: Tuple containing:
+            | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
+            | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
+
+    Examples:
+        .. code-block:: python
+
+            subject = 'test'
+            te_id = '8461'
+            date = '2023-02-25'
+
+            data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+            freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+            plt.figure()
+            plt.plot(freq_r, 'darkorange')
+            plt.plot(freq_d, 'tab:red', linestyle='--')
+            plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+            
+        .. image:: _images/get_ref_dis_freqs_test.png
+        
+        .. code-block:: python
+
+            subject = 'churro'
+            te_id = '375'
+            date = '2023-10-02'
+
+            data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+            freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+            plt.figure()
+            plt.plot(freq_r, 'darkorange')
+            plt.plot(freq_d, 'tab:red', linestyle='--')
+            plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+
+        .. image:: _images/get_ref_dis_freqs_churro.png
+
+    '''
+
+    # grab params relevant for generator
+    params = json.loads(metadata['sequence_params'])
+    if 'num_primes' not in params.keys():
+        params['num_primes'] = 8
+    primes = np.asarray(list(sympy.primerange(0, sympy.prime(params['num_primes'])+1)))
+    even_idx = np.arange(len(primes))[0::2]
+    odd_idx = np.arange(len(primes))[1::2]
+    base_period = 20
+
+    # recreate random trial order of reference & disturbance frequencies
+    np.random.seed(params['seed'])
+    order = np.random.choice([0,1])
+    if order == 0:
+        trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
+    elif order == 1:
+        trial_r_idx = np.array([odd_idx, even_idx]*params['ntrials'], dtype='object')
+        trial_d_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
+        
+    # get trial segments
+    events = data['bmi3d_events']['code']
+    cycles = data['bmi3d_events']['time'] # bmi3d cycle number
+
+    start_codes = [metadata['event_sync_dict']['TARGET_ON']]
+    end_codes = [metadata['event_sync_dict']['TRIAL_END']]
+    
+    _, segment_cycles = get_trial_segments(events, cycles, start_codes, end_codes)
+
+    # get trajectory generator index used for each trial
+    if 'gen_idx' in data['task'].dtype.names:
+        # get generator index from task data (saved on every bmi3d cycle) 
+        generator_segments = np.array([data['task']['gen_idx'][cycle[0]:cycle[-1]] for cycle in segment_cycles], dtype='object')
+        assert np.all([gen[0]==gen[-1] for gen in generator_segments]), 'Generator index is not consistent throughout trial segment!'
+
+        generator_idx = [int(gen[0]) for gen in generator_segments]
+        assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
+    else:
+        # get generator index from number of previous wait states (wait state parses next trial)
+        states = data['bmi3d_state']['msg']
+        state_cycles = data['bmi3d_state']['time'] # bmi3d cycle number
+        generator_idx = [sum(states[state_cycles <= cycle[0]] == b'wait')-1 for cycle in segment_cycles]
+        assert (np.diff(generator_idx) >= 0).all(), 'Generator index should stay the same or increase over trials, never decrease!'
+
+    # use generator index to get reference & disturbance frequencies for each trial
+    freq_r = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_r_idx[generator_idx]]
+    freq_d = [primes[np.array(idx, dtype=int)]/base_period for idx in trial_d_idx[generator_idx]]
+    return freq_r, freq_d

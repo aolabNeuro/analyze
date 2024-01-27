@@ -313,6 +313,7 @@ class Dataset:
 
                 if chunksize % chancount != 0:
                     chunksize -= chunksize % chancount
+                    chunkidx[2] -= chunksize % chancount
                     print("Warning: incomplete binary file samples dropped in {}.".format(filename))
 
                 if debug is True:
