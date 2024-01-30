@@ -853,7 +853,7 @@ def get_ref_dis_frequencies(data, metadata):
     start_codes = [metadata['event_sync_dict']['TARGET_ON']]
     end_codes = [metadata['event_sync_dict']['TRIAL_END']]
     
-    _, segment_cycles = get_trial_segments(events, cycles, start_codes, end_codes)
+    _, segment_cycles = base.get_trial_segments(events, cycles, start_codes, end_codes)
 
     # get trajectory generator index used for each trial
     if 'gen_idx' in data['task'].dtype.names:
