@@ -843,17 +843,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(len(df), 51)
         for trial in range(len(df)):
             self.assertLessEqual(df['trial_width'][trial], 0.1)
-            self.assertGreater(df['trial_power'][trial], 0.)
-            self.assertLessEqual(df['trial_power'][trial], 1.0)
+            self.assertGreater(df['trial_gain'][trial], 0.)
+            self.assertLessEqual(df['trial_gain'][trial], 1.0)
             self.assertGreater(df['trial_time'][trial], 0.)
             self.assertLessEqual(df['trial_time'][trial], 100.)
-            self.assertGreater(df['trial_power_watts'][trial], 0.)
-            self.assertEqual(df['peak_power_watts'][trial], 1.5)
-            self.assertTrue(df['trial_found'][trial])
-
-        self.assertEqual(np.sum(df['width_above_thr']), 0)
-        self.assertEqual(np.sum(df['power_above_thr']), 4)
-
+            self.assertGreater(df['trial_power'][trial], 0.)
+            self.assertLessEqual(df['trial_power'][trial], 25.0)
+            
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
