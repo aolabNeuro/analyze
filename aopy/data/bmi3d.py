@@ -1152,8 +1152,8 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **trial_time (float):** time of stimulation within recording
             | **trial_width (float):** width of stimulation pulse
-            | **trial_gain (float):** laser gain (fraction) of stimulation pulse
-            | **trial_power (float):** power (in mW) of stimulation pulse
+            | **trial_gain (float):** fraction of maximum laser power setting
+            | **trial_power (float):** power (in mW) of stimulation pulse at the fiber output
 
     Note:
         Only supports single-site stimulation.
