@@ -635,7 +635,8 @@ class TestPrepareExperiment(unittest.TestCase):
 
     def test_parse_bmi3d_empty(self):
         files = {}
-        self.assertRaises(Exception, lambda: parse_bmi3d(data_dir, files))
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.assertRaises(AssertionError, lambda: self.check_required_fields(data, metadata))
 
     def test_parse_bmi3d_v0(self):
         # Test sync version 0 (and -1)
@@ -902,6 +903,27 @@ class TestPrepareExperiment(unittest.TestCase):
         # There is a pause bug that should be corrected
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
         self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+
+        # Test what happens if no HDF file is provided
+        n_events = len(data['bmi3d_events'])
+        files = {}
+        files['ecube'] = '2023-01-09_BMI3D_te7977'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.assertRaises(AssertionError, lambda: self.check_required_fields(data, metadata))
+
+        # Test if a dummy HDF file is provided
+        files['hdf'] = 'dummy_hdf_rig1_v13.hdf'
+
+        # Make a dummy HDF file by copying an existing HDF file from the same experiment
+        import shutil
+        shutil.copy(os.path.join(data_dir, 'beig20230109_15_te7977.hdf'), os.path.join(data_dir, files['hdf']))
+        with tables.open_file(os.path.join(data_dir, files['hdf']), 'r+') as f:
+            f.get_node('/task').truncate(0)
+
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.assertEqual(n_events, len(data['events']))
+        self.check_required_fields(data, metadata)
+
 
     def test_parse_optitrack(self):
         files = {}
@@ -1206,6 +1228,48 @@ class TestPrepareExperiment(unittest.TestCase):
         filename = 'get_target_events.png'
         visualization.savefig(docs_dir, filename)
 
+    def test_get_ref_dis_frequencies(self):
+        subject = 'test'
+        te_id = '8461'
+        date = '2023-02-25'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_test.png'
+        visualization.savefig(docs_dir, filename)
+
+        subject = 'churro'
+        te_id = '375'
+        date = '2023-10-02'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_churro.png'
+        visualization.savefig(docs_dir, filename)
+
+        subject = 'beignet'
+        te_id = '8380'
+        date = '2023-02-13'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_before_gen_idx_saved.png'
+        visualization.savefig(docs_dir, filename) 
 
 class ProcTests(unittest.TestCase):
 
@@ -1235,20 +1299,77 @@ class ProcTests(unittest.TestCase):
         proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
 
     def test_proc_lfp(self):
-        result_filename = 'test_proc_lfp.hdf'
-        files = {'ecube': 'fake ecube data'}
-        proc_lfp(data_dir, files, write_dir, result_filename, overwrite=True)
 
-        contents = get_hdf_dictionary(write_dir, result_filename)
+        # Test proc from ecube
+        ecube_result_filename = 'test_proc_lfp.hdf'
+        files = {'ecube': 'fake ecube data'}
+        ecube_metadata = load_ecube_metadata(os.path.join(data_dir, files['ecube']), 'Headstages')
+
+        proc_lfp(data_dir, files, write_dir, ecube_result_filename, max_memory_gb=0.0001, overwrite=True)
+
+        contents = get_hdf_dictionary(write_dir, ecube_result_filename)
         self.assertIn('lfp_data', contents)
         self.assertIn('lfp_metadata', contents)
 
-        lfp_data = load_hdf_data(write_dir, result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, ecube_result_filename, 'lfp_metadata')
 
-        self.assertEqual(lfp_data.shape, (1000, 8))
+        approx_n_samples = int(ecube_metadata['n_samples']*lfp_metadata['samplerate']/ecube_metadata['samplerate'])
+
+        self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
+        self.assertEqual(lfp_data.shape[1], 8)
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
         self.assertEqual(lfp_metadata['samplerate'], 1000)
+
+        # Test proc from broadband hdf
+        bb_filename = 'test_proc_lfp_bb.hdf'
+        bb_result_filename = 'test_proc_lfp_from_bb.hdf'
+        files['broadband'] = bb_filename
+        proc_broadband(data_dir, files, write_dir, bb_filename, overwrite=True)
+        proc_lfp(data_dir, files, write_dir, bb_result_filename, max_memory_gb=0.0001, overwrite=True)
+
+        contents = get_hdf_dictionary(write_dir, bb_result_filename)
+        self.assertIn('lfp_data', contents)
+        self.assertIn('lfp_metadata', contents)
+
+        lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+
+        self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
+        self.assertEqual(lfp_data.shape[1], 8)
+        self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
+        self.assertEqual(lfp_metadata['samplerate'], 1000)
+
+        # Compare the two files
+        ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
+        bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+
+        ch = 0
+
+        fig, ax = plt.subplots(3,1, figsize=(5,8))
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[:100,ch], 1000, ax=ax[0])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[:100,ch], 1000, ax=ax[0])
+        ax[0].set_title('first 100ms')
+        ax[0].set_ylabel('Voltage (uV)')
+        ax[0].set_ylim(-2000,2000)
+        ax[0].legend(['from ecube', 'from hdf'])
+
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[-100:,ch], 1000, ax=ax[1])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[-100:,ch], 1000, ax=ax[1])
+        ax[1].set_title('last 100ms')
+        ax[1].set_ylabel('Voltage (uV)')
+        ax[1].set_ylim(-2000,2000)
+
+        chunksize = 250
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*ecube_lfp_data[chunksize-50:chunksize+50,ch], 1000, ax=ax[2])
+        visualization.plot_timeseries(1e6*lfp_metadata['voltsperbit']*bb_lfp_data[chunksize-50:chunksize+50,ch], 1000, ax=ax[2])
+        ax[2].set_title('chunk boundary')
+        ax[2].set_ylabel('Voltage (uV)')
+        ax[2].set_ylim(-2000,2000)
+
+        plt.tight_layout()
+        visualization.savefig(docs_dir, 'proc_lfp_comparison.png')
 
 class QualityTests(unittest.TestCase):
 

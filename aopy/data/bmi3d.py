@@ -20,10 +20,10 @@ else:
 from .. import precondition
 from .. import preproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
-from ..preproc.bmi3d import get_target_events
+from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
-from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment
+from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment, load_hdf_group
 
 ############
 # Raw data #
@@ -197,6 +197,152 @@ def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadb
         n_samples += chunk_len
 
     return dset, metadata
+
+def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    '''
+    Filters local field potential (LFP) data from a given broadband signal file into an hdf file.
+
+    Args:
+        broadband_filepath (str): Path to the input broadband signal file.
+        result_filepath (str): Path to save the filtered LFP data.
+        mean_subtract (bool, optional): Whether to subtract the mean from the filtered LFP signal.
+                                        Default is True.
+        dtype (str, optional): Data type for the filtered LFP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **filter_kwargs: Additional keyword arguments to customize the filtering process.
+                        These arguments will be passed to the filtering function.
+
+    Raises:
+        IOError: If the input broadband file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+    '''
+    lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+
+    metadata = load_hdf_group('', broadband_filepath, 'broadband_metadata')
+    samplerate = metadata['samplerate']
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
+    downsample_factor = int(samplerate/lfp_samplerate)
+    lfp_samples = int(np.ceil(n_samples/downsample_factor))
+    if 'low_cut' not in filter_kwargs:
+        filter_kwargs['low_cut'] = 500
+    if 'buttord' not in filter_kwargs:
+        filter_kwargs['buttord'] = 4
+
+    # Create an hdf dataset
+    lfp_hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
+    dset = lfp_hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
+    channel_chunksize = max(min(n_channels, max_samples // n_samples), 1)
+    time_chunksize = min(n_samples, max_samples // channel_chunksize)
+    print(f"{channel_chunksize} channels and {time_chunksize} samples in each chunk")
+    
+    # Load the broadband dataset
+    bb_hdf = h5py.File(broadband_filepath, 'r')
+    if 'broadband_data' not in bb_hdf:
+        raise ValueError(f'broadband_data not found in file {broadband_filepath}')
+    bb_data = bb_hdf['broadband_data']
+    
+    # Filter broadband data into LFP directly into the hdf file
+    n_bb_samples = 0
+    n_lfp_samples = 0
+    while n_bb_samples < n_samples:
+        n_ch = 0
+        while n_ch < n_channels:
+            broadband_chunk = bb_data[n_bb_samples:n_bb_samples+time_chunksize, n_ch:n_ch+channel_chunksize]
+            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+            chunk_len = lfp_chunk.shape[0]
+            dset[n_lfp_samples:n_lfp_samples+chunk_len,n_ch:n_ch+channel_chunksize] = lfp_chunk
+            n_ch += channel_chunksize
+        n_bb_samples += time_chunksize
+        n_lfp_samples += chunk_len
+        
+    if mean_subtract:
+        dset -= np.mean(dset, axis=0, dtype=dtype) # hopefully this isn't constrained by memory
+    lfp_hdf.close()
+    bb_hdf.close()
+
+    # Append the lfp metadata to the file
+    lfp_metadata = metadata
+    lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
+    lfp_metadata['samplerate'] = lfp_samplerate
+    lfp_metadata['n_samples'] = lfp_samples
+    lfp_metadata.update(filter_kwargs)
+    
+    return dset, lfp_metadata
+
+def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    '''
+    Filters local field potential (LFP) data from an eCube recording file.
+
+    Args:
+        ecube_filepath (str): Path to the input eCube recording file.
+        result_filepath (str): Path to save the filtered LFP data.
+        mean_subtract (bool, optional): Whether to subtract the mean from the filtered LFP signal.
+                                        Default is True.
+        dtype (str, optional): Data type for the filtered LFP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **filter_kwargs: Additional keyword arguments to customize the filtering process.
+                        These arguments will be passed to the filtering function.
+
+    Raises:
+        IOError: If the input eCube recording file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+    '''
+    lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
+
+    metadata = load_ecube_metadata(ecube_filepath, 'Headstages')
+    samplerate = metadata['samplerate']
+    downsample_factor = int(samplerate/lfp_samplerate)
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
+    if 'low_cut' not in filter_kwargs:
+        filter_kwargs['low_cut'] = 500
+    if 'buttord' not in filter_kwargs:
+        filter_kwargs['buttord'] = 4
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
+    chunksize = int(max_samples / metadata['n_channels'])
+    n_whole_chunks = int(n_samples / chunksize)
+    n_remaining = n_samples - (chunksize * n_whole_chunks)
+    lfp_samples = np.ceil(chunksize/downsample_factor) * n_whole_chunks + np.ceil(n_remaining/downsample_factor)
+    print("lfp chunks should be ", np.ceil(chunksize/downsample_factor))
+    print("last chunk should be ", np.ceil(n_remaining/downsample_factor))
+    print("total samples: ", lfp_samples)
+
+    # Create an hdf dataset
+    hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
+    dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+
+    # Filter broadband data into LFP directly into the hdf file
+    n_lfp_samples = 0
+    for broadband_chunk in load_ecube_data_chunked(ecube_filepath, 'Headstages', chunksize=chunksize):
+        lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+        chunk_len = lfp_chunk.shape[0]
+        dset[n_lfp_samples:n_lfp_samples+chunk_len,:] = lfp_chunk
+        n_lfp_samples += chunk_len
+        
+    if mean_subtract:
+        dset -= np.mean(dset, axis=0, dtype=dtype) # hopefully this isn't constrained by memory
+    hdf.close()
+
+    # Append the lfp metadata to the file
+    lfp_metadata = metadata
+    lfp_metadata['lfp_samplerate'] = lfp_samplerate # for backwards compatibility
+    lfp_metadata['samplerate'] = lfp_samplerate
+    lfp_metadata['n_samples'] = lfp_samples
+    lfp_metadata.update(filter_kwargs)
+    
+    return dset, lfp_metadata
 
 def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
@@ -832,6 +978,27 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
             raise ValueError(f"Target index {target_indices[i]} not found")
     return np.round(locations,4)
 
+def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
+    '''
+    For continuous tracking tasks, get the set of frequencies (in Hz) used to 
+    generate the trajectories that were preesented on each trial of the experiment, 
+    using :func:`~aopy.preproc.bmi3d.get_ref_dis_frequencies`. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+
+    Returns:
+        tuple: Tuple containing:
+            | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
+            | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
+    '''
+    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+    return freq_r, freq_d
+
 def get_source_files(preproc_dir, subject, te_id, date):
     '''
     Retrieves the dictionary of source files from a preprocessed file
@@ -852,7 +1019,7 @@ def get_source_files(preproc_dir, subject, te_id, date):
 
 def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
                            trial_end_codes, reward_codes, penalty_codes, metadata=[],
-                           df=None, event_code_type='code'):
+                           df=None, event_code_type='code', return_bad_entries=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of 
     subjects, task entry ids, and dates. Each list must be the same length. Trials 
@@ -871,18 +1038,21 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
         event_code_type (str, optional): type of event codes to use. Defaults to 'code'. Other
             choices include 'event' and 'data'.
+        return_bad_entries (bool, optional): If True, returns the list of task entries that could 
+            not be loaded. Defaults to False.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
+            | **date (str):** date of recording
             | **event_codes (ntrial):** numeric code segments for each trial (specified by `event_code_type`)
             | **event_times (ntrial):** time segments for each trial
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
             | **penalty (ntrial):** boolean values indicating whether each trial was penalized
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
     '''
+    bad_entries = []
     if df is None:
         df = pd.DataFrame()
 
@@ -895,6 +1065,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         except:
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
+            bad_entries.append([subject,date,te])
             continue
         event_codes = exp_data['events'][event_code_type]
         event_times = exp_data['events']['timestamp']
@@ -926,7 +1097,10 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         # Concatenate with existing dataframes
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
     
-    return df
+    if return_bad_entries:
+        return df, bad_entries
+    else:
+        return df
 
 def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[], 
                                       df=None):
@@ -947,7 +1121,7 @@ def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[],
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
+            | **date (str):** date of recording
             | **event_names (ntrial):** event name segments for each trial
             | **event_times (ntrial):** time segments for each trial
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
@@ -992,7 +1166,6 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     Wrapper around tabulate_behavior_data() specifically for center-out experiments. 
     Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
     assign event codes for trial start, trial end, reward, penalty, and targets. 
-    Trial start can optionally include the center target.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -1006,7 +1179,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
             | **subject (str):** subject name
             | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
+            | **date (str):** date of recording
             | **event_codes (ntrial):** numeric code segments for each trial
             | **event_times (ntrial):** time segments for each trial
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
@@ -1093,6 +1266,117 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
         if new_df.loc[i, 'reach_completed']:
             new_df.loc[i, 'reach_end_time'] = reach_times[0][-1]
+
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+
+def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, metadata=[], df=None):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for tracking task experiments. 
+    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
+    assign event codes for trial start, trial end, reward, penalty.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **sequence_params (ntrial):** string of params used to generate all trajectories in the same task entry
+            | **ref_freqs (ntrial):** array of frequencies used to generate reference trajectory for each trial
+            | **dis_freqs (ntrial):** array of frequencies used to generate disturbance trajectory for each trial
+            | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated (i.e. hold was attempted)
+            | **hold_start_time (ntrial):** time at which the hold period started
+            | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
+            | **tracking_start_time (ntrial):** time at which the hold period ended and tracking started
+            | **tracking_end_time (ntrial):** time at which tracking ended (whether with a reward or tracking out penalty)
+            | **trajectory_start_time (ntrial):** time at which the ref & dis trajectories started (excluding the ramp up period)
+            | **trajectory_end_time (ntrial):** time at which the ref & dis trajectories ended (excluding the ramp down period if the trial was rewarded)
+    '''
+    # Use default "trial" definition
+    task_codes = load_bmi3d_task_codes()
+    trial_start_codes = [task_codes['CENTER_TARGET_ON']]
+    trial_end_codes = [task_codes['TRIAL_END']]
+    reward_codes = [task_codes['REWARD']]
+    penalty_codes = [task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    
+    # Concatenate base trial data
+    if 'sequence_params' not in metadata:
+        metadata.append('sequence_params')
+    new_df, bad_entries = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata, df=None, return_bad_entries=True)
+    
+    # Add frequency content of reference & disturbance trajectories
+    ref_freqs = []
+    dis_freqs = []
+    for s, te, d in zip(subjects, ids, dates):
+        if [s,d,te] in bad_entries:
+            continue
+        r, d = get_trajectory_frequencies(preproc_dir, s, te, d)
+        ref_freqs.extend(r)
+        dis_freqs.extend(d)
+    new_df['ref_freqs'] = ref_freqs
+    new_df['dis_freqs'] = dis_freqs
+    
+    # Add trial segment timing
+    new_df['trial_initiated'] = np.zeros(len(new_df), dtype='bool')
+    new_df['hold_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
+    new_df['tracking_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['tracking_end_time'] = np.nan*np.zeros(len(new_df))
+    new_df['trajectory_start_time'] = np.nan*np.zeros(len(new_df))
+    new_df['trajectory_end_time'] = np.nan*np.zeros(len(new_df))
+    ramp = [
+        json.loads(params)['ramp']
+        if 'ramp' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    ramp_down = [
+        json.loads(params)['ramp_down']
+        if 'ramp_down' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    for i in range(len(new_df)):
+        event_codes = new_df.iloc[i]['event_codes']
+        event_times = new_df.iloc[i]['event_times']
+
+        # Trial initiated when hold begins
+        _, initiation_times = get_trial_segments(event_codes, event_times,
+                                            [task_codes['CENTER_TARGET_ON']], [task_codes['TRIAL_START']])
+        new_df.loc[i,'trial_initiated'] = len(initiation_times) > 0 # if False, TIMEOUT_PENALTY
+        if new_df.loc[i,'trial_initiated']:
+            new_df.loc[i,'hold_start_time'] = initiation_times[0][-1]
+
+        # Hold completed when tracking begins (first time cursor enters target)
+        tracking_events, tracking_times = get_trial_segments_and_times(event_codes, event_times,
+                                            [task_codes['TRIAL_START']], [task_codes['REWARD'],task_codes['OTHER_PENALTY']])
+        new_df.loc[i,'hold_completed'] = len(tracking_times) > 0 # if False, HOLD_PENALTY
+        if new_df.loc[i,'hold_completed']:
+            new_df.loc[i,'tracking_start_time'] = tracking_times[0][1] # TRIAL_START, CURSOR_ENTER_TARGET ... REWARD/OTHER_PENALTY
+            new_df.loc[i,'tracking_end_time'] = tracking_times[0][-1]
+
+            # Trajectory excludes ramp period at beginning of tracking (regardless of tracking success)
+            new_df.loc[i,'trajectory_start_time'] = new_df.loc[i,'tracking_start_time']+ramp[i]
+            new_df.loc[i,'trajectory_end_time'] = new_df.loc[i,'tracking_end_time']
+
+            # If tracking successful, trajectory excludes ramp period at end of tracking
+            if new_df.loc[i,'reward']:
+                new_df.loc[i,'trajectory_end_time'] = new_df.loc[i,'tracking_end_time']-ramp_down[i]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
