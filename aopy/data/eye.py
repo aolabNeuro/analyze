@@ -5,26 +5,6 @@ import numpy as np
 from .base import get_preprocessed_filename, load_preproc_eye_data, save_hdf, find_preproc_ids_from_day
 from ..postproc import get_calibrated_eye_data
 
-def apply_eye_calibration(coeff, preproc_dir, subject, te_id, date):
-    '''
-    Apply eye calibration coefficients to a given preprocessed file.
-    
-    Args:
-        coeff ((nch,2) array): correlation coefficients to apply
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-    '''
-    eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
-    eye_data['calibrated_data'] = get_calibrated_eye_data(eye_data['raw_data'], coeff)
-    eye_data['coefficients'] = coeff
-    eye_metadata['external_calibration'] = True
-    preproc_file = get_preprocessed_filename(subject, te_id, date, 'eye')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
-    save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
-
 def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False):
     '''
     Finds files from the given subject and date with the best eye calibration and automatically 
@@ -67,6 +47,8 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
             best_id = te_id
             best_coeff = eye_data['coefficients']
             best_correlation = correlation
+            best_version = eye_metadata.get('calibration_version', 'unknown')
+            best_date = eye_metadata.get('calibration_date', '2000-01-01')
     
     if best_correlation < correlation_min:
         raise ValueError(f"Could not find calibrated eye data with correlation > {correlation_min}"
@@ -80,5 +62,16 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
         return best_id, te_ids
 
     for te_id in te_ids:
-        apply_eye_calibration(best_coeff, preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        eye_data['calibrated_data'] = get_calibrated_eye_data(eye_data['raw_data'], best_coeff)
+        eye_data['coefficients'] = best_coeff
+        eye_metadata['external_calibration'] = True
+        eye_metadata['external_calibration_id'] = best_id
+        eye_metadata['calibration_version'] = best_version
+        eye_metadata['calibration_date'] = best_date
+        preproc_file = get_preprocessed_filename(subject, te_id, date, 'eye')
+        preproc_dir = os.path.join(preproc_dir, subject)
+        save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
+        save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
+
     return best_id, te_ids
