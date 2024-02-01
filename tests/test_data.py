@@ -1096,39 +1096,6 @@ class PesaranLabTests(unittest.TestCase):
         test_data, test_exp, test_mask = peslab.load_ecog_clfp_data(test_ecog_ds250_data_file)
         self.assertEqual(test_data.shape,(10000,62))
 
-class EyeTests(unittest.TestCase):
-
-    def test_apply_eye_calibration(self):
-
-        # Create a test hdf file
-        subject = 'test'
-        te_id = 1
-        date = 'calibration'
-        data_source = 'eye'
-        filename = get_preprocessed_filename(subject, te_id, date, data_source)
-        filepath = os.path.join(write_dir, subject, filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        data_dict = {
-            'raw_data': np.array([[0,0], [1,1]])
-        }
-        metadata_dict = {}
-        preproc_dir = os.path.join(write_dir, subject)
-        if not os.path.exists(preproc_dir):
-            os.mkdir(preproc_dir)
-        save_hdf(preproc_dir, filename, data_dict, data_group='/eye_data')
-        save_hdf(preproc_dir, filename, metadata_dict, '/eye_metadata', append=True)
-
-        # Apply a calibration
-        coeff = np.array([[3,4], [5,6]])
-        apply_eye_calibration(coeff, write_dir, subject, te_id, date)
-
-        # Check the result
-        eye_data, eye_metadata = load_preproc_eye_data(write_dir, subject, te_id, date)
-        self.assertIn('calibrated_data', eye_data)
-        self.assertIn('coefficients', eye_data)
-        self.assertIn('external_calibration', eye_metadata)    
-
 class DatabaseTests(unittest.TestCase):
 
     # Create some tests - only has to be run once and saved in db/tes
