@@ -26,13 +26,13 @@ install_requires = [
     'pyyaml',
     'tqdm',
     'open-ephys-python-tools',
-    'aolab-bmi3d',
+    'aolab-bmi3d<1.0.0',
     'sympy'
 ]
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.6.6",
+    version="0.7.0",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

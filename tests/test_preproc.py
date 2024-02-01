@@ -682,7 +682,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(metadata['sync_protocol_version'], 2)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
-        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1042)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
         self.assertTrue(metadata['has_measured_timestamps'])
         self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
@@ -708,7 +708,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(metadata['sync_protocol_version'], 4)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
-        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1754)
         self.assertEqual(len(data['measure_clock_online']), 1682)
         self.assertTrue(metadata['has_measured_timestamps'])
         self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
@@ -1074,7 +1074,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertNotIn('qwalor_trigger_dch', exp_metadata.keys())
         self.assertNotIn('laser_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(
             preproc_dir, subject, te_id, date, laser_trigger='laser_trigger', 
             laser_sensor='laser_sensor', debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
@@ -1148,7 +1148,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('qwalor_trigger_dch', exp_metadata.keys())
         self.assertIn('qwalor_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
 
         print(trial_powers)
@@ -1204,7 +1204,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('qwalor_ch2_trigger_dch', exp_metadata.keys())
         self.assertIn('qwalor_ch2_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(
             preproc_dir, subject, te_id, date, laser_trigger='qwalor_ch2_trigger', 
             laser_sensor='qwalor_ch2_sensor', debug=True
         )
@@ -1255,7 +1255,21 @@ class TestPrepareExperiment(unittest.TestCase):
         plt.plot(freq_d, 'tab:red', linestyle='--')
         plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
         filename = 'get_ref_dis_freqs_churro.png'
-        visualization.savefig(docs_dir, filename)       
+        visualization.savefig(docs_dir, filename)
+
+        subject = 'beignet'
+        te_id = '8380'
+        date = '2023-02-13'
+
+        data, metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
+
+        plt.figure()
+        plt.plot(freq_r, 'darkorange')
+        plt.plot(freq_d, 'tab:red', linestyle='--')
+        plt.xlabel('Trial #'); plt.ylabel('Frequency (Hz)')
+        filename = 'get_ref_dis_freqs_before_gen_idx_saved.png'
+        visualization.savefig(docs_dir, filename) 
 
 class ProcTests(unittest.TestCase):
 
@@ -1612,5 +1626,22 @@ class NeuropixelTests(unittest.TestCase):
         self.assertTrue(np.all(spike_indices_unit['0']>0))
         self.assertTrue(np.all(spike_indices_unit['1']>0))
             
+class LaserTests(unittest.TestCase):
+
+    def test_calibrate_gain(self):
+        gain = np.arange(0.4,1.0,0.01)
+        powers = preproc.laser.calibrate_gain(gain, 12.)
+        plt.figure()
+        plt.plot(gain, powers)
+        plt.xlabel('gain')
+        plt.ylabel('power (mW)')
+
+        visualization.savefig(docs_dir, 'calibrate_laser_gain.png')
+        
+    def test_calibrate_sensor(self):
+        voltage = [0.12, 0.08, 0.14]
+        powers = preproc.laser.calibrate_sensor(voltage, 12.)
+        np.testing.assert_allclose(powers, [8.57,  5.07, 10.32], atol=1e-2)
+
 if __name__ == "__main__":
     unittest.main()

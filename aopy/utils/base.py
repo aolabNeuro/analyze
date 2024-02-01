@@ -134,7 +134,7 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     minval = np.min(analog_data)
     maxval = np.max(analog_data)
 
-    analog_data_scaled = (analog_data - minval)/maxval
+    analog_data_scaled = (analog_data - minval)/(maxval - minval)
 
     # Initialize digital_data
     digital_data = np.zeros(analog_data_scaled.shape, dtype='bool') # Default to zero
