@@ -348,6 +348,7 @@ def calc_freq_domain_values(data, samplerate):
     '''
     Use FFT to decompose time series data into frequency domain and return
     non-negative frequency components
+    For math details, see: https://www.sjsu.edu/people/burford.furman/docs/me120/FFT_tutorial_NI.pdf
 
     Args:
         data (nt, nch): timeseries data, can be a single channel vector
