@@ -1360,7 +1360,7 @@ def interp_nans(x):
     return x
 
 def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
-                dtype='float64', workers=None):
+                  return_angle=False, dtype='float64', workers=None):
     '''
     Computes moving window time-frequency coherence averaged across trials between selected channels.
     This is loosely based on pesaran lab code, modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
@@ -1402,6 +1402,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
             Default is False.
         imaginary (bool, optional): if True, compute imaginary coherence.
+        return_angle (bool, optional): if True, also return the phase difference between 
+            the two channels. Default False.
         dtype (str, optional): dtype of the output. Default 'float64'
         workers (int, optional): Number of workers argument to pass to scipy.fft.fft. 
             Default None. 
@@ -1411,6 +1413,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             | **f (n_freq):** frequency axis
             | **t (n_time):** time axis
             | **coh (n_freq,n_time):** magnitude squared coherence or imaginary coherence (0 <= coh <= 1)
+            | **angle (n_freq,n_time):** phase difference between the two channels in radians 
+                (optional output, -pi <= angle <= pi)
 
     See also: 
         :func:`~aopy.analysis.calc_mt_tfr`
@@ -1445,6 +1449,12 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             freq = 400.0
             signal1[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
             signal2[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
+                    
+            # Add a 200 hz sine wave to both signals but with phase modulated by a 0.05 hz sine wave
+            freq = 200.0
+            freq2 = 0.05
+            signal1 += amp*np.sin(2*np.pi*freq*time)
+            signal2 += amp*np.sin(2*np.pi*freq*time + np.pi*np.sin(2*np.pi*freq2*time))
 
         Calculate coherence, imaginary coherence, and compared to `scipy.signal.coherence()`
 
@@ -1466,8 +1476,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             # And coherence
             f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                                 ref=False)
-            f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
-                                                                ref=False, imaginary=True)
+            f, t, coh_im, angle = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                                ref=False, imaginary=True, return_angle=True)
             f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=2048, noverlap=0, axis=0)
 
         Plot coherence
@@ -1475,26 +1485,24 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         .. code-block:: python
 
             # Plot the coherence over time
-            plt.figure(figsize=(10, 12))
-            plt.subplot(4, 1, 1)
+            plt.figure(figsize=(10, 15))
+            plt.subplot(5, 1, 1)
             im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
             plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
             im.set_clim(0,3)
 
-            plt.subplot(4, 1, 2)
+            plt.subplot(5, 1, 2)
             im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
             plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
             im.set_clim(0,3)
 
-            plt.subplot(4, 1, 3)
+            plt.subplot(5, 1, 3)
             im = aopy.visualization.plot_tfr(coh, t, f)
             plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
             im.set_clim(0,1)
 
             # Plot the average coherence across windows
-            # Note: scipy uses welch's method, so its coherence is based on the average cross-spectral
-            # density of the two signals, rather than here the instantaneous cross-spectral density.
-            plt.subplot(2, 1, 2)
+            plt.subplot(5, 1, 4)
             plt.plot(f, np.mean(coh, axis=1))
             plt.plot(f, np.mean(coh_im, axis=1))
             plt.plot(f_scipy, coh_scipy)
@@ -1502,6 +1510,12 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('Coherency')
             plt.legend(['coh', 'imag coh', 'scipy'])
+
+            # Also plot the phase difference
+            plt.subplot(5, 1, 5)
+            im = aopy.visualization.plot_tfr(angle, t, f, cmap='bwr')
+            plt.colorbar(im, orientation='horizontal', location='top', label='Phase difference (rad)')
+            im.set_clim(-np.pi,np.pi)
 
         .. image:: _images/coherency.png
     '''
@@ -1532,6 +1546,7 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
     ch2 = ch[1]
         
     coh = np.zeros((nwin,int(nfk[1]-nfk[0])), dtype=dtype)
+    angle = np.zeros((nwin,int(nfk[1]-nfk[0])), dtype=dtype)
     for win in range(nwin):
         if ref:
             mX = np.mean(data[dn*win:dn*win+win_size], axis=1, keepdims=True) # Mean across channels for that window
@@ -1563,10 +1578,17 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         else:
             coh[win,:] = np.abs(S12/np.sqrt(S1*S2))**2
             
+        # Phase difference angle
+        angle[win,:] = np.angle(S12)
+
     coh = coh.T
+    angle = angle.T
     t = np.arange(nwin)*step + n/2 # Center of each window is time axis
     
-    return f, t, coh
+    if return_angle:
+        return f, t, coh, angle
+    else:
+        return f, t, coh
 
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''

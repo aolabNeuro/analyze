@@ -1288,6 +1288,12 @@ class SpectrumTests(unittest.TestCase):
         signal1[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
         signal2[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
 
+        # Add a 200 hz sine wave to both signals but with phase modulated by a 0.05 hz sine wave
+        freq = 200.0
+        freq2 = 0.05
+        signal1 += amp*np.sin(2*np.pi*freq*time)
+        signal2 += amp*np.sin(2*np.pi*freq*time + np.pi*np.sin(2*np.pi*freq2*time))
+
         # Calculate mt coh
         n = 1
         w = 2
@@ -1307,31 +1313,31 @@ class SpectrumTests(unittest.TestCase):
         # Calculate coherence
         f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                               ref=False)
-        f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
-                                                              ref=False, imaginary=True)
+        f, t, coh_im, angle = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                              ref=False, imaginary=True, return_angle=True)
         
         # Calculate coherency from scipy
         f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=fs*n, noverlap=0, axis=0)
 
         # Plot the coherence over time
-        plt.figure(figsize=(10, 12))
-        plt.subplot(4, 1, 1)
+        plt.figure(figsize=(10, 15))
+        plt.subplot(5, 1, 1)
         im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
         im.set_clim(0,3)
 
-        plt.subplot(4, 1, 2)
+        plt.subplot(5, 1, 2)
         im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
         im.set_clim(0,3)
 
-        plt.subplot(4, 1, 3)
+        plt.subplot(5, 1, 3)
         im = aopy.visualization.plot_tfr(coh, t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
         im.set_clim(0,1)
 
         # Plot the average coherence across windows
-        plt.subplot(4, 1, 4)
+        plt.subplot(5, 1, 4)
         plt.plot(f, np.mean(coh, axis=1))
         plt.plot(f, np.mean(coh_im, axis=1))
         plt.plot(f_scipy, coh_scipy)
@@ -1339,6 +1345,12 @@ class SpectrumTests(unittest.TestCase):
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Coherency')
         plt.legend(['coh', 'imag coh', 'scipy'])
+
+        # Also plot the phase difference
+        plt.subplot(5, 1, 5)
+        im = aopy.visualization.plot_tfr(angle, t, f, cmap='bwr')
+        plt.colorbar(im, orientation='horizontal', location='top', label='Phase difference (rad)')
+        im.set_clim(-np.pi,np.pi)
 
         plt.tight_layout()
         figname = 'coherency.png'
