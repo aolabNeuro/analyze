@@ -54,6 +54,7 @@ def parse_oculomatic(data_dir, files, samplerate=1000, max_memory_gb=1.0, debug=
         eye_channels = [10, 11, 8, 9]
         if debug: print(f'No metadata from BMI3D, assuming eye channels {eye_channels} ')
         
+    eye_metadata['source'] = 'oculomatic voltage output'
     eye_metadata['n_channels'] = len(eye_channels)
     eye_metadata['channels'] = eye_channels
     eye_metadata['labels']  = ['left_eye_x', 'left_eye_y', 'right_eye_x', 'right_eye_y']
