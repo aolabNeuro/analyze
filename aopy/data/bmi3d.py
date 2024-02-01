@@ -1422,10 +1422,10 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
         dates (list of str): Date for each recording
         metadata (list, optional): list of metadata keys that should be included in the df. By default,
             only `stimulation_site` is included.
-        debug (bool, optional): Passed to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`, if True prints
+        debug (bool, optional): Passed to :func:`~aopy.preproc.laser.find_stim_times`, if True prints
             an laser sensor alignment plot for each trial. Defaults to True.
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`
+        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.laser.find_stim_times`
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
@@ -1436,10 +1436,8 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **trial_time (float):** time of stimulation within recording
             | **trial_width (float):** width of stimulation pulse
-            | **trial_power (float):** gain of stimulation pulse
-            | **trial_found (bool):** whether an analog laser signal was recorded on this trial
-            | **width_above_thr (bool):** if the width of the analog signal was above the cutoff
-            | **power_above_thr (bool):** if the gain of the analog signal was above the cutoff
+            | **trial_gain (float):** fraction of maximum laser power setting
+            | **trial_power (float):** power (in mW) of stimulation pulse at the fiber output
 
     Note:
         Only supports single-site stimulation.
@@ -1460,8 +1458,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
         # Find laser trial times 
         try:
-            (trial_times, trial_widths, trial_powers, times_not_found, widths_above_thr, 
-             powers_above_thr) = preproc.bmi3d.get_laser_trial_times(
+            trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
                 preproc_dir, subject, te, date, debug=debug, **kwargs)
         except:
             print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
@@ -1475,10 +1472,8 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             'date': date, 
             'trial_time': trial_times,
             'trial_width': trial_widths, 
+            'trial_gain': trial_gains,
             'trial_power': trial_powers,
-            'trial_found': ~times_not_found,
-            'width_above_thr': widths_above_thr,
-            'power_above_thr': powers_above_thr,
         }
 
         # Add requested metadata
@@ -1488,25 +1483,6 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             else:
                 exp[key] = None
                 print(f"Entry {subject} {date} {te} does not have metadata {key}.")
-
-        # Convert power to units of watts
-        if not isinstance(date, datetime.date):
-            date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-        if 'qwalor_peak_watts' in exp_metadata:
-            peak_watts = exp_metadata['qwalor_peak_watts']
-        if date < datetime.datetime(2022,5,31).date():
-            if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
-                peak_watts = 1.5
-            else:
-                peak_watts = 20
-        elif date < datetime.datetime(2022,9,30).date():
-            peak_watts = 1.5
-        elif date < datetime.datetime(2023,1,23).date():
-            peak_watts = 20
-        else:
-            peak_watts = 25
-        exp['peak_power_watts'] = peak_watts
-        exp['trial_power_watts'] = [p*peak_watts for p in trial_powers]
 
         # Concatenate with existing dataframe
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
