@@ -363,9 +363,9 @@ def calc_freq_domain_values(data, samplerate):
         data = np.expand_dims(data, 1)
 
     # Compute FFT along time dimension
+    freq_data = np.fft.fft(data, axis=0)
     length = np.shape(freq_data)[0]
     freq = np.fft.fftfreq(length, d=1./samplerate)
-    freq_data = np.fft.fft(data, axis=0)
 
     # Only take non-negative frequency components
     non_negative_freq = freq[freq>=0]
