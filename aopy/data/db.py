@@ -445,7 +445,9 @@ class BMI3DTaskEntry():
 
 class BMI3DDecoder():
     '''
-    Wrapper for BMI3D Decoder objects
+    Wrapper for BMI3D Decoder objects. Written like this 
+    so that other database types can implement their own decoder classes with
+    the same methods without needing to modfiy their database model.
     '''
     
     def __init__(self, decoder, dbname='default'):
@@ -459,7 +461,10 @@ class BMI3DDecoder():
         self.dbname = dbname
         self.record = decoder
         self.id = self.record.id
-        self.parent = lookup_sessions(id=decoder.entry_id)[0]
+        if decoder.entry_id is not None:
+            self.parent = lookup_sessions(id=decoder.entry_id)[0]
+        else:
+            self.parent = None
         self.project = self.parent.project
         self.session = self.parent.session
         self.name = self.record.name
@@ -471,7 +476,10 @@ class BMI3DDecoder():
         Returns:
             str: repr
         '''
-        return f"Decoder[{self.id}:{self.name}] trained from {repr(self.parent)}"
+        if self.parent is None:
+            return f"Decoder[{self.id}:{self.name}]"
+        else:
+            return f"Decoder[{self.id}:{self.name}] trained from {repr(self.parent)}"
     
     def __str__(self):
         '''
