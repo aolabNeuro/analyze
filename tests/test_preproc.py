@@ -603,6 +603,21 @@ class EventFilterTests(unittest.TestCase):
 
         np.testing.assert_allclose(expected_coeff, coeff)
         np.testing.assert_allclose(expected_corr_coeff, corr_coeff)
+        
+    def test_calc_eye_target_calibration(self):
+        eye_data = np.array([[0, 1, 2, 3, 4, 5, 6, 7], [3, 4, 5 ,6 ,7, 8, 9, 10]]).T
+        eye_samplerate = 1
+        event_times = [2, 3, 4, 5]
+        event_codes = [0, 1, 0, 1]
+        target_pos_test = np.array([[2,5,0],[4,7,0]])
+        coeff, corr_coeff = calc_eye_target_calibration(eye_data, eye_samplerate, 
+            event_times, event_codes, target_pos_test, align_events=[0], trial_end_events=[1], duration=0)
+
+        expected_coeff = [[1., 0.], [1., 0.]]
+        expected_corr_coeff = [1., 1.]
+
+        np.testing.assert_allclose(expected_coeff, coeff)
+        np.testing.assert_allclose(expected_corr_coeff, corr_coeff)
 
 class TestPrepareExperiment(unittest.TestCase):
 

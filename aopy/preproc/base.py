@@ -759,7 +759,7 @@ def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_cod
     """
 
     # Get the corresponding cursor and eye data
-    _, trial_times= aopy.postproc.get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
     if len(trial_times) == 0:
         raise ValueError("Not enough trials to calibrate")
     align_times = trial_times[:,0] + offset
@@ -780,7 +780,6 @@ def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_cod
     else:
         target_pos = target_pos[:,:2]
 
-    print(target_pos.shape, eye_data_aligned.shape)
     slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, target_pos)
     coeff = np.vstack((slopes, intercepts)).T
     
