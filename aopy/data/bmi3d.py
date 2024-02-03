@@ -687,7 +687,7 @@ def get_velocity_segments(*args, norm=True, **kwargs):
 @lru_cache(maxsize=1)
 def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor'):
     '''
-    Return all kinds of kinematics from preprocessed data
+    Return all kinds of kinematics from preprocessed data. Caches the data for faster loading.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -939,7 +939,7 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, trigger_time, time_be
     preproc_dir = os.path.join(preproc_dir, subject)
 
     try:
-        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
         data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
                                     samplerate, trigger_time, time_before, time_after)
     except FileNotFoundError as e:
