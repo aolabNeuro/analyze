@@ -732,3 +732,59 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
         return coeff, correlation_coeff, cursor_data_aligned, eye_data_aligned
     else:
         return coeff, correlation_coeff
+
+def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_codes, target_pos,
+    align_events=range(81,89), trial_end_events=[239], offset=0., duration=0.1, return_datapoints=False):
+    """
+    Extracts eye data and calibrates, aligning eye data and calculating the least square fitting coefficients 
+    between eye positions and target positions
+    
+    Args:
+        eye_data (nt, 2 or 4): eye data in time (optionally for both left and right eyes)
+        eye_samplerate (float): sampling rate of the eye data
+        event_times (nevent): times at which events occur
+        event_codes (nevent): codes for each event
+        target_pos (nevent, 3): target positions (x,y,z) for each event
+        align_events (list, optional): list of event codes to use for alignment. By default, align to
+            when the cursor enters 8 peripheral targets
+        trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
+        offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
+        duration (float, optional): duration (in seconds) to average eye trajectories in the interval from the given events 
+        return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
+
+    Returns:
+        tuple: tuple containing:
+            | **coefficients (neyech, 2):** coefficients [slope, intercept] for each eye channel
+            | **correlation_coeff (neyech):** correlation coefficients for each eye channel
+    """
+
+    # Get the corresponding cursor and eye data
+    _, trial_times= aopy.postproc.get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    if len(trial_times) == 0:
+        raise ValueError("Not enough trials to calibrate")
+    align_times = trial_times[:,0] + offset
+    start_time  = (align_times * eye_samplerate).astype(int)
+    end_time =  ((align_times + duration) * eye_samplerate).astype(int)
+    if duration > 0:
+        eye_data_aligned = np.array([np.nanmean(eye_data[start:end,:],axis=0) for start, end in zip(start_time,end_time)])
+    else:
+        eye_data_aligned = eye_data[start_time,:]
+        valid_indexes = ~np.isnan(start_time)
+        start_time = start_time[valid_indexes].astype(int)
+        eye_data_aligned = eye_data[start_time,:]
+        target_pos = target_pos[valid_indexes,:]
+        
+    # Calibrate the eye data
+    if eye_data_aligned.shape[1] == 4:
+        target_pos = np.tile(target_pos[:,:2], (1, 2)) # for two eyes
+    else:
+        target_pos = target_pos[:,:2]
+
+    print(target_pos.shape, eye_data_aligned.shape)
+    slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, target_pos)
+    coeff = np.vstack((slopes, intercepts)).T
+    
+    if return_datapoints:
+        return coeff, correlation_coeff, eye_data_aligned
+    else:
+        return coeff, correlation_coeff
