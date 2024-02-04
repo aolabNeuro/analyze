@@ -693,7 +693,7 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
             when the cursor enters 8 peripheral targets
         penalty_events (list, optional): list of penalty event codes to exclude. By default,
             events followed by hold penalties are excluded
-        offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
+        offset (float, optional): time (in seconds) to offset from the given events. Positive offset yields later eye data
         return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
 
     Returns:
