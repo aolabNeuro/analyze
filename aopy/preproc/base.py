@@ -697,7 +697,7 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
         align_events (list, optional): list of event codes to use for alignment. By default, align to
             when the cursor enters 8 peripheral targets
         trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
-        offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
+        offset (float, optional): time (in seconds) to offset from the given events. Positive offset yields later eye data
         return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
 
     Returns:
@@ -734,7 +734,7 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
         return coeff, correlation_coeff
 
 def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_codes, target_pos,
-    align_events=range(81,89), trial_end_events=[239], offset=0., duration=0.1, return_datapoints=False):
+    align_events=range(81,89), penalty_events=[64], cursor_enter_center_target=80, offset=0., duration=0.1, return_datapoints=False):
     """
     Extracts eye data and calibrates, aligning eye data and calculating the least square fitting coefficients 
     between eye positions and target positions
@@ -744,12 +744,14 @@ def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_cod
         eye_samplerate (float): sampling rate of the eye data
         event_times (nevent): times at which events occur
         event_codes (nevent): codes for each event
-        target_pos (nevent, 3): target positions (x,y,z) for each event
+        target_pos (ntarget, 3): N target positions (x,y,z)
         align_events (list, optional): list of event codes to use for alignment. By default, align to
             when the cursor enters 8 peripheral targets
-        trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
-        offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
-        duration (float, optional): duration (in seconds) to average eye trajectories in the interval from the given events 
+        penalty_events (list, optional): list of penalty event codes to exclude. By default,
+            events followed by hold penalties are excluded
+        cursor_enter_center_target (int, optional): event code for cursor_enter_center_target
+        offset (float, optional): time (in seconds) to offset from the given events. Positive offset yields later eye data
+        duration (float, optional): duration (in seconds) to average eye trajectories in the interval from the given events + offset
         return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
 
     Returns:
@@ -759,28 +761,31 @@ def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_cod
     """
 
     # Get the corresponding cursor and eye data
-    _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    trial_events, trial_times= trial_separate(event_codes, event_times, align_events, n_events=2)
     if len(trial_times) == 0:
         raise ValueError("Not enough trials to calibrate")
-    align_times = trial_times[:,0] + offset
+    exclude_trials = np.array([(t[-1] in penalty_events) for t in trial_events], dtype='bool')
+    align_times = trial_times[~exclude_trials,0] + offset
+    
     start_time  = (align_times * eye_samplerate).astype(int)
     end_time =  ((align_times + duration) * eye_samplerate).astype(int)
-    if duration > 0:
-        eye_data_aligned = np.array([np.nanmean(eye_data[start:end,:],axis=0) for start, end in zip(start_time,end_time)])
-    else:
-        eye_data_aligned = eye_data[start_time,:]
-        valid_indexes = ~np.isnan(start_time)
-        start_time = start_time[valid_indexes].astype(int)
-        eye_data_aligned = eye_data[start_time,:]
-        target_pos = target_pos[valid_indexes,:]
+    eye_data_aligned = np.array([np.nanmean(eye_data[start:end,:],axis=0) for start, end in zip(start_time,end_time)])
         
+    # Get target position for every trial
+    target_index = np.array([event[0] - cursor_enter_center_target for event in trial_events])
+    target_index = target_index[~exclude_trials]
+    
+    target_pos_trial = np.nan*np.zeros((len(target_index), 2))
+    for itrial in range(len(target_index)):
+        target_pos_trial[itrial,:] = target_pos[target_index[itrial]-1,:2]
+    
     # Calibrate the eye data
     if eye_data_aligned.shape[1] == 4:
-        target_pos = np.tile(target_pos[:,:2], (1, 2)) # for two eyes
+        target_pos_trial = np.tile(target_pos_trial, (1, 2)) # for two eyes
     else:
-        target_pos = target_pos[:,:2]
+        target_pos_trial = target_pos_trial
 
-    slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, target_pos)
+    slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, target_pos_trial)
     coeff = np.vstack((slopes, intercepts)).T
     
     if return_datapoints:
