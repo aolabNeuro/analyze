@@ -322,7 +322,7 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
     Args:
         events (nt): events vector
         times (nt): times vector
-        evt_start (int or str): event marking the start of a trial
+        evt_start (int or str or list): event or events marking the start of a trial
         n_events (int): number of events in a trial
         nevent_offset (int): number of events before the start event to offset event alignment by. For example,
             if you wanted to align to "targ" in ["trial", "targ", "reward", "trial", "targ", "error"] but include the preceding "trial"
@@ -335,26 +335,21 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
     '''
 
     # Pad the arrays a bit in case there is an evt_start at the beginning or end
-    if np.issubdtype(events.dtype, np.number):
-        if nevent_offset < 0:
-            events = events.astype('int32')
-            events = np.pad(events, (-nevent_offset, n_events), constant_values=(-1,))
-            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
-        else:
-            events = events.astype('int32')
-            events = np.pad(events, (0, n_events+nevent_offset), constant_values=(-1,))
-            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))
+    if np.issubdtype(np.array(events).dtype, np.number):
+        events = np.array(events).astype('int32')
+        fill_value = -1
     else:
-        if nevent_offset < 0:
-            events = np.pad(events, (-nevent_offset, n_events), constant_values=('',))
-            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
-        else:
-            events = np.pad(events, (0, n_events+nevent_offset), constant_values=('',))
-            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
+        fill_value = ''
+    if nevent_offset < 0:
+        events = np.pad(events, (-nevent_offset, n_events), constant_values=(fill_value,))
+        times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
+    else:
+        events = np.pad(events, (0, n_events+nevent_offset), constant_values=(fill_value,))
+        times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
     
 
     # Find the indices in events that correspond to evt_start 
-    evt_start_idx = np.where(events == evt_start)[0]+nevent_offset
+    evt_start_idx = np.where(np.isin(events, evt_start))[0]+nevent_offset
 
     # Find total number of trials
     num_trials = len(evt_start_idx)
@@ -683,7 +678,7 @@ def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
     return split_events, split_events_combined
 
 def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_times, event_codes,
-    align_events=range(81,89), trial_end_events=[239], offset=0., return_datapoints=False):
+    align_events=range(81,89), penalty_events=[64], offset=0., return_datapoints=False):
     """
     Extracts cursor data and eyedata and calibrates, aligning them and calculating the least square fitting coefficients
     
@@ -696,8 +691,9 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
         event_codes (nevent): codes for each event
         align_events (list, optional): list of event codes to use for alignment. By default, align to
             when the cursor enters 8 peripheral targets
-        trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
-        offset (float, optional): time (in seconds) to offset from the given events. Positive offset yields later eye data
+        penalty_events (list, optional): list of penalty event codes to exclude. By default,
+            events followed by hold penalties are excluded
+        offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
         return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
 
     Returns:
@@ -707,10 +703,11 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
     """
 
     # Get the corresponding cursor and eye data
-    _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    trial_events, trial_times= trial_separate(event_codes, event_times, align_events, n_events=2)
     if len(trial_times) == 0:
         raise ValueError("Not enough trials to calibrate")
-    align_times = trial_times[:,0] + offset
+    exclude_trials = np.array([(t[-1] in penalty_events) for t in trial_events], dtype='bool')
+    align_times = trial_times[~exclude_trials,0] + offset
     sample_cursor_enter_target  = (align_times * cursor_samplerate).astype(int)
     cursor_data_aligned = cursor_data[sample_cursor_enter_target,:]
     sample_eye_enter_target  = (align_times * eye_samplerate).astype(int)

@@ -90,8 +90,7 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
         ids.append(te_id)
     return ids
 
-@lru_cache(maxsize=1)
-def load_preproc_exp_data(preproc_dir, subject, te_id, date):
+def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads experiment data from a preprocessed file.
 
@@ -107,11 +106,11 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date):
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'exp')
     preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_group(preproc_dir, filename, 'exp_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata')
+    data = load_hdf_group(preproc_dir, filename, 'exp_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_eye_data(preproc_dir, subject, te_id, date):
+def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads eye data from a preprocessed file.
 
@@ -127,11 +126,11 @@ def load_preproc_eye_data(preproc_dir, subject, te_id, date):
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'eye')
     preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_group(preproc_dir, filename, 'eye_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata')
+    data = load_hdf_group(preproc_dir, filename, 'eye_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_broadband_data(preproc_dir, subject, te_id, date):
+def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads broadband data from a preprocessed file.
 
@@ -147,11 +146,11 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date):
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'broadband')
     preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_data(preproc_dir, filename, 'broadband_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'broadband_metadata')
+    data = load_hdf_data(preproc_dir, filename, 'broadband_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'broadband_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_lfp_data(preproc_dir, subject, te_id, date):
+def load_preproc_lfp_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads LFP data from a preprocessed file.
 
@@ -167,8 +166,8 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date):
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
     preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_data(preproc_dir, filename, 'lfp_data')
-    metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata')
+    data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
     return data, metadata
 
     
@@ -311,10 +310,28 @@ def _load_hdf_dataset(dataset, name):
         pass
     return name, data
 
-@lru_cache(maxsize=1)
-def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
+def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/", cached=False):
     '''
     Simple wrapper to get the data from an hdf file as a numpy array
+
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+        data_name (str): table to load
+        data_group (str, optional): from which group to load data
+        cached (bool, optional): whether to allow loading cached data or not
+
+    Returns:
+        ndarray: numpy array of data from hdf
+    '''
+    if not cached:
+        _load_hdf_data_cached.cache_clear()
+    return _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group=data_group)
+
+@lru_cache(maxsize=1)
+def _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group="/"):
+    '''
+    Cached version of load_hdf_data
 
     Args:
         data_dir (str): folder where data is located
@@ -334,8 +351,26 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/"):
     hdf.close()
     return np.array(data)
 
+def load_hdf_group(data_dir, hdf_filename, group="/", cached=False):
+    '''
+    Loads any datasets from the given hdf group into a dictionary. Also will
+    recursively load other groups if any exist under the given group
+
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+        group (str, optional): name of the group to load
+        cached (bool, optional): whether to allow loading cached data or not
+    
+    Returns:
+        dict: all the datasets contained in the given group
+    '''
+    if not cached:
+        _load_hdf_group_cached.cache_clear()
+    return _load_hdf_group_cached(data_dir, hdf_filename, group=group)
+
 @lru_cache(maxsize=1)
-def load_hdf_group(data_dir, hdf_filename, group="/"):
+def _load_hdf_group_cached(data_dir, hdf_filename, group="/"):
     '''
     Loads any datasets from the given hdf group into a dictionary. Also will
     recursively load other groups if any exist under the given group
@@ -410,7 +445,6 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
 # Set up a cache mapping filenames to pandas dataframes so we don't have to load the
 # dataframe every time someone calls the lookup functions
 _cached_dataframes = {}
-
 
 def is_table_in_hdf(table_name:str, hdf_filename:str):
     """
