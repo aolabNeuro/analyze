@@ -8,6 +8,34 @@
 
 import numpy as np
 import math as m
+from .base import calc_freq_domain_values
+
+def calc_transfer_function(input, output, samplerate):
+    '''
+    Computes the frequency-domain transformation between time-domain input and ouput signals,
+    at each frequency. Assumes output signals are produced by an LTI system.
+    For math details, see Yamagami et al. IEEE Transactions on Cybernetics (2021).
+    
+    Args:
+        input (ntrial,): array of arrays of (nt, nch) time-domain input signals from each trial 
+        output (ntrial,): array of arrays of (nt, nch) time-domain output signals from each trial
+        samplerate (float): sampling rate of the data
+
+    Returns:
+        freq (nfreq,): 
+        transfer_func (ntrial,): 
+
+    '''    
+    assert len(input) == len(output), "Mismatched signal lengths"
+
+    # Compute FFT of time-domain signals
+    freq, freq_input = calc_freq_domain_values(input, samplerate)
+    _, freq_output = calc_freq_domain_values(output, samplerate)
+
+    # Divide freq-domain output by freq-domain input at each frequency to find transformation
+    transfer_func = np.divide(freq_output, freq_input)
+    return freq, transfer_func
+
 
 def calc_crossover_freq(freqs, M, B):
     '''
