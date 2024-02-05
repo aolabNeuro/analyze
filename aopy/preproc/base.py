@@ -766,6 +766,8 @@ def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_cod
     
     start_time  = (align_times * eye_samplerate).astype(int)
     end_time =  ((align_times + duration) * eye_samplerate).astype(int)
+    if duration == 0.:
+        end_time += 1
     eye_data_aligned = np.array([np.nanmean(eye_data[start:end,:],axis=0) for start, end in zip(start_time,end_time)])
         
     # Get target position for every trial
