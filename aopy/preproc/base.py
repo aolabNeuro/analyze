@@ -741,7 +741,7 @@ def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_cod
         eye_samplerate (float): sampling rate of the eye data
         event_times (nevent): times at which events occur
         event_codes (nevent): codes for each event
-        target_pos (ntarget, 3): N target positions (x,y,z)
+        target_pos (ntarget, 3): N target positions (x,y,z). This should be ordered by their target idx
         align_events (list, optional): list of event codes to use for alignment. By default, align to
             when the cursor enters 8 peripheral targets
         penalty_events (list, optional): list of penalty event codes to exclude. By default,
