@@ -393,7 +393,10 @@ def _prepare_bmi3d_v1(data, metadata):
     metadata['measure_latency_estimate'] = measure_latency_estimate
 
     # Correct the clock
-    cycle_bmi3d = internal_clock['time'].copy()
+    if 'time' in internal_clock.dtype.names:
+        cycle_bmi3d = internal_clock['time'].copy()
+    else:
+        cycle_bmi3d = np.arange(len(internal_clock))
     timestamp_bmi3d = internal_clock['timestamp'].copy()
     corrected_clock = {
         'time': cycle_bmi3d,
