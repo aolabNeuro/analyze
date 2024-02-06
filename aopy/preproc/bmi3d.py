@@ -179,7 +179,8 @@ def _parse_bmi3d_v0(data_dir, files):
     if aodata.is_table_in_hdf('sync_events', bmi3d_hdf_full_filename):
         bmi3d_events, bmi3d_event_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_events') # exists in tablet data
         metadata.update(bmi3d_event_metadata)
-        bmi3d_data['bmi3d_events'] = bmi3d_events
+        if len(bmi3d_events) > 0:
+            bmi3d_data['bmi3d_events'] = bmi3d_events
     if aodata.is_table_in_hdf('clda', bmi3d_hdf_full_filename): 
         bmi3d_clda, bmi3d_clda_meta = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'clda')
         metadata.update(bmi3d_clda_meta)
@@ -190,8 +191,10 @@ def _parse_bmi3d_v0(data_dir, files):
     if aodata.is_table_in_hdf('trials', bmi3d_hdf_full_filename): 
         bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials')
         bmi3d_data['bmi3d_trials'] = bmi3d_trials
-    if aodata.is_table_in_hdf('sync_clock', bmi3d_hdf_full_filename) and len(aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock')[0])>0: # exists but empty in tablet data
-        bmi3d_data['bmi3d_clock'], _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
+    if aodata.is_table_in_hdf('sync_clock', bmi3d_hdf_full_filename): # exists but empty in tablet data
+        clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
+        if len(clock) > 0:
+            bmi3d_data['bmi3d_clock'] = clock
 
     return bmi3d_data, metadata
 
