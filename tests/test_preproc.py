@@ -634,6 +634,13 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('clock', data)
         self.assertIn('events', data)
         self.assertIn('task', data)
+        self.assertIsNotNone(data['clock'])
+        self.assertIsNotNone(data['events'])
+        self.assertIsNotNone(data['task'])
+        self.assertIn('time', data['clock'].dtype.names)
+        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
+        self.assertIn('cursor', data['task'].dtype.names)
 
     def test_decode_events(self):
         dictionary = {
@@ -1099,8 +1106,6 @@ class TestPrepareExperiment(unittest.TestCase):
             laser_sensor='laser_sensor', debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
 
-        print(trial_powers)
-
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
         
         # Plot lfp response
@@ -1130,7 +1135,6 @@ class TestPrepareExperiment(unittest.TestCase):
         ds_data = precondition.downsample(sensor_data, samplerate, 1000)
         ds_data = ds_data - np.mean(ds_data)
         analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
-        print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
         visualization.savefig(docs_dir, 'laser_aligned_sensor.png')
@@ -1171,8 +1175,6 @@ class TestPrepareExperiment(unittest.TestCase):
         trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
 
-        print(trial_powers)
-
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
         
         # Plot lfp response
@@ -1202,7 +1204,6 @@ class TestPrepareExperiment(unittest.TestCase):
         ds_data = precondition.downsample(sensor_data, samplerate, 1000)
         ds_data = ds_data - np.mean(ds_data)
         analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
-        print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
         visualization.savefig(docs_dir, 'laser_aligned_sensor_dch_trigger.png')
