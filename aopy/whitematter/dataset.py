@@ -342,7 +342,7 @@ class Dataset:
             else:
                 flatarray = np.frombuffer(chunkbuffer, dtype=dattype)
             if len(flatarray) % chancount != 0:
-                print("Warning: incomplete binary file samples dropped in {}.".format(filename))     
+                print(f"Warning: {len(flatarray) % chancount} samples dropped in {filename}.")     
                 shapedarray = flatarray[:-(len(flatarray) % chancount)].reshape(-1, chancount).swapaxes(0,1)
             else:
                 shapedarray = flatarray.reshape(-1, chancount).swapaxes(0,1)
