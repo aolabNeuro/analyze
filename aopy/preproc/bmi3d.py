@@ -133,7 +133,10 @@ def parse_bmi3d(data_dir, files):
         metadata['bmi3d_source'] = None
 
     # Standardize the parsed variable names and perform some error checking
-    return _prepare_bmi3d_v1(data, metadata)
+    if metadata['bmi3d_parser'] == 0:
+        return _prepare_bmi3d_v0(data, metadata)
+    if metadata['bmi3d_parser'] == 1:
+        return _prepare_bmi3d_v1(data, metadata)
 
 def _parse_bmi3d_v0(data_dir, files):
     '''
@@ -188,15 +191,7 @@ def _parse_bmi3d_v0(data_dir, files):
         bmi3d_trials, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'trials')
         bmi3d_data['bmi3d_trials'] = bmi3d_trials
     if aodata.is_table_in_hdf('sync_clock', bmi3d_hdf_full_filename) and len(aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock')[0])>0: # exists but empty in tablet data
-        bmi3d_clock, _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
-    else:
-        # Estimate timestamps
-        bmi3d_cycles = np.arange(len(bmi3d_task))
-        bmi3d_timestamps = bmi3d_cycles/bmi3d_task_metadata['fps']
-        bmi3d_clock = np.empty((len(bmi3d_task),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
-        bmi3d_clock['time'] = bmi3d_cycles
-        bmi3d_clock['timestamp'] = bmi3d_timestamps
-    bmi3d_data['bmi3d_clock'] = bmi3d_clock
+        bmi3d_data['bmi3d_clock'], _ = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'sync_clock') # there isn't any clock metadata
 
     return bmi3d_data, metadata
 
@@ -315,11 +310,9 @@ def _parse_bmi3d_v1(data_dir, files):
 
     return data_dict, metadata_dict
 
-def _prepare_bmi3d_v1(data, metadata):
+def _prepare_bmi3d_v0(data, metadata):
     '''
-    Organizes the bmi3d data and metadata and computes some automatic conversions. Corrects for
-    unreliable sync clock signal, finds measured timestamps, and pads the clock for versions
-    with a sync period at the beginning of the experiment.
+    Organizes the bmi3d data and metadata for experiments with no external data sources.
 
     Args:
         data (dict): bmi3d data
@@ -330,7 +323,47 @@ def _prepare_bmi3d_v1(data, metadata):
             | **data (dict):** prepared bmi3d data
             | **metadata (dict):** prepared bmi3d metadata
     '''
-    # Must be present: clock, task
+    
+    if 'bmi3d_clock' in data:
+        data['clock'] = data['bmi3d_clock']
+    else:
+        # Estimate timestamps
+        bmi3d_cycles = np.arange(len(data['bmi3d_task']))
+        bmi3d_timestamps = bmi3d_cycles/metadata['fps']
+        bmi3d_clock = np.empty((len(data['bmi3d_task']),), dtype=[('time', 'u8'), ('timestamp', 'f8')])
+        bmi3d_clock['time'] = bmi3d_cycles
+        bmi3d_clock['timestamp'] = bmi3d_timestamps
+        data['clock'] = bmi3d_clock
+    
+    if 'bmi3d_events' in data:
+        data['events'] = data['bmi3d_events']
+    else:
+        warnings.warn("No event data found! Cannot prepare bmi3d data")
+
+    if 'bmi3d_task' in data:
+        data['task'] = data['bmi3d_task']
+    else:
+        warnings.warn("No task data found! Cannot prepare bmi3d data")
+
+    return data, metadata
+
+def _prepare_bmi3d_v1(data, metadata):
+    '''
+    Organizes the bmi3d data and metadata and computes some automatic conversions. Corrects for
+    unreliable sync clock signal, finds measured timestamps, and pads the clock for versions
+    with a sync period at the beginning of the experiment. Should be applied to data with 
+    sync protocol version > 0.
+
+    Args:
+        data (dict): bmi3d data
+        metadata (dict): bmi3d metadata
+
+    Returns:
+        tuple: tuple containing:
+            | **data (dict):** prepared bmi3d data
+            | **metadata (dict):** prepared bmi3d metadata
+    '''
+    # Should be present: clock, task
     if 'bmi3d_clock' in data and 'bmi3d_task' in data:
         internal_clock = data['bmi3d_clock']
         task = data['bmi3d_task']
@@ -460,14 +493,18 @@ def _prepare_bmi3d_v1(data, metadata):
             corrected_events['data'] = data['bmi3d_events']['data']
         except:
             pass
-        
-    # But use the sync events if they exist and are valid
-    if 'sync_events' in data and len(data['sync_events']) > 0:
-        if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
-            warnings.warn("sync events don't match bmi3d events. This will probably cause problems.")
+
+    # Otherwise fall back on the sync events
+    elif 'sync_events' in data and len(data['sync_events']) > 0:
+        warnings.warn("No bmi3d event data found! Attempting to use sync events instead")
         corrected_events = data['sync_events']
     else:
-        warnings.warn("No sync events present, using bmi3d events instead")
+        warnings.warn("No sync events present, cannot prepare bmi3d event data!")
+
+    # Check the integrity of the sync events from all the sources
+    if 'bmi3d_events' in data and 'sync_events' in data:
+        if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
+            warnings.warn("sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
 
     data.update({
         'task': task,
@@ -484,7 +521,7 @@ def _prepare_bmi3d_v1(data, metadata):
     # In some versions of BMI3D, hand position contained erroneous data
     # caused by `np.empty()` instead of `np.nan`. The 'clean_hand_position' 
     # replaces these bad data with `np.nan`.
-    if isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+    if metadata['sync_protocol_version'] < 14 and isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
         clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
         if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
             data['clean_hand_position'] = clean_hand_position
