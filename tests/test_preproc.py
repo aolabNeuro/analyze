@@ -939,18 +939,28 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertRaises(AssertionError, lambda: self.check_required_fields(data, metadata))
 
         # Test if a dummy HDF file is provided
-        files['hdf'] = 'dummy_hdf_rig1_v13.hdf'
+        files['hdf'] = '../tmp/dummy_hdf_rig1_v13.hdf'
 
         # Make a dummy HDF file by copying an existing HDF file from the same experiment
         import shutil
         shutil.copy(os.path.join(data_dir, 'beig20230109_15_te7977.hdf'), os.path.join(data_dir, files['hdf']))
         with tables.open_file(os.path.join(data_dir, files['hdf']), 'r+') as f:
             f.get_node('/task').truncate(0)
+            f.get_node('/sync_events').truncate(0)
+            f.get_node('/sync_clock').truncate(0)
 
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         self.assertEqual(n_events, len(data['events']))
-        self.check_required_fields(data, metadata)
 
+    def test_parse_bmi3d_v14(self):
+        files = {}
+        files['hdf'] = 'beig20231229_21_te13154.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.check_required_fields(data, metadata)
+        files['ecube'] = '2023-12-29_BMI3D_te13154'
+        data, metadata = parse_bmi3d(data_dir, files) # with ecube data
+        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+        self.check_required_fields(data, metadata)
 
     def test_parse_optitrack(self):
         files = {}
