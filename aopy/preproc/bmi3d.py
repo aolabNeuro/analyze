@@ -520,8 +520,8 @@ def _prepare_bmi3d_v1(data, metadata):
 
         if 'cursor_analog_cm' in data:
             time = np.arange(len(data['cursor_analog_cm']))/metadata['cursor_analog_samplerate']
-            samples = np.searchsorted(corrected_clock['timestamp_sync'], time)
-            task['cursor'] = data['cursor_analog_cm'][samples]
+            samples = np.searchsorted(time, corrected_clock['timestamp_sync'])
+            task['cursor'][:,[0,2]] = data['cursor_analog_cm'][samples]
     else:
         warnings.warn("No task data found!")
         task = np.empty((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
