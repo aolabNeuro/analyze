@@ -710,7 +710,7 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
     
     return dataout, acq_ch_position, acq_chs, connected_elecs
 
-def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0):
+def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
     '''
     Load the mapping between acquisition channel and electrode number for the viventi ECoG array.
     
@@ -720,6 +720,7 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0):
             channels and connected electrodes will be returned.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
             rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
+        kwargs (dict): Additional keyword arguments to pass to :func:`~aopy.data.map_acq2pos`
 
     Returns:
         tuple: Tuple Containing:
@@ -744,7 +745,7 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0):
         layout = pd.read_excel(f)
     if acq_ch_subset is not None:
         acq_ch_subset = np.array(acq_ch_subset, dtype='int')
-    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta)
+    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, **kwargs)
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''
