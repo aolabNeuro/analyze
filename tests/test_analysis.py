@@ -209,6 +209,17 @@ class misc_tests(unittest.TestCase):
                                      np.round(np.vstack([M,M]) @ task_subspace.T, 10))
         np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
 
+    def test_mean_neighboring_channels(self):
+        elec_pos_test = np.array([[1,1],[2,1],[3,1],[1,2],[2,2],[3,2],[1,3],[2,3],[3,3]])
+        neighboring_idx = aopy.analysis.get_neighboring_channel_index(elec_pos_test, distance=1)
+        self.assertTrue(np.all(neighboring_idx.T == neighboring_idx))
+        self.assertTrue(neighboring_idx[:,4].sum()==5)
+        
+        data_test = np.arange(1,10)
+        m_data_test = aopy.analysis.get_mean_neighboring_channels(data_test, elec_pos_test, distance=1)
+        self.assertTrue(m_data_test[0] == np.sum(data_test[0]+data_test[1]+data_test[3])/3)
+        self.assertTrue(m_data_test[4] == np.sum(data_test[1]+data_test[3]+data_test[4]+data_test[5]+data_test[7])/5)
+        
 class tuningcurve_fitting_tests(unittest.TestCase):
     def test_run_tuningcurve_fit(self):
         nunits = 7

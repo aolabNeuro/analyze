@@ -1643,3 +1643,42 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     NCC[nan_idx1] = np.nan
     
     return NCC, shifts
+
+def get_neighboring_channel_index(elec_pos, distance=0.75):
+    '''
+    Get neiboring channel index based on distance
+    
+    Args:
+        elec_pos (nch, 2): x, y position of each channel
+        distance (float): define neighboring channels based on this distance. 0.75 is for 4 neighboring channels and 1.3 is for 9 channels.
+        
+    Returns:
+        neighboring_idx (nch, nch): boolean array to show neighboring channels for each channel
+    '''
+    dist = utils.calc_euclid_dist_mat(elec_pos)
+    neighboring_idx = dist <= distance
+        
+    return neighboring_idx
+
+def get_mean_neighboring_channels(data, elec_pos, distance=0.75):
+    '''
+    Calculates mean of data across neighboring channels based on distance
+    
+    Args:
+        data (nch): neural data
+        elec_pos (nch, 2): x, y position of each channel
+        distance (float): define neighboring channels based on this distance. 0.75 is for 4 neighboring channels and 1.3 is for 9 channels.
+        
+    Returns:
+        m_data (nch): Averaged data across neighboring channels
+    '''
+
+    dist = utils.calc_euclid_dist_mat(elec_pos)
+    nch = dist.shape[0]
+    neighboring_idx = get_neighboring_channel_index(elec_pos, distance=distance)
+    
+    m_data = np.zeros(nch)
+    for ich in range(nch):
+        m_data[ich] = np.mean(data[neighboring_idx[:,ich]])
+
+    return m_data
