@@ -441,8 +441,6 @@ def _prepare_bmi3d_v1(data, metadata):
         corrected_clock['time'] = data['bmi3d_clock']['time'].copy()
         corrected_clock['timestamp_bmi3d'] = data['bmi3d_clock']['timestamp'].copy() 
         approx_clock = data['bmi3d_clock']['timestamp'].copy()    
-    else:
-        warnings.warn("Warning: no clock timestamps on the eCube. Maybe something was unplugged?")
 
     # Estimate screen timing with photodiode measurements
     measure_search_radius = 1.5/metadata['fps']
@@ -520,10 +518,10 @@ def _prepare_bmi3d_v1(data, metadata):
         task['time'] = np.arange(len(corrected_clock))
         task['cursor'] = 0
 
-        if 'analog_cursor_cm' in data:
-            samples = np.searchsorted(corrected_clock['timestamp_sync'], 
-                                      np.arange(len(data['analog_cursor_cm'])/metadata['analog_cursor_samplerate']))
-            task['cursor'] = data['analog_cursor_cm'][samples]
+        if 'cursor_analog_cm' in data:
+            time = np.arange(len(data['cursor_analog_cm']))/metadata['cursor_analog_samplerate']
+            samples = np.searchsorted(corrected_clock['timestamp_sync'], time)
+            task['cursor'] = data['cursor_analog_cm'][samples]
     else:
         warnings.warn("No task data found!")
         task = np.empty((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
