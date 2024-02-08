@@ -759,7 +759,7 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
 
     Returns:
         tuple: tuple containing:
-        | lfp_data **(nt', ...):** downsampled filtered lfp data
+        | **lfp_data (nt', ...):** downsampled filtered lfp data
         | **samplerate (float):** sampling rate of the lfp data
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=broadband_samplerate)
