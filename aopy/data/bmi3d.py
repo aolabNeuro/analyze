@@ -255,7 +255,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
         n_ch = 0
         while n_ch < n_channels:
             broadband_chunk = bb_data[n_bb_samples:n_bb_samples+time_chunksize, n_ch:n_ch+channel_chunksize]
-            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+            lfp_chunk, _ = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
             chunk_len = lfp_chunk.shape[0]
             dset[n_lfp_samples:n_lfp_samples+chunk_len,n_ch:n_ch+channel_chunksize] = lfp_chunk
             n_ch += channel_chunksize
@@ -326,7 +326,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
     # Filter broadband data into LFP directly into the hdf file
     n_lfp_samples = 0
     for broadband_chunk in load_ecube_data_chunked(ecube_filepath, 'Headstages', chunksize=chunksize):
-        lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+        lfp_chunk, _ = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
         chunk_len = lfp_chunk.shape[0]
         dset[n_lfp_samples:n_lfp_samples+chunk_len,:] = lfp_chunk
         n_lfp_samples += chunk_len
@@ -538,10 +538,24 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
-    Gets interpolated and filtered kinematic data from preprocessed experiment 
-    data to the desired sampling rate. Cursor kinematics are returned in 
-    screen coordinates, while other kinematics are returned in their original
-    coordinate system (e.g. hand kinematics in optitrack coordinates).
+    Gets interpolated kinematic data from preprocessed experiment data to the desired 
+    sampling rate. Cursor kinematics are returned in screen coordinates, while other 
+    kinematics are returned in their original coordinate system (e.g. hand kinematics 
+    in optitrack coordinates).
+
+    Args:
+        exp_data (dict): A dictionary containing the experiment data.
+        exp_metadata (dict): A dictionary containing the experiment metadata.
+        datatype (str, optional): The type of kinematic data to interpolate. 
+            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
+            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
+            For other kinematics, try to interp exp_data['task'][datatype]
+        samplerate (float, optional): The desired output sampling rate in Hz. 
+            Defaults to 1000.
+
+    Returns:
+        data_time (ns, ...): Kinematic data interpolated and filtered 
+            to the desired sampling rate.
 
     Examples:
         
@@ -613,19 +627,9 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
         .. image:: _images/get_interp_user_tracking.png
 
-    Args:
-        exp_data (dict): A dictionary containing the experiment data.
-        exp_metadata (dict): A dictionary containing the experiment metadata.
-        datatype (str, optional): The type of kinematic data to interpolate. 
-            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
-            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
-            For other kinematics, try to interp exp_data['task'][datatype]
-        samplerate (float, optional): The desired output sampling rate in Hz. 
-            Defaults to 1000.
-
-    Returns:
-        data_time (ns, ...): Kinematic data interpolated and filtered 
-            to the desired sampling rate.
+    Changes:
+        2023-10-20: Added support for 'targets' datatype
+        2024-01-29: Removed kinematic filtering below 15 Hz. See :func:`~aopy.precondition.filter_kinematics`.
     '''
     kwargs = {}
 
@@ -660,8 +664,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     # Interpolate
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
                                         upsamplerate=10000, append_time=10, **kwargs)
-    if 'remove_nan' not in kwargs:
-        data_time = precondition.filter_kinematics(data_time, samplerate)
+
     return data_time
 
 def get_velocity_segments(*args, norm=True, **kwargs):
