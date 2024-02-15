@@ -10,31 +10,163 @@ import numpy as np
 import math as m
 from .base import calc_freq_domain_values
 
-def calc_transfer_function(input, output, samplerate):
+def get_machine_dynamics(freqs, exp_freqs, order):
+    '''
+    Returns the machine dynamics at each experimental frequency, given the system order. 
+
+    Args:
+        freqs (nt/2,): array of non-negative frequencies (essentially the x axis of a spectrogram)
+        exp_freqs (nfreq,): list or array of frequencies used to generate experimental signals (reference and/or disturbance)
+        order (int): the order of the system (e.g. 0 for position control, 1 for velocity control, 2 for acceleration control)
+
+    Returns:
+        M (nfreq,): array of machine dynamics at each experimental frequency
+
+    '''
+    s = 1.j*2*m.pi*freqs
+    exp_idx = np.isin(freqs.round(4), exp_freqs)
+
+    if order == 0:
+        M = 1./np.ones((len(s),))
+    elif order == 1:
+        M = 1./(s)
+    elif order == 2:
+        M = 1./(s**2+s)
+    else:
+        print('Order not recognized!')
+
+    return M[exp_idx]
+
+
+def calc_transfer_function(input, output, samplerate, exp_freqs=None):
     '''
     Computes the frequency-domain transformation between time-domain input and ouput signals,
     at each frequency. Assumes output signals are produced by an LTI system.
     For math details, see Yamagami et al. IEEE Transactions on Cybernetics (2021).
     
     Args:
-        input (ntrial,): array of arrays of (nt, nch) time-domain input signals from each trial 
-        output (ntrial,): array of arrays of (nt, nch) time-domain output signals from each trial
+        input (nt, nch): time-domain input signal
+        output (nt, nch): time-domain output signal
         samplerate (float): sampling rate of the data
+        exp_freqs ((nfreq,), optional): list or array of frequencies used to generate experimental signals (reference and/or disturbance)
 
     Returns:
-        freq (nfreq,): 
-        transfer_func (ntrial,): 
+        tuple: Tuple containing:
+            | **freqs ((nt/2,) or (nfreq,)):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **transfer_func ((nt/2, nch) or (nfreq, nch)):** array of complex numbers corresponding to the transformation at each of the above frequencies
 
     '''    
     assert len(input) == len(output), "Mismatched signal lengths"
 
     # Compute FFT of time-domain signals
-    freq, freq_input = calc_freq_domain_values(input, samplerate)
+    freqs, freq_input = calc_freq_domain_values(input, samplerate)
     _, freq_output = calc_freq_domain_values(output, samplerate)
 
     # Divide freq-domain output by freq-domain input at each frequency to find transformation
     transfer_func = np.divide(freq_output, freq_input)
-    return freq, transfer_func
+
+    # Find the transformation at specific frequencies of interest
+    if exp_freqs is not None:
+        exp_freq_idx = np.isin(freqs.round(4), exp_freqs)
+        freqs = freqs[exp_freq_idx]
+        transfer_func = transfer_func[exp_freq_idx]
+
+    return freqs.round(4), transfer_func
+
+
+def pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=3):
+    '''
+    Finds pairs of trials with complementary frequency content (e.g. one trial's task signals consist of a subset
+    of the experimental frequencies, and the other trial's task signals consist of the remaining experimental frequencies). 
+    Assumes that reference and disturbance signals are made up of different frequencies within the same trial.
+
+    Args:
+        ref_freqs (ntrial,): list or array of frequencies used to generate the reference signal for each trial
+        dis_freqs (ntrial,): list or array of frequencies used to generate the disturbance signal for each trial
+        max_trial_distance (int): maximum number of trials allowed between two trials identified as a pair
+
+    Returns:
+        trial_pairs (npair, 2): array of trial indices corresponding to pairs of trials with complementary frequency content
+
+    '''
+    assert len(ref_freqs) == len(dis_freqs), "Mismatched number of trials"
+
+    trial_pairs = []
+    for i in range(len(ref_freqs)):
+        curr_r = ref_freqs[i]
+        curr_d = dis_freqs[i]
+        # Find next trial with complementary frequency content
+        for j in range(i+1,len(ref_freqs)):
+            next_r = ref_freqs[j]
+            next_d = dis_freqs[j]
+            if (next_r != curr_r).all() and (next_d != curr_d).all() and j-i <= max_trial_distance:
+                trial_pairs.append([i,j])
+                break
+
+    return np.array(trial_pairs)
+
+
+def calc_F_B_controllers(usr, ref, dis, exp_freqs, ref_freqs, dis_freqs, samplerate, system_order, trial_pairs=None):
+    '''
+    Estimates a user's frequency-domain feedforward and feedback controllers at each experimental frequency in a 
+    reference-tracking, disturbance-rejection task. Assumes the user responds to reference & disturbance signals like an LTI system.
+    For math details, see Yamagami et al. IEEE Transactions on Cybernetics (2021).
+    
+    Args:
+        usr (ntrial, nt): array of time-domain user response signals from each trial
+        ref (ntrial, nt): array of time-domain reference signals from each trial 
+        dis (ntrial, nt): array of time-domain disturbance signals from each trial
+        exp_freqs (nfreq,): list or array of frequencies used to generate experimental signals (reference and/or disturbance)   
+        ref_freqs (ntrial,): list or array of frequencies used to generate the reference signal for each trial
+        dis_freqs (ntrial,): list or array of frequencies used to generate the disturbance signal for each trial
+        samplerate (float): sampling rate of the data
+        system_order (int): the order of the system (e.g. 0 for position control, 1 for velocity control, 2 for acceleration control)
+        trial_pairs ((npair, 2), optional): list or array of trial indices corresponding to pairs of trials with complementary frequency content  
+        
+    Returns:
+        tuple: tuple containing:
+            | **F (npair, nfreq):** array of complex numbers corresponding to the user's feedforward controller at each experimental frequency 
+            | **B (npair, nfreq):** array of complex numbers corresponding to the user's feedback controller at each experimental frequency
+            | **Tur (npair, nfreq):** array of complex numbers corresponding to the ref-->user transformation at each experimental frequency
+            | **Tud (npair, nfreq):** array of complex numbers corresponding to the dis-->user transformation at each experimental frequency
+            | **M (nfreq,):** array of machine dynamics at each experimental frequency
+
+    '''
+    assert len(usr) == len(ref) == len(dis), "Mismatched number of trials"
+
+    # Calculate transfer functions from ref-->user and dis-->user
+    trial_Tur = np.array([np.squeeze(calc_transfer_function(ref[i], usr[i], samplerate, exp_freqs)[1]) for i in range(len(usr))])
+    trial_Tud = np.array([np.squeeze(calc_transfer_function(dis[i], usr[i], samplerate, exp_freqs)[1]) for i in range(len(usr))])  
+
+    # Get machine dynamics, given system order
+    freqs = calc_freq_domain_values(usr[0], samplerate)[0]
+    M = get_machine_dynamics(freqs, exp_freqs, system_order)
+
+    # Pair up trials by frequency content
+    if trial_pairs is None:
+        trial_pairs = pair_trials_by_frequency(ref_freqs, dis_freqs)
+
+    # Find transfer functions and controllers at the experimental frequencies for each trial pair
+    Tur = np.zeros((len(trial_pairs),len(exp_freqs)), dtype=complex)*np.nan
+    Tud = np.zeros((len(trial_pairs),len(exp_freqs)), dtype=complex)*np.nan
+    B = np.zeros((len(trial_pairs),len(exp_freqs)), dtype=complex)*np.nan
+    F = np.zeros((len(trial_pairs),len(exp_freqs)), dtype=complex)*np.nan
+    
+    for pair_id, (trial_a, trial_b) in enumerate(trial_pairs):
+        ref_ind_a = np.isin(exp_freqs, ref_freqs[trial_a])
+        dis_ind_a = np.isin(exp_freqs, dis_freqs[trial_a])
+        ref_ind_b = np.isin(exp_freqs, ref_freqs[trial_b])
+        dis_ind_b = np.isin(exp_freqs, dis_freqs[trial_b])
+
+        Tur[pair_id, ref_ind_a] = trial_Tur[trial_a, ref_ind_a]
+        Tur[pair_id, ref_ind_b] = trial_Tur[trial_b, ref_ind_b]
+        Tud[pair_id, dis_ind_a] = trial_Tud[trial_a, dis_ind_a]
+        Tud[pair_id, dis_ind_b] = trial_Tud[trial_b, dis_ind_b]
+
+        B[pair_id,:] = np.divide( -Tud[pair_id], np.multiply( M, np.ones(Tud[pair_id].shape,dtype=complex)+Tud[pair_id] ) )
+        F[pair_id,:] = np.multiply( Tur[pair_id], (1+0j)+np.multiply( B[pair_id,:], M ) ) - B[pair_id,:]
+
+    return F, B, Tur, Tud, M
 
 
 def calc_crossover_freq(freqs, M, B):

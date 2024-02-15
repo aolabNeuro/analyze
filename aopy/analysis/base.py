@@ -356,8 +356,8 @@ def calc_freq_domain_values(data, samplerate):
 
     Returns:
         tuple: Tuple containing:
-            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-            | **freqvalues (nt, nch):** array of complex numbers at the above frequencies (each containing magnitude and phase)
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **freqvalues (nt/2, nch):** array of complex numbers at the above frequencies (each containing magnitude and phase)
     '''
     if np.ndim(data) < 2:
         data = np.expand_dims(data, 1)
@@ -385,8 +385,8 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-            | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **amplitudes (nt/2, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
     non_negative_freq, non_negative_freq_data = calc_freq_domain_values(data, samplerate)
 
