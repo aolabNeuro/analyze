@@ -255,7 +255,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
         n_ch = 0
         while n_ch < n_channels:
             broadband_chunk = bb_data[n_bb_samples:n_bb_samples+time_chunksize, n_ch:n_ch+channel_chunksize]
-            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+            lfp_chunk, _ = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
             chunk_len = lfp_chunk.shape[0]
             dset[n_lfp_samples:n_lfp_samples+chunk_len,n_ch:n_ch+channel_chunksize] = lfp_chunk
             n_ch += channel_chunksize
@@ -326,7 +326,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
     # Filter broadband data into LFP directly into the hdf file
     n_lfp_samples = 0
     for broadband_chunk in load_ecube_data_chunked(ecube_filepath, 'Headstages', chunksize=chunksize):
-        lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+        lfp_chunk, _ = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
         chunk_len = lfp_chunk.shape[0]
         dset[n_lfp_samples:n_lfp_samples+chunk_len,:] = lfp_chunk
         n_lfp_samples += chunk_len
@@ -538,10 +538,24 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
-    Gets interpolated and filtered kinematic data from preprocessed experiment 
-    data to the desired sampling rate. Cursor kinematics are returned in 
-    screen coordinates, while other kinematics are returned in their original
-    coordinate system (e.g. hand kinematics in optitrack coordinates).
+    Gets interpolated kinematic data from preprocessed experiment data to the desired 
+    sampling rate. Cursor kinematics are returned in screen coordinates, while other 
+    kinematics are returned in their original coordinate system (e.g. hand kinematics 
+    in optitrack coordinates).
+
+    Args:
+        exp_data (dict): A dictionary containing the experiment data.
+        exp_metadata (dict): A dictionary containing the experiment metadata.
+        datatype (str, optional): The type of kinematic data to interpolate. 
+            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
+            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
+            For other kinematics, try to interp exp_data['task'][datatype]
+        samplerate (float, optional): The desired output sampling rate in Hz. 
+            Defaults to 1000.
+
+    Returns:
+        data_time (ns, ...): Kinematic data interpolated and filtered 
+            to the desired sampling rate.
 
     Examples:
         
@@ -613,19 +627,9 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
         .. image:: _images/get_interp_user_tracking.png
 
-    Args:
-        exp_data (dict): A dictionary containing the experiment data.
-        exp_metadata (dict): A dictionary containing the experiment metadata.
-        datatype (str, optional): The type of kinematic data to interpolate. 
-            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
-            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
-            For other kinematics, try to interp exp_data['task'][datatype]
-        samplerate (float, optional): The desired output sampling rate in Hz. 
-            Defaults to 1000.
-
-    Returns:
-        data_time (ns, ...): Kinematic data interpolated and filtered 
-            to the desired sampling rate.
+    Changes:
+        2023-10-20: Added support for 'targets' datatype
+        2024-01-29: Removed kinematic filtering below 15 Hz. See :func:`~aopy.precondition.filter_kinematics`.
     '''
     kwargs = {}
 
@@ -660,8 +664,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     # Interpolate
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
                                         upsamplerate=10000, append_time=10, **kwargs)
-    if 'remove_nan' not in kwargs:
-        data_time = precondition.filter_kinematics(data_time, samplerate)
+
     return data_time
 
 def get_velocity_segments(*args, norm=True, **kwargs):
@@ -687,7 +690,7 @@ def get_velocity_segments(*args, norm=True, **kwargs):
 @lru_cache(maxsize=1)
 def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor'):
     '''
-    Return all kinds of kinematics from preprocessed data
+    Return all kinds of kinematics from preprocessed data. Caches the data for faster loading.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -939,7 +942,7 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, trigger_time, time_be
     preproc_dir = os.path.join(preproc_dir, subject)
 
     try:
-        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
         data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
                                     samplerate, trigger_time, time_before, time_after)
     except FileNotFoundError as e:
@@ -1585,10 +1588,10 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
         dates (list of str): Date for each recording
         metadata (list, optional): list of metadata keys that should be included in the df. By default,
             only `stimulation_site` is included.
-        debug (bool, optional): Passed to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`, if True prints
+        debug (bool, optional): Passed to :func:`~aopy.preproc.laser.find_stim_times`, if True prints
             an laser sensor alignment plot for each trial. Defaults to True.
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.bmi3d.find_laser_stim_times`
+        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.laser.find_stim_times`
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
@@ -1599,10 +1602,8 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **trial_time (float):** time of stimulation within recording
             | **trial_width (float):** width of stimulation pulse
-            | **trial_power (float):** gain of stimulation pulse
-            | **trial_found (bool):** whether an analog laser signal was recorded on this trial
-            | **width_above_thr (bool):** if the width of the analog signal was above the cutoff
-            | **power_above_thr (bool):** if the gain of the analog signal was above the cutoff
+            | **trial_gain (float):** fraction of maximum laser power setting
+            | **trial_power (float):** power (in mW) of stimulation pulse at the fiber output
 
     Note:
         Only supports single-site stimulation.
@@ -1623,8 +1624,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
         # Find laser trial times 
         try:
-            (trial_times, trial_widths, trial_powers, times_not_found, widths_above_thr, 
-             powers_above_thr) = preproc.bmi3d.get_laser_trial_times(
+            trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
                 preproc_dir, subject, te, date, debug=debug, **kwargs)
         except:
             print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
@@ -1638,10 +1638,8 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             'date': date, 
             'trial_time': trial_times,
             'trial_width': trial_widths, 
+            'trial_gain': trial_gains,
             'trial_power': trial_powers,
-            'trial_found': ~times_not_found,
-            'width_above_thr': widths_above_thr,
-            'power_above_thr': powers_above_thr,
         }
 
         # Add requested metadata
@@ -1651,25 +1649,6 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             else:
                 exp[key] = None
                 print(f"Entry {subject} {date} {te} does not have metadata {key}.")
-
-        # Convert power to units of watts
-        if not isinstance(date, datetime.date):
-            date = datetime.datetime.strptime(date, '%Y-%m-%d').date()
-        if 'qwalor_peak_watts' in exp_metadata:
-            peak_watts = exp_metadata['qwalor_peak_watts']
-        if date < datetime.datetime(2022,5,31).date():
-            if 'qwalor_channel' in exp_metadata and exp_metadata['qwalor_channel'] == 4:
-                peak_watts = 1.5
-            else:
-                peak_watts = 20
-        elif date < datetime.datetime(2022,9,30).date():
-            peak_watts = 1.5
-        elif date < datetime.datetime(2023,1,23).date():
-            peak_watts = 20
-        else:
-            peak_watts = 25
-        exp['peak_power_watts'] = peak_watts
-        exp['trial_power_watts'] = [p*peak_watts for p in trial_powers]
 
         # Concatenate with existing dataframe
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)

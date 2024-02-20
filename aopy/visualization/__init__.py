@@ -4,3 +4,4 @@ from .base import *
 from .animation import *
 
 # For new submodules, import just the namespace
+from . import eye

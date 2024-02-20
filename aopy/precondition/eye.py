@@ -19,7 +19,9 @@ def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=200, buttord=4)
         taper_len (float, optional): length of tapers to use in multitaper lowpass filter
 
     Returns:
-        (nt, nch) eye pos: eye position after filtering and downsampling
+        tuple: tuple containing:
+        | **eye_pos (nt, nch):** eye position after filtering and downsampling
+        | **samplerate (float):** sampling rate of the returned eye data
     '''
     # Lowpass filter
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
@@ -28,8 +30,10 @@ def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=200, buttord=4)
     # Downsample
     if samplerate > downsamplerate:
         eye_pos = downsample(eye_pos, samplerate, downsamplerate)
+    else:
+        downsamplerate = samplerate
 
-    return eye_pos
+    return eye_pos, downsamplerate
 
 def convert_pos_to_speed(eye_pos, samplerate):
     '''
@@ -122,7 +126,7 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
         " duration must be longer than the minimum intersaccade interval")
     
     if lowpass_filter_freq is not None:
-        eye_pos = filter_eye(eye_pos, samplerate, samplerate, low_cut=lowpass_filter_freq)    
+        eye_pos, _ = filter_eye(eye_pos, samplerate, samplerate, low_cut=lowpass_filter_freq)    
     eye_accel = convert_pos_to_accel(eye_pos, samplerate)
 
     # Set an appropritate threshold to detect saccades
