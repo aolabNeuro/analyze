@@ -1151,11 +1151,23 @@ def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[],
     new_df.reset_index()
     
     # Add trial segment timing
-    new_df['flash_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['flash_end_time'] = np.nan*np.zeros(len(new_df))
+    new_df['flash_start_time'] = np.nan
+    new_df['flash_end_time'] = np.nan
+    new_df['prev_trial_end_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
     for i in range(len(new_df)):
         event_times = new_df.loc[i, 'event_times']
         
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
+        if i < len(new_df)-1 and new_df.loc[i+1, 'event_times'][0] > event_times[-1]:
+            new_df.loc[i, 'trial_end_time'] = new_df.loc[i+1, 'event_times'][0]
+        else:
+            new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
         # Flash starts when trial starts
         new_df.loc[i, 'flash_start_time'] = event_times[0]
         new_df.loc[i, 'flash_end_time'] = event_times[2]
@@ -1238,8 +1250,9 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     new_df['target_location'] = target_location
 
     # Add trial segment timing
-    new_df['trial_start_time'] = np.nan
+    new_df['prev_trial_end_time'] = np.nan
     new_df['trial_end_time'] = np.nan
+    new_df['center_target_on_time'] = np.nan
     new_df['trial_initiated'] = False
     new_df['hold_start_time'] = np.nan
     new_df['hold_completed'] = False
@@ -1249,72 +1262,58 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     new_df['reach_completed'] = False
     new_df['reach_end_time'] = np.nan
     new_df['reward_start_time'] = np.nan
-    new_df['reward_end_time'] = np.nan
     new_df['penalty_start_time'] = np.nan
-    new_df['penalty_end_time'] = np.nan
     new_df['penalty_event'] = np.nan
     for i in range(len(new_df)):
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
 
-        # Trial start time (same as previous trial end time)
-        if i > 0:
-            new_df.loc[i, 'trial_start_time'] = new_df.loc[i-1, 'event_times'][-1]
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
         else:
-            new_df.loc[i, 'trial_start_time'] = 0.
-
-        # Trial end time
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
         new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        # Center target appears
+        new_df.loc[i, 'center_target_on_time'] = event_times[0]
         
         # Trial initiated if cursor enters the center target
-        _, hold_times = get_trial_segments(event_codes, event_times,
-                                            task_codes['CENTER_TARGET_ON'], [task_codes['CURSOR_ENTER_CENTER_TARGET']])
+        hold_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_CENTER_TARGET']])]
         new_df.loc[i, 'trial_initiated'] = len(hold_times) > 0
         if new_df.loc[i, 'trial_initiated']:
-            new_df.loc[i, 'hold_start_time'] = hold_times[0][-1]
+            new_df.loc[i, 'hold_start_time'] = hold_times[0]
 
         # Hold completed if peripheral target turns on (start of delay)
-        _, delay_times = get_trial_segments(event_codes, event_times,
-                                            [task_codes['CURSOR_ENTER_CENTER_TARGET']], task_codes['PERIPHERAL_TARGET_ON'])
+        delay_times = event_times[np.isin(event_codes, task_codes['PERIPHERAL_TARGET_ON'])]
         new_df.loc[i, 'hold_completed'] = len(delay_times) > 0
         if new_df.loc[i, 'hold_completed']:
-            new_df.loc[i, 'delay_start_time'] = delay_times[0][-1]
+            new_df.loc[i, 'delay_start_time'] = delay_times[0]
 
         # Delay completed when center target turns off (go cue)
-        _, go_cue_times = get_trial_segments(event_codes, event_times,
-                                            task_codes['PERIPHERAL_TARGET_ON'], [task_codes['CENTER_TARGET_OFF']])
+        go_cue_times = event_times[np.isin(event_codes, task_codes['CENTER_TARGET_OFF'])]
         new_df.loc[i, 'delay_completed'] = len(go_cue_times) > 0
         if new_df.loc[i, 'delay_completed']:
-            new_df.loc[i, 'go_cue_time'] = go_cue_times[0][-1]
+            new_df.loc[i, 'go_cue_time'] = go_cue_times[0]
 
         # Reach completed if cursor enters target (regardless of whether the trial was successful)
-        _, reach_times = get_trial_segments(event_codes, event_times,
-                                            [task_codes['CENTER_TARGET_OFF']], task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])
+        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])]
         new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
         if new_df.loc[i, 'reach_completed']:
-            new_df.loc[i, 'reach_end_time'] = reach_times[0][-1]
+            new_df.loc[i, 'reach_end_time'] = reach_times[0]
 
-        # Reach completed if cursor enters target (regardless of whether the trial was successful)
-        _, reach_times = get_trial_segments(event_codes, event_times,
-                                            [task_codes['CENTER_TARGET_OFF']], task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])
-        new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
-        if new_df.loc[i, 'reach_completed']:
-            new_df.loc[i, 'reach_end_time'] = reach_times[0][-1]
-
-        # Reward start and end times
-        _, reward_times = get_trial_segments(event_codes, event_times,
-                                            task_codes['REWARD'], [task_codes['TRIAL_END']])
+        # Reward start times
+        reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
         if len(reward_times) > 0:
-            new_df.loc[i, 'reward_start_time'] = reward_times[0][0]
-            new_df.loc[i, 'reward_end_time'] = reward_times[0][-1]
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
 
-        # Penalty start and end times
-        _, penalty_times = get_trial_segments(event_codes, event_times,
-                                              penalty_codes, [task_codes['TRIAL_END']])
+        # Penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penatly_codes = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
         if len(penalty_times) > 0:
-            new_df.loc[i, 'penalty_start_time'] = penalty_times[0][0]
-            new_df.loc[i, 'penalty_end_time'] = penalty_times[0][-1]
-            new_df.loc[i, 'penalty_event'] = event_codes[np.isin(event_codes, penalty_codes)][0]
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penatly_codes[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
@@ -1389,8 +1388,9 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
     new_df['target_location'] = target_location
 
     # Add trial segment timing
-    new_df['trial_start_time'] = np.nan
+    new_df['prev_trial_end_time'] = np.nan
     new_df['trial_end_time'] = np.nan
+    new_df['target_on_time'] = np.nan
     new_df['reach_completed'] = False
     new_df['reach_end_time'] = np.nan
     new_df['reward_start_time'] = np.nan
@@ -1402,36 +1402,34 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
 
-        # Trial start time (same as previous trial end time)
-        if i > 0:
-            new_df.loc[i, 'trial_start_time'] = new_df.loc[i-1, 'event_times'][-1]
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
         else:
-            new_df.loc[i, 'trial_start_time'] = 0.
-
-        # Trial end time
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
         new_df.loc[i, 'trial_end_time'] = event_times[-1]
-        
+
+        # Target appears
+        new_df.loc[i, 'target_on_time'] = event_times[0]
+
         # Reach completed if cursor enters target (regardless of whether the trial was successful)
-        _, reach_times = get_trial_segments(event_codes, event_times,
-                                            trial_start_codes, task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])
+        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])]
         new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
         if new_df.loc[i, 'reach_completed']:
-            new_df.loc[i, 'reach_end_time'] = reach_times[0][-1]
+            new_df.loc[i, 'reach_end_time'] = reach_times[0]
 
-        # Reward start and end times
-        _, reward_times = get_trial_segments(event_codes, event_times,
-                                            task_codes['REWARD'], [task_codes['TRIAL_END']])
+        # Reward start times
+        reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
         if len(reward_times) > 0:
-            new_df.loc[i, 'reward_start_time'] = reward_times[0][0]
-            new_df.loc[i, 'reward_end_time'] = reward_times[0][-1]
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
 
-        # Penalty start and end times
-        _, penalty_times = get_trial_segments(event_codes, event_times,
-                                              penalty_codes, [task_codes['TRIAL_END']])
+        # Penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penatly_codes = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
         if len(penalty_times) > 0:
-            new_df.loc[i, 'penalty_start_time'] = penalty_times[0][0]
-            new_df.loc[i, 'penalty_end_time'] = penalty_times[0][-1]
-            new_df.loc[i, 'penalty_event'] = event_codes[np.isin(event_codes, penalty_codes)][0]
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penatly_codes[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
