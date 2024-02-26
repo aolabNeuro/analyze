@@ -1,5 +1,6 @@
 # test_data.py 
 # tests of aopy.data
+import time
 from aopy import visualization
 from aopy.data import *
 from aopy.data import peslab
@@ -650,7 +651,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
+        t0 = time.perf_counter()
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        t1 = time.perf_counter()
+        print(f"tabulate_behavior_data_center_out took {t1-t0:0.3f} seconds")
+        
         self.assertEqual(len(df), 20) # 10 total trials, duplicated
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
@@ -673,6 +678,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertTrue(trial['hold_completed'])
         self.assertTrue(trial['delay_completed'])
         self.assertTrue(trial['reach_completed'])
+        events = [trial['prev_trial_end_time'], trial['center_target_on_time'], trial['hold_start_time'], trial['delay_start_time'], 
+                  trial['go_cue_time'], trial['reach_end_time'], trial['reward_start_time'], trial['trial_end_time']]
+        np.testing.assert_allclose(events, sorted(events)) # events should occur in order
+        self.assertEqual(trial['prev_trial_end_time'], 0.)
+        self.assertGreater(trial['trial_end_time'], trial['reward_start_time'])
 
         trial = df.iloc[7] # a timeout penalty before anything happens
         self.assertFalse(trial['reward'])
@@ -683,6 +693,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['hold_completed'])
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
+        self.assertTrue(~np.isnan(trial['penalty_start_time']))
+        self.assertEqual(trial['penalty_start_time'], 40.42532)
+        self.assertEqual(trial['penalty_event'], 65) # timeout penalty
+        self.assertGreater(trial['prev_trial_end_time'], 0.)
+        self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
 
         trial = df.iloc[8] # a hold penalty on the center target
         self.assertFalse(trial['reward'])
@@ -693,6 +708,50 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['hold_completed'])
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
+        self.assertTrue(~np.isnan(trial['penalty_start_time']))
+        self.assertEqual(trial['penalty_start_time'], 42.64848)
+        self.assertEqual(trial['penalty_event'], 64) # hold penalty
+        self.assertGreater(trial['prev_trial_end_time'], 0.)
+        self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
+
+        trial = df.iloc[10] # first trial of the second session
+        self.assertEqual(trial['prev_trial_end_time'], 0.)
+
+    def test_tabulate_behavior_data_out(self):
+
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+
+        df = tabulate_behavior_data_out(write_dir, subjects, ids, dates, df=None)
+        self.assertEqual(len(df), 16) # 8 total trials, duplicated (center target hold and timeout penalty trials are excluded)
+        self.assertTrue(np.all(df['target_idx'] < 9))
+        self.assertTrue(np.all(df['target_idx'] >= 0))
+        self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
+        for loc in df['target_location']:
+            self.assertEqual(loc.shape[0], 3)
+            self.assertLess(np.linalg.norm(loc), 7)
+
+        # Check that reaches are completed
+        self.assertTrue(np.all(df['reach_completed'][df['reward']]))
+
+        # Check a couple interesting trials
+        trial = df.iloc[0] # a successful trial
+        self.assertTrue(trial['reward'])
+        np.testing.assert_allclose(trial['event_codes'], [18, 32, 82, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        self.assertTrue(trial['reach_completed'])
+        events = [trial['prev_trial_end_time'], trial['target_on_time'], trial['reach_end_time'], trial['reward_start_time'], trial['trial_end_time']]
+        np.testing.assert_allclose(events, sorted(events)) # events should occur in order
+
+        trial = df.iloc[7] # a hold penalty on the peripheral target
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [21, 32, 85, 64, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, -4.5962, 0.])
+        self.assertTrue(trial['reach_completed'])
+        self.assertTrue(~np.isnan(trial['penalty_start_time']))
+        self.assertEqual(trial['penalty_event'], 64) # hold penalty
 
     def test_tabulate_behavior_data_tracking_task(self):
         subjects = ['test', 'test']
@@ -829,6 +888,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Check that flash times are in the correct order
         self.assertTrue(np.all(df['flash_end_time'] - df['flash_start_time'] > 0))
+
+        df = tabulate_behavior_data_flash(write_dir, [subject, subject], [te_id, te_id], [date, date], df=None)
+        self.assertEqual(len(df), 26) # 13 total trials, duplicated
+        trial = df.iloc[12] # last trial of the first session
+        self.assertGreater(trial['trial_end_time'], 0.)
+
+        trial = df.iloc[13] # first trial of the second session
+        self.assertEqual(trial['prev_trial_end_time'], 0.)
 
     def test_tabulate_stim_data(self):
         subjects = ['test']
