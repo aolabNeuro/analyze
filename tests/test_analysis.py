@@ -284,6 +284,52 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
+    def test_calc_freq_domain_values(self):
+        samplerate = 100
+        t = np.arange(samplerate) # 1sec signal
+        fig, ax = plt.subplots(4,1, figsize=(10,10))
+
+        # signal 1
+        A1 = 1 # amplitude
+        f1 = 2 # Hz
+        p1 = 0 # phase
+        y1 = A1 * np.sin((2*np.pi)*(f1/samplerate)*t + p1)
+        ax[0].plot(t, y1)
+        ax[0].set_ylabel('magnitude'); ax[0].set_xlabel('sample')
+
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y1, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f1,0])[0], A1)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f1,0], deg=True)[0], -90)
+        ax[1].plot(freqs, abs(freqvalues), '-o')
+        ax[1].set_ylabel('magnitude')
+
+        # signal 2
+        A2 = 2
+        f2 = 5
+        p2 = np.pi/2
+        y2 = A2 * np.sin((2*np.pi)*(f2/samplerate)*t + p2)
+        ax[0].plot(t, y2)
+        
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y2, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f2,0])[0], A2)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f2,0], deg=True)[0], 0)
+        ax[2].plot(freqs, abs(freqvalues), '-o', color='tab:orange')
+        ax[2].set_ylabel('magnitude')
+
+        # signal 1 + signal 2
+        ax[0].plot(t, y1+y2)
+
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y1+y2, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f1,0])[0], A1)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f1,0], deg=True)[0], -90)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f2,0])[0], A2)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f2,0], deg=True)[0], 0)
+        ax[3].plot(freqs, abs(freqvalues), '-o', color='tab:green')
+        ax[3].set_ylabel('magnitude'); ax[3].set_xlabel('frequency')
+
+        filename = 'freq_domain_decomposition.png'
+        aopy.visualization.savefig(docs_dir, filename)
+
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
         samplerate = 1000
