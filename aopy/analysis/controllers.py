@@ -93,8 +93,8 @@ def pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=3):
 
     trial_pairs = []
     for i in range(len(ref_freqs)):
-        curr_r = ref_freqs[i]
-        curr_d = dis_freqs[i]
+        curr_r = np.array(ref_freqs[i]) # convert to array in case in list format
+        curr_d = np.array(dis_freqs[i])
         # Find next trial with complementary frequency content
         for j in range(i+1,len(ref_freqs)):
             next_r = ref_freqs[j]

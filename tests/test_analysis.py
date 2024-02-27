@@ -1663,6 +1663,19 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         np.testing.assert_array_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), [p1_out, p2_out])
 
+    def test_pair_trials_by_frequency(self):
+        # trials with perfectly alternating frequency content
+        even_freqs = [0.1, 0.2, 0.3, 0.4]
+        odd_freqs = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [even_freqs, odd_freqs]*5
+        dis_freqs = [odd_freqs, even_freqs]*5
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs)
+        np.testing.assert_array_equal(trial_pairs, np.array([[i,i+1] for i in range(9)]))
+
+        # trials with some repeating frequency content
+
 if __name__ == "__main__":
     unittest.main()
 
