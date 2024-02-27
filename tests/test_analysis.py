@@ -1647,16 +1647,19 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
 
         # input--> input
         freqs, transfer_func = controllers.calc_transfer_function(input_signal, input_signal, samplerate)
+        self.assertEqual(len(transfer_func), len(t)/2)
         np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func)), np.ones(len(freqs))) # magnitude transformation is 1 at all freqs  
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), np.zeros(len(freqs))) # phase shift is 0 at all freqs
 
         # input--> output
         freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate)
+        self.assertEqual(len(transfer_func), len(t)/2)
         np.testing.assert_array_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func))[np.isin(freqs, exp_freqs)], [p1_out, p2_out])
 
         # input--> output, only at experimental freqs
         freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate, exp_freqs)
+        self.assertEqual(len(transfer_func), len(exp_freqs))
         np.testing.assert_array_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), [p1_out, p2_out])
 
