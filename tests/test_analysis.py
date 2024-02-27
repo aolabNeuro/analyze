@@ -1,6 +1,6 @@
 import time
 from aopy.visualization import savefig
-from aopy.analysis import accllr
+from aopy.analysis import accllr, controllers
 import aopy
 import os
 import numpy as np
@@ -1622,7 +1622,44 @@ class BehaviorMetricsTests(unittest.TestCase):
             np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
         cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
         self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
-        
+
+class ControlTheoreticAnalysisTests(unittest.TestCase):
+    def test_calc_transfer_function(self):
+        samplerate = 100
+        t = np.arange(samplerate) # 1sec signal
+        exp_freqs = [2, 5] # [f1, f2] Hz
+
+        # input signal
+        A1_in = 4 # amplitude
+        p1_in = 0 # phase
+        A2_in = 2
+        p2_in = 0
+        input_signal = A1_in * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t + p1_in) + A2_in * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t + p2_in)
+        plt.plot(t, input_signal)
+
+        # output signal
+        A1_out = 3
+        p1_out = np.pi/6
+        A2_out = 3
+        p2_out = -np.pi/4
+        output_signal = A1_out * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t + p1_out) + A2_out * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t + p2_out)
+        plt.plot(t, output_signal)
+
+        # input--> input
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, input_signal, samplerate)
+        np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func)), np.ones(len(freqs))) # magnitude transformation is 1 at all freqs  
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), np.zeros(len(freqs))) # phase shift is 0 at all freqs
+
+        # input--> output
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate)
+        np.testing.assert_array_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func))[np.isin(freqs, exp_freqs)], [p1_out, p2_out])
+
+        # input--> output, only at experimental freqs
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate, exp_freqs)
+        np.testing.assert_array_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), [p1_out, p2_out])
+
 if __name__ == "__main__":
     unittest.main()
 
