@@ -134,9 +134,16 @@ def parse_bmi3d(data_dir, files):
 
     # Standardize the parsed variable names and perform some error checking
     if metadata['bmi3d_parser'] == 0:
-        return _prepare_bmi3d_v0(data, metadata)
+        prepared_data, prepared_metadata = _prepare_bmi3d_v0(data, metadata)
     if metadata['bmi3d_parser'] == 1:
-        return _prepare_bmi3d_v1(data, metadata)
+        prepared_data, prepared_metadata = _prepare_bmi3d_v1(data, metadata)
+
+    # Use the v2 parser if the sync events are broken
+    if 'bmi3d_events' in data and 'sync_events' in data and len(data['bmi3d_events']) != len(data['sync_events']):
+        prepared_data, prepared_metadata = _prepare_bmi3d_v2(data, metadata)
+
+    return prepared_data, prepared_metadata
+
 
 def _parse_bmi3d_v0(data_dir, files):
     '''
@@ -364,6 +371,197 @@ def _prepare_bmi3d_v0(data, metadata):
     return data, metadata
 
 def _prepare_bmi3d_v1(data, metadata):
+    '''
+    Organizes the bmi3d data and metadata and computes some automatic conversions. Corrects for
+    unreliable sync clock signal, finds measured timestamps, and pads the clock for versions
+    with a sync period at the beginning of the experiment.
+
+    Args:
+        data (dict): bmi3d data
+        metadata (dict): bmi3d metadata
+
+    Returns:
+        tuple: tuple containing:
+            | **data (dict):** prepared bmi3d data
+            | **metadata (dict):** prepared bmi3d metadata
+    '''
+    # Must be present: clock, task
+    if 'bmi3d_clock' in data and 'bmi3d_task' in data:
+        internal_clock = data['bmi3d_clock']
+        task = data['bmi3d_task']
+    elif 'sync_clock' in data:
+        warnings.warn('Critical error! No internal clock found, using sync clock instead. Task data will be missing')
+        internal_clock = data['sync_clock']
+        task = None
+    else:
+        warnings.warn("No clock or task data found! Cannot prepare bmi3d data")
+        return data, metadata
+    
+    # Estimate display latency
+    if 'sync_clock' in data and 'measure_clock_offline' in data and len(data['sync_clock']) > 0:
+
+        # Estimate the latency based on the "sync" state at the beginning of the experiment
+        sync_impulse = data['sync_clock']['timestamp'][1:3]
+        measure_impulse = base.get_measured_clock_timestamps(sync_impulse, data['measure_clock_offline']['timestamp'],
+            latency_estimate=0.01, search_radius=0.1)
+        if np.count_nonzero(np.isnan(measure_impulse)) > 0:
+            warnings.warn("Warning: sync failed. Using latency estimate 0.01")
+            measure_latency_estimate = 0.01
+        else:
+            measure_latency_estimate = np.mean(measure_impulse - sync_impulse)
+            print("Sync latency estimate: {:.4f} s".format(measure_latency_estimate))
+    else:
+        measure_latency_estimate = 0.01 # Guess 10 ms
+    metadata['measure_latency_estimate'] = measure_latency_estimate
+
+    # Correct the clock
+    cycle_bmi3d = internal_clock['time'].copy()
+    timestamp_bmi3d = internal_clock['timestamp'].copy()
+    corrected_clock = {
+        'time': cycle_bmi3d,
+        'timestamp_bmi3d': timestamp_bmi3d,
+    }
+    approx_clock = timestamp_bmi3d.copy()
+    valid_clock_cycles = len(approx_clock)
+
+    # 1. Digital clock from BMI3D via NI DIO card
+    sync_search_radius = 1.5/metadata['fps']
+    if 'sync_clock' in data and len(data['sync_clock']) > 0:
+        sync_clock = data['sync_clock']
+        if len(sync_clock) == 0:
+            warnings.warn("Warning: no clock timestamps on the eCube. Maybe something was unplugged?")
+            print("Using internal clock timestamps")
+        elif len(sync_clock) < len(internal_clock):
+            warnings.warn("Warning: length of clock timestamps on eCube ({}) doesn't match bmi3d record ({})".format(len(sync_clock), len(internal_clock)))
+            valid_clock_cycles = len(sync_clock)
+        elif len(sync_clock) > len(internal_clock):
+            raise RuntimeError("Extra timestamps detected, something has gone horribly wrong.")
+
+        # Adjust the internal clock so that it starts at the same time as the sync clock
+        approx_clock = approx_clock + sync_clock['timestamp'][0] - approx_clock[0]
+
+        # Find sync clock pulses that match up to the expected internal clock timestamps within 1 radius
+        timestamp_sync = base.get_measured_clock_timestamps(
+            approx_clock, sync_clock['timestamp'], 0, sync_search_radius) # assume no latency between bmi3d and ecube via nidaq
+        nanmask = np.isnan(timestamp_sync)
+        # print(f"this many are NaN: {np.count_nonzero(nanmask)} out of {len(timestamp_sync)}")
+        timestamp_sync[nanmask] = approx_clock[nanmask] # if nothing, then use the approximated value
+        corrected_clock['timestamp_sync'] = timestamp_sync
+    else:
+        warnings.warn("Warning: no sync clock connected! This will usually result in problems.")
+
+    # 2. Screen photodiode measurements, digitized online by NXP microcontroller
+    measure_search_radius = 1.5/metadata['fps']
+    max_consecutive_missing_cycles = metadata['fps'] # maximum 1 second missing
+    metadata['has_measured_timestamps'] = False
+    if 'measure_clock_online' in data and len(data['measure_clock_online']) > 0:
+        # Find the timestamps for each cycle of bmi3d's state machine from all the clock sources
+        timestamp_measure_online = base.get_measured_clock_timestamps(
+            approx_clock, data['measure_clock_online']['timestamp'], 
+                measure_latency_estimate, measure_search_radius)
+        corrected_clock['timestamp_measure_online'] = timestamp_measure_online
+
+        # If there are few missing measurements, include this in the data
+        metadata['latency_measured'] = np.nanmean(timestamp_measure_online - approx_clock)
+        metadata['n_missing_markers'] = np.count_nonzero(np.isnan(timestamp_measure_online[:valid_clock_cycles]))
+        n_consecutive_missing_cycles = utils.max_repeated_nans(timestamp_measure_online[:valid_clock_cycles])
+        if n_consecutive_missing_cycles < max_consecutive_missing_cycles:
+            metadata['has_measured_timestamps'] = True
+        else:
+            warnings.warn(f"Digital screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
+
+    # 3. Screen photodiode measurements, raw voltage digitized offline
+    if 'measure_clock_offline' in data and len(data['measure_clock_offline']) > 0:
+        timestamp_measure_offline = base.get_measured_clock_timestamps(
+            approx_clock, data['measure_clock_offline']['timestamp'], 
+                measure_latency_estimate, measure_search_radius)
+        
+        # If there are few missing measurements, include this as the default `timestamp`
+        metadata['latency_measured'] = np.nanmean(timestamp_measure_offline - approx_clock)
+        metadata['n_missing_markers'] = np.count_nonzero(np.isnan(timestamp_measure_offline[:valid_clock_cycles]))
+        n_consecutive_missing_cycles = utils.max_repeated_nans(timestamp_measure_offline[:valid_clock_cycles])
+        if n_consecutive_missing_cycles < max_consecutive_missing_cycles:
+            metadata['has_measured_timestamps'] = True
+            corrected_clock['timestamp_measure_offline'] = timestamp_measure_offline
+        else:
+            warnings.warn(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
+
+    # Assemble the corrected clock
+    corrected_clock = pd.DataFrame.from_dict(corrected_clock).to_records(index=False)
+
+    # Trim / pad the clock
+    n_cycles = int(corrected_clock['time'][-1])
+    if metadata['sync_protocol_version'] >= 3 and metadata['sync_protocol_version'] < 6:
+
+        # Due to the "sync" state at the beginning of the experiment, we need 
+        # to add some (meaningless) cycles to the beginning of the clock
+        state_log = data['bmi3d_state']
+        n_sync_cycles = state_log['time'][1] # 120, approximately
+        n_sync_clocks = np.count_nonzero(corrected_clock['time'] < n_sync_cycles)
+
+        padded_clock = np.zeros((n_cycles,), dtype=corrected_clock.dtype)
+        padded_clock[n_sync_cycles:] = corrected_clock[n_sync_clocks:]
+        padded_clock['time'][:n_sync_cycles] = range(n_sync_cycles)
+        corrected_clock = padded_clock
+
+    # By default use the internal events if they exist
+    corrected_events = None
+    if 'bmi3d_events' in data:
+        corrected_events = np.empty((len(data['bmi3d_events']),), dtype=[('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
+        corrected_events['timestamp'] =  np.asarray([timestamp_bmi3d[cycle] for cycle in data['bmi3d_events']['time']])
+        corrected_events['code'] = data['bmi3d_events']['code']
+        corrected_events['event'] = data['bmi3d_events']['event']
+        try:
+            corrected_events['data'] = data['bmi3d_events']['data']
+        except:
+            pass
+        
+    # But use the sync events if they exist and are valid
+    if 'sync_events' in data and len(data['sync_events']) > 0:
+        if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
+            warnings.warn("sync events don't match bmi3d events. This will probably cause problems.")
+        corrected_events = data['sync_events']
+    else:
+        warnings.warn("No sync events present, using bmi3d events instead")
+
+    data.update({
+        'task': task,
+        'clock': corrected_clock,
+        'events': corrected_events,
+    })
+
+    # Also put some information about the reward system
+    if 'reward_system' in data and 'reward_system' in metadata['features']:
+        metadata['has_reward_system'] = True
+    else:
+        metadata['has_reward_system'] = False
+
+    # In some versions of BMI3D, hand position contained erroneous data
+    # caused by `np.empty()` instead of `np.nan`. The 'clean_hand_position' 
+    # replaces these bad data with `np.nan`.
+    if isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+        clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
+        if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
+            data['clean_hand_position'] = clean_hand_position
+
+    # Interpolate clean hand kinematics
+    if ('timestamp_sync' in corrected_clock.dtype.names and 
+        'clean_hand_position' in data and
+        len(data['clean_hand_position']) > 0):
+        metadata['hand_interp_samplerate'] = 1000
+        data['hand_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
+
+    # And interpolated cursor kinematics
+    if ('timestamp_sync' in corrected_clock.dtype.names and 
+        isinstance(task, np.ndarray) and 
+        'cursor' in task.dtype.names and
+        len(task['cursor']) > 0):
+        metadata['cursor_interp_samplerate'] = 1000
+        data['cursor_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
+        
+    return data, metadata
+
+def _prepare_bmi3d_v2(data, metadata):
     '''
     Organizes the bmi3d data and metadata and computes some automatic conversions. Corrects for
     unreliable sync clock signal, finds measured timestamps, and pads the clock for versions
