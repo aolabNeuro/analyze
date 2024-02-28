@@ -245,7 +245,7 @@ class CurveFittingTests(unittest.TestCase):
         fig, ax = plt.subplots(1,1)
         plot_boxplots(data, xaxis_pts, ax=ax)
         filename = 'boxplot_example.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # List of nonrectangular arrays
         data = [np.random.normal(0, 2, size=(10)), np.random.normal(0, 1, size=(20))]
@@ -253,7 +253,7 @@ class CurveFittingTests(unittest.TestCase):
         fig, ax = plt.subplots(1,1)
         plot_boxplots(data, xaxis_pts, ax=ax)
         filename = 'boxplot_example_nonrectangular.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
 class AnimationTests(unittest.TestCase):
 
@@ -671,6 +671,35 @@ class OtherPlottingTests(unittest.TestCase):
         assert isinstance(axes[1, 0], plt.Axes)
         assert isinstance(axes[1, 1], plt.Axes)
         aopy.visualization.savefig(docs_dir, "labeled_subplots.png")
+
+class TestEyePlots(unittest.TestCase):
+
+    def test_plot_eye_calibration_result(self):
+        
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        preproc_dir = data_dir
+        exp_data, exp_metadata = aopy.data.bmi3d.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = aopy.data.bmi3d.load_preproc_eye_data(preproc_dir, subject, te_id, date)
+
+        eye_raw = eye_data['raw_data']
+        eye_samplerate = eye_metadata['samplerate']
+        cursor_data = exp_data['cursor_interp']
+        cursor_samplerate = exp_metadata['cursor_interp_samplerate']
+        coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = aopy.preproc.calc_eye_calibration(
+            cursor_data, cursor_samplerate, eye_raw, eye_samplerate,
+            exp_data['events']['timestamp'],
+            exp_data['events']['code'],
+            align_events=list(range(81,89)),
+            penalty_events=[64],
+            return_datapoints=True,
+        )
+
+        aopy.visualization.eye.plot_eye_calibration_result(eye_calibration_data, cursor_calibration_data, coeff, correlation_coeff)
+
+        filename = 'eye_calibration.png'
+        savefig(docs_dir,filename, transparent=False)
 
 if __name__ == "__main__":
     unittest.main()

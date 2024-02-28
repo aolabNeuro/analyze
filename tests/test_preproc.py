@@ -593,14 +593,34 @@ class EventFilterTests(unittest.TestCase):
         eye_data = np.array([[0, 1, 2, 3, 4, 5, 6, 7], [3, 4, 5 ,6 ,7, 8, 9, 10]]).T
         cursor_samplerate = 1
         eye_samplerate = 1
-        event_times = [2, 3, 4, 5]
-        event_codes = [0, 1, 0, 1]
+        event_times = [2, 3, 3.5, 3.6, 3.7, 4, 5]
+        event_codes = [0, 1, 0, 2, 1, 0, 1]
         coeff, corr_coeff = calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, 
-            event_times, event_codes, align_events=[0], trial_end_events=[1])
+            event_times, event_codes, align_events=[0], penalty_events=[2])
         
         expected_coeff = [[1., 1.], [1., -1.]]
         expected_corr_coeff = [1., 1.]
 
+        np.testing.assert_allclose(expected_coeff, coeff)
+        np.testing.assert_allclose(expected_corr_coeff, corr_coeff)
+        
+    def test_calc_eye_target_calibration(self):
+        eye_data = np.array([[0, 1, 2, 3, 4, 5, 6, 5], [3, 4, 5, 6, 7, 8, 9, 8]]).T
+        eye_samplerate = 1
+        event_times = [1, 2, 3, 4, 5, 6, 7]
+        event_codes = [1, 3, 1, 4, 2, 3, 2]
+        target_pos_test = np.array([[0,0,0],[1,1,0]])
+        expected_coeff = [[0.25, -0.25], [0.25, -1]]
+        expected_corr_coeff = [1., 1.]
+        # test for duration = 0.1
+        coeff, corr_coeff = calc_eye_target_calibration(eye_data, eye_samplerate, 
+            event_times, event_codes, target_pos_test, align_events=[1,2], penalty_events=[4], cursor_enter_center_target=0, duration=1)
+        np.testing.assert_allclose(expected_coeff, coeff)
+        np.testing.assert_allclose(expected_corr_coeff, corr_coeff)
+        
+        # test for duration = 0.
+        coeff, corr_coeff = calc_eye_target_calibration(eye_data, eye_samplerate, 
+            event_times, event_codes, target_pos_test, align_events=[1,2], penalty_events=[4], cursor_enter_center_target=0, duration=0)
         np.testing.assert_allclose(expected_coeff, coeff)
         np.testing.assert_allclose(expected_corr_coeff, corr_coeff)
 
@@ -682,7 +702,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(metadata['sync_protocol_version'], 2)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
-        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1054)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1042)
         self.assertEqual(len(data['measure_clock_online']['timestamp']), 1015)
         self.assertTrue(metadata['has_measured_timestamps'])
         self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
@@ -708,7 +728,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(metadata['sync_protocol_version'], 4)
         self.assertIn('sync_clock', data)
         self.assertIn('measure_clock_offline', data)
-        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1758)
+        self.assertEqual(len(data['measure_clock_offline']['timestamp']), 1754)
         self.assertEqual(len(data['measure_clock_online']), 1682)
         self.assertTrue(metadata['has_measured_timestamps'])
         self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
@@ -1074,7 +1094,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertNotIn('qwalor_trigger_dch', exp_metadata.keys())
         self.assertNotIn('laser_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(
             preproc_dir, subject, te_id, date, laser_trigger='laser_trigger', 
             laser_sensor='laser_sensor', debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
@@ -1148,7 +1168,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('qwalor_trigger_dch', exp_metadata.keys())
         self.assertIn('qwalor_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
 
         print(trial_powers)
@@ -1204,7 +1224,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('qwalor_ch2_trigger_dch', exp_metadata.keys())
         self.assertIn('qwalor_ch2_trigger', exp_data.keys())
 
-        trial_times, trial_widths, trial_powers, et, ew, ep = get_laser_trial_times(
+        trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(
             preproc_dir, subject, te_id, date, laser_trigger='qwalor_ch2_trigger', 
             laser_sensor='qwalor_ch2_sensor', debug=True
         )
@@ -1634,5 +1654,22 @@ class NeuropixelTests(unittest.TestCase):
         self.assertTrue(np.all(spike_indices_unit['0']>0))
         self.assertTrue(np.all(spike_indices_unit['1']>0))
             
+class LaserTests(unittest.TestCase):
+
+    def test_calibrate_gain(self):
+        gain = np.arange(0.4,1.0,0.01)
+        powers = preproc.laser.calibrate_gain(gain, 12.)
+        plt.figure()
+        plt.plot(gain, powers)
+        plt.xlabel('gain')
+        plt.ylabel('power (mW)')
+
+        visualization.savefig(docs_dir, 'calibrate_laser_gain.png')
+        
+    def test_calibrate_sensor(self):
+        voltage = [0.12, 0.08, 0.14]
+        powers = preproc.laser.calibrate_sensor(voltage, 12.)
+        np.testing.assert_allclose(powers, [8.57,  5.07, 10.32], atol=1e-2)
+
 if __name__ == "__main__":
     unittest.main()

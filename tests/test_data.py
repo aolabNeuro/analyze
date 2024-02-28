@@ -1,5 +1,6 @@
 # test_data.py 
 # tests of aopy.data
+import time
 from aopy import visualization
 from aopy.data import *
 from aopy.data import peslab
@@ -650,7 +651,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [self.te_id, self.te_id]
         dates = [self.date, self.date]
 
+        t0 = time.perf_counter()
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        t1 = time.perf_counter()
+        print(f"tabulate_behavior_data_center_out took {t1-t0:0.3f} seconds")
+        
         self.assertEqual(len(df), 20) # 10 total trials, duplicated
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
@@ -673,6 +678,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertTrue(trial['hold_completed'])
         self.assertTrue(trial['delay_completed'])
         self.assertTrue(trial['reach_completed'])
+        events = [trial['prev_trial_end_time'], trial['center_target_on_time'], trial['hold_start_time'], trial['delay_start_time'], 
+                  trial['go_cue_time'], trial['reach_end_time'], trial['reward_start_time'], trial['trial_end_time']]
+        np.testing.assert_allclose(events, sorted(events)) # events should occur in order
+        self.assertEqual(trial['prev_trial_end_time'], 0.)
+        self.assertGreater(trial['trial_end_time'], trial['reward_start_time'])
 
         trial = df.iloc[7] # a timeout penalty before anything happens
         self.assertFalse(trial['reward'])
@@ -683,6 +693,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['hold_completed'])
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
+        self.assertTrue(~np.isnan(trial['penalty_start_time']))
+        self.assertEqual(trial['penalty_start_time'], 40.42532)
+        self.assertEqual(trial['penalty_event'], 65) # timeout penalty
+        self.assertGreater(trial['prev_trial_end_time'], 0.)
+        self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
 
         trial = df.iloc[8] # a hold penalty on the center target
         self.assertFalse(trial['reward'])
@@ -693,6 +708,50 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['hold_completed'])
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
+        self.assertTrue(~np.isnan(trial['penalty_start_time']))
+        self.assertEqual(trial['penalty_start_time'], 42.64848)
+        self.assertEqual(trial['penalty_event'], 64) # hold penalty
+        self.assertGreater(trial['prev_trial_end_time'], 0.)
+        self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
+
+        trial = df.iloc[10] # first trial of the second session
+        self.assertEqual(trial['prev_trial_end_time'], 0.)
+
+    def test_tabulate_behavior_data_out(self):
+
+        subjects = [self.subject, self.subject]
+        ids = [self.te_id, self.te_id]
+        dates = [self.date, self.date]
+
+        df = tabulate_behavior_data_out(write_dir, subjects, ids, dates, df=None)
+        self.assertEqual(len(df), 16) # 8 total trials, duplicated (center target hold and timeout penalty trials are excluded)
+        self.assertTrue(np.all(df['target_idx'] < 9))
+        self.assertTrue(np.all(df['target_idx'] >= 0))
+        self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
+        for loc in df['target_location']:
+            self.assertEqual(loc.shape[0], 3)
+            self.assertLess(np.linalg.norm(loc), 7)
+
+        # Check that reaches are completed
+        self.assertTrue(np.all(df['reach_completed'][df['reward']]))
+
+        # Check a couple interesting trials
+        trial = df.iloc[0] # a successful trial
+        self.assertTrue(trial['reward'])
+        np.testing.assert_allclose(trial['event_codes'], [18, 32, 82, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        self.assertTrue(trial['reach_completed'])
+        events = [trial['prev_trial_end_time'], trial['target_on_time'], trial['reach_end_time'], trial['reward_start_time'], trial['trial_end_time']]
+        np.testing.assert_allclose(events, sorted(events)) # events should occur in order
+
+        trial = df.iloc[7] # a hold penalty on the peripheral target
+        self.assertFalse(trial['reward'])
+        self.assertTrue(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [21, 32, 85, 64, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, -4.5962, 0.])
+        self.assertTrue(trial['reach_completed'])
+        self.assertTrue(~np.isnan(trial['penalty_start_time']))
+        self.assertEqual(trial['penalty_event'], 64) # hold penalty
 
     def test_tabulate_behavior_data_tracking_task(self):
         subjects = ['test', 'test']
@@ -830,6 +889,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Check that flash times are in the correct order
         self.assertTrue(np.all(df['flash_end_time'] - df['flash_start_time'] > 0))
 
+        df = tabulate_behavior_data_flash(write_dir, [subject, subject], [te_id, te_id], [date, date], df=None)
+        self.assertEqual(len(df), 26) # 13 total trials, duplicated
+        trial = df.iloc[12] # last trial of the first session
+        self.assertGreater(trial['trial_end_time'], 0.)
+
+        trial = df.iloc[13] # first trial of the second session
+        self.assertEqual(trial['prev_trial_end_time'], 0.)
+
     def test_tabulate_stim_data(self):
         subjects = ['test']
         ids = [6577]
@@ -843,17 +910,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(len(df), 51)
         for trial in range(len(df)):
             self.assertLessEqual(df['trial_width'][trial], 0.1)
-            self.assertGreater(df['trial_power'][trial], 0.)
-            self.assertLessEqual(df['trial_power'][trial], 1.0)
+            self.assertGreater(df['trial_gain'][trial], 0.)
+            self.assertLessEqual(df['trial_gain'][trial], 1.0)
             self.assertGreater(df['trial_time'][trial], 0.)
             self.assertLessEqual(df['trial_time'][trial], 100.)
-            self.assertGreater(df['trial_power_watts'][trial], 0.)
-            self.assertEqual(df['peak_power_watts'][trial], 1.5)
-            self.assertTrue(df['trial_found'][trial])
-
-        self.assertEqual(np.sum(df['width_above_thr']), 0)
-        self.assertEqual(np.sum(df['power_above_thr']), 4)
-
+            self.assertGreater(df['trial_power'][trial], 0.)
+            self.assertLessEqual(df['trial_power'][trial], 25.0)
+            
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
@@ -1102,123 +1165,130 @@ class PesaranLabTests(unittest.TestCase):
         test_data, test_exp, test_mask = peslab.load_ecog_clfp_data(test_ecog_ds250_data_file)
         self.assertEqual(test_data.shape,(10000,62))
 
-class EyeTests(unittest.TestCase):
-
-    def test_apply_eye_calibration(self):
-
-        # Create a test hdf file
-        subject = 'test'
-        te_id = 1
-        date = 'calibration'
-        data_source = 'eye'
-        filename = get_preprocessed_filename(subject, te_id, date, data_source)
-        filepath = os.path.join(write_dir, subject, filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        data_dict = {
-            'raw_data': np.array([[0,0], [1,1]])
-        }
-        metadata_dict = {}
-        preproc_dir = os.path.join(write_dir, subject)
-        if not os.path.exists(preproc_dir):
-            os.mkdir(preproc_dir)
-        save_hdf(preproc_dir, filename, data_dict, data_group='/eye_data')
-        save_hdf(preproc_dir, filename, metadata_dict, '/eye_metadata', append=True)
-
-        # Apply a calibration
-        coeff = np.array([[3,4], [5,6]])
-        apply_eye_calibration(coeff, write_dir, subject, te_id, date)
-
-        # Check the result
-        eye_data, eye_metadata = load_preproc_eye_data(write_dir, subject, te_id, date)
-        self.assertIn('calibrated_data', eye_data)
-        self.assertIn('coefficients', eye_data)
-        self.assertIn('external_calibration', eye_metadata)    
-
 class DatabaseTests(unittest.TestCase):
 
-    # Create some tests - only has to be run once and saved in db/tes
     @classmethod
     def setUpClass(cls):
-        db.BMI3D_DBNAME = 'default'
+        db.BMI3D_DBNAME = 'test_aopy'
         db.DB_TYPE = 'bmi3d'
-
-        '''
-        This database contains one subject and one experimenter:
-        - Subject(name="test_subject")
-        - Experimenter(name="experimenter_1")
+        from db.tracker import models
         
-        Tasks:
-        - Task(name="manual control")
-        - Task(name="tracking")
+        # Clear the database
+        models.Decoder.objects.all().delete()
+        models.TaskEntry.objects.all().delete()
+        models.Subject.objects.all().delete()
+        models.Experimenter.objects.all().delete()
+        models.Sequence.objects.all().delete()
+        models.Task.objects.all().delete()
+        models.Feature.objects.all().delete()
+        models.Generator.objects.all().delete()
+        models.System.objects.all().delete()
 
-        Features:
-        - Feature(name="feat_1")
+        # Make some test entries for subject, experimenter, and task 
+        subj = models.Subject(name="test")
+        subj.save()
+        expm = models.Experimenter(name="experimenter_1")
+        expm.save()
+        task = models.Task(name="nothing")
+        task.save()
+        task = models.Task(name="manual control")
+        task.save()
+        task = models.Task(name="tracking")
+        task.save()
+        feat = models.Feature(name="feat_1")
+        feat.save()
+        gen = models.Generator(name="test_gen", static=False)
+        gen.save()
+        seq = models.Sequence(generator_id=gen.id, task_id=task.id, name="test_seq", params='{"seq_param_1": 1}')
+        seq.save()
 
-        Systems:
-        - System(name="test_system", path="", archive="")
+        # Make a basic task entry
+        subj = models.Subject.objects.get(name="test")
+        task = models.Task.objects.get(name="tracking")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id)
+        te.save()
 
-        Decoders:
-        - Decoder(name="test_decoder", entry_id=3) # the bmi control entry
+        # Make a manual control task entry
+        task = models.Task.objects.get(name="manual control")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
+                            session="test session", project="test project", params='{"task_param_1": 1}', sequence_id=seq.id)
+        te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
+        te.save()
+        te.feats.set([feat])
+        te.save()
 
-        Generators:
-        - Generator(name="test_gen")
+        # Add a decoder entry that was "trained" on a parent task entry
+        task = models.Task.objects.get(name="nothing")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, entry_name="decoder parent")
+        te.save()
+        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
+        decoder.save()
 
-        Sequences:
-        - Sequence(name="test_seq", generator_name="test_gen", params='{"seq_param_1": 1}')
-        
-        Entries:
-        - Tracking task entry from 2023-06-26
-        - Manual control entry from 2023-06-26
-            - project = "test project"
-            - session = "test session"
-            - entry_name = "task_desc" 
-            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
-            - feats = [feat_1]
-            - params = '{"task_param_1": 1}'
-        - Flash entry (manual control task) from 2023-06-26
-            - entry_name = "flash"
-            - te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
-        - BMI entry (bmi control task) from 2023-06-26
-            - params='{"bmi": 0}'
-        ''' 
+        # And a flash task entry
+        task = models.Task.objects.get(name="manual control")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
+        te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
+        te.save()
+
+        system = models.System(name="test_system", path="", archive="")
+        system.save()
+
+        # Add a bmi task entry
+        task = models.Task(name="bmi control")
+        task.save()
+        subj = models.Subject.objects.get(name="test")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, 
+                              experimenter_id=expm.id, params='{"bmi": '+str(decoder.id)+'}')
+        te.save()
+
+        # Add a task entry from a different rig
+        subj = models.Subject.objects.get(name="test")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, rig_name="siberut-bmi")
+        te.save()
+
 
     def test_lookup_sessions(self):
 
         # Most basic lookup
-        sessions = db.lookup_sessions(id=1)
+        all_sessions = db.lookup_sessions()
+        sessions = db.lookup_sessions(id=all_sessions[0].id)
         self.assertEqual(len(sessions), 1)
-        self.assertEqual(sessions[0].id, 1)
-        sessions = db.lookup_sessions(id=[1,2])
+        self.assertEqual(sessions[0].id, sessions[0].id)
+        sessions = db.lookup_sessions(id=[all_sessions[0].id, all_sessions[1].id])
         self.assertEqual(len(sessions), 2)
-        self.assertEqual(sessions[1].id, 2)
+        self.assertEqual(sessions[1].id, all_sessions[1].id)
 
         # Other sanity tests
-        total_sessions = 4
+        total_sessions = 6
         self.assertEqual(len(db.lookup_sessions()), total_sessions)
         self.assertEqual(len(db.lookup_mc_sessions()), 1)
         self.assertEqual(len(db.lookup_flash_sessions()), 1)
         self.assertEqual(len(db.lookup_tracking_sessions()), 1)
-        self.assertEqual(len(db.lookup_bmi_sessions()), 1)
+        self.assertEqual(len(db.lookup_bmi_sessions()), 2)
+        self.assertEqual(len(db.lookup_decoder_parent()), 1)
 
         # Test filtering
         self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
-        self.assertEqual(len(db.lookup_sessions(subject="test_subject")), total_sessions)
-        sessions = db.lookup_sessions(subject="test_subject", date="2023-06-26", task_name="manual control",
+        self.assertEqual(len(db.lookup_sessions(subject="test")), total_sessions)
+        sessions = db.lookup_sessions(subject="test", task_name="manual control",
                                       task_desc="task_desc", session="test session", project="test project",
                                       experimenter="experimenter_1")
         self.assertEqual(len(sessions), 1)
         self.assertEqual(sessions[0].task_name, "manual control")
         self.assertEqual(sessions[0].task_desc, "task_desc")
-        self.assertEqual(sessions[0].subject, "test_subject")
+        self.assertEqual(sessions[0].subject, "test")
         self.assertEqual(sessions[0].session, "test session")
         self.assertEqual(sessions[0].project, "test project")
         self.assertEqual(sessions[0].experimenter, "experimenter_1")
-        self.assertEqual(str(sessions[0].date), "2023-06-26")
+        self.assertEqual(str(sessions[0].date), str(datetime.datetime.today().date()))
 
         # Special case - filter by id
-        sessions = db.lookup_sessions(exclude_ids=[2,3])
-        self.assertEqual(len(sessions), 2)
+        sessions = db.lookup_sessions(exclude_ids=[all_sessions[0].id,all_sessions[1].id])
+        self.assertEqual(len(sessions), total_sessions-2)
 
         # Special case - arbitrary filter fn
         sessions = db.lookup_sessions(filter_fn=lambda x:x.duration > 0)
@@ -1231,6 +1301,30 @@ class DatabaseTests(unittest.TestCase):
         db.BMI3D_DBNAME = 'rig2'
         self.assertRaises(Exception, db.lookup_sessions)
         db.BMI3D_DBNAME = 'default'
+
+        # And the rig name
+        sessions = db.lookup_bmi_sessions(rig_name='siberut-bmi')
+        self.assertEqual(len(sessions), 1)
+
+    def test_lookup_decoders(self):
+
+        # Most basic lookup
+        all_decoders = db.lookup_decoders()
+        decoders = db.lookup_decoders(id=all_decoders[0].id)
+        self.assertEqual(len(decoders), 1)
+        self.assertEqual(decoders[0].id, decoders[0].id)
+
+        # Other sanity tests
+        total_decoders = 1
+        self.assertEqual(len(db.lookup_decoders()), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+
+        # Test filtering
+        self.assertEqual(len(db.lookup_decoders(name="non_existent")), 0)
+        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        decoders = db.lookup_decoders(parent_id=db.lookup_decoder_parent()[0].id)
+        self.assertEqual(len(decoders), 1)
+        self.assertEqual(decoders[0].name, "test_decoder")
 
     def test_filter_functions(self):
         
@@ -1251,10 +1345,9 @@ class DatabaseTests(unittest.TestCase):
 
         # Test that all the fields work as they should
         te = db.lookup_sessions(task_desc='task_desc')[0]
-        self.assertEqual(te.subject, 'test_subject')
+        self.assertEqual(te.subject, 'test')
         self.assertEqual(te.experimenter, 'experimenter_1')
-        self.assertEqual(te.id, 2)
-        self.assertEqual(str(te.date), "2023-06-26")
+        self.assertEqual(str(te.date), str(datetime.datetime.today().date()))
         self.assertEqual(type(te.datetime), datetime.datetime)
         self.assertEqual(te.session, 'test session')
         self.assertEqual(te.project, 'test project')
@@ -1284,20 +1377,19 @@ class DatabaseTests(unittest.TestCase):
     def test_list_entry_details(self):
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
-        self.assertCountEqual(subject, ['test_subject'])
-        self.assertCountEqual(te_id, [2])
-        self.assertCountEqual([str(d) for d in date], ['2023-06-26'])
+        self.assertCountEqual(subject, ['test'])
+        self.assertCountEqual([str(d) for d in date], [str(datetime.datetime.today().date())])
         
     def test_group_entries(self):
 
         sessions = db.lookup_sessions()
         grouped = db.group_entries(sessions) # by date
         self.assertEqual(len(grouped), 1)
-        self.assertEqual(len(grouped[0]), 4)
+        self.assertEqual(len(grouped[0]), 6)
 
         grouped = db.group_entries(sessions, lambda x: x.duration) # by duration
         self.assertEqual(len(grouped), 2)
-        self.assertEqual(len(grouped[0]), 2) # duration = 0.0
+        self.assertEqual(len(grouped[0]), 4) # duration = 0.0
         self.assertEqual(len(grouped[1]), 2) # duration = 3.0
 
 

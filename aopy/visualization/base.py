@@ -127,7 +127,7 @@ def subplots_with_labels(n_rows, n_cols, return_labeled_axes=False,
         return fig, axes
 
 
-def plot_timeseries(data, samplerate, ax=None, **kwargs):
+def plot_timeseries(data, samplerate, t0=0., ax=None, **kwargs):
     '''
     Plots data along time on the given axis. Default units are seconds and volts.
 
@@ -146,6 +146,7 @@ def plot_timeseries(data, samplerate, ax=None, **kwargs):
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
+        t0 (float, optional): time (in seconds) of the first sample. Default 0.
         ax (pyplot axis, optional): where to plot
         kwargs (dict, optional): optional keyword arguments to pass to plt.plot
     '''
@@ -154,7 +155,7 @@ def plot_timeseries(data, samplerate, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    time = np.arange(np.shape(data)[0]) / samplerate
+    time = np.arange(np.shape(data)[0]) / samplerate + t0
     for ch in range(np.shape(data)[1]):
         ax.plot(time, data[:, ch], **kwargs)
     ax.set_xlabel('Time (s)')
@@ -1623,3 +1624,32 @@ def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
     ct[:,1] = np.flip(np.linspace(rgb_end[1], rgb_start[1], npts))
     ct[:,2] = np.flip(np.linspace(rgb_end[2], rgb_start[2], npts))
     return ct
+
+def plot_laser_sensor_alignment(sensor_volts, samplerate, stim_times, ax=None):
+    '''
+    Plot laser sensor data aligned to the stimulus times. Useful to debug laser timing issues to
+    make sure the laser is actually on when you think it is.
+
+    Args:
+        sensor_volts ((nstim,) float array): laser sensor data
+        samplerate (float): sampling rate of the sensor data
+        stim_times ((nstim,) array): times at which the laser was turned on
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to pyplot
+    
+    Returns:
+        pyplot.Image: image object returned from pyplot.pcolormesh. Useful for adding colorbars, etc.
+
+    Examples:
+        .. image:: _images/laser_sensor_alignment.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+    time_before = 0.1 # seconds
+    time_after = 0.1 # seconds
+    analog_erp = analysis.calc_erp(sensor_volts, stim_times, time_before, time_after, samplerate)
+    t = 1000*(np.arange(analog_erp.shape[0])/samplerate - time_before) # milliseconds
+    im = plot_image_by_time(t, analog_erp[:,0,:], ylabel='trials')
+    plt.xlabel('time (ms)')
+    plt.title('laser sensor aligned')
+    return im
