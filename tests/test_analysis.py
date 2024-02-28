@@ -1675,6 +1675,35 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         np.testing.assert_array_equal(trial_pairs, np.array([[i,i+1] for i in range(9)]))
 
         # trials with some repeating frequency content
+        even_freqs = [0.1, 0.2, 0.3, 0.4]
+        odd_freqs = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [even_freqs, even_freqs, odd_freqs, even_freqs, odd_freqs]
+        dis_freqs = [odd_freqs, odd_freqs, even_freqs, odd_freqs, even_freqs]
+        expected_pairs = [[0,2],
+                          [1,2],
+                          [2,3],
+                          [3,4]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
+
+        # trials with some repeating frequency content & complementary trials are too far away
+        even_freqs = [0.1, 0.2, 0.3, 0.4]
+        odd_freqs = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [even_freqs, odd_freqs, odd_freqs, odd_freqs, even_freqs, odd_freqs]
+        dis_freqs = [odd_freqs, even_freqs, even_freqs, even_freqs, odd_freqs, even_freqs]
+        expected_pairs = [[0,1],
+                          [2,4],
+                          [3,4],
+                          [4,5]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
+        print(trial_pairs)
 
 if __name__ == "__main__":
     unittest.main()
