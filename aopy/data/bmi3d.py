@@ -1019,7 +1019,7 @@ def get_source_files(preproc_dir, subject, te_id, date):
 
 def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
                            trial_end_codes, reward_codes, penalty_codes, metadata=[],
-                           df=None, event_code_type='code', return_excluded_entries=False, exclude_buggy_data=False):
+                           df=None, event_code_type='code', return_bad_entries=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of 
     subjects, task entry ids, and dates. Each list must be the same length. Trials 
@@ -1038,11 +1038,8 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
         event_code_type (str, optional): type of event codes to use. Defaults to 'code'. Other
             choices include 'event' and 'data'.
-        return_excluded_entries (bool, optional): If True, returns the list of task entries that were 
-            excluded from tabulation, whether because they could not be loaded or were identified 
-            as buggy data. Defaults to False.
-        exclude_buggy_data (bool, optional): If True, excludes data identified as buggy from tabulation. 
-            Defaults to False.
+        return_bad_entries (bool, optional): If True, returns the list of task entries that could 
+            not be loaded. Defaults to False.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
@@ -1070,22 +1067,8 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             traceback.print_exc()
             bad_entries.append([subject,date,te])
             continue
-        
-        # Get events and times
         event_codes = exp_data['events'][event_code_type]
-        try:
-            event_times = exp_data['events']['timestamp']
-        except:
-            print(f"Entry {subject} {date} {te} was excluded due to missing event timestamps (likely missing ecube data).")
-            print('source files:', exp_metadata['source_files'])
-            bad_entries.append([subject,date,te])
-            continue
-        
-        # Optionally exclude data with known bugs
-        if len(exp_data['events']) != len(exp_data['bmi3d_events']) and exclude_buggy_data:
-            print(f"Entry {subject} {date} {te} was excluded due to mismatched sync and bmi3d events (this will likely cause problems).")
-            bad_entries.append([subject,date,te])
-            continue        
+        event_times = exp_data['events']['timestamp']
 
         # Trial aligned event codes and event times
         tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
@@ -1114,7 +1097,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         # Concatenate with existing dataframes
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
     
-    if return_excluded_entries:
+    if return_bad_entries:
         return df, bad_entries
     else:
         return df
@@ -1334,8 +1317,7 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
         metadata.append('sequence_params')
     new_df, bad_entries = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
-        reward_codes, penalty_codes, metadata, df=None, 
-        return_excluded_entries=True, exclude_buggy_data=True)
+        reward_codes, penalty_codes, metadata, df=None, return_bad_entries=True)
     
     # Add frequency content of reference & disturbance trajectories
     ref_freqs = []
