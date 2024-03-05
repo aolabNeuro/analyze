@@ -1665,45 +1665,63 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
 
     def test_pair_trials_by_frequency(self):
         # trials with perfectly alternating frequency content
-        even_freqs = [0.1, 0.2, 0.3, 0.4]
-        odd_freqs = [0.05, 0.15, 0.25, 0.35]
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
 
-        ref_freqs = [even_freqs, odd_freqs]*5
-        dis_freqs = [odd_freqs, even_freqs]*5
+        ref_freqs = [e, o]*5
+        dis_freqs = [e, o]*5
 
-        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs)
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=1, limit_pairs_per_trial=True, max_pairs_per_trial=2)
         np.testing.assert_array_equal(trial_pairs, np.array([[i,i+1] for i in range(9)]))
 
         # trials with some repeating frequency content
-        even_freqs = [0.1, 0.2, 0.3, 0.4]
-        odd_freqs = [0.05, 0.15, 0.25, 0.35]
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
 
-        ref_freqs = [even_freqs, even_freqs, odd_freqs, even_freqs, odd_freqs]
-        dis_freqs = [odd_freqs, odd_freqs, even_freqs, odd_freqs, even_freqs]
-        expected_pairs = [[0,2],
-                          [1,2],
-                          [2,3],
-                          [3,4]
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [3,4],
+                          [4,5],
+                          [5,6]
                           ]
 
-        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs)
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=1, limit_pairs_per_trial=True, max_pairs_per_trial=2)
         np.testing.assert_array_equal(trial_pairs, expected_pairs)
 
-        # trials with some repeating frequency content & complementary trials are too far away
-        even_freqs = [0.1, 0.2, 0.3, 0.4]
-        odd_freqs = [0.05, 0.15, 0.25, 0.35]
+        # trials with some repeating frequency content & non-default function parameters
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
 
-        ref_freqs = [even_freqs, odd_freqs, odd_freqs, odd_freqs, even_freqs, odd_freqs]
-        dis_freqs = [odd_freqs, even_freqs, even_freqs, even_freqs, odd_freqs, even_freqs]
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
         expected_pairs = [[0,1],
+                          [0,2],
                           [2,4],
                           [3,4],
-                          [4,5]
+                        #   [4,5], would not get this pair because trial 4 already used in 2 pairs 
+                          [5,6]
                           ]
 
-        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2)
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=True, max_pairs_per_trial=2)
         np.testing.assert_array_equal(trial_pairs, expected_pairs)
-        print(trial_pairs)
+
+        # trials with some repeating frequency content & non-default function parameters
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [0,2],
+                          [2,4],
+                          [3,4],
+                          [4,5],
+                          [5,6]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=False)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
 
 if __name__ == "__main__":
     unittest.main()

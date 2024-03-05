@@ -74,7 +74,7 @@ def calc_transfer_function(input, output, samplerate, exp_freqs=None):
     return freqs.round(4), transfer_func
 
 
-def pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=3):
+def pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=1, limit_pairs_per_trial=True, max_pairs_per_trial=2):
     '''
     Finds pairs of trials with complementary frequency content (e.g. one trial's task signals consist of a subset
     of the experimental frequencies, and the other trial's task signals consist of the remaining experimental frequencies). 
@@ -83,7 +83,9 @@ def pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=3):
     Args:
         ref_freqs (ntrial,): list or array of frequencies used to generate the reference signal for each trial
         dis_freqs (ntrial,): list or array of frequencies used to generate the disturbance signal for each trial
-        max_trial_distance (int): maximum number of trials allowed between two trials identified as a pair
+        max_trial_distance (int, optional): maximum number of trials allowed between two trials identified as a pair
+        limit_pairs_per_trial (bool, optional): whether to limit the number of pairs that any one trial can be included in
+        max_pairs_per_trial (int, optional): maximum number of pairs that any one trial can be included in
 
     Returns:
         trial_pairs (npair, 2): array of trial indices corresponding to pairs of trials with complementary frequency content
@@ -92,17 +94,28 @@ def pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=3):
     assert len(ref_freqs) == len(dis_freqs), "Mismatched number of trials"
 
     trial_pairs = []
+    counts = np.zeros(len(ref_freqs),) # number of pairs each trial is included in
+
     for i in range(len(ref_freqs)):
+        if limit_pairs_per_trial and counts[i] >= max_pairs_per_trial:
+            continue
         curr_r = np.array(ref_freqs[i]) # convert to array in case in list format
         curr_d = np.array(dis_freqs[i])
+
         # Find next trial with complementary frequency content
         for j in range(i+1,len(ref_freqs)):
-            next_r = ref_freqs[j]
-            next_d = dis_freqs[j]
-            if (next_r != curr_r).all() and (next_d != curr_d).all() and j-i <= max_trial_distance:
-                trial_pairs.append([i,j])
+            if j-i > max_trial_distance:
                 break
+            if limit_pairs_per_trial and counts[j] >= max_pairs_per_trial:
+                continue
+            next_r = np.array(ref_freqs[j])
+            next_d = np.array(dis_freqs[j])
 
+            if (next_r != curr_r).all() and (next_d != curr_d).all():
+                trial_pairs.append([i,j])
+                counts[i] += 1
+                counts[j] += 1
+                    
     return np.array(trial_pairs)
 
 
