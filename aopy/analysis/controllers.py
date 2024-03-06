@@ -10,21 +10,22 @@ import numpy as np
 import math as m
 from .base import calc_freq_domain_values
 
-def get_machine_dynamics(freqs, exp_freqs, order):
+def get_machine_dynamics(freqs, order, exp_freqs=None):
     '''
     Returns the machine dynamics at each experimental frequency, given the system order. 
 
     Args:
         freqs (nt/2,): array of non-negative frequencies (essentially the x axis of a spectrogram)
-        exp_freqs (nfreq,): list or array of frequencies used to generate experimental signals (reference and/or disturbance)
         order (int): the order of the system (e.g. 0 for position control, 1 for velocity control, 2 for acceleration control)
+        exp_freqs ((nfreq,), optional): list or array of frequencies used to generate experimental signals (reference and/or disturbance).
+            If given, only the machine dynamics at these frequencies will be returned. Otherwise, by default, the machine dynamics at all
+            frequencies will be returned.
 
     Returns:
-        M (nfreq,): array of machine dynamics at each experimental frequency
+        M ((nt/2,) or (nfreq,)): array of machine dynamics at each frequency
 
     '''
     s = 1.j*2*m.pi*freqs
-    exp_idx = np.isin(freqs.round(4), exp_freqs)
 
     if order == 0:
         M = 1./np.ones((len(s),))
@@ -35,7 +36,11 @@ def get_machine_dynamics(freqs, exp_freqs, order):
     else:
         print('Order not recognized!')
 
-    return M[exp_idx]
+    if exp_freqs is not None:
+        exp_idx = np.isin(freqs.round(4), exp_freqs)
+        M = M[exp_idx]
+
+    return M
 
 
 def calc_transfer_function(input, output, samplerate, exp_freqs=None):
@@ -48,7 +53,9 @@ def calc_transfer_function(input, output, samplerate, exp_freqs=None):
         input (nt, nch): time-domain input signal
         output (nt, nch): time-domain output signal
         samplerate (float): sampling rate of the data
-        exp_freqs ((nfreq,), optional): list or array of frequencies used to generate experimental signals (reference and/or disturbance)
+        exp_freqs ((nfreq,), optional): list or array of frequencies used to generate experimental signals (reference and/or disturbance).
+            If given, only the transformation at these frequencies will be returned. Otherwise, by default, the transformation at all
+            frequencies will be returned.           
 
     Returns:
         tuple: Tuple containing:
@@ -134,7 +141,9 @@ def calc_F_B_controllers(usr, ref, dis, exp_freqs, ref_freqs, dis_freqs, sampler
         dis_freqs (ntrial,): list or array of frequencies used to generate the disturbance signal for each trial
         samplerate (float): sampling rate of the data
         system_order (int): the order of the system (e.g. 0 for position control, 1 for velocity control, 2 for acceleration control)
-        trial_pairs ((npair, 2), optional): list or array of trial indices corresponding to pairs of trials with complementary frequency content  
+        trial_pairs ((npair, 2), optional): list or array of trial indices corresponding to pairs of trials with complementary frequency content.
+            If given, controllers will be computed over these trial pairs. Otherwise, by default, controllers will be computed over trials paired 
+            up using the default parameters of :func:`~aopy.analysis.controllers.pair_trials_by_frequency`.   
         
     Returns:
         tuple: tuple containing:
@@ -176,6 +185,9 @@ def calc_F_B_controllers(usr, ref, dis, exp_freqs, ref_freqs, dis_freqs, sampler
         Tud[pair_id, dis_ind_a] = trial_Tud[trial_a, dis_ind_a]
         Tud[pair_id, dis_ind_b] = trial_Tud[trial_b, dis_ind_b]
 
+        # Compute feedback (B) and feedforward (F) controllers - see eq. 6a and 6b in Yamagami et al., 2023
+        # B = -Tud/(M*(1 + Tud))
+        # F = (1 + B*M)*(Tur) - B
         B[pair_id,:] = np.divide( -Tud[pair_id], np.multiply( M, np.ones(Tud[pair_id].shape,dtype=complex)+Tud[pair_id] ) )
         F[pair_id,:] = np.multiply( Tur[pair_id], (1+0j)+np.multiply( B[pair_id,:], M ) ) - B[pair_id,:]
 
