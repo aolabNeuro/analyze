@@ -127,7 +127,7 @@ def subplots_with_labels(n_rows, n_cols, return_labeled_axes=False,
         return fig, axes
 
 
-def plot_timeseries(data, samplerate, ax=None, **kwargs):
+def plot_timeseries(data, samplerate, t0=0., ax=None, **kwargs):
     '''
     Plots data along time on the given axis. Default units are seconds and volts.
 
@@ -146,6 +146,7 @@ def plot_timeseries(data, samplerate, ax=None, **kwargs):
     Args:
         data (nt, nch): timeseries data in volts, can also be a single channel vector
         samplerate (float): sampling rate of the data
+        t0 (float, optional): time (in seconds) of the first sample. Default 0.
         ax (pyplot axis, optional): where to plot
         kwargs (dict, optional): optional keyword arguments to pass to plt.plot
     '''
@@ -154,7 +155,7 @@ def plot_timeseries(data, samplerate, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    time = np.arange(np.shape(data)[0]) / samplerate
+    time = np.arange(np.shape(data)[0]) / samplerate + t0
     for ch in range(np.shape(data)[1]):
         ax.plot(time, data[:, ch], **kwargs)
     ax.set_xlabel('Time (s)')

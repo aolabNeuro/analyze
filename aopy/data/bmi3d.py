@@ -255,7 +255,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
         n_ch = 0
         while n_ch < n_channels:
             broadband_chunk = bb_data[n_bb_samples:n_bb_samples+time_chunksize, n_ch:n_ch+channel_chunksize]
-            lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+            lfp_chunk, _ = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
             chunk_len = lfp_chunk.shape[0]
             dset[n_lfp_samples:n_lfp_samples+chunk_len,n_ch:n_ch+channel_chunksize] = lfp_chunk
             n_ch += channel_chunksize
@@ -326,7 +326,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
     # Filter broadband data into LFP directly into the hdf file
     n_lfp_samples = 0
     for broadband_chunk in load_ecube_data_chunked(ecube_filepath, 'Headstages', chunksize=chunksize):
-        lfp_chunk = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
+        lfp_chunk, _ = precondition.filter_lfp(broadband_chunk, samplerate, **filter_kwargs)
         chunk_len = lfp_chunk.shape[0]
         dset[n_lfp_samples:n_lfp_samples+chunk_len,:] = lfp_chunk
         n_lfp_samples += chunk_len
@@ -538,10 +538,24 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000):
     '''
-    Gets interpolated and filtered kinematic data from preprocessed experiment 
-    data to the desired sampling rate. Cursor kinematics are returned in 
-    screen coordinates, while other kinematics are returned in their original
-    coordinate system (e.g. hand kinematics in optitrack coordinates).
+    Gets interpolated kinematic data from preprocessed experiment data to the desired 
+    sampling rate. Cursor kinematics are returned in screen coordinates, while other 
+    kinematics are returned in their original coordinate system (e.g. hand kinematics 
+    in optitrack coordinates).
+
+    Args:
+        exp_data (dict): A dictionary containing the experiment data.
+        exp_metadata (dict): A dictionary containing the experiment metadata.
+        datatype (str, optional): The type of kinematic data to interpolate. 
+            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
+            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
+            For other kinematics, try to interp exp_data['task'][datatype]
+        samplerate (float, optional): The desired output sampling rate in Hz. 
+            Defaults to 1000.
+
+    Returns:
+        data_time (ns, ...): Kinematic data interpolated and filtered 
+            to the desired sampling rate.
 
     Examples:
         
@@ -613,19 +627,9 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
         .. image:: _images/get_interp_user_tracking.png
 
-    Args:
-        exp_data (dict): A dictionary containing the experiment data.
-        exp_metadata (dict): A dictionary containing the experiment metadata.
-        datatype (str, optional): The type of kinematic data to interpolate. 
-            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
-            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
-            For other kinematics, try to interp exp_data['task'][datatype]
-        samplerate (float, optional): The desired output sampling rate in Hz. 
-            Defaults to 1000.
-
-    Returns:
-        data_time (ns, ...): Kinematic data interpolated and filtered 
-            to the desired sampling rate.
+    Changes:
+        2023-10-20: Added support for 'targets' datatype
+        2024-01-29: Removed kinematic filtering below 15 Hz. See :func:`~aopy.precondition.filter_kinematics`.
     '''
     kwargs = {}
 
@@ -660,8 +664,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
     # Interpolate
     data_time = sample_timestamped_data(data_cycles, clock, samplerate, 
                                         upsamplerate=10000, append_time=10, **kwargs)
-    if 'remove_nan' not in kwargs:
-        data_time = precondition.filter_kinematics(data_time, samplerate)
+
     return data_time
 
 def get_velocity_segments(*args, norm=True, **kwargs):
@@ -687,7 +690,7 @@ def get_velocity_segments(*args, norm=True, **kwargs):
 @lru_cache(maxsize=1)
 def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor'):
     '''
-    Return all kinds of kinematics from preprocessed data
+    Return all kinds of kinematics from preprocessed data. Caches the data for faster loading.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -939,7 +942,7 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, trigger_time, time_be
     preproc_dir = os.path.join(preproc_dir, subject)
 
     try:
-        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
         data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
                                     samplerate, trigger_time, time_before, time_after)
     except FileNotFoundError as e:
@@ -1148,11 +1151,23 @@ def tabulate_behavior_data_flash(preproc_dir, subjects, ids, dates, metadata=[],
     new_df.reset_index()
     
     # Add trial segment timing
-    new_df['flash_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['flash_end_time'] = np.nan*np.zeros(len(new_df))
+    new_df['flash_start_time'] = np.nan
+    new_df['flash_end_time'] = np.nan
+    new_df['prev_trial_end_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
     for i in range(len(new_df)):
         event_times = new_df.loc[i, 'event_times']
         
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
+        if i < len(new_df)-1 and new_df.loc[i+1, 'event_times'][0] > event_times[-1]:
+            new_df.loc[i, 'trial_end_time'] = new_df.loc[i+1, 'event_times'][0]
+        else:
+            new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
         # Flash starts when trial starts
         new_df.loc[i, 'flash_start_time'] = event_times[0]
         new_df.loc[i, 'flash_end_time'] = event_times[2]
@@ -1187,6 +1202,9 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **target_idx (ntrial):** index of the target that was presented
             | **target_location (ntrial):** location of the target that was presented
+            | **trial_start_time (ntrial):** time at which the trial started
+            | **trial_end_time (ntrial):** time at which the trial ended
+            | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated
             | **hold_start_time (ntrial):** time at which the hold period started
             | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
             | **delay_start_time (ntrial):** time at which the delay period started
@@ -1194,6 +1212,11 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **go_cue_time (ntrial):** time at which the go cue was presented
             | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
             | **reach_end_time (ntrial):** time at which the reach was completed
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **reward_end_time (ntrial):** time at which the reward was completed
+            | **penalty_start_time (ntrial):** time at which the penalty was presented
+            | **penalty_end_time (ntrial):** time at which the penalty was completed
+            | **penalty_event (ntrial):** numeric code for the penalty event
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
@@ -1227,45 +1250,186 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     new_df['target_location'] = target_location
 
     # Add trial segment timing
-    new_df['trial_initiated'] = np.zeros(len(new_df), dtype='bool')
-    new_df['hold_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['delay_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['delay_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['go_cue_time'] = np.nan*np.zeros(len(new_df))
-    new_df['reach_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['reach_end_time'] = np.nan*np.zeros(len(new_df))
+    new_df['prev_trial_end_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['center_target_on_time'] = np.nan
+    new_df['trial_initiated'] = False
+    new_df['hold_start_time'] = np.nan
+    new_df['hold_completed'] = False
+    new_df['delay_start_time'] = np.nan
+    new_df['delay_completed'] = False
+    new_df['go_cue_time'] = np.nan
+    new_df['reach_completed'] = False
+    new_df['reach_end_time'] = np.nan
+    new_df['reward_start_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_event'] = np.nan
     for i in range(len(new_df)):
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
+
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        # Center target appears
+        new_df.loc[i, 'center_target_on_time'] = event_times[0]
         
         # Trial initiated if cursor enters the center target
-        _, hold_times = get_trial_segments(event_codes, event_times,
-                                            task_codes['CENTER_TARGET_ON'], [task_codes['CURSOR_ENTER_CENTER_TARGET']])
+        hold_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_CENTER_TARGET']])]
         new_df.loc[i, 'trial_initiated'] = len(hold_times) > 0
         if new_df.loc[i, 'trial_initiated']:
-            new_df.loc[i, 'hold_start_time'] = hold_times[0][-1]
+            new_df.loc[i, 'hold_start_time'] = hold_times[0]
 
         # Hold completed if peripheral target turns on (start of delay)
-        _, delay_times = get_trial_segments(event_codes, event_times,
-                                            [task_codes['CURSOR_ENTER_CENTER_TARGET']], task_codes['PERIPHERAL_TARGET_ON'])
+        delay_times = event_times[np.isin(event_codes, task_codes['PERIPHERAL_TARGET_ON'])]
         new_df.loc[i, 'hold_completed'] = len(delay_times) > 0
         if new_df.loc[i, 'hold_completed']:
-            new_df.loc[i, 'delay_start_time'] = delay_times[0][-1]
+            new_df.loc[i, 'delay_start_time'] = delay_times[0]
 
         # Delay completed when center target turns off (go cue)
-        _, go_cue_times = get_trial_segments(event_codes, event_times,
-                                            task_codes['PERIPHERAL_TARGET_ON'], [task_codes['CENTER_TARGET_OFF']])
+        go_cue_times = event_times[np.isin(event_codes, task_codes['CENTER_TARGET_OFF'])]
         new_df.loc[i, 'delay_completed'] = len(go_cue_times) > 0
         if new_df.loc[i, 'delay_completed']:
-            new_df.loc[i, 'go_cue_time'] = go_cue_times[0][-1]
+            new_df.loc[i, 'go_cue_time'] = go_cue_times[0]
 
         # Reach completed if cursor enters target (regardless of whether the trial was successful)
-        _, reach_times = get_trial_segments(event_codes, event_times,
-                                            [task_codes['CENTER_TARGET_OFF']], task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])
+        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])]
         new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
         if new_df.loc[i, 'reach_completed']:
-            new_df.loc[i, 'reach_end_time'] = reach_times[0][-1]
+            new_df.loc[i, 'reach_end_time'] = reach_times[0]
+
+        # Reward start times
+        reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+
+        # Penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penatly_codes = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penatly_codes[0]
+
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+
+def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[], 
+                               df=None):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for out experiments (similar to
+    center-out but without a trial-initiating center target). Makes use of the task codes 
+    saved in `/config/task_codes.yaml` to automatically assign event codes for trial start, 
+    trial end, reward, penalty, and targets. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **target_idx (ntrial):** index of the target that was presented
+            | **target_location (ntrial):** location of the target that was presented
+            | **trial_start_time (ntrial):** time at which the trial started
+            | **trial_end_time (ntrial):** time at which the trial ended
+            | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
+            | **reach_end_time (ntrial):** time at which the reach was completed
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **reward_end_time (ntrial):** time at which the reward was completed
+            | **penalty_start_time (ntrial):** time at which the penalty was presented
+            | **penalty_end_time (ntrial):** time at which the penalty was completed
+            | **penalty_event (ntrial):** numeric code for the penalty event
+    '''
+    # Use default "trial" definition
+    task_codes = load_bmi3d_task_codes()
+    trial_end_codes = [task_codes['TRIAL_END']]
+    trial_start_codes = task_codes['PERIPHERAL_TARGET_ON']
+    reward_codes = [task_codes['REWARD']]
+    penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    target_codes = task_codes['PERIPHERAL_TARGET_ON']
+
+    # Concatenate base trial data
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata, df=None)
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
+
+    # Add target info
+    target_idx = [
+        code[np.isin(code, target_codes)][0] - target_codes[0] + 1 # add 1 for center target
+        if np.sum(np.isin(code, target_codes)) > 0 else 0 
+        for code 
+        in new_df['event_codes']
+    ]
+    target_location = [
+        np.squeeze(get_target_locations(preproc_dir, s, te, d, [t_idx]))
+        for s, te, d, t_idx 
+        in zip(new_df['subject'], new_df['te_id'], new_df['date'], target_idx)
+    ]
+    new_df['target_idx'] = target_idx
+    new_df['target_location'] = target_location
+
+    # Add trial segment timing
+    new_df['prev_trial_end_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['target_on_time'] = np.nan
+    new_df['reach_completed'] = False
+    new_df['reach_end_time'] = np.nan
+    new_df['reward_start_time'] = np.nan
+    new_df['reward_end_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_end_time'] = np.nan
+    new_df['penalty_event'] = np.nan
+    for i in range(len(new_df)):
+        event_codes = new_df.loc[i, 'event_codes']
+        event_times = new_df.loc[i, 'event_times']
+
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        # Target appears
+        new_df.loc[i, 'target_on_time'] = event_times[0]
+
+        # Reach completed if cursor enters target (regardless of whether the trial was successful)
+        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_PERIPHERAL_TARGET'])]
+        new_df.loc[i, 'reach_completed'] = len(reach_times) > 0
+        if new_df.loc[i, 'reach_completed']:
+            new_df.loc[i, 'reach_end_time'] = reach_times[0]
+
+        # Reward start times
+        reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+
+        # Penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penatly_codes = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penatly_codes[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df

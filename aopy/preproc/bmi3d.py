@@ -281,7 +281,7 @@ def _parse_bmi3d_v1(data_dir, files):
         # Analog cursor out (A3, A4) since version 11
         if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
             cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'], metadata_dict['cursor_z_ach']]]
-            cursor_analog = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
+            cursor_analog, _ = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
             cursor_analog_samplerate = 1000
             cursor_analog = precondition.downsample(cursor_analog, analog_samplerate, cursor_analog_samplerate)
             max_voltage = 3.34 # using teensy 3.6

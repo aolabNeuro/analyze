@@ -758,11 +758,13 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
         buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
 
     Returns:
-        (nt', ...): lfp data
+        tuple: tuple containing:
+        | **lfp_data (nt', ...):** downsampled filtered lfp data
+        | **samplerate (float):** sampling rate of the lfp data
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=broadband_samplerate)
     filtered_data = filtfilt(b, a, broadband_data, axis=0)
-    return downsample(filtered_data, broadband_samplerate, lfp_samplerate)
+    return downsample(filtered_data, broadband_samplerate, lfp_samplerate), lfp_samplerate
 
 def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
     '''
@@ -796,7 +798,9 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
         buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
 
     Returns:
-        (nt, ...): filtered kinematics data
+        tuple: tuple containing:
+        | **filtere_data (nt, ...):** filtered kinematics data
+        | **samplerate (float):** sampling rate of the kinematics data
 
     Examples:
 
@@ -805,7 +809,7 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
             fs = 100
             x_single, t = utils.generate_test_signal(T=5, fs, 1, 5)
             x_noise, t = utils.generate_test_signal(T=5, fs=fs, freq=[1,3,30], a=[5, 2, 0.5], noise=0.2)
-            x_filt = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)
+            x_filt, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)
             fig, ax = plt.subplot_mosaic([['A', 'B'],['C', 'C']])
         
             ax['A'].plot(t, x_noise, label='Noisy signal')
@@ -828,4 +832,4 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
     filtered_data = filtfilt(b, a, kinematic_data, axis=0)
-    return filtered_data
+    return filtered_data, samplerate
