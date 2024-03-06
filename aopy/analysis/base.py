@@ -344,6 +344,35 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
         
     return slope, intercept, corr_coeff
 
+def calc_freq_domain_values(data, samplerate):
+    '''
+    Use FFT to decompose time series data into frequency domain and return
+    non-negative frequency components
+    For math details, see: https://www.sjsu.edu/people/burford.furman/docs/me120/FFT_tutorial_NI.pdf
+
+    Args:
+        data (nt, nch): timeseries data, can be a single channel vector
+        samplerate (float): sampling rate of the data
+
+    Returns:
+        tuple: Tuple containing:
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **freqvalues (nt/2, nch):** array of complex numbers at the above frequencies (each containing magnitude and phase)
+    '''
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
+
+    # Compute FFT along time dimension
+    freq_data = np.fft.fft(data, axis=0)
+    length = np.shape(freq_data)[0]
+    freq = np.fft.fftfreq(length, d=1./samplerate)
+
+    # Only take non-negative frequency components
+    non_negative_freq = freq[freq>=0]
+    non_negative_freq_data = freq_data[freq>=0,:]/complex(length,0) # normalize by length
+    non_negative_freq_data[1:,:] = non_negative_freq_data[1:,:]*2 # account for half the peak amplitude being at the negative frequency component
+    return non_negative_freq, non_negative_freq_data
+
 def calc_freq_domain_amplitude(data, samplerate, rms=False):
     '''
     Use FFT to decompose time series data into frequency domain to calculate the
@@ -356,20 +385,15 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-            | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **amplitudes (nt/2, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
-    if np.ndim(data) < 2:
-        data = np.expand_dims(data, 1)
+    non_negative_freq, non_negative_freq_data = calc_freq_domain_values(data, samplerate)
 
-    # Compute FFT along time dimension
-    freq_data = np.fft.fft(data, axis=0)
-    length = np.shape(freq_data)[0]
-    freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
-    non_negative_freq = freq[freq>=0]
+    # Compute the one-sided amplitude
+    data_ampl = abs(non_negative_freq_data)
 
-    # Apply factor of root 2 to turn amplitude into RMS amplitude
+    # Divide non-DC components by root 2 to turn amplitude into RMS amplitude
     if rms:
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl

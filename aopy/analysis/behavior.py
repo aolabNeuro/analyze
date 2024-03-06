@@ -8,6 +8,7 @@ from scipy import signal
 from .base import calc_rolling_average
 from .. import preproc
 from .. import postproc
+from ..data.db import lookup_sessions
 
 '''
 Behavioral metrics 
@@ -273,7 +274,6 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
     target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
 
     return segment_duration, target_codes
-
 def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0):
     '''
     Compute movement onset when cursor speed crosses threshold based on mean and standard deviation in baseline period.
