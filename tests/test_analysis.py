@@ -363,13 +363,12 @@ class CalcTests(unittest.TestCase):
 
 
     def test_calc_corr_over_elec_distance(self):
-        acq_data = np.array([[1, 2, 3], [4, 5, 6]])
-        acq_ch = np.array([1, 2])
+        elec_data = np.array([[1, 2, 3], [4, 5, 6]])
         elec_pos = np.array(
             [[1, 1],
             [2,2],]
         )
-        dist, corr = aopy.analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, method='pearson', bins=1, exclude_zero_dist=True)
+        dist, corr = aopy.analysis.calc_corr_over_elec_distance(elec_data, elec_pos, method='pearson', bins=1, exclude_zero_dist=True)
 
         self.assertEqual(corr.size, 1)
         self.assertEqual(dist.size, 1)
