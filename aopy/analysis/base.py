@@ -536,6 +536,7 @@ def calc_corr_over_elec_distance(elec_data, elec_pos, bins=20, method='spearman'
     Updated:
         2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
     '''
+    assert elec_data.shape[1] == elec_pos.shape[0], "Number of electrodes don't match!"
     dist = utils.calc_euclid_dist_mat(elec_pos)
     if method == 'spearman':
         c, _ = stats.spearmanr(elec_data, axis=0)
