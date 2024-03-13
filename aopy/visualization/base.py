@@ -1482,14 +1482,14 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     
     return fig
 
-
-def plot_corr_over_elec_distance(elec_data, elec_pos, ax=None, **kwargs):
+def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
     '''
     Makes a plot of correlation vs electrode distance for the given data.
     
     Args:
-        elec_data (nt, nelec): electrode data with nch corresponding to elec_pos
-        elec_pos (nelec, 2): x, y position of each electrode
+        acq_data (nt, nch): acquisition data indexed by acq_ch
+        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_pos (nelec, 2): x, y position of each electrode in cm
         ax (pyplot.Axes, optional): axis on which to plot
         kwargs (dict, optional): other arguments to supply to :func:`aopy.analysis.calc_corr_over_elec_distance`
 
@@ -1513,17 +1513,16 @@ def plot_corr_over_elec_distance(elec_data, elec_pos, ax=None, **kwargs):
 
         .. image:: _images/corr_over_dist.png
 
-    Updated:
-        2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
     '''
     if ax is None:
         ax = plt.gca()
     label = kwargs.pop('label', None)
-    dist, corr = analysis.calc_corr_over_elec_distance(elec_data, elec_pos, **kwargs)
+    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
     ax.plot(dist, corr, label=label)
     ax.set_xlabel('binned electrode distance (cm)')
     ax.set_ylabel('correlation')
     ax.set_ylim(0,1)
+
 
 def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwargs):
     '''
