@@ -680,8 +680,8 @@ class TestPlotUtils(unittest.TestCase):
         width = 1
         height = 1
         ax = place_subplots(fig, positions, width, height)
-        ax[0].annotate('1', (0.5,0.5), fontsize=40)
-        ax[1].annotate('2', (0.5,0.5), fontsize=40)
+        ax[0].annotate('1', (0.5,0.5), ha='center', va='center', fontsize=40)
+        ax[1].annotate('2', (0.5,0.5), ha='center', va='center', fontsize=40)
         aopy.visualization.savefig(docs_dir, "place_subplots_1.png", transparent=False)
 
         fig = plt.figure(figsize=(4,6))
@@ -689,14 +689,14 @@ class TestPlotUtils(unittest.TestCase):
         width = 2
         height = 3
         ax = place_subplots(fig, positions, width, height)
-        ax[0].annotate('1', (0.5,0.5), fontsize=40)
-        ax[1].annotate('2', (0.5,0.5), fontsize=40)
+        ax[0].annotate('1', (0.5,0.5), ha='center', va='center', fontsize=40)
+        ax[1].annotate('2', (0.5,0.5), ha='center', va='center', fontsize=40)
         aopy.visualization.savefig(docs_dir, "place_subplots_2.png", transparent=False)
 
     def test_place_Opto32_subplots(self):
         fig, ax = place_Opto32_subplots()
         for i, ax in enumerate(ax):
-            ax.annotate(str(i+1), (0.1,0.1), fontsize=40)
+            ax.annotate(str(i+1), (0.5,0.5), ha='center', va='center',  fontsize=40)
         aopy.visualization.savefig(docs_dir, "place_Opto32_subplots.png", transparent=False)
 
 

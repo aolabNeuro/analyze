@@ -133,7 +133,7 @@ def place_subplots(fig, positions, width, height, **kwargs):
     
     Args:
         fig (pyplot.Figure): figure to place the subplots on
-        positions (npos, 2): list of (x, y) positions (in inches) to place the subplots 
+        positions (npos, 2): list of (x, y) coordinates (in inches) where to center the subplots 
         width (float): width (in inches) of each subplot
         height (float): height (in inches) of each subplot
         kwargs (dict, optional): other keyword arguments to pass to fig.add_axes
@@ -184,7 +184,7 @@ def place_subplots(fig, positions, width, height, **kwargs):
         ax.append(fig.add_axes([left, bottom, width, height], **kwargs))
     return ax
 
-def place_Opto32_subplots(fig_size=10, subplot_size=1, offset=(0,1), **kwargs):
+def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kwargs):
     '''
     Wrapper around place_subplots() for the Opto32 stimulation sites.
 
@@ -204,14 +204,13 @@ def place_Opto32_subplots(fig_size=10, subplot_size=1, offset=(0,1), **kwargs):
         .. image:: _images/place_Opto32_subplots.png
     '''
     stim_pos, _, _ = load_chmap('Opto32')
-    elec_pos, _, _ = load_chmap('ECoG244')
 
-    # Normalize the positions (relative to the ecog electrodes) to the width and height of the figure
-    stim_pos = (stim_pos - np.min(elec_pos)) / np.max(elec_pos) * fig_size - np.array(offset)
+    # Normalize the positions to the width and height of the figure
+    stim_pos = (stim_pos - np.mean(stim_pos, axis=0)) / (np.max(stim_pos) - np.min(stim_pos)) * fig_size + fig_size/2
 
     # Place subplots
     fig = plt.figure(figsize=(fig_size,fig_size), **kwargs)
-    ax = place_subplots(fig, stim_pos, subplot_size, subplot_size)
+    ax = place_subplots(fig, stim_pos + np.array(offset), subplot_size, subplot_size)
 
     # Remove the axis labels
     for ax_ in ax:
