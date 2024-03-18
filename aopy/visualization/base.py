@@ -205,7 +205,7 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kw
 
         .. image:: _images/place_Opto32_subplots.png
     '''
-    stim_pos, _, _ = load_chmap('Opto32')
+    stim_pos, _, _ = aodata.load_chmap('Opto32')
 
     # Normalize the positions to the width and height of the figure
     stim_pos = (stim_pos - np.mean(stim_pos, axis=0)) / (np.max(stim_pos) - np.min(stim_pos)) * fig_size + fig_size/2
