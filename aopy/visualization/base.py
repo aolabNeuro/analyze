@@ -128,6 +128,102 @@ def subplots_with_labels(n_rows, n_cols, return_labeled_axes=False,
     else:
         return fig, axes
 
+def place_subplots(fig, positions, width, height, **kwargs):
+    '''
+    Plotting utility to create subplots in arbitrary positions on a figure. Positions 
+    are in inches from the bottom left corner of the figure.
+    
+    Args:
+        fig (pyplot.Figure): figure to place the subplots on
+        positions (npos, 2): list of (x, y) coordinates (in inches) where to center the subplots 
+        width (float): width (in inches) of each subplot
+        height (float): height (in inches) of each subplot
+        kwargs (dict, optional): other keyword arguments to pass to fig.add_axes
+        
+    Returns:
+        list: pyplot.Axes handles for each position
+
+    Examples:
+
+        .. code-block:: python
+
+            fig = plt.figure(figsize=(4,6))
+            positions = [[1, 2], [3, 4]]
+            width = 1
+            height = 1
+            ax = place_subplots(fig, positions, width, height)
+            ax[0].annotate('1', (0.5,0.5), fontsize=40)
+            ax[1].annotate('2', (0.5,0.5), fontsize=40)
+
+        .. image:: _images/place_subplots_1.png
+
+        .. code-block:: python
+   
+            fig = plt.figure(figsize=(4,6))
+            positions = [[1, 1.5], [3, 4.5]]
+            width = 2
+            height = 3
+            ax = place_subplots(fig, positions, width, height)
+            ax[0].annotate('1', (0.5,0.5), fontsize=40)
+            ax[1].annotate('2', (0.5,0.5), fontsize=40)
+
+        .. image:: _images/place_subplots_2.png
+            
+    '''
+    # Normalize the positions to fit into the size of the figure
+    fig_width, fig_height = fig.get_size_inches()
+    positions = np.array(positions, dtype='float')
+    positions[:,0] = positions[:,0] / fig_width
+    positions[:,1] = positions[:,1] / fig_height
+    width /= fig_width
+    height /= fig_height
+
+    # Place subplots
+    ax = []
+    for cx, cy in positions:
+        left = cx - width/2
+        bottom = cy - height/2
+        ax.append(fig.add_axes([left, bottom, width, height], **kwargs))
+    return ax
+
+def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kwargs):
+    '''
+    Wrapper around place_subplots() for the Opto32 stimulation sites.
+
+    Args:
+        fig_size (float): width and height (in inches) of the figure
+        subplot_size (float): width and height (in inches) of each subplot
+        offset (tuple): x and y offset (in inches) from the bottom left corner of the figure
+        kwargs (dict, optional): other keyword arguments to pass to fig.add_axes
+
+    Returns:
+        tuple: tuple containing:
+        | **fig (pyplot.Figure):** figure where the subplots were placed
+        | **ax (list):** pyplot.Axes handles for each stimulation site
+
+    Examples:
+
+        .. image:: _images/place_Opto32_subplots.png
+    '''
+    stim_pos, _, _ = load_chmap('Opto32')
+
+    # Normalize the positions to the width and height of the figure
+    stim_pos = (stim_pos - np.mean(stim_pos, axis=0)) / (np.max(stim_pos) - np.min(stim_pos)) * fig_size + fig_size/2
+
+    # Place subplots
+    fig = plt.figure(figsize=(fig_size,fig_size), **kwargs)
+    ax = place_subplots(fig, stim_pos + np.array(offset), subplot_size, subplot_size)
+
+    # Remove the axis labels
+    for ax_ in ax:
+        ax_.tick_params(
+            which='both',
+            bottom=False,
+            left=False,  
+            labelbottom=False,
+            labelleft=False
+        )
+    return fig, ax
 
 def plot_timeseries(data, samplerate, t0=0., ax=None, **kwargs):
     '''
