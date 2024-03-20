@@ -9,7 +9,7 @@ import os
 import sys
 import math
 from scipy.ndimage.interpolation import shift
-
+import scipy
 
 '''
 Test signals
@@ -771,3 +771,23 @@ def convert_port_number(port_number, datatype='ap'):
     probe_dir = f'Neuropix-PXI-100.Probe{letter}-{datatype.upper()}'
     
     return probe_dir
+
+
+def convolve_data_gaussian_kernel(input_data, samplerate, width, nstd=3, conv_mode='same'):
+    '''
+    Convolves the input data with a gaussian kernal along the first dimension.   
+    
+    Args:
+        input_data (ntime, ...): Numpy array with input day.
+        samplerate (int): Sample rate of timeseries
+        width (float): Width of the gaussian in time [ms] from -nstd to +nstd. (Total length of kernel)
+        nstd (float/int): Number of standard deviations to be used in the filter calculation.
+        conv_mode (str): Sets the size of the output. Takes eithe 'full', 'valid', or 'same'. See scipy.signal.convolve for full documentation
+        
+    Returns: 
+        (ntime, ...): Smoothed data
+    '''
+    sample_std = (width/nstd)*(samplerate/(1000)) # Number of samples in each std (Convert from s to ms)
+    x = np.arange(-sample_std*nstd, nstd*sample_std+1)
+    gaus_filter = (1/(sample_std*np.sqrt(2*np.pi)))*np.exp(-(x**2)/(2*sample_std**2))
+    return np.apply_along_axis(scipy.signal.convolve, 0, input_data, gaus_filter, mode=conv_mode, method='direct')

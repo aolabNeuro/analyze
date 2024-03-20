@@ -328,7 +328,6 @@ class TestDigitalCalc(unittest.TestCase):
             print(segments[i], expected_segments[i])
         np.testing.assert_array_equal(cats, expected_categories)
 
-
 class TestMath(unittest.TestCase):
 
     def test_derivative(self):
@@ -390,6 +389,25 @@ class TestMath(unittest.TestCase):
         q = first_nonzero(p, axis=0, all_zeros_val=-1)
 
         self.assertEqual(q, -1)
+
+
+    def test_convolve_data_gaussian_kernel(self):
+        # Test 1D data
+        npts = 100000
+        width = 100
+        data = np.ones(npts)
+
+        out = convolve_data_gaussian_kernel(data, samplerate=1000, width=width, nstd=3)
+        self.assertEqual(out.shape[0], npts)
+        self.assertAlmostEqual(sum(out[width:(2*width)]), 99.7, 1) # We expect that one step of the gaussian kernal will integrate to 99.7% since 3 stds are used.
+
+        # Test 2D data
+        ndim = 3
+        data = np.ones((npts, ndim))
+        out = convolve_data_gaussian_kernel(data, samplerate=1000, width=width, nstd=3)
+        self.assertEqual(out.shape[0], npts)
+        self.assertEqual(out.shape[1], ndim)
+        self.assertAlmostEqual(sum(out[width:(2*width),0]), 99.7, 1) # We expect that one step of the gaussian kernal will integrate to 99.7% since 3 stds are used.
 
 class MemoryTests(unittest.TestCase):
 
