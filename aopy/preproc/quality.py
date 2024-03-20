@@ -1,14 +1,46 @@
 import copy
 import matplotlib
-from .. import precondition
-from .. import analysis
-from ..utils import print_progress_bar
-from ..visualization.base import plot_image_by_time
-
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
 import matplotlib.pyplot as plt
+import traceback
+from tqdm.auto import tqdm
+
+from .. import precondition
+from .. import analysis
+from ..utils import print_progress_bar
+from ..visualization.base import plot_image_by_time
+from ..data.base import load_preproc_exp_data
+
+def detect_buggy_entries(preproc_dir, subjects, ids, dates):
+    bad_entries = []
+    entries = list(zip(subjects, dates, ids))
+
+    for subject, date, te in tqdm(entries): 
+        # Load data from bmi3d hdf 
+        try:
+            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            bad_entries.append([subject,date,te])
+            continue
+        
+        # Check events and times
+        try:
+            event_times = exp_data['events']['timestamp']
+        except:
+            print(f"Entry {subject} {date} {te} is missing event timestamps (likely missing ecube data).")
+            print('source files:', exp_metadata['source_files'])
+            bad_entries.append([subject,date,te])
+            continue
+        
+        if len(exp_data['events']) != len(exp_data['bmi3d_events']):
+            print(f"Entry {subject} {date} {te} was excluded due to mismatched sync and bmi3d events (this will likely cause problems).")
+            bad_entries.append([subject,date,te])
+    
+    return bad_entries       
 
 # python implementation of badChannelDetection.m - see which channels are too noisy
 def bad_channel_detection(data, srate, num_th=3., lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw = 0.5):
