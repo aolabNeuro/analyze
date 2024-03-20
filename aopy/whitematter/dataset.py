@@ -311,11 +311,6 @@ class Dataset:
                 chancount = fileattr[1]
                 dattype = fileattr[6]
 
-                if chunksize % chancount != 0:
-                    chunksize -= chunksize % chancount
-                    chunkidx[2] -= chunksize % chancount
-                    print("Warning: incomplete binary file samples dropped in {}.".format(filename))
-
                 if debug is True:
                     print("    {} [{}:{}]: {}ch x {}".format(\
                     os.path.basename(filename), \
@@ -346,7 +341,11 @@ class Dataset:
                 flatarray = np.unpackbits(uint8array)
             else:
                 flatarray = np.frombuffer(chunkbuffer, dtype=dattype)
-            shapedarray = flatarray.reshape(-1, chancount).swapaxes(0,1)
+            if len(flatarray) % chancount != 0:
+                print(f"Warning: {len(flatarray) % chancount} samples dropped in {filename}.")     
+                shapedarray = flatarray[:-(len(flatarray) % chancount)].reshape(-1, chancount).swapaxes(0,1)
+            else:
+                shapedarray = flatarray.reshape(-1, chancount).swapaxes(0,1)
 
             if startat is not None and skipsamples > 0:
                 print(shapedarray.shape)
