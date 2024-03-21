@@ -628,8 +628,8 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
         pbar.close()
 
     # Finally calculate an FDR-corrected p-value across all channels
-    z = (roc_auc-0.5)/roc_se # above 0.5 (above chance)
-    p_uncorrected = norm.sf(abs(z)) # one-sided
+    z = (roc_auc-0.5)/roc_se # null hypothesis auc=0.5 (chance)
+    p_uncorrected = norm.sf(z) # one-sided test of auc>0.5
     if nch > 1:
         rej, roc_p_fdrc = fdrcorrection(p_uncorrected, alpha=0.05)
     else:
