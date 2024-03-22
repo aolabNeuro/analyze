@@ -274,67 +274,67 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
     target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
 
     return segment_duration, target_codes
-
-def calc_tracking_rewards(preproc_dir, subject, te_id, date, reward_interval=None, trial_start_code=2, reward_code=48, cursor_enter_target_code=80, cursor_leave_target_code=96):
+def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0):
     '''
-    Calculates the maximum possible and actual number of tracking rewards acquired during reward trials.
-
+    Compute movement onset when cursor speed crosses threshold based on mean and standard deviation in baseline period.
+    Baseline is defined as the period between target onset and gocue because speed still exists soon after the cursor enters the center target.
+    
     Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of task entry object
-        date (str): Date of recording
-        reward_interval (float, optional): length of time (in s) between rewards while cursor is in target (i.e. while tracking in)
-        cursor_enter_target_code (int, optional): event code for cursor entering target
-        cursor_leave_target_code (int, optional): event code for cursor leaving target
-        reward_code (int, optional): event code for reward
-
-    Returns:
-        tuple: tuple containing:
-        | **tracking_rewards (ntrials):** number of tracking rewards acquired per reward trial
-        | **max_rewards (int):** maximum possible number of tracking rewards on a single trial
-    '''
-    # load preproc data file
-    exp_data, exp_metadata = postproc.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    assert 'tracking_rewards' in [feature.decode("utf-8") for feature in exp_metadata['features']], "No tracking rewards"
-    if reward_interval is None:
-        reward_interval = exp_metadata['tracking_reward_interval']
-    event_codes = exp_data['events']['code']
-    event_times = exp_data['events']['timestamp']
-
-    # calculate max possible number of tracking rewards
-    seq_params = lookup_sessions(id=te_id, subject=subject, date=date)[0].sequence_params
-    if 'ramp_down' not in seq_params:
-        seq_params['ramp_down'] = 0
-    trial_length = seq_params['time_length']+seq_params['ramp']+seq_params['ramp_down']
-    max_rewards = int(trial_length/reward_interval)
-    if trial_length % reward_interval == 0:
-        max_rewards -= 1
+        cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
+        fs (float) : sampling rate in Hz
+        trial_start (ntr) : trial start time (the time when the cursor enters the center target) relative to experiment start time in sec
+        target_onset (ntr) : target onset relative to experiment start time in sec
+        gocue (ntr) : gocue (the time when the center target disappears) relative to experiment start time in sec
+        numsd (float) : for determining threshold
         
-    # calculate max consecutive tracking in time that would yield rewards
-    time_rewards_possible = max_rewards*reward_interval
+    Returns:
+        movement_onset (ntr) : movement onset relative to trial start time (the time when the cursor enters the center target) in sec
+    '''
+    
+    target_from_start = target_onset - trial_start # target onset relative to trial start time
+    gocue_from_start = gocue - trial_start # gocue relative to trial start time
+    dt = 1/fs
+    
+    movement_onset = []
+    for itr in range(cursor_traj.shape[0]):
+        # compute speed
+        dist = np.linalg.norm(cursor_traj[itr],axis=1)
+        speed = np.diff(dist)
+        speed = np.insert(speed,0,speed[0]) # complement the first data point
+        
+        # compute threshold based on mean and std in baseline
+        t_cursor = np.arange(dist.shape[0])*dt
+        baseline_idx = (t_cursor<gocue_from_start[itr]) & (t_cursor>target_from_start[itr])
+        baseline_speed = np.mean(speed[baseline_idx])
+        baseline_std = np.std(speed[baseline_idx],ddof=1)
+        thr = baseline_speed + numsd*baseline_std
+        
+        # get movement onset
+        movement_onset.append(t_cursor[np.where((speed>thr)&(t_cursor>target_from_start[itr]))[0][0]])
+        
+    return np.array(movement_onset)
 
-    # get reward trial segments
-    trial_start_codes = [trial_start_code]
-    trial_end_codes = [reward_code]
-
-    reward_segments, reward_times = preproc.get_trial_segments(event_codes, event_times, trial_start_codes, trial_end_codes)
-    _, reward_times_all = preproc.get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
-
-    reward_segments = np.array(reward_segments,dtype=np.ndarray)
-    reward_times_all = np.array(reward_times_all,dtype=np.ndarray)
-
-    # calculate number of tracking rewards obtained on each trial
-    tracking_rewards = np.zeros((len(reward_segments),),dtype=int)
-    for trial_id,segment in enumerate(reward_segments):
-        enter_ind = np.where(segment==cursor_enter_target_code)[0] # this includes ramp periods
-        leave_ind = enter_ind + 1 # next event should be either CURSOR_LEAVE_TARGET or REWARD
-        assert ( np.logical_or((segment[leave_ind]==cursor_leave_target_code), (segment[leave_ind]==reward_code)) ).all()
-
-        for _,(enter,leave) in enumerate(np.vstack((enter_ind, leave_ind)).T):
-            time_in_target = reward_times_all[trial_id][leave] - reward_times_all[trial_id][enter]
-            if time_in_target > time_rewards_possible:
-                time_in_target = time_rewards_possible
-            tracking_rewards[trial_id] += int(time_in_target/reward_interval)
-
-    return tracking_rewards, max_rewards
+def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
+    '''
+    Compute the times when the cursor leaves the center target radius
+    
+    Args:
+        cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
+        fs (float) : sampling rate in Hz
+        target_radius (float) : the radius of the center target
+        
+    Returns:
+        cursor_leave_time (ntr): cursor leave times relative to the time when the cursor enters the center target
+    '''
+    
+    ntr = len(cursor_traj)
+    cursor_leave_time = []
+    
+    for itr in range(ntr):
+        t_axis = np.arange(cursor_traj[itr].shape[0])/samplerate
+        
+        dist = np.linalg.norm(cursor_traj[itr],axis=1)
+        leave_idx = np.where(dist>target_radius)[0][0]
+        cursor_leave_time.append(t_axis[leave_idx])
+    
+    return np.array(cursor_leave_time)

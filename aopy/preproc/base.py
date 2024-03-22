@@ -180,7 +180,7 @@ def validate_measurements(expected_values, measured_values, diff_thr):
     corrected_values[diff_above_thr] = expected_values[diff_above_thr]
     return corrected_values, diff_above_thr
 
-def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrapolate=False):
+def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, sampling_points=None, interp_kind='linear', extrapolate=False, remove_nan=True):
     '''
     This function uses linear interpolation (scipy.interpolate.interp1d) to convert timestamped data to timeseries data given new sampling points.
     Timestamps must be monotonic. If the timestamps or timestamp_values include a nan, this function ignores the corresponding timestamp value and performs interpolation between the neighboring values.
@@ -207,10 +207,11 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     Args:
         timestamps (nstamps): Timestamps of original data to be interpolated between.
         timestamp_values (nstamps): Values corresponding to the timestamps.
-        samplerate (float): Optional argument if new sampling points should be calculated based on the timstamps. Sampling rate of newly sampled output array. [Hz]
-        output_array (nt): Optional argument to pass predefined sampling points. 
-        interp_kind (str): Optional argument to define the kind of interpolation used. Defaults to 'linear'
-        extrapolate (bool): If True, use scipy.interp1d's built-in extrapolate functionality. Otherwise, use the first and last valid data.
+        samplerate (float, optional): Optional argument if new sampling points should be calculated based on the timstamps. Sampling rate of newly sampled output array in Hz. Default None.
+        sampling_points ((nt,) array, optional): Optional argument to pass predefined sampling points. Default None.
+        interp_kind (str, optional): Optional argument to define the kind of interpolation used. Defaults to 'linear'
+        extrapolate (bool, optional): If True, use scipy.interp1d's built-in extrapolate functionality. Otherwise, use the first and last valid data.
+        remove_nan (bool, optional): If True, remove nan values before interpolation. Default True.
 
     Returns:
         tuple: tuple containing:
@@ -219,11 +220,11 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
 
     '''
     # Check for nans and remove them
-    if not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values))):
+    if remove_nan and (not np.all(np.logical_not(np.isnan(timestamps))) or not np.all(np.logical_not(np.isnan(timestamp_values)))):
         nanmask_stamps = np.logical_not(np.isnan(timestamps))
         nanmask_values = np.logical_not(np.isnan(timestamp_values))
         if timestamp_values.ndim > 1:
-            nanmask_values = nanmask_values[:,0] # assume if one is nan then the others are nan
+            nanmask_values = np.any(nanmask_values, axis=tuple(range(1,nanmask_values.ndim))) # all axes except 0
         nanmask = np.logical_and(nanmask_stamps, nanmask_values)
         timestamps = timestamps[nanmask]
         timestamp_values = timestamp_values[nanmask]
@@ -252,11 +253,12 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     f_interp = interpolate.interp1d(timestamps, timestamp_values, kind=interp_kind, fill_value=fill_value, bounds_error=False, axis=0)
     timeseries = f_interp(sampling_points)
 
-    assert np.count_nonzero(np.isnan(timeseries)) == 0, f"{np.count_nonzero(np.isnan(timeseries))} NaNs present in output -- something has gone wrong!"
+    if remove_nan:
+        assert np.count_nonzero(np.isnan(timeseries)) == 0, f"{np.count_nonzero(np.isnan(timeseries))} NaNs present in output -- something has gone wrong!"
 
     return timeseries, sampling_points
 
-def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, append_time=0):
+def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, append_time=0, **kwargs):
     '''
     Convert irregularly spaced data into a timeseries at the given samplerate. 
     First interpolates the data (by default to 100 times the samplerate), then
@@ -272,18 +274,19 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
             Defaults to 100 times the samplerate.
         append_time (float, optional): The amount of extra time to add at the end 
             of the timeseries, in seconds. Defaults to 0.
+        kwargs (dict, optional): arguments to include in interpolation function
 
     Returns:
         (ns, ...): cursor_data_time containing the sampled data.
     '''
-    assert len(data) == len(timestamps), f"Data and timestamps should "
-    f"have the same number of cycles ({len(data)} vs {len(timestamps)})"
+    assert len(data) == len(timestamps), (f"Data and timestamps should "
+        f"have the same number of cycles ({len(data)} vs {len(timestamps)})")
 
     if upsamplerate is None:
         upsamplerate = samplerate * 100
 
     time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
-    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False)
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False, **kwargs)
     data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 
@@ -301,7 +304,7 @@ def get_dch_data(digital_data, digital_samplerate, dch):
         (nedges,): structured np.ndarray of the form [('timestamp', 'f8'), ('value', 'f8')])
     '''
     dch_bit_mask = utils.convert_channels_to_mask(dch)
-    dch_ts_data = utils.mask_and_shift(digital_data, dch_bit_mask)
+    dch_ts_data = utils.extract_bits(digital_data, dch_bit_mask)
     dch_timestamps, dch_values = utils.detect_edges(dch_ts_data, digital_samplerate, rising=True, falling=True)
     dch_data = np.empty((len(dch_timestamps),), dtype=[('timestamp', 'f8'), ('value', 'f8')])
     dch_data['timestamp'] = dch_timestamps
@@ -319,7 +322,7 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
     Args:
         events (nt): events vector
         times (nt): times vector
-        evt_start (int or str): event marking the start of a trial
+        evt_start (int or str or list): event or events marking the start of a trial
         n_events (int): number of events in a trial
         nevent_offset (int): number of events before the start event to offset event alignment by. For example,
             if you wanted to align to "targ" in ["trial", "targ", "reward", "trial", "targ", "error"] but include the preceding "trial"
@@ -332,26 +335,21 @@ def trial_separate(events, times, evt_start, n_events=8, nevent_offset=0):
     '''
 
     # Pad the arrays a bit in case there is an evt_start at the beginning or end
-    if np.issubdtype(events.dtype, np.number):
-        if nevent_offset < 0:
-            events = events.astype('int32')
-            events = np.pad(events, (-nevent_offset, n_events), constant_values=(-1,))
-            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
-        else:
-            events = events.astype('int32')
-            events = np.pad(events, (0, n_events+nevent_offset), constant_values=(-1,))
-            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))
+    if np.issubdtype(np.array(events).dtype, np.number):
+        events = np.array(events).astype('int32')
+        fill_value = -1
     else:
-        if nevent_offset < 0:
-            events = np.pad(events, (-nevent_offset, n_events), constant_values=('',))
-            times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
-        else:
-            events = np.pad(events, (0, n_events+nevent_offset), constant_values=('',))
-            times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
+        fill_value = ''
+    if nevent_offset < 0:
+        events = np.pad(events, (-nevent_offset, n_events), constant_values=(fill_value,))
+        times = np.pad(times, (-nevent_offset, n_events), constant_values=(-1,))
+    else:
+        events = np.pad(events, (0, n_events+nevent_offset), constant_values=(fill_value,))
+        times = np.pad(times, (0, n_events+nevent_offset), constant_values=(-1,))    
     
 
     # Find the indices in events that correspond to evt_start 
-    evt_start_idx = np.where(events == evt_start)[0]+nevent_offset
+    evt_start_idx = np.where(np.isin(events, evt_start))[0]+nevent_offset
 
     # Find total number of trials
     num_trials = len(evt_start_idx)
@@ -680,7 +678,7 @@ def locate_trials_with_event(trial_events, event_codes, event_columnidx=None):
     return split_events, split_events_combined
 
 def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerate, event_times, event_codes,
-    align_events=range(81,89), trial_end_events=[239], offset=0., return_datapoints=False):
+    align_events=range(81,89), penalty_events=[64], offset=0., return_datapoints=False):
     """
     Extracts cursor data and eyedata and calibrates, aligning them and calculating the least square fitting coefficients
     
@@ -693,8 +691,9 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
         event_codes (nevent): codes for each event
         align_events (list, optional): list of event codes to use for alignment. By default, align to
             when the cursor enters 8 peripheral targets
-        trial_end_events (list, optional): list of end events to use for alignment. By default trial end is code 239
-        offset (float, optional): time (in seconds) to offset from the given events to correct for a delay in eye movements
+        penalty_events (list, optional): list of penalty event codes to exclude. By default,
+            events followed by hold penalties are excluded
+        offset (float, optional): time (in seconds) to offset from the given events. Positive offset yields later eye data
         return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
 
     Returns:
@@ -704,10 +703,11 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
     """
 
     # Get the corresponding cursor and eye data
-    _, trial_times= get_trial_segments(event_codes, event_times, align_events, trial_end_events)
+    trial_events, trial_times= trial_separate(event_codes, event_times, align_events, n_events=2)
     if len(trial_times) == 0:
         raise ValueError("Not enough trials to calibrate")
-    align_times = trial_times[:,0] + offset
+    exclude_trials = np.array([(t[-1] in penalty_events) for t in trial_events], dtype='bool')
+    align_times = trial_times[~exclude_trials,0] + offset
     sample_cursor_enter_target  = (align_times * cursor_samplerate).astype(int)
     cursor_data_aligned = cursor_data[sample_cursor_enter_target,:]
     sample_eye_enter_target  = (align_times * eye_samplerate).astype(int)
@@ -727,5 +727,67 @@ def calc_eye_calibration(cursor_data, cursor_samplerate, eye_data, eye_samplerat
 
     if return_datapoints:
         return coeff, correlation_coeff, cursor_data_aligned, eye_data_aligned
+    else:
+        return coeff, correlation_coeff
+
+def calc_eye_target_calibration(eye_data, eye_samplerate, event_times, event_codes, target_pos,
+    align_events=range(81,89), penalty_events=[64], cursor_enter_center_target=80, offset=0., duration=0.1, return_datapoints=False):
+    """
+    Extracts eye data and calibrates, aligning eye data and calculating the least square fitting coefficients 
+    between eye positions and target positions
+    
+    Args:
+        eye_data (nt, 2 or 4): eye data in time (optionally for both left and right eyes)
+        eye_samplerate (float): sampling rate of the eye data
+        event_times (nevent): times at which events occur
+        event_codes (nevent): codes for each event
+        target_pos (ntarget, 3): N target positions (x,y,z). This should be ordered by their target idx
+        align_events (list, optional): list of event codes to use for alignment. By default, align to
+            when the cursor enters 8 peripheral targets
+        penalty_events (list, optional): list of penalty event codes to exclude. By default,
+            events followed by hold penalties are excluded
+        cursor_enter_center_target (int, optional): event code for cursor_enter_center_target
+        offset (float, optional): time (in seconds) to offset from the given events. Positive offset yields later eye data
+        duration (float, optional): duration (in seconds) to average eye trajectories in the interval from the given events + offset
+        return_datapoints (bool, optional): if true, also returns cusor_data_aligned, eye_data_aligned
+
+    Returns:
+        tuple: tuple containing:
+            | **coefficients (neyech, 2):** coefficients [slope, intercept] for each eye channel
+            | **correlation_coeff (neyech):** correlation coefficients for each eye channel
+    """
+
+    # Get the corresponding cursor and eye data
+    trial_events, trial_times= trial_separate(event_codes, event_times, align_events, n_events=2)
+    if len(trial_times) == 0:
+        raise ValueError("Not enough trials to calibrate")
+    exclude_trials = np.array([(t[-1] in penalty_events) for t in trial_events], dtype='bool')
+    align_times = trial_times[~exclude_trials,0] + offset
+    
+    start_time  = (align_times * eye_samplerate).astype(int)
+    end_time =  ((align_times + duration) * eye_samplerate).astype(int)
+    if duration == 0.:
+        end_time += 1
+    eye_data_aligned = np.array([np.nanmean(eye_data[start:end,:],axis=0) for start, end in zip(start_time,end_time)])
+        
+    # Get target position for every trial
+    target_index = np.array([event[0] - cursor_enter_center_target for event in trial_events])
+    target_index = target_index[~exclude_trials]
+    
+    target_pos_trial = np.nan*np.zeros((len(target_index), 2))
+    for itrial in range(len(target_index)):
+        target_pos_trial[itrial,:] = target_pos[target_index[itrial]-1,:2]
+    
+    # Calibrate the eye data
+    if eye_data_aligned.shape[1] == 4:
+        target_pos_trial = np.tile(target_pos_trial, (1, 2)) # for two eyes
+    else:
+        target_pos_trial = target_pos_trial
+
+    slopes, intercepts, correlation_coeff = analysis.fit_linear_regression(eye_data_aligned, target_pos_trial)
+    coeff = np.vstack((slopes, intercepts)).T
+    
+    if return_datapoints:
+        return coeff, correlation_coeff, eye_data_aligned
     else:
         return coeff, correlation_coeff

@@ -344,6 +344,35 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
         
     return slope, intercept, corr_coeff
 
+def calc_freq_domain_values(data, samplerate):
+    '''
+    Use FFT to decompose time series data into frequency domain and return
+    non-negative frequency components
+    For math details, see: https://www.sjsu.edu/people/burford.furman/docs/me120/FFT_tutorial_NI.pdf
+
+    Args:
+        data (nt, nch): timeseries data, can be a single channel vector
+        samplerate (float): sampling rate of the data
+
+    Returns:
+        tuple: Tuple containing:
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **freqvalues (nt/2, nch):** array of complex numbers at the above frequencies (each containing magnitude and phase)
+    '''
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
+
+    # Compute FFT along time dimension
+    freq_data = np.fft.fft(data, axis=0)
+    length = np.shape(freq_data)[0]
+    freq = np.fft.fftfreq(length, d=1./samplerate)
+
+    # Only take non-negative frequency components
+    non_negative_freq = freq[freq>=0]
+    non_negative_freq_data = freq_data[freq>=0,:]/complex(length,0) # normalize by length
+    non_negative_freq_data[1:,:] = non_negative_freq_data[1:,:]*2 # account for half the peak amplitude being at the negative frequency component
+    return non_negative_freq, non_negative_freq_data
+
 def calc_freq_domain_amplitude(data, samplerate, rms=False):
     '''
     Use FFT to decompose time series data into frequency domain to calculate the
@@ -356,20 +385,15 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-            | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **amplitudes (nt/2, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
-    if np.ndim(data) < 2:
-        data = np.expand_dims(data, 1)
+    non_negative_freq, non_negative_freq_data = calc_freq_domain_values(data, samplerate)
 
-    # Compute FFT along time dimension
-    freq_data = np.fft.fft(data, axis=0)
-    length = np.shape(freq_data)[0]
-    freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
-    non_negative_freq = freq[freq>=0]
+    # Compute the one-sided amplitude
+    data_ampl = abs(non_negative_freq_data)
 
-    # Apply factor of root 2 to turn amplitude into RMS amplitude
+    # Divide non-DC components by root 2 to turn amplitude into RMS amplitude
     if rms:
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
@@ -750,6 +774,86 @@ def classify_by_lda(X_train_lda, y_class_train,
     mean_accuracy,  std = np.mean(scores), np.std(scores)
 
     return mean_accuracy, std
+
+def get_random_timestamps(nshuffled_points, max_time, min_time=0, time_samplerate=None):
+    '''
+    This calculates random timestamps either within a range or from a discrete time axis.
+
+    Args:
+        nshuffled_points (int): How many randomly selected time points to
+        max_time (float): Max of time range to draw samples from (inclusive)
+        min_time (float): Min of time range to draw samples from. Defaults to 0
+        time_samplerate (int): Samplerate [samples/s] for the time range. Defaults to None. If None, a random time to machine precision will be calculated. If a value is input, the random samples will be in increments of the samplerate (without replacement).
+
+    Returns:
+        shuffled_timestamps (nshuffled_points): Ordered random timestamps
+    '''
+
+    # Check that that there are enough sample points to randomly select from if time_samplerate is not None.
+    if time_samplerate is not None and nshuffled_points > ((max_time-min_time)*time_samplerate):
+        warnings.warn('There are not enough possible sample points to randomly select from.')
+        return
+
+    if time_samplerate is None:
+        random_timestamps = np.random.uniform(min_time, max_time, size=nshuffled_points)
+    
+    else:
+        time_axis = np.arange(min_time, max_time+(1/time_samplerate), 1/time_samplerate)
+        random_timestamps = np.random.choice(time_axis, size=nshuffled_points, replace=False)
+    
+    return np.sort(random_timestamps)
+    
+def get_empirical_pvalue(data_distribution, data_sample, test_type='two_sided', assume_gaussian=False, nbins=None):
+    '''
+    Calculates the cumulative density function (CDF) from the input data distribution, then calculates the probability (p-value) that a data sample is part of that distribution.
+
+    Args:
+        data_distribution (npts): Distribution of empirically determined data points
+        data_sample (npts): Data sample(s) to get pvalue of 
+        test_type (str): 'two_sided', 'lower', or 'upper'.
+        assume_gaussian (bool): Assumes the data represents a gaussian distribution when calculating the pvalue
+        nbins (int): Number of bins to use to calculate the data distribution. Default is len(data_distribution)/100 if input is None (if necessary)
+        
+    Returns:
+        significance (float): pvalue of the input data_sample based the parameters of the input data_distribution
+    '''
+    # Assume input data is a gaussian distribution
+    data_mean = np.nanmean(data_distribution)
+    if assume_gaussian:
+        data_std = np.nanstd(data_distribution)
+        z_value = (data_sample - data_mean)/data_std
+        cdf_sample = scipy.stats.norm.cdf(z_value)
+    
+    # Get CDF from input data distribution
+    else: 
+        if nbins is None:
+            nbins = len(data_distribution/100)
+        count, bin_edges = np.histogram(data_distribution, bins=nbins)
+        bin_edges += (bin_edges[1] - bin_edges[0])/2 # Use center of bins
+        pdf = count / sum(count)
+        cdf = np.cumsum(pdf)
+        if np.isscalar(data_sample):
+            cdf_sample = cdf[np.where(bin_edges > data_sample)[0][0]]
+        else:
+            cdf_sample = np.array([cdf[np.where(bin_edges > isample)[0][0]] for isample in data_sample])
+
+    if test_type == 'two_sided':
+        if np.isscalar(data_sample):
+            if data_sample > data_mean:
+                return 2*(1-cdf_sample)
+            else: 
+                return 2*cdf_sample
+        else:
+            return 2*np.array([(1-isample) if data_sample[idx] > data_mean else isample for idx, isample in enumerate(cdf_sample)])
+        
+    elif test_type == 'lower':
+        return(cdf_sample)
+    elif test_type == 'upper':
+        return(1-cdf_sample)
+    else:
+        warnings.warn('Please enter a valid test_type. Must be either two_sided, upper, or lower')
+        return
+
 
 '''
 Spectral Estimation and Analysis
@@ -1256,7 +1360,7 @@ def interp_nans(x):
     return x
 
 def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imaginary=False, 
-                dtype='float64', workers=None):
+                  return_angle=False, dtype='float64', workers=None):
     '''
     Computes moving window time-frequency coherence averaged across trials between selected channels.
     This is loosely based on pesaran lab code, modified to be more compatible with :func:`~aopy.analysis.calc_mt_tfr`.
@@ -1298,6 +1402,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             https://iopscience.iop.org/article/10.1088/1741-2552/abce3c
             Default is False.
         imaginary (bool, optional): if True, compute imaginary coherence.
+        return_angle (bool, optional): if True, also return the phase difference between 
+            the two channels. Default False.
         dtype (str, optional): dtype of the output. Default 'float64'
         workers (int, optional): Number of workers argument to pass to scipy.fft.fft. 
             Default None. 
@@ -1307,6 +1413,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             | **f (n_freq):** frequency axis
             | **t (n_time):** time axis
             | **coh (n_freq,n_time):** magnitude squared coherence or imaginary coherence (0 <= coh <= 1)
+            | **angle (n_freq,n_time):** phase difference between the two channels in radians 
+                (optional output, -pi <= angle <= pi)
 
     See also: 
         :func:`~aopy.analysis.calc_mt_tfr`
@@ -1341,6 +1449,12 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             freq = 400.0
             signal1[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
             signal2[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
+                    
+            # Add a 200 hz sine wave to both signals but with phase modulated by a 0.05 hz sine wave
+            freq = 200.0
+            freq2 = 0.05
+            signal1 += amp*np.sin(2*np.pi*freq*time)
+            signal2 += amp*np.sin(2*np.pi*freq*time + np.pi*np.sin(2*np.pi*freq2*time))
 
         Calculate coherence, imaginary coherence, and compared to `scipy.signal.coherence()`
 
@@ -1362,8 +1476,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             # And coherence
             f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                                 ref=False)
-            f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
-                                                                ref=False, imaginary=True)
+            f, t, coh_im, angle = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                                ref=False, imaginary=True, return_angle=True)
             f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=2048, noverlap=0, axis=0)
 
         Plot coherence
@@ -1371,26 +1485,24 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         .. code-block:: python
 
             # Plot the coherence over time
-            plt.figure(figsize=(10, 12))
-            plt.subplot(4, 1, 1)
+            plt.figure(figsize=(10, 15))
+            plt.subplot(5, 1, 1)
             im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
             plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
             im.set_clim(0,3)
 
-            plt.subplot(4, 1, 2)
+            plt.subplot(5, 1, 2)
             im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
             plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
             im.set_clim(0,3)
 
-            plt.subplot(4, 1, 3)
+            plt.subplot(5, 1, 3)
             im = aopy.visualization.plot_tfr(coh, t, f)
             plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
             im.set_clim(0,1)
 
             # Plot the average coherence across windows
-            # Note: scipy uses welch's method, so its coherence is based on the average cross-spectral
-            # density of the two signals, rather than here the instantaneous cross-spectral density.
-            plt.subplot(2, 1, 2)
+            plt.subplot(5, 1, 4)
             plt.plot(f, np.mean(coh, axis=1))
             plt.plot(f, np.mean(coh_im, axis=1))
             plt.plot(f_scipy, coh_scipy)
@@ -1398,6 +1510,12 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             plt.xlabel('Frequency (Hz)')
             plt.ylabel('Coherency')
             plt.legend(['coh', 'imag coh', 'scipy'])
+
+            # Also plot the phase difference
+            plt.subplot(5, 1, 5)
+            im = aopy.visualization.plot_tfr(angle, t, f, cmap='bwr')
+            plt.colorbar(im, orientation='horizontal', location='top', label='Phase difference (rad)')
+            im.set_clim(-np.pi,np.pi)
 
         .. image:: _images/coherency.png
     '''
@@ -1428,6 +1546,7 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
     ch2 = ch[1]
         
     coh = np.zeros((nwin,int(nfk[1]-nfk[0])), dtype=dtype)
+    angle = np.zeros((nwin,int(nfk[1]-nfk[0])), dtype=dtype)
     for win in range(nwin):
         if ref:
             mX = np.mean(data[dn*win:dn*win+win_size], axis=1, keepdims=True) # Mean across channels for that window
@@ -1459,10 +1578,17 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         else:
             coh[win,:] = np.abs(S12/np.sqrt(S1*S2))**2
             
+        # Phase difference angle
+        angle[win,:] = np.angle(S12)
+
     coh = coh.T
+    angle = angle.T
     t = np.arange(nwin)*step + n/2 # Center of each window is time axis
     
-    return f, t, coh
+    if return_angle:
+        return f, t, coh, angle
+    else:
+        return f, t, coh
 
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''

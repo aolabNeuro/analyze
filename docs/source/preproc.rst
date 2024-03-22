@@ -307,7 +307,7 @@ Analog sensor data from the qwalor laser.
 
 Digital trigger information from the qwalor laser. These timestamps represent timing of the trigger signal that
 turns on and off the laser. The laser, however, may take time to turn on and off, and is measured in ``qwalor_sensor``.
-See also :func:`~aopy.preproc.bmi3d.find_laser_stim_times` and :func:`~aopy.preproc.bmi3d.get_laser_trial_times`.
+See also :func:`~aopy.preproc.laser.find_stim_times` and :func:`~aopy.preproc.bmi3d.get_laser_trial_times`.
 
 .. list-table::
 

@@ -24,7 +24,7 @@ def butterworth_params(cutoff_low, cutoff_high, fs, order = 4, filter_type = 'ba
         cutoff_high (int): higher cutoff frequency (in Hz)
         fs (int): sampling rate (in Hz)
         order (int): Order of the butter worth filter
-        filter_type (str) : Type of filter. Accepts one of the four values - {‘lowpass’, ‘highpass’, ‘bandpass’, ‘bandstop’}
+        filter_type (str) : Type of filter. Accepts one of the four values - {`lowpass`, `highpass`, `bandpass`, `bandstop`}
 
     Returns:
         tuple (b,a): bandpass filter parameters
@@ -710,7 +710,6 @@ def downsample(data, old_samplerate, new_samplerate):
         (nt, ...) downsampled data
     '''
     assert new_samplerate < old_samplerate, "New sampling rate must be less than old sampling rate"
-    assert data.ndim < 3, "Downsample doesn't work for more than 2 dimensions"
     assert int(old_samplerate) == old_samplerate, "Input samplerates must be integers"
     assert int(new_samplerate) == new_samplerate, "Input samplerates must be integers"
 
@@ -732,13 +731,19 @@ def downsample(data, old_samplerate, new_samplerate):
     data_padded = np.append(data, np.zeros(pad_shape)*np.NaN, axis=0)
 
     # Downsample using average
-    if data.ndim > 1:
-        downsampled = np.zeros((int(data_padded.shape[0]/downsample_factor), data.shape[1]), dtype=data.dtype)
-        for idx in range(data.shape[1]):
-            downsampled[:,idx] = np.nanmean(data_padded[:,idx].reshape(-1, downsample_factor), axis=1)
-        return downsampled
-    else:
+    if data.ndim == 1:
         return np.nanmean(data_padded.reshape(-1, downsample_factor), axis=1)
+    elif data.ndim == 2:
+        downsampled = np.zeros((int(data_padded.shape[0] / downsample_factor), *data.shape[1:]), dtype=data.dtype)
+        for idx in range(data.shape[1]):
+            downsampled[:, idx] = np.nanmean(data_padded[:, idx].reshape(-1, downsample_factor), axis=1)
+        return downsampled
+    elif data.ndim == 3:
+        downsampled = np.zeros((int(data_padded.shape[0] / downsample_factor), *data.shape[1:]), dtype=data.dtype)
+        for idx1 in range(data.shape[1]):
+            for idx2 in range(data.shape[2]):
+                downsampled[:, idx1, idx2] = np.nanmean(data_padded[:, idx1, idx2].reshape(-1, downsample_factor), axis=1)
+        return downsampled
 
 def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_cut=500., buttord=4):
     '''
@@ -753,11 +758,13 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
         buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
 
     Returns:
-        (nt', ...): lfp data
+        tuple: tuple containing:
+        | **lfp_data (nt', ...):** downsampled filtered lfp data
+        | **samplerate (float):** sampling rate of the lfp data
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=broadband_samplerate)
     filtered_data = filtfilt(b, a, broadband_data, axis=0)
-    return downsample(filtered_data, broadband_samplerate, lfp_samplerate)
+    return downsample(filtered_data, broadband_samplerate, lfp_samplerate), lfp_samplerate
 
 def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
     '''
@@ -791,7 +798,9 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
         buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
 
     Returns:
-        (nt, ...): filtered kinematics data
+        tuple: tuple containing:
+        | **filtere_data (nt, ...):** filtered kinematics data
+        | **samplerate (float):** sampling rate of the kinematics data
 
     Examples:
 
@@ -800,7 +809,7 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
             fs = 100
             x_single, t = utils.generate_test_signal(T=5, fs, 1, 5)
             x_noise, t = utils.generate_test_signal(T=5, fs=fs, freq=[1,3,30], a=[5, 2, 0.5], noise=0.2)
-            x_filt = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)
+            x_filt, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)
             fig, ax = plt.subplot_mosaic([['A', 'B'],['C', 'C']])
         
             ax['A'].plot(t, x_noise, label='Noisy signal')
@@ -823,4 +832,4 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
     filtered_data = filtfilt(b, a, kinematic_data, axis=0)
-    return filtered_data
+    return filtered_data, samplerate

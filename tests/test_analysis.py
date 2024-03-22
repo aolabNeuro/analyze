@@ -1,6 +1,6 @@
 import time
 from aopy.visualization import savefig
-from aopy.analysis import accllr
+from aopy.analysis import accllr, controllers
 import aopy
 import os
 import numpy as np
@@ -284,6 +284,52 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
+    def test_calc_freq_domain_values(self):
+        samplerate = 100
+        t = np.arange(samplerate) # 1sec signal
+        fig, ax = plt.subplots(4,1, figsize=(10,10))
+
+        # signal 1
+        A1 = 1 # amplitude
+        f1 = 2 # Hz
+        p1 = 0 # phase
+        y1 = A1 * np.sin((2*np.pi)*(f1/samplerate)*t + p1)
+        ax[0].plot(t, y1)
+        ax[0].set_ylabel('magnitude'); ax[0].set_xlabel('sample')
+
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y1, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f1,0])[0], A1)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f1,0], deg=True)[0], -90)
+        ax[1].plot(freqs, abs(freqvalues), '-o')
+        ax[1].set_ylabel('magnitude')
+
+        # signal 2
+        A2 = 2
+        f2 = 5
+        p2 = np.pi/2
+        y2 = A2 * np.sin((2*np.pi)*(f2/samplerate)*t + p2)
+        ax[0].plot(t, y2)
+        
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y2, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f2,0])[0], A2)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f2,0], deg=True)[0], 0)
+        ax[2].plot(freqs, abs(freqvalues), '-o', color='tab:orange')
+        ax[2].set_ylabel('magnitude')
+
+        # signal 1 + signal 2
+        ax[0].plot(t, y1+y2)
+
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y1+y2, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f1,0])[0], A1)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f1,0], deg=True)[0], -90)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f2,0])[0], A2)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f2,0], deg=True)[0], 0)
+        ax[3].plot(freqs, abs(freqvalues), '-o', color='tab:green')
+        ax[3].set_ylabel('magnitude'); ax[3].set_xlabel('frequency')
+
+        filename = 'freq_domain_decomposition.png'
+        aopy.visualization.savefig(docs_dir, filename)
+
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
         samplerate = 1000
@@ -482,34 +528,6 @@ class CalcTests(unittest.TestCase):
     
         filename = 'calc_corr2_map.png'
         aopy.visualization.savefig(docs_dir, filename)
-        
-    def test_calc_tracking_rewards(self):
-        preproc_dir = data_dir
-        subject = 'test'
-        date = '2023-10-04'
-        trial_start_code=2; reward_code=48; cursor_enter_target_code=80; cursor_leave_target_code=96
-        
-        te_id = 11359 # cursor always in target
-        exp_data, _ = aopy.postproc.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        reward_segments, _ = aopy.preproc.get_trial_segments(exp_data['events']['code'], exp_data['events']['timestamp'], [trial_start_code], [reward_code])
-        [np.testing.assert_array_equal(segment, [trial_start_code, cursor_enter_target_code, reward_code]) for segment in reward_segments]
-        tracking_rewards, max_rewards = aopy.analysis.calc_tracking_rewards(preproc_dir, subject, te_id, date)
-        np.testing.assert_array_equal(tracking_rewards, np.tile(max_rewards, 6))
-        self.assertEqual(max_rewards, 4)
-        
-        te_id = 11365 # cursor never in target once trial initiated
-        exp_data, _ = aopy.postproc.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        reward_segments, _ = aopy.preproc.get_trial_segments(exp_data['events']['code'], exp_data['events']['timestamp'], [trial_start_code], [reward_code])
-        [np.testing.assert_array_equal(segment, [trial_start_code, cursor_enter_target_code, cursor_leave_target_code, reward_code]) for segment in reward_segments]
-        tracking_rewards, max_rewards = aopy.analysis.calc_tracking_rewards(preproc_dir, subject, te_id, date)
-        np.testing.assert_array_equal(tracking_rewards, [0,0,0,0,0])
-        self.assertEqual(max_rewards, 4)
-        
-        te_id = 11367 # cursor rapidly swipes back and forth across target
-        tracking_rewards, max_rewards = aopy.analysis.calc_tracking_rewards(preproc_dir, subject, te_id, date)
-        np.testing.assert_array_equal(tracking_rewards, [0,0,0,0,0])
-        self.assertEqual(max_rewards, 4)
-
 
 class CurveFittingTests(unittest.TestCase):
 
@@ -570,6 +588,74 @@ class ModelFitTests(unittest.TestCase):
         
         self.assertAlmostEqual(accuracy, 1.0)
         self.assertAlmostEqual(std, 0.0 )
+
+    def test_get_random_timestamps(self):
+        nshuffled_points = 5
+        
+        # Test random timestamps without time axis
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1)
+        self.assertTrue(np.min(random_timestamps) >= .999999) # Weird numbers to handle float to int comparison
+        self.assertTrue(np.max(random_timestamps) <= 3.00001)
+        self.assertTrue(len(random_timestamps)==5)
+        self.assertTrue(np.diff(random_timestamps).all()>0)
+
+        # Test random timestamps with time axis
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1.1, time_samplerate=10)
+        self.assertAlmostEqual(np.sum(random_timestamps%0.1), 0)
+        self.assertTrue(np.min(random_timestamps) >= 1.099999)
+        self.assertTrue(np.max(random_timestamps) <= 3.00001)
+        self.assertTrue(len(random_timestamps)==5)
+        self.assertTrue(np.diff(random_timestamps).all()>0)
+
+        # Test that warning message appears
+        random_timestamps = aopy.analysis.base.get_random_timestamps(nshuffled_points, max_time=3, min_time=1, time_samplerate=0.1)
+        self.assertIsNone(random_timestamps)
+
+    def test_get_empirical_pvalue(self):
+        data_distribution = np.random.randn(1000000)
+
+        # Test distribution calculated from data
+        # Test two-sided test 
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample)
+        self.assertAlmostEqual(1, 0.6827+pvalue, 2) # Data should be one standard dev away
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)))
+        self.assertAlmostEqual(1, 0.6827+pvalue[0], 2) # Data should be one standard dev away
+        self.assertAlmostEqual(1, 0.6827+pvalue[1], 2) # Data should be one standard dev away
+
+        # Test lower test
+        data_sample = -1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'lower')
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)), 'lower')
+        self.assertAlmostEqual(len(pvalue), 2) 
+
+        # Test upper test
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'upper')
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)), 'upper')
+        self.assertAlmostEqual(len(pvalue), 2) 
+
+        # Test Gaussian assumption
+        # Test two-sided test 
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+pvalue, 2) # Data should be one standard dev away
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, np.array((-1,1)), assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+pvalue[0], 2) # Data should be one standard dev away
+        self.assertAlmostEqual(1, 0.6827+pvalue[1], 2) # Data should be one standard dev away
+
+
+        # Test lower test
+        data_sample = -1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'lower', assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
+
+        # Test upper test
+        data_sample = 1
+        pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'upper', assume_gaussian=True)
+        self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
 
 class AccLLRTests(unittest.TestCase):
 
@@ -1248,6 +1334,12 @@ class SpectrumTests(unittest.TestCase):
         signal1[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
         signal2[time < T/2] += amp*np.sin(2*np.pi*freq*time[time < T/2])
 
+        # Add a 200 hz sine wave to both signals but with phase modulated by a 0.05 hz sine wave
+        freq = 200.0
+        freq2 = 0.05
+        signal1 += amp*np.sin(2*np.pi*freq*time)
+        signal2 += amp*np.sin(2*np.pi*freq*time + np.pi*np.sin(2*np.pi*freq2*time))
+
         # Calculate mt coh
         n = 1
         w = 2
@@ -1267,31 +1359,31 @@ class SpectrumTests(unittest.TestCase):
         # Calculate coherence
         f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                               ref=False)
-        f, t, coh_im = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
-                                                              ref=False, imaginary=True)
+        f, t, coh_im, angle = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
+                                                              ref=False, imaginary=True, return_angle=True)
         
         # Calculate coherency from scipy
         f_scipy, coh_scipy = scipy.signal.coherence(signal1, signal2, fs=fs, nperseg=fs*n, noverlap=0, axis=0)
 
         # Plot the coherence over time
-        plt.figure(figsize=(10, 12))
-        plt.subplot(4, 1, 1)
+        plt.figure(figsize=(10, 15))
+        plt.subplot(5, 1, 1)
         im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
         im.set_clim(0,3)
 
-        plt.subplot(4, 1, 2)
+        plt.subplot(5, 1, 2)
         im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
         im.set_clim(0,3)
 
-        plt.subplot(4, 1, 3)
+        plt.subplot(5, 1, 3)
         im = aopy.visualization.plot_tfr(coh, t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Coherence')
         im.set_clim(0,1)
 
         # Plot the average coherence across windows
-        plt.subplot(4, 1, 4)
+        plt.subplot(5, 1, 4)
         plt.plot(f, np.mean(coh, axis=1))
         plt.plot(f, np.mean(coh_im, axis=1))
         plt.plot(f_scipy, coh_scipy)
@@ -1299,6 +1391,12 @@ class SpectrumTests(unittest.TestCase):
         plt.xlabel('Frequency (Hz)')
         plt.ylabel('Coherency')
         plt.legend(['coh', 'imag coh', 'scipy'])
+
+        # Also plot the phase difference
+        plt.subplot(5, 1, 5)
+        im = aopy.visualization.plot_tfr(angle, t, f, cmap='bwr')
+        plt.colorbar(im, orientation='horizontal', location='top', label='Phase difference (rad)')
+        im.set_clim(-np.pi,np.pi)
 
         plt.tight_layout()
         figname = 'coherency.png'
@@ -1488,7 +1586,6 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target, skipping unrewarded trial
         np.testing.assert_allclose(target_dir, [81, 87, 83, 82, 81]) # there are two appearances of target 1
 
-
     def test_calc_segment_duration(self):
         events =  [80, 17, 32, 81, 48,
                    80, 23, 32, 87, 48,
@@ -1510,6 +1607,121 @@ class BehaviorMetricsTests(unittest.TestCase):
         rt, target_idx = aopy.analysis.calc_segment_duration(events, times, [32], [48, 128], trial_filter=lambda x: 48 in x)
         np.testing.assert_allclose(rt, [1., 2., 3., 4., 6.]) # difference from go cue to entering peripheral target
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
+
+    def test_movement_onset_and_cursor_leave_time(self):
+        fs = 1
+        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,1,1,0,0,1,1,1,1,1,]]).T,\
+            np.array([[1,0,0,0,0,0,0,-1,-1,-1],[0,1,0,0,0,0,0,1,1,1,]]).T])
+        trial_start = np.array([0,0])
+        target_onset = np.array([1,2])
+        gocue = np.array([4,5])
+        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=1)
+        self.assertTrue(np.all(movement_onset == np.array([5,7])))
+        
+        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
+            np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
+        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
+        self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
+
+class ControlTheoreticAnalysisTests(unittest.TestCase):
+    def test_calc_transfer_function(self):
+        samplerate = 100
+        t = np.arange(samplerate) # 1sec signal
+        exp_freqs = [2, 5] # [f1, f2] Hz
+
+        # input signal
+        A1_in = 4 # amplitude
+        p1_in = 0 # phase
+        A2_in = 2
+        p2_in = 0
+        input_signal = A1_in * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t + p1_in) + A2_in * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t + p2_in)
+        plt.plot(t, input_signal)
+
+        # output signal
+        A1_out = 3
+        p1_out = np.pi/6
+        A2_out = 3
+        p2_out = -np.pi/4
+        output_signal = A1_out * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t + p1_out) + A2_out * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t + p2_out)
+        plt.plot(t, output_signal)
+
+        # input--> input
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, input_signal, samplerate)
+        self.assertEqual(len(transfer_func), len(t)/2)
+        np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func)), np.ones(len(freqs))) # magnitude transformation is 1 at all freqs  
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), np.zeros(len(freqs))) # phase shift is 0 at all freqs
+
+        # input--> output
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate)
+        self.assertEqual(len(transfer_func), len(t)/2)
+        np.testing.assert_array_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func))[np.isin(freqs, exp_freqs)], [p1_out, p2_out])
+
+        # input--> output, only at experimental freqs
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate, exp_freqs)
+        self.assertEqual(len(transfer_func), len(exp_freqs))
+        np.testing.assert_array_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), [p1_out, p2_out])
+
+    def test_pair_trials_by_frequency(self):
+        # trials with perfectly alternating frequency content
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o]*5
+        dis_freqs = [e, o]*5
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=1, limit_pairs_per_trial=True, max_pairs_per_trial=2)
+        np.testing.assert_array_equal(trial_pairs, np.array([[i,i+1] for i in range(9)]))
+
+        # trials with some repeating frequency content
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [3,4],
+                          [4,5],
+                          [5,6]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=1, limit_pairs_per_trial=True, max_pairs_per_trial=2)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
+
+        # trials with some repeating frequency content & non-default function parameters
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [0,2],
+                          [2,4],
+                          [3,4],
+                        #   [4,5], would not get this pair because trial 4 already used in 2 pairs 
+                          [5,6]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=True, max_pairs_per_trial=2)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
+
+        # trials with some repeating frequency content & non-default function parameters
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [0,2],
+                          [2,4],
+                          [3,4],
+                          [4,5],
+                          [5,6]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=False)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
 
 if __name__ == "__main__":
     unittest.main()

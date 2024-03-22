@@ -1,4 +1,5 @@
 import time
+import aopy
 from aopy.utils import *
 from aopy.visualization import plot_timeseries, savefig
 import os
@@ -6,6 +7,7 @@ import numpy as np
 import unittest
 
 test_dir = os.path.dirname(__file__)
+data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
@@ -149,19 +151,26 @@ class TestDigitalCalc(unittest.TestCase):
         # see test_data:E3vFrameTests
         pass
 
-    def test_find_first_significant_bit(self):
-        data = 0b0100
-        ffs = find_first_significant_bit(data)
-        self.assertEqual(ffs, 2)
-        data = 0
-        ffs = find_first_significant_bit(data)
-        self.assertEqual(ffs, -1)
-
-    def test_mask_and_shift(self):
+    def test_extract_bits(self):
         mask = 0x0000000000ff0000 # bits 17-24
-        digital_data = [2, 4, 12*0x10000, 140*0x10000, 0xff0000, 0xff0000]
-        masked = mask_and_shift(digital_data, mask)
-        assert np.array_equal(masked, [0, 0, 12, 140, 255, 255])
+        digital_data = np.array([2, 4, 12*0x10000, 140*0x10000, 0xff0000, 0xff0000], dtype='uint64')
+        masked = extract_bits(digital_data, mask)
+        np.testing.assert_allclose(masked, [0, 0, 12, 140, 255, 255])
+
+        mask = 0b0000001111001111
+        digital_data = 0b0001000011001100
+        masked = extract_bits(digital_data, mask)
+        np.testing.assert_allclose(masked, 0b00111100)
+
+        mask = 0b01001
+        digital_data = np.array([0b01000, 0b01111, 0b00001])
+        masked = extract_bits(digital_data, mask)
+        np.testing.assert_allclose(masked, [0b010, 0b011, 0b001])
+
+        mask = 0b1
+        digital_data = np.array([True, True, False])
+        masked = extract_bits(digital_data, mask)
+        np.testing.assert_allclose(masked, [0b1, 0b1, 0b0])
 
     def test_convert_channels_to_mask(self):
         self.assertEqual(convert_channels_to_mask(0), 1)

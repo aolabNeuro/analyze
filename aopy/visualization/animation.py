@@ -2,12 +2,11 @@ from matplotlib.animation import FuncAnimation
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from .base import plot_spatial_map, color_trajectories, plot_circles, plot_targets
 
+from .base import plot_spatial_map, plot_targets, set_bounds
 from .. import postproc
 
-
-def saveanim(animation, base_dir, filename, dpi=72, **savefig_kwargs):
+def saveanim(animation, base_dir, filename, dpi=100, **savefig_kwargs):
     '''
     Save an animation using ffmpeg
 
@@ -49,6 +48,11 @@ def animate_events(events, times, fps, xy=(0.3, 0.3), fontsize=30, color='g'):
 
     Returns:
         matplotlib.animation.FuncAnimation: animation object
+
+    Example:
+        .. raw:: html
+
+            <video controls src="_static/test_anim_events.mp4"></video>
     '''
     frame_events, event_names = postproc.sample_events(events, times, fps)
 
@@ -75,6 +79,14 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
         trajectory (n, 3): matrix of n points
         samplerate (float): sampling rate of the trajectory data
         history (int, optional): maximum number of points visible at once
+    
+    Returns:
+        matplotlib.animation.FuncAnimation: animation object
+
+    Example:
+        .. raw:: html
+
+            <video controls src="_static/test_anim_trajectory.mp4"></video>    
     '''
 
     fig = plt.figure()
@@ -133,6 +145,9 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
         y (list): list of y positions
         samplerate (float): rate of the data_map samples
         cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
+    
+    Returns:
+        matplotlib.animation.FuncAnimation: animation object
     '''
 
     # Plotting subroutine
@@ -167,7 +182,7 @@ def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_pos
 
         .. raw:: html
 
-            <video controls src="_static/test_anim.mp4"></video>
+            <video controls src="_static/test_anim_cursor_eye.mp4"></video>
 
     Args:
         cursor_trajectory ((nt, ndim) array): Cursor positions over time for 2D or 3D trajectories.
@@ -183,6 +198,9 @@ def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_pos
 
     Returns:
         None
+    
+    Returns:
+        matplotlib.animation.FuncAnimation: animation object
     '''
     assert len(cursor_trajectory) == len(eye_trajectory), "Cursor and Eye trajectories must have the same length"
 
@@ -206,4 +224,119 @@ def animate_cursor_eye(cursor_trajectory, eye_trajectory, samplerate, target_pos
     # Create animation
     ani = FuncAnimation(fig, plotdata, 
                         frames=len(cursor_trajectory), interval=1000./samplerate)  
+    return ani
+
+def get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, *circle_ts, history=1., ax=None):
+    '''
+    Draws an animation of an arbitrary number of circles. Used in :func:`~aopy.visualization.animation.animate_behavior`.
+
+    Args:
+        samplerate (float): The sampling rate of the trajectories in Hz.
+        bounds (tuple): Boundaries of the plot area. See :func:`~aopy.visualization.plot_targets`.
+        circle_radii (list of float): Radius of each circle.
+        circle_colors (list of plt.color): Color of each circle.
+        circle_ts (list of (nt, 2) arrays): Circle positions over time for 2D trajectories.
+        history (float, optional): how long (in seconds) to animate lines trailing the circles. Default 1.
+        ax (pyplot.Axes, optional): axis on which to plot the animation
+
+    Returns:
+        function: plotting function for FuncAnimation
+    '''
+    ncircles = len(circle_ts)
+    nhist = int(history*samplerate)
+            
+    # Initial plot
+    if ax is None:
+        ax = plt.gca()
+    set_bounds(bounds, ax=ax)
+    ax.set_aspect('equal', adjustable='box')
+    circles = []
+    lines = []
+    for j in range(ncircles):
+        circles.append(plt.Circle(circle_ts[j][0], radius=circle_radii[j], alpha=0.5, color=circle_colors[j]))
+        ax.add_artist(circles[-1])
+        lines.append(plt.plot(*(circle_ts[j][:1,:2].T), color=circle_colors[j])[0])
+    
+    # Plotting function
+    def plotdata(i):
+        for j in range(ncircles):
+            circles[j].center = circle_ts[j][i]
+            lines[j].set_data(*circle_ts[j][max(0,i-nhist):i+1,:2].T)
+        return ax
+
+    return plotdata
+                       
+                       
+def animate_behavior(targets, cursor, eye, samplerate, bounds, 
+                     target_radius, target_colors, cursor_radius, cursor_color='blue', 
+                     eye_radius=0.25, eye_color='purple', history=0.):
+    '''
+    Animate target, cursor, and eye data together. 
+
+    Args:
+        targets (list of (nt,) arrays): Target position timeseires for each target.
+        cursor ((nt, 2) array): Cursor position timeseires.
+        eye ((nt, 2) array): Eye position timeseires.
+        samplerate (float): The sampling rate of all the trajectories in Hz.
+        bounds (tuple): Boundaries of the plot area. See :func:`~aopy.visualization.plot_targets`.
+        target_radius (float): Radius of the targets.
+        target_colors (list of plt.color): Color of each target.
+        cursor_radius (float): Radius of the cursor.
+        cursor_color (plt.color, optional): Color of the cursor. Default is 'blue'.
+        eye_radius (float): Radius of the eye circle.
+        eye_color (plt.color, optional): Color of the eye trajectory. Default is 'purple'.
+        history (float, optional): how long (in seconds) to animate lines trailing the circles. Default 0.
+
+    Returns:
+        matplotlib.animation.FuncAnimation: animation object
+
+    Example:
+
+        .. code-block:: python
+
+            samplerate = 0.5
+            cursor = np.array([[0,0], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]])
+            eye = np.array([[1, 0], [1, 2], [1, 2], [4, 5], [4, 5], [6, 6]])
+            targets = [
+                np.array([[np.nan, np.nan], 
+                        [5, 5], 
+                        [np.nan, np.nan], 
+                        [np.nan, np.nan], 
+                        [5, 5], 
+                        [np.nan, np.nan]]),
+                np.array([[np.nan, np.nan], 
+                        [np.nan, np.nan], 
+                        [np.nan, np.nan], 
+                        [-5, 5], 
+                        [-5, 5], 
+                        [-5, 5]])
+            ]
+            
+            target_radius = 2.5
+            target_colors = ['orange'] * len(targets)
+            cursor_radius = 0.5
+            bounds = [-10, 10, -10, 10]
+            
+            ani = animate_behavior(targets, cursor, eye, samplerate, bounds, target_radius, target_colors, cursor_radius, 
+                            cursor_color='blue', eye_radius=0.25, eye_color='purple')
+            
+
+        .. raw:: html
+
+            <video controls src="_static/test_anim_behavior.mp4"></video>
+    '''
+
+    fig, ax = plt.subplots(1, 1)
+
+    # Use the animate_circles helper function 
+    n_targets = len(targets)
+    circle_radii = ([target_radius] * n_targets) + [cursor_radius, eye_radius]
+    circle_colors = target_colors + [cursor_color, eye_color]
+    circle_ts = targets + [cursor, eye]
+    func = get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, 
+                                    *circle_ts, history=history, ax=ax)      
+    
+    # Return the FuncAnimation object
+    nframes = np.min([len(t) for t in circle_ts])
+    ani = FuncAnimation(fig, func, frames=nframes, interval=1000./samplerate)  
     return ani
