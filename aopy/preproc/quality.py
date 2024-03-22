@@ -190,6 +190,78 @@ def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
         
     return bad_trials
 
+def detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=False):
+    '''
+    Finds trials where a given fraction of channels contain outlier data.
+    
+    Args:
+        data (nt, nch): continuous data
+        sd_thr (float, optional): number of standard deviations away from the mean to threshold
+            bad data. Default 5
+        ch_frac (float, optional): fraction (between 0. and 1.) of channels containing bad data to
+            consider a trial as bad. Default 0.5
+        debug (bool, optional): if True, display a figure showing the threshold crossings
+        
+    Returns:
+        (nt,) boolean mask: True for bad timepoints, False for good timepoints
+
+    Example:
+        .. code-block:: python
+
+            nt = 200
+            nch = 10
+            np.random.seed(0)
+            data = np.random.normal(size=(nt, nch)) 
+            data[0:50,:] += 10 # timepoint is noisy across all electrodes
+            data[50:100,8:] -= 10 # timepoint is noisy on most electrodes
+            for t in range(100,nt):
+                data[t,t%nch] -= 10 # single timepoint is noisy but different timepoint for each channel
+                    
+            bad_timepoints = quality.detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=True)
+
+        .. image:: _images/detect_bad_timepoints.png
+    '''
+    assert data.ndim == 2
+    nt, nch = data.shape
+    
+    median = np.nanmedian(data, axis=0, keepdims=True)
+    sd = np.nanstd(data, axis=0, keepdims=True)
+    
+    bad_timepoints = abs(data - median) > sd_thr*sd
+    bad_ch_timepoints = np.sum(bad_timepoints, axis=1) > ch_frac * nch # trials where most channels have an outlier
+
+    if debug:
+
+        # Highlight bad timepoints across trials
+        plt.figure(figsize=(11,4), layout='compressed')
+        plt.subplot(1,2,1)
+        data = abs(data - median)/sd
+        data[bad_timepoints] = np.nan
+        time = np.arange(nt)
+        cmap = copy.copy(matplotlib.cm.get_cmap('viridis'))
+        cmap.set_bad(color='w') # set the 'bad' color to white
+        im = plot_image_by_time(time, data, ylabel='channel', cmap=cmap)
+        cbar = plt.colorbar(im)
+        cbar.set_label('sd')
+        plt.xlabel('timepoint')
+        plt.title('sd over threshold shown in white')
+        
+        # Plot number of bad channels for each trial
+        plt.subplot(1,2,2)
+        ch = np.sum(bad_timepoints, axis=1)
+        time = np.arange(nt)
+        time[~bad_ch_timepoints]
+        ch[~bad_ch_timepoints]
+        plt.scatter(time[~bad_ch_timepoints], ch[~bad_ch_timepoints], marker='.', color='k', label='good trials')
+        plt.scatter(time[bad_ch_timepoints], ch[bad_ch_timepoints], marker='x', color='r', label='bad trials')
+        plt.xlabel('timepoint')
+        plt.ylabel('# channels')
+        plt.hlines(ch_frac*nch, 0, nt, linestyles='dashed', color='r')
+        plt.title('fraction of channels above threshold')
+        plt.legend()
+        
+    return bad_ch_timepoints
+
 # python implementation of highFreqTimeDetection.m - looks for spectral signatures of junk data
 def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100., sg_win_t=8., sg_over_t=4., sg_bw=0.5):
     """high_freq_data_detection
