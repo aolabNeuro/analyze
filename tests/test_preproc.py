@@ -1452,7 +1452,27 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(np.all(~bad_trials[4:]))
 
         filename = 'detect_bad_trials.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+    def test_detect_bad_timepoints(self):
+        nt = 500
+        nch = 10
+        np.random.seed(0)
+        data = np.random.normal(size=(nt, nch)) 
+        data[50:52,:] += 10 # timepoint is noisy across all electrodes
+        data[100:102,2:] -= 10 # timepoint is noisy on most electrodes
+        for t in range(nt-100,nt):
+            data[t,t%nch] -= 10 # single timepoint is noisy but different timepoint for each channel
+                
+        bad_timepoints = quality.detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=True)
+            
+        filename = 'detect_bad_timepoints.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+        self.assertEqual(len(bad_timepoints), nt)
+        self.assertTrue(np.all(bad_timepoints[50:52]))
+        self.assertTrue(np.all(bad_timepoints[100:102]))
+        self.assertFalse(np.any(bad_timepoints[-100:]))
+
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
