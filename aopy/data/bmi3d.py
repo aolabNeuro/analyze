@@ -1645,7 +1645,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             if key == 'stimulation_site' and 'qwalor_switch_rdy_dch' in exp_metadata:
                 
                 # Switched laser with multiple stim sites
-                exp['stimulation_site'] = preproc.get_switched_stimulation_sites(
+                exp['stimulation_site'] = preproc.bmi3d.get_switched_stimulation_sites(
                     preproc_dir, subject, te, date, trial_times, debug=debug
                 )
 
