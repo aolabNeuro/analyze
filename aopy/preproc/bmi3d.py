@@ -313,6 +313,22 @@ def _parse_bmi3d_v1(data_dir, files):
                 trigger_name = dch[:-4]
                 data_dict[trigger_name] = base.get_dch_data(digital_data, digital_samplerate, metadata_dict[dch])
 
+        # Optical switch
+        if 'qwalor_switch_rdy_dch' in metadata_dict: 
+            digital_samplerate = metadata['samplerate']
+            switch_rdy_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_switch_rdy_dch']) 
+            ecube_switch_moving = utils.extract_bits(digital_data, switch_rdy_mask)
+            switch_bit_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_switch_data_dch']) # 0xff0000
+            ecube_switch_data = utils.extract_bits(digital_data, switch_bit_mask) + 1 # change to 1-index
+            masked_ecube_switch_data = ecube_switch_data.copy()
+            masked_ecube_switch_data[ecube_switch_moving == 1] = 0 # mask data when the switch isn't ready
+            ecube_switch_timestamps, ecube_switch_channel = utils.detect_edges(masked_ecube_switch_data, digital_samplerate, 
+                rising=True, falling=True, check_alternating=False)
+            optical_switch = np.empty((len(ecube_switch_timestamps),), dtype=[('timestamp', 'f8'), ('channel', 'u1')])
+            optical_switch['timestamp'] = ecube_switch_timestamps
+            optical_switch['channel'] = ecube_switch_channel # 1-indexed; positive is rising edge, zero is falling edge            
+            data_dict['optical_switch'] = optical_switch
+
     return data_dict, metadata_dict
 
 def _prepare_bmi3d_v1(data, metadata):
@@ -533,6 +549,37 @@ def get_peak_power_mW(exp_metadata):
 
     return peak_power_mW
 
+def get_value_at_timestamp(timestamps, values, timestamp):
+    """
+    Get the value at the given timestamp from the corresponding timestamps and values arrays.
+
+    Args:
+        timestamps (nt,): timestamps
+        values (nt,): corresponding values
+        timestamp (float): timestamp to search for
+
+    Returns:
+        The value at the given timestamp, or None if the timestamp is not found.
+    """
+    if len(timestamps) == 0:
+        return None
+    
+    if len(timestamps) != len(values):
+        raise ValueError("Timestamps and values must have the same length")
+
+    # Find the last set timestamp before the given timestamp
+    idx = np.searchsorted(timestamps, timestamp, side='right') - 1
+
+    # If the timestamp is between the set and unset timestamps, return the corresponding value
+    if idx < 0:
+        return None
+    elif len(timestamps) > idx + 1 and timestamps[idx+1] < timestamp:
+        return None
+    elif values[idx] == 0:
+        return None
+    else:
+        return values[idx]
+    
 def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor_sensor', 
                                     calibration_file='qwalor_447nm_ch2.yaml', debug=False, **kwargs):
     '''
@@ -625,12 +672,10 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
 
     Returns:
         tuple: tuple containing:
-            | **corrected_times (nevent):** corrected laser timings (seconds)
-            | **corrected_widths (nevent):** corrected laser widths (seconds)
-            | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
-            | **times_not_found (nevent):** boolean array of times without onset and offset sensor measurements
-            | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
-            | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
+            | **times (nevent):** laser timings (seconds)
+            | **widths (nevent):** laser widths (seconds)
+            | **gains (nevent):** laser gains (fraction)
+            | **powers (nevent):** calibrated laser powers (mW)
     '''
     # Use the digital trigger as the ground truth of timing
     timestamps = exp_data[laser_trigger]['timestamp']
@@ -656,9 +701,7 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
     samplerate = exp_metadata['analog_samplerate']   
 
     laser_on_times = np.vstack([timestamps[values == 1], timestamps[values == 0]]).T
-    print(laser_on_times.shape)
     laser_on_samples = (laser_on_times * samplerate).astype(int)
-    print(laser_on_samples)
 
     laser_sensor_values = np.array([np.median(sensor_data[laser_on_samples[t,0]:laser_on_samples[t,1]]) 
                             for t in range(len(laser_on_samples))], dtype='float')
@@ -720,7 +763,55 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
         # Use the bmi3d events as an estimate of timing, then locate the nearby sensor measurements
         return _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor=laser_sensor, 
                                                debug=debug, **kwargs)
-                                                                                
+
+def get_switched_stimulation_sites(preproc_dir, subject, te_id, date, trigger_timestamps, debug=False):
+    '''
+    Get the stimulation sites at the given timestamps from an experiment where an optical switch was used.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object
+        date (str): Date of recording
+        trigger_timestamps (nt,): timestamps of interest
+        debug (bool, optional): print a plot of the optical switch channel at the computed times
+        
+    Returns:
+        (nt,): stimulation sites at the given timestamps, or np.nan if no site was selected.
+    '''
+    exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+    # Check that the optical switch was present
+    if 'qwalor_switch_rdy_dch' not in exp_metadata:
+        raise ValueError("No optical switch data found in the experiment")
+
+    # Load the optical switch data if it's not already in the bmi3d data
+    if 'optical_switch' not in exp_data:
+        files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
+        hdf_filepath = os.path.join(data_dir, files['hdf'])
+        if not os.path.exists(hdf_filepath):
+            raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
+        exp_data, exp_metadata = parse_bmi3d(data_dir, files)
+
+    optical_switch = exp_data['optical_switch']
+    optical_switch_timestamps = optical_switch['timestamp']
+    optical_switch_channels = optical_switch['channel']
+    switch_channels = [
+        get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, t) 
+        for t in trigger_timestamps
+    ] # 1-indexed; None if no channel was selected
+
+    stimulation_site = [exp_metadata['stimulation_site'][ch-1] if ch is not None else None for ch in switch_channels]
+
+    if debug:
+        plt.figure()
+        plt.step(optical_switch_timestamps, optical_switch_channels, where='post')
+        plt.plot(trigger_timestamps, switch_channels, 'ro')
+        plt.xlabel('time (s)')
+        plt.ylabel('switch channel (1-indexed)')
+
+    return stimulation_site
+
 def get_target_events(exp_data, exp_metadata):
     '''
     For target acquisition tasks, get an (n_event, n_target) array encoding the position
