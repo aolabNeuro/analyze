@@ -1074,38 +1074,6 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
 
-    def test_get_value_at_timestamp(self):
-        optical_switch_timestamps = np.array([0, 1, 2, 3, 4, 5])
-        optical_switch_channels = np.array([1, 0, 2, 0, 3, 0])
-
-        # Test a timestamp before the first switch
-        channel = get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, -1)
-        self.assertIsNone(channel)
-
-        # Test a timestamp after the last switch
-        channel = get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, 6)
-        self.assertIsNone(channel)
-
-        # Test a timestamp exactly on a switch
-        channel = get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, 2)
-        self.assertEqual(channel, 2)
-
-        # Test a timestamp between two switches
-        channel = get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, 2.5)
-        self.assertEqual(channel, 2)
-
-        # Check if the channels start at 0
-        optical_switch_timestamps = np.array([0, 1, 2, 3, 4, 5])
-        optical_switch_channels = np.array([0, 1, 0, 2, 0, 3])
-        channel = get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, 3.5)
-        self.assertEqual(channel, 2)
-
-        # Check if the channels end with nonzero
-        optical_switch_timestamps = np.array([0, 1, 2, 3, 4, 5])
-        optical_switch_channels = np.array([0, 1, 0, 2, 0, 3])
-        channel = get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, 5.5)
-        self.assertEqual(channel, 3)
-
     def test_get_switched_stimulation_sites(self):
         subject = 'test'
         te_id = 15494
@@ -1122,8 +1090,9 @@ class TestPrepareExperiment(unittest.TestCase):
             exp_data, exp_metadata, laser_trigger='qwalor_trigger', laser_sensor='qwalor_sensor'
         )
         sites = get_switched_stimulation_sites(data_dir, subject, te_id, date, times, debug=True)
-        plt.xlim(30,40)
         visualization.savefig(docs_dir, 'switched_stimulation_sites.png', transparent=False)
+
+        np.testing.assert_allclose(sites, 0)
 
     def test_get_laser_trial_times(self):
         time_before = 0.05

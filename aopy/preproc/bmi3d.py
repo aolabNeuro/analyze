@@ -548,37 +548,6 @@ def get_peak_power_mW(exp_metadata):
         peak_power_mW = 25  
 
     return peak_power_mW
-
-def get_value_at_timestamp(timestamps, values, timestamp):
-    """
-    Get the value at the given timestamp from the corresponding timestamps and values arrays.
-
-    Args:
-        timestamps (nt,): timestamps
-        values (nt,): corresponding values
-        timestamp (float): timestamp to search for
-
-    Returns:
-        The value at the given timestamp, or None if the timestamp is not found.
-    """
-    if len(timestamps) == 0:
-        return None
-    
-    if len(timestamps) != len(values):
-        raise ValueError("Timestamps and values must have the same length")
-
-    # Find the last set timestamp before the given timestamp
-    idx = np.searchsorted(timestamps, timestamp, side='right') - 1
-
-    # If the timestamp is between the set and unset timestamps, return the corresponding value
-    if idx < 0:
-        return None
-    elif len(timestamps) > idx + 1 and timestamps[idx+1] < timestamp:
-        return None
-    elif values[idx] == 0:
-        return None
-    else:
-        return values[idx]
     
 def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor_sensor', 
                                     calibration_file='qwalor_447nm_ch2.yaml', debug=False, **kwargs):
@@ -796,17 +765,29 @@ def get_switched_stimulation_sites(preproc_dir, subject, te_id, date, trigger_ti
     optical_switch = exp_data['optical_switch']
     optical_switch_timestamps = optical_switch['timestamp']
     optical_switch_channels = optical_switch['channel']
-    switch_channels = [
-        get_value_at_timestamp(optical_switch_timestamps, optical_switch_channels, t) 
-        for t in trigger_timestamps
-    ] # 1-indexed; None if no channel was selected
+    
+    switch_channels = np.zeros((len(trigger_timestamps),), dtype='float')
+    for i, t in enumerate(trigger_timestamps):
 
-    stimulation_site = [exp_metadata['stimulation_site'][ch-1] if ch is not None else None for ch in switch_channels]
+        # Find the most recent switch time before the trigger time
+        idx = np.searchsorted(optical_switch_timestamps, t, side='right') - 1
+        if idx < 0: # before the first switch
+            switch_channels[idx] = optical_switch_channels[0]
+        elif len(optical_switch_timestamps) > idx + 1 and optical_switch_timestamps[idx+1] < t:
+            switch_channels[idx] = 0
+        else:
+            switch_channels[i] = optical_switch_channels[idx]
+    switch_channels[switch_channels <= 0] = np.nan # no site selected
+    switch_channels -= 1 # 1-indexed to 0-indexed
+
+    stimulation_site = [exp_metadata['stimulation_site'][int(ch)] if not np.isnan(ch) else None for ch in switch_channels]
 
     if debug:
         plt.figure()
         plt.step(optical_switch_timestamps, optical_switch_channels, where='post')
-        plt.plot(trigger_timestamps, switch_channels, 'ro')
+        plt.plot(trigger_timestamps, switch_channels + 1, 'ro')
+        for i, txt in enumerate(stimulation_site):
+            plt.text(trigger_timestamps[i], switch_channels[i] + 1, txt, fontsize=6, ha='center', va='center', color='w')
         plt.xlabel('time (s)')
         plt.ylabel('switch channel (1-indexed)')
 
