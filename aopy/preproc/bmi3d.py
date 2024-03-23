@@ -685,7 +685,6 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
         plt.figure()
         visualization.plot_laser_sensor_alignment(sensor_data*sensor_voltsperbit, samplerate, times)
 
-
     return times, widths, gains, powers
 
 def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwalor_trigger', 
@@ -721,8 +720,8 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
             raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
         exp_data, exp_metadata = parse_bmi3d(data_dir, files)
         
-    # Older experiments need to be handled differently
-    if exp_metadata['sync_protocol_version'] > 12:
+    # Experiments need to be handled differently depending on whether the trigger was recorded
+    if laser_trigger in exp_data:
 
         # Return ground truth timestamps of when the laser should have been turned on
         return _get_laser_trial_times(exp_data, exp_metadata, laser_trigger=laser_trigger,
