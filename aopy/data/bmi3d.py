@@ -1642,11 +1642,19 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
         # Add requested metadata
         for key in metadata:
-            if key in exp_metadata:
+            if key == 'stimulation_site' and 'qwalor_switch_rdy_dch' in exp_metadata:
+                
+                # Switched laser with multiple stim sites
+                exp['stimulation_site'] = preproc.get_switched_stimulation_sites(
+                    preproc_dir, subject, te, date, trial_times, debug=debug
+                )
+
+            elif key in exp_metadata:
                 exp[key] = [exp_metadata[key] for _ in range(len(trial_times))]
             else:
                 exp[key] = None
                 print(f"Entry {subject} {date} {te} does not have metadata {key}.")
+
 
         # Concatenate with existing dataframe
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
