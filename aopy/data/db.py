@@ -466,17 +466,15 @@ class BMI3DTaskEntry():
             sources.remove(src)
 
         # Prepare the preproc directory
-        te_id = self.id
-        date = self.date
-        subject = self.subject
-        preproc_dir = os.path.join(preproc_dir, subject)
+        preproc_dir = os.path.join(preproc_dir, self.subject)
         if not os.path.exists(preproc_dir):
             os.mkdir(preproc_dir)
         
         # Preprocess the data, keeping track of any errors and returning them
         error = None
         try:
-            preproc.proc_single(data_dir, files, preproc_dir, subject, te_id, date, sources, overwrite=overwrite, **kwargs)
+            preproc.proc_single(data_dir, files, preproc_dir, self.subject, self.id, self.date, 
+                                sources, overwrite=overwrite, **kwargs)
         except Exception as exc:
             traceback.print_exc()
             error = traceback.format_exc()
