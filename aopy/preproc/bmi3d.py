@@ -732,7 +732,8 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
         return _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor=laser_sensor, 
                                                debug=debug, **kwargs)
 
-def get_switched_stimulation_sites(preproc_dir, subject, te_id, date, trigger_timestamps, debug=False):
+def get_switched_stimulation_sites(preproc_dir, subject, te_id, date, trigger_timestamps, 
+                                   return_switch_ch=False, debug=False):
     '''
     Get the stimulation sites at the given timestamps from an experiment where an optical switch was used.
 
@@ -742,6 +743,7 @@ def get_switched_stimulation_sites(preproc_dir, subject, te_id, date, trigger_ti
         te_id (int): Block number of Task entry object
         date (str): Date of recording
         trigger_timestamps (nt,): timestamps of interest
+        return_switch_ch (bool, optional): also return the switch channel at the computed times
         debug (bool, optional): print a plot of the optical switch channel at the computed times
         
     Returns:
@@ -790,7 +792,10 @@ def get_switched_stimulation_sites(preproc_dir, subject, te_id, date, trigger_ti
         plt.xlabel('time (s)')
         plt.ylabel('switch channel (1-indexed)')
 
-    return stimulation_site
+    if return_switch_ch:
+        return stimulation_site, switch_channels
+    else:
+        return stimulation_site
 
 def get_target_events(exp_data, exp_metadata):
     '''
