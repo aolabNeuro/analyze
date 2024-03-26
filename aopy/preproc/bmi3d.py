@@ -122,7 +122,7 @@ def parse_bmi3d(data_dir, files):
     # Keep track of the software version
     metadata['bmi3d_preproc_date'] = datetime.now()
     try:
-        metadata['bmi3d_preproc_version'] = version('aopy')
+        metadata['bmi3d_preproc_version'] = version('aolab-aopy')
     except:
         metadata['bmi3d_preproc_version'] = 'unknown'
     

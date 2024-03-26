@@ -262,7 +262,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
             'eye_calibration_data': eye_calibration_data
         }
         try:
-            eye_metadata['calibration_version'] = version('aopy')
+            eye_metadata['calibration_version'] = version('aolab-aopy')
         except:
             eye_metadata['calibration_version'] = 'unknown'
         eye_metadata['calibration_date'] = datetime.datetime.now().isoformat()
