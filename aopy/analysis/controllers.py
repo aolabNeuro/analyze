@@ -34,10 +34,10 @@ def get_machine_dynamics(freqs, order, exp_freqs=None):
     elif order == 2:
         M = 1./(s**2+s)
     else:
-        print('Order not recognized!')
+        raise ValueError(f"Order {order} not recognized!")
 
     if exp_freqs is not None:
-        exp_idx = np.isin(freqs.round(4), exp_freqs)
+        exp_idx = np.isin(freqs, exp_freqs)
         M = M[exp_idx]
 
     return M
@@ -162,7 +162,7 @@ def calc_F_B_controllers(usr, ref, dis, exp_freqs, ref_freqs, dis_freqs, sampler
 
     # Get machine dynamics, given system order
     freqs = calc_freq_domain_values(usr[0], samplerate)[0]
-    M = get_machine_dynamics(freqs, exp_freqs, system_order)
+    M = get_machine_dynamics(freqs.round(4), system_order, exp_freqs)
 
     # Pair up trials by frequency content
     if trial_pairs is None:
