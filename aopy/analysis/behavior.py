@@ -8,7 +8,7 @@ from scipy import signal
 from .base import calc_rolling_average
 from .. import preproc
 from .. import postproc
-from ..data.db import lookup_sessions
+from ..data import load_bmi3d_task_codes
 
 '''
 Behavioral metrics 
@@ -96,7 +96,6 @@ def calc_success_rate(events, event_times, start_events, end_events, success_eve
     trial_success = [np.any(np.isin(success_events, trial)) for trial in segments]
 
     return calc_success_rate_trials(trial_success, trial_acq_time, window_size=window_size)
-
 
 def calc_success_rate_trials(trial_success, trial_time, window_size=None):
     '''
@@ -274,6 +273,7 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
     target_codes = np.array([trial_events[trial_idx][idx] for trial_idx, idx in enumerate(target_idx)]) - np.min(target_codes)
 
     return segment_duration, target_codes
+
 def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0):
     '''
     Compute movement onset when cursor speed crosses threshold based on mean and standard deviation in baseline period.
@@ -338,3 +338,46 @@ def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
         cursor_leave_time.append(t_axis[leave_idx])
     
     return np.array(cursor_leave_time)
+
+'''
+Continuous tracking behavioral metrics
+'''
+def calc_tracking_error(user_traj, target_traj):
+    '''
+    Computes the mean-squared error between the user position and target position over time.
+
+    Args:
+        user_traj (nt,ndim): user trajectory over a trial segment
+        target_traj (nt,ndim): target trajectory over a trial segment
+
+    Returns:
+        tracking_error (ndim,): array of floats corresponding to the tracking error in each dimension
+    '''
+    assert len(user_traj) == len(target_traj), "User and target trajectories must be the same length!"
+    return np.mean((user_traj - target_traj)**2, axis=0) # compute mean over time axis
+
+def calc_tracking_in_time(event_codes, event_times, proportion=False):
+    '''
+    Computes the total amount of time that the cursor is inside the target over a trial segment.
+
+    Args:
+        event_codes (nevents,): list of event codes
+        event_times (nevents,): list of event times
+        proportion (bool, optional): whether to return the "tracking in time" as a proportion of the total trial segment time. 
+            Default is False.
+
+    Returns:
+        tracking_in_time (float): total amount of time (in seconds) that the cursor was in the target for. If proportion=True,
+            this will be the proportion of the entire trial segment that the cursor was in the target for.
+    '''   
+    # get all the individual times when cursor was inside target
+    task_codes = load_bmi3d_task_codes()
+    cursor_in_target_segment, cursor_in_target_times = preproc.get_trial_segments_and_times(event_codes, event_times, 
+                                                                                            task_codes['CURSOR_ENTER_TARGET'],
+                                                                                            task_codes['CURSOR_LEAVE_TARGET'])
+    # add up the individual times
+    tracking_in_time = sum([t[1] - t[0] for t in cursor_in_target_times]) # end time of segment - start time of segment
+    if proportion:
+        tracking_in_time = tracking_in_time/(event_times[-1] - event_times[0])
+    else:
+        return tracking_in_time
