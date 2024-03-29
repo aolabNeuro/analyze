@@ -241,6 +241,7 @@ class CurveFittingTests(unittest.TestCase):
         mds_true = np.linspace(1, 3, nunits)/2
         pds_offset = np.arange(-45,270,45)
         data = np.zeros((nunits,8))*np.nan
+        np.random.seed(0)
         for ii in range(nunits):
             noise = np.random.normal(1, 0.2, size=(1,8))
             data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
@@ -249,11 +250,43 @@ class CurveFittingTests(unittest.TestCase):
         # Test without ax input
         fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+        savefig(docs_dir, filename, transparent=False)
 
         # test with ax input
         fig, ax = plt.subplots(2,4)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
+
+    def test_plot_direction_tuning(self):
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        mean = [1, 2, 3, 2]
         
+        plt.figure()
+        plot_direction_tuning(direction, mean)
+        savefig(write_dir, 'direction_tuning_simple.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(direction, mean, wrap=False)
+        savefig(write_dir, 'direction_tuning_simple_polar.png', transparent=False)
+
+        # Try multichannel
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        mean = np.array([[1, 2, 3, 2], [2, 3, 4, 3]]).T
+        var = np.array([[0.2, 0.3, 0.1, 0.], [0.4, 0.6, 0.2, 0]]).T
+        
+        plt.figure()
+        plot_direction_tuning(direction, mean, var)
+        savefig(docs_dir, 'direction_tuning.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(direction, mean, var)
+        savefig(docs_dir, 'direction_tuning_polar.png', transparent=False)
+
     def test_plot_boxplots(self):
         # Rectangular array
         data = np.random.normal(0, 2, size=(20, 5))

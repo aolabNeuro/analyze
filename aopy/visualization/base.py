@@ -1285,7 +1285,105 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
     else:
         ax.plot(time_axis, waveforms)
 
-    ax.set_xlabel(r'Time ($\mu$s)')
+    ax.set_xlabel(r'Time ($\mu$s)')    
+    
+def plot_direction_tuning(direction, mean, var=None, wrap=True, modulo=2*np.pi, ylabel='success rate', ax=None):
+    '''
+    Plot tuning curves for directional data. The mean is plotted as a solid line and the variance as 
+    a shaded region around the mean. Works with both cartesian and polar axes. 
+    
+    Args:
+        direction (ndir): direction of each tuning curve
+        mean (ndir, nch): mean of the tuning curve for each channel. If only one channel, can be (ndir,)
+        var (ndir, nch): variance of the tuning curve for each channel. If only one channel, can be (ndir,)
+            Can also be left blank if there is no variance to plot.
+        wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
+        modulo (float, optional): value at which to wrap the direction values. Default is 2*np.pi for data where
+            the direction spans an entire circle. For cases where -pi is the same as +pi, a modulo of np.pi 
+            would be input instead.
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
+    
+    Example:
+        Polar plot of tuning curves for 4 targets
+
+        .. code-block:: python
+            fig = plt.figure()
+            ax = fig.add_subplot(projection='polar')
+            
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            mean = np.array([[1, 2, 3, 2], [2, 3, 4, 3]]).T
+            var = np.array([[0.2, 0.3, 0.1, 0.], [0.4, 0.6, 0.2, 0]]).T
+
+        .. image:: _images/direction_tuning_polar.png
+    '''
+    if var is None:
+        var = np.zeros_like(mean)
+    assert np.shape(mean) == np.shape(var), "Mean and variance must have the same shape"
+    if np.ndim(mean) == 1:
+        mean = np.expand_dims(mean, 1)
+        var = np.expand_dims(var, 1)
+
+    if ax is None:
+        ax = plt.gca()
+            
+    if len(direction) != len(mean):
+        direction = np.unique(direction)
+    assert len(direction) == len(mean), "Direction and mean must have the same length"
+
+    # Sort the data
+    direction = np.array(direction) % modulo
+    idx = np.argsort(direction)
+
+    # Wrap around the circle
+    if wrap:
+        direction = np.hstack((direction[idx], [direction[idx[0]] + modulo]))
+        mean = np.vstack((mean[idx], [mean[idx[0]]]))
+        var = np.vstack((var[idx], [var[idx[0]]]))
+    else:
+        direction = direction[idx]
+        mean = mean[idx]
+        var = var[idx]
+
+    if ax.name != 'polar':
+        direction = np.degrees(direction)
+
+    for ch in range(mean.shape[1]):
+        ax.plot(direction, mean[:,ch])
+        ax.fill_between(direction, mean[:,ch]-var[:,ch], mean[:,ch]+var[:,ch], alpha=0.5)
+
+    try:
+        label_position=ax.get_rlabel_position()
+        ax.text(np.radians(label_position-1),ax.get_rmax()*1.1,ylabel,
+            rotation=label_position,ha='left',va='center')
+    except:
+        ax.set_xlabel('Target angle (deg)')
+        ax.set_ylabel(ylabel)
+    
+def plot_target_tuning(target_locations, target_mean, target_var=None, modulo=2*np.pi, 
+                       wrap=True, ylabel='success rate', ax=None):
+    '''
+    Plot direction tuning curves for targets, e.g. for a center-out task. Makes use of 
+        `func:~aopy.visualization.plot_direction_tuning`.
+
+    Args:
+        target_locations (ntargets, 2): array of target (x, y) locations
+        target_mean (ntargets, nch): mean of the tuning curve for each channel. If only one channel, can be (ndir,)
+        target_var (ntargets, nch): variance of the tuning curve for each channel. If only one channel, can be (ndir,)
+            Can also be left blank if there is no variance to plot.
+        modulo (float, optional): value at which to wrap the direction values. Default is 2*np.pi for data where
+            the direction spans an entire circle. For cases where -pi is the same as +pi, a modulo of np.pi 
+            would be input instead.
+        wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
+    '''
+    if len(target_locations) != len(target_mean):
+        target_locations = np.unique(target_locations, axis=0)
+    assert len(target_locations) == len(target_mean), "Target locations and means must have the same length"
+    
+    target_angles = np.array([np.arctan2(*t[:2]) for t in target_locations])
+    plot_direction_tuning(target_angles, target_mean, var=target_var, modulo=modulo, wrap=wrap, ylabel=ylabel, ax=ax)
 
 def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     '''
