@@ -1360,31 +1360,6 @@ def plot_direction_tuning(direction, mean, var=None, wrap=True, modulo=2*np.pi, 
         ax.set_xlabel('Target angle (deg)')
         ax.set_ylabel(ylabel)
     
-def plot_target_tuning(target_locations, target_mean, target_var=None, modulo=2*np.pi, 
-                       wrap=True, ylabel='success rate', ax=None):
-    '''
-    Plot direction tuning curves for targets, e.g. for a center-out task. Makes use of 
-        `func:~aopy.visualization.plot_direction_tuning`.
-
-    Args:
-        target_locations (ntargets, 2): array of target (x, y) locations
-        target_mean (ntargets, nch): mean of the tuning curve for each channel. If only one channel, can be (ndir,)
-        target_var (ntargets, nch): variance of the tuning curve for each channel. If only one channel, can be (ndir,)
-            Can also be left blank if there is no variance to plot.
-        modulo (float, optional): value at which to wrap the direction values. Default is 2*np.pi for data where
-            the direction spans an entire circle. For cases where -pi is the same as +pi, a modulo of np.pi 
-            would be input instead.
-        wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
-        ylabel (str, optional): label for the y-axis. Default "success rate"
-        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
-    '''
-    if len(target_locations) != len(target_mean):
-        target_locations = np.unique(target_locations, axis=0)
-    assert len(target_locations) == len(target_mean), "Target locations and means must have the same length"
-    
-    target_angles = np.array([np.arctan2(*t[:2]) for t in target_locations])
-    plot_direction_tuning(target_angles, target_mean, var=target_var, modulo=modulo, wrap=wrap, ylabel=ylabel, ax=ax)
-
 def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     '''
     This function plots the tuning curves output from analysis.run_tuningcurve_fit overlaying the actual firing rate data.

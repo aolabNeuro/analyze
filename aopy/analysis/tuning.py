@@ -69,15 +69,15 @@ def get_mean_fr_per_condition(data, condition_labels, return_significance=False)
     This function computes the average activity for each feature and trial. 
 
     Args:
-        data (ntime, nch, ntrials): Trial aligned neural data
+        data (nt, nch, ntrials): Trial aligned neural data
         condition_labels (ntrials): condition label for each trial
         return_significance (bool): Uses the one-way ANOVA test to compute a p-value for each channel/unit
 
     Returns:
         tuple: Tuple containing:
-            | **means_d: (nch, nconditions)** = mean firing rate per neuron per target direction
-            | **stds_d: (nch, nconditions)** standard deviation from mean firing rate per neuron
-            | **pvalue: (nch)** significance of modulation
+            | **means_d (nch, nconditions):** = mean firing rate per neuron per target direction
+            | **stds_d (nch, nconditions):** standard deviation from mean firing rate per neuron
+            | **pvalue (nch, optional):** significance of modulation
     '''
     means_d = []
     stds_d = []
@@ -95,6 +95,29 @@ def get_mean_fr_per_condition(data, condition_labels, return_significance=False)
     else:
         return np.array(means_d).T, np.array(stds_d).T
     
+def get_target_tuning(data, target_idx, target_locations, return_significance=False):
+    '''
+    Computes the mean and standard deviation of per-target data and organizes by direction.
+
+    Args:
+        data (nt, nch, ntrials): trial aligned neural data
+        target_idx (ntrials): target index for each trial
+        target_locations (ntargets, 2): array of target (x, y) locations
+        return_significance (bool): Uses the one-way ANOVA test to compute a p-value for each channel/unit
+
+    Returns:
+        tuple: Tuple containing:
+            | **target_angles (ntargets):** angles of target locations in radians
+            | **means_d (nch, ntargets):** mean firing rate per neuron per target direction
+            | **stds_d (nch, ntargets):** standard deviation from mean firing rate per neuron
+            | **pvalue (nch, optional):** significance of modulation
+    '''
+    assert len(target_locations) == len(target_idx), "Target locations and indices must have the same length"
+    target_locations = np.array(target_locations)
+    assert target_locations.shape[1] == 2, "Target locations must be 2D"
+
+    target_angles = np.array([np.arctan2(*t) for t in target_locations])
+    return target_angles, *get_mean_fr_per_condition(data, target_idx, return_significance=return_significance)
 
 def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''
