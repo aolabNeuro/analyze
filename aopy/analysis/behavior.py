@@ -372,9 +372,10 @@ def calc_tracking_in_time(event_codes, event_times, proportion=False):
     '''   
     # get all the individual times when cursor was inside target
     task_codes = load_bmi3d_task_codes()
-    cursor_in_target_segment, cursor_in_target_times = preproc.get_trial_segments_and_times(event_codes, event_times, 
-                                                                                            task_codes['CURSOR_ENTER_TARGET'],
-                                                                                            task_codes['CURSOR_LEAVE_TARGET'])
+    start_events = [task_codes['CURSOR_ENTER_TARGET']]
+    end_events = [task_codes['CURSOR_LEAVE_TARGET'], task_codes['REWARD']] # once cursor is in target, cursor can leave or trial can finish  
+    cursor_in_target_segment, cursor_in_target_times = preproc.get_trial_segments_and_times(event_codes, event_times, start_events, end_events)
+
     # add up the individual times
     tracking_in_time = sum([t[1] - t[0] for t in cursor_in_target_times]) # end time of segment - start time of segment
     if proportion:
