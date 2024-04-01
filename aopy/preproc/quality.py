@@ -192,7 +192,8 @@ def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
 
 def detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=False):
     '''
-    Finds trials where a given fraction of channels contain outlier data.
+    Finds timepoints where a given fraction of channels contain outlier data. For best results,
+    you may need to first compute the power of the data before using this function.
     
     Args:
         data (nt, nch): continuous data
@@ -252,8 +253,8 @@ def detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=False):
         time = np.arange(nt)
         time[~bad_ch_timepoints]
         ch[~bad_ch_timepoints]
-        plt.scatter(time[~bad_ch_timepoints], ch[~bad_ch_timepoints], marker='.', color='k', label='good trials')
-        plt.scatter(time[bad_ch_timepoints], ch[bad_ch_timepoints], marker='x', color='r', label='bad trials')
+        plt.scatter(time[~bad_ch_timepoints], ch[~bad_ch_timepoints], marker='.', color='k', label='good timepoints')
+        plt.scatter(time[bad_ch_timepoints], ch[bad_ch_timepoints], marker='x', color='r', label='bad timepoints')
         plt.xlabel('timepoint')
         plt.ylabel('# channels')
         plt.hlines(ch_frac*nch, 0, nt, linestyles='dashed', color='r')
