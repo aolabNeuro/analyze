@@ -1623,6 +1623,96 @@ class BehaviorMetricsTests(unittest.TestCase):
         cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
         self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
 
+    def test_calc_tracking_error(self):
+        samplerate = 100
+        t = np.arange(samplerate*20) # 20sec signal
+        exp_freqs = [.2, .5] # [f1, f2] Hz
+        
+        A1 = 4
+        A2 = 3
+
+        offset = 0
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        offset = 1
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        fig, ax = plt.subplots(4,1, figsize=(10,10))
+        ax[0].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[0].plot(t, target_traj, 'tab:orange', label='target')
+        ax[0].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[0].set_ylabel('position (cm)'); ax[0].set_ylim([-10,10])
+        ax[0].set_xticklabels([])
+        ax[0].legend()
+
+        offset = 3
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[1].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[1].plot(t, target_traj, 'tab:orange', label='target')
+        ax[1].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[1].set_ylabel('position (cm)'); ax[1].set_ylim([-10,10])
+        ax[1].set_xticklabels([])
+
+        offset = -2
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[2].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[2].plot(t, target_traj, 'tab:orange', label='target')
+        ax[2].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[2].set_ylabel('position (cm)'); ax[2].set_ylim([-10,10])
+        ax[2].set_xticklabels([])
+
+        offset = -2
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = target_traj + offset
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[3].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[3].plot(t, target_traj, 'tab:orange', label='target')
+        ax[3].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[3].set_ylabel('position (cm)'); ax[3].set_ylim([-10,10])
+        ax[3].set_xlabel('samples')
+        filename = 'tracking_error.png'
+        savefig(docs_dir,filename)
+
+    def test_calc_tracking_in_time(self):
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 48, 239] # 5 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 48, 239] # 6 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(6*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 79, 239] # 5 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_calc_transfer_function(self):
         samplerate = 100
