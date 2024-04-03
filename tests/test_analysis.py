@@ -1693,6 +1693,7 @@ class BehaviorMetricsTests(unittest.TestCase):
                        80, 96, 48, 239] # 5 "tracking in" segments
         event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
         self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
 
         inter_event_int = 1
         event_codes = [16, 2, 80, 96, 
@@ -1703,6 +1704,7 @@ class BehaviorMetricsTests(unittest.TestCase):
                        80, 48, 239] # 6 "tracking in" segments
         event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
         self.assertEqual(6*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(6*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
 
         inter_event_int = 1
         event_codes = [16, 2, 80, 96, 
@@ -1712,6 +1714,7 @@ class BehaviorMetricsTests(unittest.TestCase):
                        80, 96, 79, 239] # 5 "tracking in" segments
         event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
         self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
 
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_calc_transfer_function(self):
