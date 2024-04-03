@@ -459,6 +459,8 @@ class BMI3DTaskEntry():
         if len(files) == 0:
             print("No files for entry!")
             return
+        if 'hdf' in files.keys():
+            self.record.make_hdf_self_contained(data_dir=data_dir) # update the hdf metadata from the database
         
         # Choose which sources to preprocess
         sources = self.get_preprocessed_sources()
