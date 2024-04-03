@@ -380,5 +380,5 @@ def calc_tracking_in_time(event_codes, event_times, proportion=False):
     tracking_in_time = sum([t[1] - t[0] for t in cursor_in_target_times]) # end time of segment - start time of segment
     if proportion:
         tracking_in_time = tracking_in_time/(event_times[-1] - event_times[0])
-    else:
-        return tracking_in_time
+        
+    return tracking_in_time
