@@ -351,7 +351,7 @@ def calc_tracking_error(user_traj, target_traj):
         target_traj (nt,ndim): target trajectory over a trial segment
 
     Returns:
-        tracking_error (ndim,): array of floats corresponding to the tracking error in each dimension
+        float array (ndim,): tracking error in each dimension
     '''
     assert len(user_traj) == len(target_traj), "User and target trajectories must be the same length!"
     return np.mean((user_traj - target_traj)**2, axis=0) # compute mean over time axis
@@ -363,12 +363,11 @@ def calc_tracking_in_time(event_codes, event_times, proportion=False):
     Args:
         event_codes (nevents,): list of event codes
         event_times (nevents,): list of event times
-        proportion (bool, optional): whether to return the "tracking in time" as a proportion of the total trial segment time. 
+        proportion (bool, optional): whether to return the time as a proportion of the total trial segment time. 
             Default is False.
 
     Returns:
-        tracking_in_time (float): total amount of time (in seconds) that the cursor was in the target for. If proportion=True,
-            this will be the proportion of the entire trial segment that the cursor was in the target for.
+        float: amount of time (in seconds) that the cursor was in the target for
     '''   
     # get all the individual times when cursor was inside target
     task_codes = load_bmi3d_task_codes()
@@ -378,6 +377,8 @@ def calc_tracking_in_time(event_codes, event_times, proportion=False):
 
     # add up the individual times
     tracking_in_time = sum([t[1] - t[0] for t in cursor_in_target_times]) # end time of segment - start time of segment
+
+    # optionally return the time as a proportion of the total segment length
     if proportion:
         tracking_in_time = tracking_in_time/(event_times[-1] - event_times[0])
         
