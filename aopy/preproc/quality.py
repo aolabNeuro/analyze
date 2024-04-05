@@ -13,7 +13,23 @@ from ..utils import print_progress_bar
 from ..visualization.base import plot_image_by_time
 from ..data.base import load_preproc_exp_data
 
-def detect_buggy_entries(preproc_dir, subjects, ids, dates):
+def detect_bad_exp_data(preproc_dir, subjects, ids, dates):
+    '''
+    Identifies preprocessed experiment data files that contain errors. Detected errors include: 
+        preprocessed data could not be loaded, preprocessed data is missing event timestamps (likely 
+        the result of missing ecube data), and preprocessed data contains events that do not match 
+        bmi3d_events (likely the result of inaccurately sent digital events). The detected files 
+        should be re-preprocessed or otherwise debugged before being used in analysis!
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+
+    Returns:
+        list of lists: entries (subject, date, id) of each preprocessed experiment data file that was identified to have errors
+    '''
     bad_entries = []
     entries = list(zip(subjects, dates, ids))
 
@@ -36,7 +52,8 @@ def detect_buggy_entries(preproc_dir, subjects, ids, dates):
             bad_entries.append([subject,date,te])
             continue
         
-        if len(exp_data['events']) != len(exp_data['bmi3d_events']):
+        # Check that events are accurate
+        if not np.array_equal(exp_data['events']['code'], exp_data['bmi3d_events']['code']):
             print(f"Entry {subject} {date} {te} was excluded due to mismatched sync and bmi3d events (this will likely cause problems).")
             bad_entries.append([subject,date,te])
     

@@ -1511,12 +1511,12 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(sat_data_mask.shape, (self.data.shape[0],))
         self.assertEqual(np.count_nonzero(sat_data_mask), 0)
 
-    def test_detect_buggy_entries(self):
+    def test_detect_bad_exp_data(self):
         # first entry doesn't exist, second has buggy sync events, third is normal
         subjects = ['beignet', 'beignet', 'beignet']
         ids = [100, 8694, 8695]
         dates = [datetime.date(2023, 3, 10), datetime.date(2023, 3, 10), datetime.date(2023, 3, 10)]
-        bad_entries = detect_buggy_entries(data_dir, subjects, ids, dates)
+        bad_entries = detect_bad_exp_data(data_dir, subjects, ids, dates)
         np.testing.assert_array_equal(bad_entries, [ [subjects[0],dates[0],ids[0]], [subjects[1],dates[1],ids[1]] ])
         
 class OculomaticTests(unittest.TestCase):
