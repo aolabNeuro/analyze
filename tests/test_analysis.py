@@ -1,6 +1,6 @@
 import time
 from aopy.visualization import savefig
-from aopy.analysis import accllr
+from aopy.analysis import accllr, controllers
 import aopy
 import os
 import numpy as np
@@ -284,6 +284,52 @@ class CalcTests(unittest.TestCase):
         rms = aopy.analysis.calc_rms(signal, remove_offset=False)
         self.assertAlmostEqual(rms, 1.)
 
+    def test_calc_freq_domain_values(self):
+        samplerate = 100
+        t = np.arange(samplerate) # 1sec signal
+        fig, ax = plt.subplots(4,1, figsize=(10,10))
+
+        # signal 1
+        A1 = 1 # amplitude
+        f1 = 2 # Hz
+        p1 = 0 # phase
+        y1 = A1 * np.sin((2*np.pi)*(f1/samplerate)*t + p1)
+        ax[0].plot(t, y1)
+        ax[0].set_ylabel('magnitude'); ax[0].set_xlabel('sample')
+
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y1, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f1,0])[0], A1)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f1,0], deg=True)[0], -90)
+        ax[1].plot(freqs, abs(freqvalues), '-o')
+        ax[1].set_ylabel('magnitude')
+
+        # signal 2
+        A2 = 2
+        f2 = 5
+        p2 = np.pi/2
+        y2 = A2 * np.sin((2*np.pi)*(f2/samplerate)*t + p2)
+        ax[0].plot(t, y2)
+        
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y2, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f2,0])[0], A2)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f2,0], deg=True)[0], 0)
+        ax[2].plot(freqs, abs(freqvalues), '-o', color='tab:orange')
+        ax[2].set_ylabel('magnitude')
+
+        # signal 1 + signal 2
+        ax[0].plot(t, y1+y2)
+
+        freqs, freqvalues = aopy.analysis.calc_freq_domain_values(y1+y2, samplerate)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f1,0])[0], A1)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f1,0], deg=True)[0], -90)
+        self.assertAlmostEqual(abs(freqvalues[freqs==f2,0])[0], A2)
+        self.assertAlmostEqual(np.angle(freqvalues[freqs==f2,0], deg=True)[0], 0)
+        ax[3].plot(freqs, abs(freqvalues), '-o', color='tab:green')
+        ax[3].set_ylabel('magnitude'); ax[3].set_xlabel('frequency')
+
+        filename = 'freq_domain_decomposition.png'
+        aopy.visualization.savefig(docs_dir, filename)
+
     def test_calc_freq_domain_amplitude(self):
         data = np.sin(np.pi*np.arange(1000)/10) + np.sin(2*np.pi*np.arange(1000)/10)
         samplerate = 1000
@@ -482,7 +528,6 @@ class CalcTests(unittest.TestCase):
     
         filename = 'calc_corr2_map.png'
         aopy.visualization.savefig(docs_dir, filename)
-
 
 class CurveFittingTests(unittest.TestCase):
 
@@ -1577,7 +1622,200 @@ class BehaviorMetricsTests(unittest.TestCase):
             np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
         cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
         self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
+
+    def test_calc_tracking_error(self):
+        samplerate = 100
+        t = np.arange(samplerate*20) # 20sec signal
+        exp_freqs = [.2, .5] # [f1, f2] Hz
         
+        A1 = 4
+        A2 = 3
+
+        offset = 0
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        offset = 1
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        fig, ax = plt.subplots(4,1, figsize=(10,10))
+        ax[0].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[0].plot(t, target_traj, 'tab:orange', label='target')
+        ax[0].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[0].set_ylabel('position (cm)'); ax[0].set_ylim([-10,10])
+        ax[0].set_xticklabels([])
+        ax[0].legend()
+
+        offset = 3
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[1].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[1].plot(t, target_traj, 'tab:orange', label='target')
+        ax[1].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[1].set_ylabel('position (cm)'); ax[1].set_ylim([-10,10])
+        ax[1].set_xticklabels([])
+
+        offset = -2
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[2].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[2].plot(t, target_traj, 'tab:orange', label='target')
+        ax[2].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[2].set_ylabel('position (cm)'); ax[2].set_ylim([-10,10])
+        ax[2].set_xticklabels([])
+
+        offset = -2
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = target_traj + offset
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[3].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[3].plot(t, target_traj, 'tab:orange', label='target')
+        ax[3].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[3].set_ylabel('position (cm)'); ax[3].set_ylim([-10,10])
+        ax[3].set_xlabel('samples')
+        filename = 'tracking_error.png'
+        savefig(docs_dir,filename)
+
+    def test_calc_tracking_in_time(self):
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 48, 239] # 5 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
+
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 48, 239] # 6 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(6*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(6*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
+
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 79, 239] # 5 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
+
+class ControlTheoreticAnalysisTests(unittest.TestCase):
+    def test_calc_transfer_function(self):
+        samplerate = 100
+        t = np.arange(samplerate) # 1sec signal
+        exp_freqs = [2, 5] # [f1, f2] Hz
+
+        # input signal
+        A1_in = 4 # amplitude
+        p1_in = 0 # phase
+        A2_in = 2
+        p2_in = 0
+        input_signal = A1_in * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t + p1_in) + A2_in * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t + p2_in)
+        plt.plot(t, input_signal)
+
+        # output signal
+        A1_out = 3
+        p1_out = np.pi/6
+        A2_out = 3
+        p2_out = -np.pi/4
+        output_signal = A1_out * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t + p1_out) + A2_out * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t + p2_out)
+        plt.plot(t, output_signal)
+
+        # input--> input
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, input_signal, samplerate)
+        self.assertEqual(len(transfer_func), len(t)/2)
+        np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func)), np.ones(len(freqs))) # magnitude transformation is 1 at all freqs  
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), np.zeros(len(freqs))) # phase shift is 0 at all freqs
+
+        # input--> output
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate)
+        self.assertEqual(len(transfer_func), len(t)/2)
+        np.testing.assert_array_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func))[np.isin(freqs, exp_freqs)], [p1_out, p2_out])
+
+        # input--> output, only at experimental freqs
+        freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate, exp_freqs)
+        self.assertEqual(len(transfer_func), len(exp_freqs))
+        np.testing.assert_array_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), [p1_out, p2_out])
+
+    def test_pair_trials_by_frequency(self):
+        # trials with perfectly alternating frequency content
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o]*5
+        dis_freqs = [e, o]*5
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=1, limit_pairs_per_trial=True, max_pairs_per_trial=2)
+        np.testing.assert_array_equal(trial_pairs, np.array([[i,i+1] for i in range(9)]))
+
+        # trials with some repeating frequency content
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [3,4],
+                          [4,5],
+                          [5,6]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=1, limit_pairs_per_trial=True, max_pairs_per_trial=2)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
+
+        # trials with some repeating frequency content & non-default function parameters
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [0,2],
+                          [2,4],
+                          [3,4],
+                        #   [4,5], would not get this pair because trial 4 already used in 2 pairs 
+                          [5,6]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=True, max_pairs_per_trial=2)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
+
+        # trials with some repeating frequency content & non-default function parameters
+        e = [0.1, 0.2, 0.3, 0.4]
+        o = [0.05, 0.15, 0.25, 0.35]
+
+        ref_freqs = [e, o, o, o, e, o, e]
+        dis_freqs = [o, e, e, e, o, e, o]
+        expected_pairs = [[0,1],
+                          [0,2],
+                          [2,4],
+                          [3,4],
+                          [4,5],
+                          [5,6]
+                          ]
+
+        trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=False)
+        np.testing.assert_array_equal(trial_pairs, expected_pairs)
+
 if __name__ == "__main__":
     unittest.main()
 

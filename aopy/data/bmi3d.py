@@ -646,12 +646,12 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
     elif datatype == 'user':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 1d cursor position before disturbance added (bmi3d coords: z)
+        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d cursor position before disturbance added (bmi3d coords: x,z)
     elif datatype == 'reference':
-        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 1d target position (bmi3d coords: z)
+        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 2d target position (bmi3d coords: x,z)
     elif datatype == 'disturbance':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 1d disturbance value (bmi3d coords: z)
+        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d disturbance value (bmi3d coords: x,z)
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
@@ -1642,11 +1642,19 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
         # Add requested metadata
         for key in metadata:
-            if key in exp_metadata:
+            if key == 'stimulation_site' and 'qwalor_switch_rdy_dch' in exp_metadata:
+                
+                # Switched laser with multiple stim sites
+                exp['stimulation_site'] = preproc.bmi3d.get_switched_stimulation_sites(
+                    preproc_dir, subject, te, date, trial_times, debug=debug
+                )
+
+            elif key in exp_metadata:
                 exp[key] = [exp_metadata[key] for _ in range(len(trial_times))]
             else:
                 exp[key] = None
                 print(f"Entry {subject} {date} {te} does not have metadata {key}.")
+
 
         # Concatenate with existing dataframe
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)

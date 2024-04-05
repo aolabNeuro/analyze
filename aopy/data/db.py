@@ -73,7 +73,8 @@ def lookup_sessions(id=None, subject=None, date=None, task_name=None, task_desc=
             kwargs['experimenter__name'] = experimenter
         
         # Initial lookup, wrapped into BMI3DTaskEntry objects
-        entries = bmi3d.get_task_entries(dbname=this.BMI3D_DBNAME, **kwargs)
+        dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+        entries = bmi3d.get_task_entries(dbname=dbname, **kwargs)
         entries = [BMI3DTaskEntry(e) for e in entries]
 
         # Additional filtering
@@ -140,7 +141,8 @@ def lookup_decoders(id=None, parent_id=None, **kwargs):
     if parent_id is not None:
         kwargs['entry_id'] = parent_id
 
-    records = bmi3d.models.Decoder.objects.filter(**kwargs)
+    dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+    records = bmi3d.models.Decoder.objects.using(dbname).filter(**kwargs)
     return [BMI3DDecoder(r) for r in records]
 
 '''

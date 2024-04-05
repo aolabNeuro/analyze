@@ -1074,6 +1074,26 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
 
+    def test_get_switched_stimulation_sites(self):
+        subject = 'test'
+        te_id = 15494
+        date = '2024-03-19'
+
+        # Some code to make the preprocessed file (raw data too big to store here)
+        # files = {}
+        # files['hdf'] = 'test20240319_08_te15494.hdf'
+        # files['ecube'] = '2024-03-19_BMI3D_te15494'
+        # proc_single(data_dir, files, data_dir, subject, te_id, date, ['exp'], overwrite=True)
+
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        times, _, _, _ = preproc.bmi3d._get_laser_trial_times(
+            exp_data, exp_metadata, laser_trigger='qwalor_trigger', laser_sensor='qwalor_sensor'
+        )
+        sites = get_switched_stimulation_sites(data_dir, subject, te_id, date, times, debug=True)
+        visualization.savefig(docs_dir, 'switched_stimulation_sites.png', transparent=False)
+
+        np.testing.assert_allclose(sites, 0)
+
     def test_get_laser_trial_times(self):
         time_before = 0.05
         time_after = 0.05
@@ -1452,7 +1472,27 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(np.all(~bad_trials[4:]))
 
         filename = 'detect_bad_trials.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+    def test_detect_bad_timepoints(self):
+        nt = 500
+        nch = 10
+        np.random.seed(0)
+        data = np.random.normal(size=(nt, nch)) 
+        data[50:52,:] += 10 # timepoint is noisy across all electrodes
+        data[100:102,2:] -= 10 # timepoint is noisy on most electrodes
+        for t in range(nt-100,nt):
+            data[t,t%nch] -= 10 # single timepoint is noisy but different timepoint for each channel
+                
+        bad_timepoints = quality.detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=True)
+            
+        filename = 'detect_bad_timepoints.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+        self.assertEqual(len(bad_timepoints), nt)
+        self.assertTrue(np.all(bad_timepoints[50:52]))
+        self.assertTrue(np.all(bad_timepoints[100:102]))
+        self.assertFalse(np.any(bad_timepoints[-100:]))
+
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
