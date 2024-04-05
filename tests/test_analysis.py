@@ -1717,6 +1717,29 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
 
 class ControlTheoreticAnalysisTests(unittest.TestCase):
+    def test_get_machine_dynamics(self):
+        freqs = np.linspace(0,1,20)
+        exp_freqs = freqs[::2] # "even" freqs
+        print(freqs)
+        print(exp_freqs)
+        
+        M = controllers.get_machine_dynamics(freqs, 0)
+        np.testing.assert_equal(len(M), 20) # check length of M matches length of freqs 
+        np.testing.assert_array_equal(M, np.ones(20,)) # check M is all 1s (0th order system)
+
+        M = controllers.get_machine_dynamics(freqs, 1)
+        np.testing.assert_equal(len(M), 20) # check length of M matches length of freqs
+
+        M = controllers.get_machine_dynamics(freqs, 2)
+        np.testing.assert_equal(len(M), 20) # check length of M matches length of freqs
+
+        M_exp_freqs = controllers.get_machine_dynamics(freqs, 2, exp_freqs) # same as above, but only return M at exp_freqs
+        np.testing.assert_equal(len(M_exp_freqs), 10) # check length of M_exp_freqs matches length of exp_freqs
+        np.testing.assert_array_equal(M[::2], M_exp_freqs) # check M_exp_freqs matches M indexed at even freqs
+
+        # only need to run once, because it fails (as expected - function doesn't recognize 3rd order system)
+        # M = controllers.get_machine_dynamics(freqs, 3)
+
     def test_calc_transfer_function(self):
         samplerate = 100
         t = np.arange(samplerate) # 1sec signal
@@ -1817,6 +1840,7 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         np.testing.assert_array_equal(trial_pairs, expected_pairs)
 
 if __name__ == "__main__":
+
     unittest.main()
 
 
