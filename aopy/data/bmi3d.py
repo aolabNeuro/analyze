@@ -1472,7 +1472,7 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
-    trial_end_codes = [task_codes['TRIAL_END']]
+    trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
     reward_codes = [task_codes['REWARD']]
     penalty_codes = [task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
     
@@ -1486,10 +1486,10 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     # Add frequency content of reference & disturbance trajectories
     ref_freqs = []
     dis_freqs = []
-    for s, te, d in zip(subjects, ids, dates):
-        if [s,d,te] in bad_entries:
+    for subject, te, date in zip(subjects, ids, dates):
+        if [subject,date,te] in bad_entries:
             continue
-        r, d = get_trajectory_frequencies(preproc_dir, s, te, d)
+        r, d = get_trajectory_frequencies(preproc_dir, subject, te, date)
         ref_freqs.extend(r)
         dis_freqs.extend(d)
     new_df['ref_freqs'] = ref_freqs
