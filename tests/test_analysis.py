@@ -1852,7 +1852,7 @@ class stats(unittest.TestCase):
 
         # Perform permutation test using ttest_ind from scipy.stats directly
         p_value = aopy.analysis.permutation_test(sample1, sample2, ttest_ind, num_permutations)
-        self.assertEqual(p_value, 0.998)
+        self.assertAlmostEqual(p_value, 0.998)
 
 if __name__ == "__main__":
 
