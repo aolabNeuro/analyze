@@ -23,7 +23,7 @@ from ..preproc.base import get_data_segment, get_data_segments, get_trial_segmen
 from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
-from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_segment, load_hdf_group
+from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_trial, load_hdf_ts_segment, load_hdf_group
 
 ############
 # Raw data #
@@ -908,10 +908,10 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
     
     return trial_aligned_data[:,:,success_trials]
 
-def get_ts_data_segment(preproc_dir, subject, te_id, date, trigger_time, time_before, time_after,
+def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_before, time_after,
                        datatype='lfp'):
     '''
-    Simple wrapper around get_tsdata_segment for lfp or broadband data.
+    Simple wrapper around load_hdf_ts_trial for lfp or broadband data.
     
     Args:
         preproc_dir (str): base directory where the files live
@@ -943,13 +943,57 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, trigger_time, time_be
 
     try:
         samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
-        data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
-                                    samplerate, trigger_time, time_before, time_after)
+        data = load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
+                                 samplerate, trigger_time, time_before, time_after)
     except FileNotFoundError as e:
         print(f"No data found in {preproc_dir} for subject {subject} on {date} ({te_id})")
         raise e
 
     return data, samplerate
+
+def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
+                       datatype='lfp'):
+    '''
+    Simple wrapper around load_hdf_ts_segment for lfp or broadband data.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        trigger_time (float): time (in seconds) in the recording at which the desired segment starts
+        time_before (float): time (in seconds) to include before the trigger times
+        time_after (float): time (in seconds) to include after the trigger times
+        datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'.    
+
+    Returns:
+        tuple: tuple containing:
+            | **segment (nt, nch):** data segment from the given preprocessed file
+            | **samplerate (float):** sampling rate of the returned data
+    '''
+    if datatype == 'lfp':
+        data_group='/'
+        data_name='lfp_data'
+        metadata_group='lfp_metadata'
+        samplerate_key='lfp_samplerate'
+    elif datatype == 'broadband':
+        data_group='/'
+        data_name='broadband_data'
+        metadata_group='broadband_metadata'
+        samplerate_key='samplerate'
+    filename = get_preprocessed_filename(subject, te_id, date, datatype)
+    preproc_dir = os.path.join(preproc_dir, subject)
+
+    try:
+        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
+                                    samplerate, start_time, end_time)
+    except FileNotFoundError as e:
+        print(f"No data found in {preproc_dir} for subject {subject} on {date} ({te_id})")
+        raise e
+
+    return data, samplerate
+
     
 def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     '''
@@ -1664,19 +1708,16 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_before, time_after, 
                      datatype='lfp'):
     '''
-    Grab timeseries data from trials across arbitrary preprocessed files.
+    Grab rectangular timeseries data from trials across arbitrary preprocessed files.
     
     Args:
         preproc_dir (str): base directory where the files live
         subjects (list of str): Subject name for each recording
         ids (list of int): Block number of Task entry object for each recording
         dates (list of str): Date for each recording
-        trigger_times (list of float): times in the recording at which the desired segments starts
+        trigger_times (list of float): times in the recording at which the desired trials start
         time_before (float): time (in seconds) to include before the trigger times
         time_after (float): time (in seconds) to include after the trigger times
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
         datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'.    
         
     Returns:
@@ -1687,28 +1728,59 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
 
     assert len(subjects) == len(te_ids) == len(dates) == len(trigger_times)
     
-    # Get the first segment
-    segment_1, samplerate = get_ts_data_segment(
+    # Get the first trial
+    segment_1, samplerate = get_ts_data_trial(
         preproc_dir, subjects[0], te_ids[0], dates[0], trigger_times[0], 
         time_before, time_after, datatype=datatype
     )
         
-    # Construct the tensor using the first segment as a template
+    # Construct the tensor using the first trial as a template
     if segment_1.ndim == 1:
         segment_1 = np.expand_dims(segment_1, 1)
     nt, nch = segment_1.shape
     segments = np.zeros((nt, nch, len(trigger_times)), like=segment_1)
     segments[:,:,0] = segment_1
     
-    # Add the remaining segments
+    # Add the remaining trial
     idx = 1
     for s, t, d, tr in list(zip(subjects, te_ids, dates, trigger_times))[1:]:
-        segments[:,:,idx] = get_ts_data_segment(preproc_dir, s, t, d, tr, 
-                                      time_before, time_after, datatype=datatype)[0]
+        segments[:,:,idx] = get_ts_data_trial(preproc_dir, s, t, d, tr, 
+                                              time_before, time_after, datatype=datatype)[0]
         idx += 1
         
     return segments, samplerate
 
+# Also, tabulate_ts_data has some errors in the docstring!
+def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_times,
+                     datatype='lfp'):
+    '''
+    Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        start_times (list of float): times in the recording at which the desired segments start
+        end_times (list of float): times in the recording at which the desired segments end
+        datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'.    
+        
+    Returns:
+        tuple: tuple containing:
+            | **data (list of (nt, nch)):** list of data segments
+            | **samplerate (float):** sampling rate of the data
+    '''
+
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
+    
+    # Fetch the segments
+    segments = []
+    for s, t, d, st, et in list(zip(subjects, te_ids, dates, start_times, end_times)):
+        segment, samplerate = get_ts_data_segment(preproc_dir, s, t, d, st, et, 
+                                                datatype=datatype)
+        segments.append(segment)
+        
+    return segments, samplerate
         
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''

@@ -873,6 +873,30 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
+    def test_tabulate_ts_segments(self):
+
+        subjects = [self.subject]
+        ids = [self.te_id]
+        dates = [self.date]
+
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+
+        # Only consider completed trials
+        df = df[df['reach_completed']]
+        ts_seg, samplerate = tabulate_ts_segments(write_dir, df['subject'], df['te_id'], df['date'], 
+                                                  df['go_cue_time'], df['reach_end_time'])
+
+        self.assertEqual(len(df), len(ts_seg))
+        
+        trial_start_codes = [CENTER_TARGET_OFF]
+        trial_end_codes = CURSOR_ENTER_PERIPHERAL_TARGET + [TRIAL_END]
+        ts_seg_single_file, _ = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
+                                              trial_start_codes, trial_end_codes, trial_filter=lambda t: TRIAL_END not in t)
+
+        self.assertEqual(len(ts_seg_single_file), len(ts_seg))
+        for i in range(len(ts_seg)):
+            self.assertEqual(ts_seg[i].shape, ts_seg_single_file[i].shape)
+
     def test_tabulate_behavior_data_flash(self):
         files = {}
         files['hdf'] = 'test20220311_07_te4298.hdf'
