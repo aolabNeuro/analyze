@@ -1667,3 +1667,46 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     NCC[nan_idx1] = np.nan
     
     return NCC, shifts
+
+
+'''
+Statistics 
+'''
+def permutation_test(sample1, sample2, statistic, num_permutations):
+    """
+    Conducts a permutation test to compute the p-value for the t-test statistic.
+
+    Parameters:
+        sample1 (array-like): distribution 1.
+        sample2 (array-like): distribution 2.
+        statistic (function): The function to compute the test statistic.
+                              This function should take two arrays as input
+                              (representing the samples) and return the test statistic.
+        num_permutations (int): The number of permutations to perform.
+
+    Returns:
+        p_value (float): The p-value for the permutation test.
+    """
+    obs_stat, _ = statistic(sample1, sample2) # Works for tests in scipy.stats such as ttest and wilcoxon.
+
+    # Initialize an array to store permutation test statistics
+    perm_stats = np.zeros(num_permutations)
+
+    for i in range(num_permutations):
+        # Permute the combined sample
+        combined = np.concatenate((sample1, sample2))
+        np.random.shuffle(combined)
+
+        # Split the permuted sample into two samples
+        perm_sample1 = combined[:len(sample1)]
+        perm_sample2 = combined[len(sample1):]
+
+        # Compute the t-test statistic for the permuted samples
+        perm_stat, _ = statistic(perm_sample1, perm_sample2)
+        perm_stats[i] = perm_stat
+
+    # Calculate the p-value as the proportion of permutation test statistics
+    # that are more extreme than the observed statistic
+    p_value = np.sum(perm_stats > obs_stat) / num_permutations
+
+    return p_value
