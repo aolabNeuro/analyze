@@ -1839,6 +1839,21 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=False)
         np.testing.assert_array_equal(trial_pairs, expected_pairs)
 
+class stats(unittest.TestCase):
+
+    def test_permutation(self):
+        from scipy.stats import ttest_ind
+
+        sample1 = np.array([1, 2, 3, 4, 5])
+        sample2 = np.array([6, 7, 8, 9, 10])
+
+        # Define the number of permutations
+        num_permutations = 1000
+
+        # Perform permutation test using ttest_ind from scipy.stats directly
+        p_value = aopy.analysis.permutation_test(sample1, sample2, ttest_ind, num_permutations)
+        self.assertAlmostEqual(p_value, 0.997)
+
 if __name__ == "__main__":
 
     unittest.main()
