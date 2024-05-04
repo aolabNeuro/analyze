@@ -274,9 +274,10 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
 
     return segment_duration, target_codes
 
-def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0):
+def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0, butter_order=4, low_cut=20, thr=None):
     '''
     Compute movement onset when cursor speed crosses threshold based on mean and standard deviation in baseline period.
+    Speed is estimated from cursor trajectories and low-pass filtered to remove noise.
     Baseline is defined as the period between target onset and gocue because speed still exists soon after the cursor enters the center target.
     
     Args:
@@ -285,7 +286,10 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
         trial_start (ntr) : trial start time (the time when the cursor enters the center target) relative to experiment start time in sec
         target_onset (ntr) : target onset relative to experiment start time in sec
         gocue (ntr) : gocue (the time when the center target disappears) relative to experiment start time in sec
-        numsd (float) : for determining threshold
+        numsd (float) : for determining threshold at each trial
+        butter_order (int) : the order for the butterworth filter
+        low_cut (float) : cut off frequency for low pass filter in Hz
+        thr (float) : thr when you want to use constant threshold across trials
         
     Returns:
         movement_onset (ntr) : movement onset relative to trial start time (the time when the cursor enters the center target) in sec
@@ -295,19 +299,23 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
     gocue_from_start = gocue - trial_start # gocue relative to trial start time
     dt = 1/fs
     
+    b, a = signal.butter(butter_order, low_cut, btype='lowpass', fs=fs)
+
     movement_onset = []
     for itr in range(cursor_traj.shape[0]):
         # compute speed
         dist = np.linalg.norm(cursor_traj[itr],axis=1)
-        speed = np.diff(dist)
-        speed = np.insert(speed,0,speed[0]) # complement the first data point
+        speed_tmp = np.diff(dist)/(1/fs)
+        speed_tmp = np.insert(speed_tmp,0,speed_tmp[0]) # complement the first data point
+        speed = signal.filtfilt(b, a, speed_tmp, axis=0)
         
         # compute threshold based on mean and std in baseline
         t_cursor = np.arange(dist.shape[0])*dt
-        baseline_idx = (t_cursor<gocue_from_start[itr]) & (t_cursor>target_from_start[itr])
-        baseline_speed = np.mean(speed[baseline_idx])
-        baseline_std = np.std(speed[baseline_idx],ddof=1)
-        thr = baseline_speed + numsd*baseline_std
+        if thr is None:
+            baseline_idx = (t_cursor<gocue_from_start[itr]) & (t_cursor>target_from_start[itr])
+            baseline_speed = np.mean(speed[baseline_idx])
+            baseline_std = np.std(speed[baseline_idx],ddof=1)
+            thr = baseline_speed + numsd*baseline_std
         
         # get movement onset
         movement_onset.append(t_cursor[np.where((speed>thr)&(t_cursor>target_from_start[itr]))[0][0]])
