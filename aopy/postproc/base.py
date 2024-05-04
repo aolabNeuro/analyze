@@ -171,7 +171,8 @@ def get_minimum_trials_per_target(target_idx, cond_mask=None):
 
 def get_conditioned_trials_per_target(target_idx, min_trial, cond_mask=None, replacement=False, seed=None):
     '''
-    Get trial index to choose the same number of trials per target in removing trials by a certain condition
+    Get trial index to choose the same number of trials per target in removing trials by a certain condition.
+    The trial index is aligned in the pseudorandom order.
     min_trial can be taken from 'get_minimum_trials_per_target' function.
     
     Args:
@@ -185,22 +186,24 @@ def get_conditioned_trials_per_target(target_idx, min_trial, cond_mask=None, rep
         (ntr): trial index to extract the same number of conditioned trials for each target
         
     '''
-    if seed:
+    if seed is not None:
         np.random.seed(seed)
         
     # Get trial index to get the same number of trials per target
-    tmp = []
-    for itarget in np.unique(target_idx):
+    for idx, itarget in enumerate(np.unique(target_idx)):
         if cond_mask is None:
             trial_mask_targ = np.where(target_idx == itarget)[0]
         else:
             trial_mask_targ = np.where(cond_mask * (target_idx == itarget))[0] 
                    
         if trial_mask_targ.size:
-            tmp = np.concatenate([tmp, np.random.choice(trial_mask_targ, min_trial, replace=replacement)])
+            if idx == 0:
+                trial_mask = np.random.choice(trial_mask_targ, min_trial, replace=replacement)
+            else:
+                trial_mask = np.vstack([trial_mask, np.random.choice(trial_mask_targ, min_trial, replace=replacement)]) # conditions x trials shape
 
-    trial_mask = np.array([int(a) for a in tmp]) # convert float to int
-    trial_mask = np.random.permutation(trial_mask) # because trial mask is well organized in the order of target number
+    # reshape using 'F' so that trial index would be aligned in the pseudorandom order
+    trial_mask = trial_mask.reshape(-1, order='F')
     
     return trial_mask
 
