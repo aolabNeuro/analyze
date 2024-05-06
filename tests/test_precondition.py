@@ -256,23 +256,27 @@ class FilterTests(unittest.TestCase):
         self.assertEqual(data_ds.shape, (10, 2))
         self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
 
-        fs_ds = self.fs/5
-        x_ds = precondition.downsample(self.x, self.fs, fs_ds)
-        fig, ax = plt.subplots(2,2)
-        ax[0,0].plot(self.t, self.x)
-        ax[0,0].set_ylabel(f"{self.fs} hz")
+        fs = 25000
+        fs_ds = 100
+        x, t = utils.generate_test_signal(0.5, fs, [4, 25], [1, 2])
+
+        x_ds = precondition.downsample(x, fs, fs_ds)
+        fig, ax = plt.subplots(2,1)
+        ax[0].plot(t, x)
         t_ds = np.arange(len(x_ds))/fs_ds
-        ax[1,0].plot(t_ds, x_ds)
-        ax[1,0].set_ylabel(f"{fs_ds} hz")
-        ax[1,0].set_xlabel("time (s)")
-        visualization.plot_freq_domain_amplitude(self.x, self.fs, ax=ax[0,1])
-        ax[0,1].set_xlim(0,5000)
-        ax[0,1].set_xlabel('')
-        visualization.plot_freq_domain_amplitude(x_ds, fs_ds, ax=ax[1,1])
-        ax[1,1].set_xlim(0,5000)
+        ax[0].plot(t_ds, x_ds)
+        ax[0].set_ylabel(f"{fs_ds} hz")
+        ax[0].set_xlabel("time (s)")
+        ax[0].set_ylabel("amplitude")
+        ax[0].set_xlim(0,0.2)
+        ax[0].legend(['Original', 'Downsampled'])
+        visualization.plot_freq_domain_amplitude(x, fs, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(x_ds, fs_ds, ax=ax[1])
+        ax[1].set_xlim(0,5000)
+        ax[0].legend(['Original', 'Downsampled'])
         plt.tight_layout()
         filename = 'downsample.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Test non-integer downsample factor
         data_ds = precondition.downsample(data, 100, 13)
