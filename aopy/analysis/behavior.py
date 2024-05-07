@@ -289,7 +289,7 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
         numsd (float) : for determining threshold at each trial
         butter_order (int) : the order for the butterworth filter
         low_cut (float) : cut off frequency for low pass filter in Hz
-        thr (float) : thr when you want to use constant threshold across trials
+        thr (float) : thr when you want to use constant threshold across trials. If thr=None, thr is computed by mean + numsd*std in the period from target onset to gocue.
         
     Returns:
         movement_onset (ntr) : movement onset relative to trial start time (the time when the cursor enters the center target) in sec
