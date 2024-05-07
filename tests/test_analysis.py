@@ -1846,6 +1846,21 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=False)
         np.testing.assert_array_equal(trial_pairs, expected_pairs)
 
+class ConfidenceIntervalTests(unittest.TestCase):
+    def test_get_confidence_interval(self):
+        np.random.seed(1)
+        uniform_random = np.random.uniform(size=10000)
+        hist_bins = np.linspace(0,1,10000)
+        interval = aopy.analysis.get_confidence_interval(uniform_random, hist_bins)
+        self.assertEqual(round(interval[0],3), 0.026)
+        self.assertEqual(round(interval[1],3), 0.975)
+    
+    def test_calc_confidence_interval_overlap(self):
+        CI1 = [10,20]
+        CI2 = [17,30]
+        overlap = aopy.analysis.calc_confidence_interval_overlap(CI1,CI2)
+        self.assertEqual(overlap,(20-17)/(20-10))
+        
 if __name__ == "__main__":
 
     unittest.main()
