@@ -1609,15 +1609,22 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
 
     def test_movement_onset_and_cursor_leave_time(self):
-        fs = 1
-        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,1,1,0,0,1,1,1,1,1,]]).T,\
-            np.array([[1,0,0,0,0,0,0,-1,-1,-1],[0,1,0,0,0,0,0,1,1,1,]]).T])
-        trial_start = np.array([0,0])
-        target_onset = np.array([1,2])
-        gocue = np.array([4,5])
-        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=1)
-        self.assertTrue(np.all(movement_onset == np.array([5,7])))
+        fs = 1000
+        duration = 10
+        t = np.arange(duration*fs)/fs
+        y1 = 10*np.sin(2*np.pi*30*t) + 0.1*np.sin(2*np.pi*5*t)
+        y2 = np.zeros(t.shape[0])
+        y2[t>5] = 5*np.sin(2*np.pi*1*t[t>5])
+        yz = np.zeros(t.shape[0])
+        cursor_test = np.array([np.stack([y1+y2,yz]).T])
         
+        trial_start = np.array([0])
+        target_onset= np.array([2])
+        gocue = np.array([4])
+        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=20.0, butter_order=4, low_cut=20, thr=None)
+        self.assertTrue((movement_onset > 5)*(movement_onset < 5.1))
+        
+        fs = 1
         cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
             np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
         cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
