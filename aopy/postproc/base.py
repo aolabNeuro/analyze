@@ -169,15 +169,15 @@ def get_minimum_trials_per_target(target_idx, cond_mask=None):
     
     return min_trial
 
-def get_conditioned_trials_per_target(target_idx, min_trial, cond_mask=None, replacement=False, seed=None):
+def get_conditioned_trials_per_target(target_idx, trials_per_cond, cond_mask=None, replacement=False, seed=None):
     '''
     Get trial index to choose the same number of trials per target in removing trials by a certain condition.
-    The trial index is aligned in the pseudorandom order.
-    min_trial can be taken from 'get_minimum_trials_per_target' function.
+    The trial index is evenly aligned like [1,2,3,1,2,3,1,2,3,...].
+    trials_per_cond can be taken from 'get_minimum_trials_per_target' function.
     
     Args:
         target_index (ntr): target index
-        min_trial (int): minimum trial across conditions
+        trials_per_cond (int): minimum trial across conditions to get the same number of trials per condition
         cond_mask (ntr): boolean array to remove trials
         replacement (bool): whether to allow replacement in choosing trials. This can be used for bootstrapping.
         seed (int): random seed
@@ -198,9 +198,9 @@ def get_conditioned_trials_per_target(target_idx, min_trial, cond_mask=None, rep
                    
         if trial_mask_targ.size:
             if idx == 0:
-                trial_mask = np.random.choice(trial_mask_targ, min_trial, replace=replacement)
+                trial_mask = np.random.choice(trial_mask_targ, trials_per_cond, replace=replacement)
             else:
-                trial_mask = np.vstack([trial_mask, np.random.choice(trial_mask_targ, min_trial, replace=replacement)]) # conditions x trials shape
+                trial_mask = np.vstack([trial_mask, np.random.choice(trial_mask_targ, trials_per_cond, replace=replacement)]) # conditions x trials shape
 
     # reshape using 'F' so that trial index would be aligned in the pseudorandom order
     trial_mask = trial_mask.reshape(-1, order='F')
