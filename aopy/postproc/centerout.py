@@ -108,10 +108,11 @@ def _transform_coords(hand_data, exp_metadata):
   '''
     Transforms hand data into mapping used in center out experiment
   Args:
-      hand_traj (2D numpy array): 3D array of hand trajectory data (n_timepoints x 3)
+      hand_traj (3D numpy array): 3D array of hand trajectory data (n_timepoints x 3) : hand data when output from get_kinematics is in BMI3D coordinates.
       exp_metadata: exp_metadata from load_preproc_exp_data(preproc_dir, subject, te_id, date)
 
   Returns:
+      transformed_hand_traj (3D numpy array)
 
   '''
     offset = exp_metadata['offset']
@@ -181,3 +182,54 @@ def decompose_hand_movements(hand_data, mapping, task='2DCenterOut'):
     hN_norm = np.mean(np.linalg.norm(hN, axis=0)) # gives the magnitude of movement in null space
 
     return  hT_norm, hN_norm
+
+
+def transform_optitrack2hand_coordinates(o_coords):
+    """
+    Transforms coordinates from the Optitrack coordinates (O) to the intuitive hand coordinates for plotting (H).
+
+    Parameters:
+        o_coords (numpy array): The original coordinates as a numpy array [Ox, Oy, Oz].
+
+    :: image:: _images/MC_coord_definition.png
+
+    Returns:
+        numpy array: The transformed coordinates [Hx, Hy, Hz].
+    """
+    # Transformation matrix
+    T = np.array([
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 0, 0]
+    ])
+
+    # Perform the matrix multiplication
+    h_coords = T.dot(o_coords)
+
+    return h_coords
+
+
+def transform_bmi3dscreen2cursor_coordinates(b_coords):
+    """
+    Transforms coordinates from the BMI3d screen coordinates (B) to the intuitive cursor coordinates for plotting (H).
+    Note: Get kinematics functions output hand kinematics in optitrack coordinates & cursor kinematics in bmi3d coordinates
+
+    :: image:: _images/MC_coord_definition.png
+
+    Parameters:
+        b_coords (numpy array): The original coordinates as a numpy array [Bx, By, Bz].
+
+    Returns:
+        numpy array: The transformed coordinates [Cx, Cy, Cz].
+    """
+    # Transformation matrix
+    T = np.array([
+        [1, 0, 0],
+        [0, 0, 1],
+        [0, 1, 0]
+    ])
+
+    # Perform the matrix multiplication
+    c_coords = T.dot(b_coords)
+
+    return c_coords
