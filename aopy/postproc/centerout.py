@@ -188,10 +188,10 @@ def transform_optitrack2hand_coordinates(o_coords):
     """
     Transforms coordinates from the Optitrack coordinates (O) to the intuitive hand coordinates for plotting (H).
 
+    :: image:: _images/MC_coord_definition.png
+
     Parameters:
         o_coords (numpy array): The original coordinates as a numpy array [Ox, Oy, Oz].
-
-    :: image:: _images/MC_coord_definition.png
 
     Returns:
         numpy array: The transformed coordinates [Hx, Hy, Hz].

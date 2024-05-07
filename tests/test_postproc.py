@@ -248,5 +248,10 @@ class TestGetFuncs(unittest.TestCase):
         calibrated = get_calibrated_eye_data(eye_data, coefficients)
         np.testing.assert_array_equal(eye_data, calibrated)
 
+class TestCenterout(unittest.TestCase):
+
+    def test_get_mapping(self):
+
+
 if __name__ == "__main__":
     unittest.main()
