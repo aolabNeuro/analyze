@@ -167,17 +167,17 @@ class DigitalCalcTests(unittest.TestCase):
         
         fps = 120
         nt = fps*duration
-        offset = 0.1 # timestamps start strictly after time zero
+        offset = 0.01 # timestamps start strictly after time zero
         framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
         drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
         timestamps = offset + np.arange(nt)/fps + framerate_error + drift
         samples = (timestamps * samplerate).astype(int)
 
         frame_data = ground_truth_data[samples,:]
-        interp_samplerate = 1000
+        interp_samplerate = 120
         interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
 
-        fig, ax = plt.subplots(2,1)
+        fig, ax = plt.subplots(3,1, figsize=(5,6))
         visualization.plot_timeseries(frame_data[:,0], fps, ax=ax[0])
         visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[0])
         ax[0].set_title(f'{freq} Hz signal')
@@ -189,10 +189,20 @@ class DigitalCalcTests(unittest.TestCase):
         ax[1].set_xscale('linear')
         ax[1].set_xlim(0,30)
         ax[1].set_ylabel('Peak amplitude')
+        ax[1].legend(['without sampling', 'with sampling'])
         plt.tight_layout()
 
+        # Compare with different upsampling rates
+        visualization.plot_timeseries(ground_truth_data[:,0], samplerate, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120)
+        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120*100)
+        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
+        ax[2].set_xlim(0.0,0.3)
+        ax[2].legend(['original', 'no upsample', 'upsample to 10,000 Hz'])
+
         filename = 'sample_timestamped_data.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_get_dch_data(self):
         dig_data = [0, 1, 0, 1, 1, 0]

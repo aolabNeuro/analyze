@@ -283,11 +283,14 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
         f"have the same number of cycles ({len(data)} vs {len(timestamps)})")
 
     if upsamplerate is None:
-        upsamplerate = samplerate * 100
+        upsamplerate = samplerate * 10
+
+    assert upsamplerate >= samplerate, "Upsamplerate must be greater than or equal to samplerate"
 
     time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
     data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False, **kwargs)
-    data_time = precondition.downsample(data_time, upsamplerate, samplerate)
+    if upsamplerate > samplerate:
+        data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 
 def get_dch_data(digital_data, digital_samplerate, dch):
