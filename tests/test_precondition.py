@@ -246,12 +246,12 @@ class FilterTests(unittest.TestCase):
 
 
     def test_downsample(self):
-        data = np.arange(100)
+        data = 10*np.sin(0.1*np.arange(100))
         data_ds = precondition.downsample(data, 100, 10)
         self.assertEqual(data_ds.shape, (10,))
         self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
 
-        data = np.vstack((data, np.arange(100))).T
+        data = np.vstack((data, 10*np.cos(0.1*np.arange(100)))).T
         data_ds = precondition.downsample(data, 100, 10)
         self.assertEqual(data_ds.shape, (10, 2))
         self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
