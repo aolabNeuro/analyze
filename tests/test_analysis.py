@@ -1854,6 +1854,12 @@ class ConfidenceIntervalTests(unittest.TestCase):
         interval = aopy.analysis.get_confidence_interval(uniform_random, hist_bins)
         self.assertEqual(round(interval[0],3), 0.026)
         self.assertEqual(round(interval[1],3), 0.975)
+    
+    def test_calc_confidence_interval_overlap(self):
+        CI1 = [10,20]
+        CI2 = [17,30]
+        overlap = aopy.analysis.calc_confidence_interval_overlap(CI1,CI2)
+        self.assertEqual(overlap,(20-17)/(20-10))
         
 if __name__ == "__main__":
 
