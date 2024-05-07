@@ -1706,3 +1706,32 @@ def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
         ax2.set(ylabel='cdf')
         
     return [lower_bound, upper_bound]
+
+def calc_confidence_interval_overlap(CI1, CI2):
+    '''
+    Calculate the overlap between two confidence intervals.
+
+    Parameters:
+        CI1 (tuple or list): Tuple containing the lower and upper bounds of the first confidence interval.
+        CI2 (tuple or list): Tuple containing the lower and upper bounds of the second confidence interval.
+
+    Returns:
+        (float): Overlap ratio (0 to 1) between the two confidence intervals.
+    '''
+    
+    lower1, upper1 = CI1
+    lower2, upper2 = CI2
+    
+    # Calculate overlap
+    overlap_lower = max(lower1, lower2)
+    overlap_upper = min(upper1, upper2)
+    overlap_width = max(0, overlap_upper - overlap_lower)
+
+    # Calculate widths of the intervals
+    width1 = upper1 - lower1
+    width2 = upper2 - lower2
+    
+    # Calculate overlap ratio
+    overlap = (overlap_width / min(width1, width2))
+    
+    return overlap
