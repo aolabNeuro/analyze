@@ -691,6 +691,11 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
     '''
     Return all kinds of kinematics from preprocessed data. Caches the data for faster loading.
 
+    Note: 
+        You can avoid the phase shift in downsampled data when using get_interp_kinematics by setting 
+        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
+        same samplerate.
+
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
