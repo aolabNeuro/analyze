@@ -405,7 +405,8 @@ def _load_hdf_group_cached(data_dir, hdf_filename, group="/"):
     return data
 
 def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
-                       samplerate, trigger_time, time_before, time_after):
+                       samplerate, trigger_time, time_before, time_after,
+                       channels=None):
     '''
     Load a segment of HDF timeseries data given start and end times and a sampling rate.
 
@@ -418,7 +419,8 @@ def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name,
         trigger_time (float): time (in seconds) in the recording at which the desired segment starts
         time_before (float): time (in seconds) to include before the trigger times
         time_after (float): time (in seconds) to include after the trigger times
-
+        channels (list, optional): list of channels to include in the segment (default all channels
+    
     Raises:
         ValueError: if the dataset cannot be found in the file
 
@@ -437,13 +439,16 @@ def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name,
     
     # Get the ts segment
     ts_data = hdf[dataname]
-    segment = preproc.get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate)
-    
+    if channels is not None:
+        segment = preproc.get_trial_data(ts_data[:,channels], trigger_time, time_before, time_after, samplerate)
+    else:
+        segment = preproc.get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate)
+
     hdf.close()
     return segment
 
 def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
-                       samplerate, start_time, end_time):
+                       samplerate, start_time, end_time, channels=None):
     '''
     Load a segment of HDF timeseries data given a start and end time and a sampling rate.
 
@@ -455,6 +460,7 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
         samplerate (float): the sampling rate of the data in Hz
         start_time (float): time (in seconds) in the recording at which the desired segment starts
         end_time (float): time (in seconds) in the recording at which the desired segment ends
+        channels (list, optional): list of channels to include in the segment (default all channels)
 
     Raises:
         ValueError: if the dataset cannot be found in the file
@@ -474,7 +480,10 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
     
     # Get the ts segment
     ts_data = hdf[dataname]
-    segment = preproc.get_data_segment(ts_data, start_time, end_time, samplerate)
+    if channels is not None:
+        segment = preproc.get_data_segment(ts_data[:,channels], start_time, end_time, samplerate)
+    else:
+        segment = preproc.get_data_segment(ts_data, start_time, end_time, samplerate)
     
     hdf.close()
     return segment
