@@ -915,6 +915,7 @@ def get_ref_dis_frequencies(data, metadata):
 
     # recreate random trial order of reference & disturbance frequencies
     np.random.seed(params['seed'])
+    o = np.random.rand(params['ntrials'],primes.size) # phase offset - need to generate this like in bmi3d to reproduce correct random order
     order = np.random.choice([0,1])
     if order == 0:
         trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
