@@ -328,7 +328,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/", cached=Fals
         _load_hdf_data_cached.cache_clear()
     return _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group=data_group)
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Cached version of load_hdf_data
@@ -369,7 +369,7 @@ def load_hdf_group(data_dir, hdf_filename, group="/", cached=False):
         _load_hdf_group_cached.cache_clear()
     return _load_hdf_group_cached(data_dir, hdf_filename, group=group)
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def _load_hdf_group_cached(data_dir, hdf_filename, group="/"):
     '''
     Loads any datasets from the given hdf group into a dictionary. Also will
