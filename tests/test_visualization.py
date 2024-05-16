@@ -223,14 +223,23 @@ class NeuralDataPlottingTests(unittest.TestCase):
         n_channels = 30
         frequency = 100
         amplitude = 0.5
-        acq_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
-        acq_ch = (np.arange(n_channels)+1).astype(int)
+        elec_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
         elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
         
         plt.figure()
-        plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, label='test')
+        plot_corr_over_elec_distance(elec_data, elec_pos, label='test')
         filename = 'corr_over_dist.png'
         savefig(docs_dir,filename)
+
+    def test_plot_corr_across_entries(self):
+        subjects = ['beignet', 'beignet']
+        ids = [5974, 5974]
+        dates = ['2022-07-01', '2022-07-01']
+        plt.figure()
+        plot_corr_across_entries(data_dir, subjects, ids, dates)
+        filename = 'corr_over_entries.png'
+        savefig(docs_dir,filename)
+
 
     
 class CurveFittingTests(unittest.TestCase):
@@ -241,6 +250,7 @@ class CurveFittingTests(unittest.TestCase):
         mds_true = np.linspace(1, 3, nunits)/2
         pds_offset = np.arange(-45,270,45)
         data = np.zeros((nunits,8))*np.nan
+        np.random.seed(0)
         for ii in range(nunits):
             noise = np.random.normal(1, 0.2, size=(1,8))
             data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
@@ -256,6 +266,7 @@ class CurveFittingTests(unittest.TestCase):
         
     def test_plot_boxplots(self):
         # Rectangular array
+        np.random.seed(0)
         data = np.random.normal(0, 2, size=(20, 5))
         xaxis_pts = np.array([2,3,4,4.75,5.5])
         fig, ax = plt.subplots(1,1)
