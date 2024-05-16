@@ -1,11 +1,9 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 import string
-from typing import Tuple, Union
 import warnings
 import seaborn as sns
 import matplotlib
-import matplotlib.cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import cm
@@ -504,7 +502,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
         extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
 
     # Set the 'bad' color to something different
-    cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
+    cmap = copy.copy(plt.get_cmap(cmap))
     if nan_color:
         cmap.set_bad(color=nan_color)
     
