@@ -5,6 +5,7 @@ from typing import Tuple, Union
 import warnings
 import seaborn as sns
 import matplotlib
+import matplotlib.cm
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import cm
