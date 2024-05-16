@@ -439,10 +439,7 @@ def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name,
     
     # Get the ts segment
     ts_data = hdf[dataname]
-    if channels is not None:
-        segment = preproc.get_trial_data(ts_data[:,channels], trigger_time, time_before, time_after, samplerate)
-    else:
-        segment = preproc.get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate)
+    segment = preproc.get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate, channels=channels)
 
     hdf.close()
     return segment
@@ -480,10 +477,7 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
     
     # Get the ts segment
     ts_data = hdf[dataname]
-    if channels is not None:
-        segment = preproc.get_data_segment(ts_data[:,channels], start_time, end_time, samplerate)
-    else:
-        segment = preproc.get_data_segment(ts_data, start_time, end_time, samplerate)
+    segment = preproc.get_data_segment(ts_data, start_time, end_time, samplerate, channels=channels)
     
     hdf.close()
     return segment

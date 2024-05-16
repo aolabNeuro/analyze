@@ -396,7 +396,7 @@ def trial_align_events(aligned_events, aligned_times, event_to_align):
 
     return trial_aligned_times
 
-def get_trial_data(data, trigger_time, time_before, time_after, samplerate):
+def get_trial_data(data, trigger_time, time_before, time_after, samplerate, channels=None):
     '''
     Get one chunk of data triggered by a trial start time. Chunks are padded with
     nan if the data does not span the entire chunk
@@ -413,6 +413,11 @@ def get_trial_data(data, trigger_time, time_before, time_after, samplerate):
     '''
     dur = time_after + time_before
     n_samples = int(np.floor(dur * samplerate))
+    if channels is not None:
+        nch = len(channels)
+    else:
+        nch = data.shape[1]
+        channels = ...
 
     if data.ndim == 1:
         data.shape = (data.shape[0], 1)
@@ -421,13 +426,13 @@ def get_trial_data(data, trigger_time, time_before, time_after, samplerate):
     if np.isnan(t0):
         return
     
-    trial_data = np.zeros((n_samples,data.shape[1]))*np.nan
+    trial_data = np.zeros((n_samples,nch))*np.nan
     idx_start = int(np.round(t0*samplerate, 0))
     idx_end = min(data.shape[0], idx_start+n_samples)
     if idx_start < 0:
-        trial_data[-idx_start:idx_end-idx_start] = data[:idx_end,:]
+        trial_data[-idx_start:idx_end-idx_start] = data[:idx_end,channels]
     else:
-        trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,:]
+        trial_data[:(idx_end-idx_start),:] = data[idx_start:idx_end,channels]
     return trial_data
 
 def trial_align_data(data, trigger_times, time_before, time_after, samplerate):
@@ -557,7 +562,7 @@ def get_trial_segments_and_times(events, times, start_events, end_events):
             idx_end += 1
     return segments, segment_times
 
-def get_data_segment(data, start_time, end_time, samplerate):
+def get_data_segment(data, start_time, end_time, samplerate, channels=None):
     '''
     Gets a single arbitrary length sengment of data from a timeseries
 
@@ -566,13 +571,19 @@ def get_data_segment(data, start_time, end_time, samplerate):
         start_time (float): start of the segment in seconds
         end_time (float): end of the segment in seconds
         samplerate (int): sampling rate of the data
+        channels (list, optional): list of channels to include in the segment.
+            If None, include all channels. Useful for subselecting HDF data without
+            loading it all into memory.
 
     Returns:
         (nt', ndim): short segment of data from the given times
     '''
     idx_data_start = int(start_time*samplerate)
     idx_data_end = int(end_time*samplerate)
-    return data[idx_data_start:idx_data_end]
+    if channels is not None:
+        return data[idx_data_start:idx_data_end,channels]
+    else:
+        return data[idx_data_start:idx_data_end]
 
 def get_data_segments(data, segment_times, samplerate):
     '''

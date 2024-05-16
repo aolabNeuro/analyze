@@ -873,6 +873,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
+        # Test getting a single channel
+        ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'],
+                                 trigger_times, time_before, time_after, datatype='lfp', channels=[0])
+
+        self.assertEqual(ts_data.shape[1], 1)
+
+
     def test_tabulate_ts_segments(self):
 
         subjects = [self.subject]

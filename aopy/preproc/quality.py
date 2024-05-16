@@ -1,5 +1,4 @@
 import copy
-import matplotlib
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
@@ -217,7 +216,7 @@ def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
         erp = np.nanmax(erp, axis=0)
         erp[bad_ch_trials] = np.nan
         trials = np.arange(ntr)
-        cmap = copy.copy(matplotlib.cm.get_cmap('viridis'))
+        cmap = copy.copy(plt.get_cmap('viridis'))
         cmap.set_bad(color='w') # set the 'bad' color to white
         im = plot_image_by_time(trials, erp.T, ylabel='channel', cmap=cmap)
         cbar = plt.colorbar(im)
@@ -288,7 +287,7 @@ def detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=False):
         data = abs(data - median)/sd
         data[bad_timepoints] = np.nan
         time = np.arange(nt)
-        cmap = copy.copy(matplotlib.cm.get_cmap('viridis'))
+        cmap = copy.copy(plt.get_cmap('viridis'))
         cmap.set_bad(color='w') # set the 'bad' color to white
         im = plot_image_by_time(time, data, ylabel='channel', cmap=cmap)
         cbar = plt.colorbar(im)
