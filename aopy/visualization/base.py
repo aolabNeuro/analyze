@@ -1677,7 +1677,7 @@ def plot_corr_across_entries(preproc_dir, subjects, ids, dates, band=(70,200), t
         plot_corr_over_elec_distance(filt_data, elec_pos, label=date, ax=ax)
 
     leg = ax.legend(bbox_to_anchor = (1,1))
-    for obj in leg.legendHandles:
+    for obj in leg.legend_handles:
         obj.set_linewidth(4.0)
 
 def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwargs):
