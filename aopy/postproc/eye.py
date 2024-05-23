@@ -90,3 +90,44 @@ def get_saccade_event(onset_times, duration, event_times, event_codes):
     offset_event = event_codes[offset_indices]
     
     return onset_event, offset_event
+
+def get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx):
+    '''
+    Finds a relevant saccade index which is for looking at the peripheral target from the center target in a given trial
+    onset_target and offset_target can be obtained by get_saccade_target_index.
+    If there are multiple relevant saccades, choose the saccade whose distance is the largest among other saccades
+    If there is no relevant saccades, the saccade index becomes -1
+    
+    Args:
+        onset_target (nsaccade): target index at saccade start in a given trial
+        offset_target (nsaccade): target index at saccade end in a given trial  
+        saccade_distance (nsaccade): eye movement distance in a given trial
+        target_idx (int): target index in a given trial
+        
+    Returns:
+        (int): relevant saccade index with the largest distance among saccades. index becomes -1 if there is no relevant saccades.
+    '''
+    
+    # Get saccade target index when saccade starts and ends
+    saccade_target_index = np.vstack([onset_target,offset_target])
+    
+    # Get saccade target index that relevant saccade (saccade for the peripheral target) should have
+    relevant_saccade_target_idx = np.array([0, int(target_idx)])
+
+    dist = []
+    saccade_idx = []
+    relevant_saccade_idx = -1
+    
+    # Check if each saccade is relevant or not
+    for isaccade in range(onset_target.shape[0]):
+
+        # find a saccade for the peripheral target
+        if np.all(saccade_target_index[:,isaccade] == relevant_saccade_target_idx):
+            saccade_idx.append(isaccade) # get saccade index about potential relevant saccades
+            dist.append(saccade_distance[isaccade]) # get eye movement distance about potential relevant saccades
+    
+    # Get a relevant saccade index with the largest distance
+    if len(saccade_idx):
+        relevant_saccade_idx = saccade_idx[np.argmax(dist)]  
+        
+    return relevant_saccade_idx
