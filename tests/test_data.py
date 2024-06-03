@@ -694,7 +694,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 40.42532)
+        np.testing.assert_allclose(trial['penalty_start_time'], 40.32944)
         self.assertEqual(trial['penalty_event'], 65) # timeout penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
@@ -709,7 +709,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 42.64848)
+        np.testing.assert_allclose(trial['penalty_start_time'], 42.66276)
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
