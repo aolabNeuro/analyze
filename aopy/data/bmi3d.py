@@ -656,6 +656,8 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
+    elif datatype == 'cycle':
+        data_cycles = np.arange(len(exp_data['task']))
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
     else:
