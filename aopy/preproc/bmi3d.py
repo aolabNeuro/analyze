@@ -122,7 +122,7 @@ def parse_bmi3d(data_dir, files):
     # Keep track of the software version
     metadata['bmi3d_preproc_date'] = datetime.now()
     try:
-        metadata['bmi3d_preproc_version'] = version('aopy')
+        metadata['bmi3d_preproc_version'] = version('aolab-aopy')
     except:
         metadata['bmi3d_preproc_version'] = 'unknown'
     
@@ -284,7 +284,7 @@ def _parse_bmi3d_v1(data_dir, files):
         # Analog cursor out (A3, A4) since version 11
         if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
             cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'], metadata_dict['cursor_z_ach']]]
-            cursor_analog = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
+            cursor_analog, _ = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
             cursor_analog_samplerate = 1000
             cursor_analog = precondition.downsample(cursor_analog, analog_samplerate, cursor_analog_samplerate)
             max_voltage = 3.34 # using teensy 3.6
@@ -315,6 +315,22 @@ def _parse_bmi3d_v1(data_dir, files):
             if dch in metadata_dict:
                 trigger_name = dch[:-4]
                 data_dict[trigger_name] = base.get_dch_data(digital_data, digital_samplerate, metadata_dict[dch])
+
+        # Optical switch
+        if 'qwalor_switch_rdy_dch' in metadata_dict: 
+            digital_samplerate = metadata['samplerate']
+            switch_rdy_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_switch_rdy_dch']) 
+            ecube_switch_moving = utils.extract_bits(digital_data, switch_rdy_mask)
+            switch_bit_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_switch_data_dch']) # 0xff0000
+            ecube_switch_data = utils.extract_bits(digital_data, switch_bit_mask) + 1 # change to 1-index
+            masked_ecube_switch_data = ecube_switch_data.copy()
+            masked_ecube_switch_data[ecube_switch_moving == 1] = 0 # mask data when the switch isn't ready
+            ecube_switch_timestamps, ecube_switch_channel = utils.detect_edges(masked_ecube_switch_data, digital_samplerate, 
+                rising=True, falling=True, check_alternating=False)
+            optical_switch = np.empty((len(ecube_switch_timestamps),), dtype=[('timestamp', 'f8'), ('channel', 'u1')])
+            optical_switch['timestamp'] = ecube_switch_timestamps
+            optical_switch['channel'] = ecube_switch_channel # 1-indexed; positive is rising edge, zero is falling edge            
+            data_dict['optical_switch'] = optical_switch
 
     return data_dict, metadata_dict
 
@@ -787,7 +803,7 @@ def get_peak_power_mW(exp_metadata):
         peak_power_mW = 25  
 
     return peak_power_mW
-
+    
 def _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor='qwalor_sensor', 
                                     calibration_file='qwalor_447nm_ch2.yaml', debug=False, **kwargs):
     '''
@@ -880,12 +896,10 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
 
     Returns:
         tuple: tuple containing:
-            | **corrected_times (nevent):** corrected laser timings (seconds)
-            | **corrected_widths (nevent):** corrected laser widths (seconds)
-            | **corrected_powers (nevent):** corrected laser powers (fraction of maximum)
-            | **times_not_found (nevent):** boolean array of times without onset and offset sensor measurements
-            | **widths_above_thr (nevent):** boolean array of widths above the given threshold from the expected width
-            | **powers_above_thr (nevent):** boolean array of powers above the given threshold from the expected power
+            | **times (nevent):** laser timings (seconds)
+            | **widths (nevent):** laser widths (seconds)
+            | **gains (nevent):** laser gains (fraction)
+            | **powers (nevent):** calibrated laser powers (mW)
     '''
     # Use the digital trigger as the ground truth of timing
     timestamps = exp_data[laser_trigger]['timestamp']
@@ -926,7 +940,6 @@ def _get_laser_trial_times(exp_data, exp_metadata, laser_trigger='qwalor_trigger
         plt.figure()
         visualization.plot_laser_sensor_alignment(sensor_data*sensor_voltsperbit, samplerate, times)
 
-
     return times, widths, gains, powers
 
 def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwalor_trigger', 
@@ -962,8 +975,8 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
             raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
         exp_data, exp_metadata = parse_bmi3d(data_dir, files)
         
-    # Older experiments need to be handled differently
-    if exp_metadata['sync_protocol_version'] > 12:
+    # Experiments need to be handled differently depending on whether the trigger was recorded
+    if laser_trigger in exp_data:
 
         # Return ground truth timestamps of when the laser should have been turned on
         return _get_laser_trial_times(exp_data, exp_metadata, laser_trigger=laser_trigger,
@@ -973,7 +986,72 @@ def get_laser_trial_times(preproc_dir, subject, te_id, date, laser_trigger='qwal
         # Use the bmi3d events as an estimate of timing, then locate the nearby sensor measurements
         return _get_laser_trial_times_old_data(exp_data, exp_metadata, laser_sensor=laser_sensor, 
                                                debug=debug, **kwargs)
-                                                                                
+
+def get_switched_stimulation_sites(preproc_dir, subject, te_id, date, trigger_timestamps, 
+                                   return_switch_ch=False, debug=False):
+    '''
+    Get the stimulation sites at the given timestamps from an experiment where an optical switch was used.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object
+        date (str): Date of recording
+        trigger_timestamps (nt,): timestamps of interest
+        return_switch_ch (bool, optional): also return the switch channel at the computed times
+        debug (bool, optional): print a plot of the optical switch channel at the computed times
+        
+    Returns:
+        (nt,): stimulation sites at the given timestamps, or np.nan if no site was selected.
+    '''
+    exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+    # Check that the optical switch was present
+    if 'qwalor_switch_rdy_dch' not in exp_metadata:
+        raise ValueError("No optical switch data found in the experiment")
+
+    # Load the optical switch data if it's not already in the bmi3d data
+    if 'optical_switch' not in exp_data:
+        files, data_dir = aodata.get_source_files(preproc_dir, subject, te_id, date)
+        hdf_filepath = os.path.join(data_dir, files['hdf'])
+        if not os.path.exists(hdf_filepath):
+            raise FileNotFoundError(f"Could not find raw files for te {te_id} ({hdf_filepath})")
+        exp_data, exp_metadata = parse_bmi3d(data_dir, files)
+
+    optical_switch = exp_data['optical_switch']
+    optical_switch_timestamps = optical_switch['timestamp']
+    optical_switch_channels = optical_switch['channel']
+    
+    switch_channels = np.zeros((len(trigger_timestamps),), dtype='float')
+    for i, t in enumerate(trigger_timestamps):
+
+        # Find the most recent switch time before the trigger time
+        idx = np.searchsorted(optical_switch_timestamps, t, side='right') - 1
+        if idx < 0: # before the first switch
+            switch_channels[idx] = optical_switch_channels[0]
+        elif len(optical_switch_timestamps) > idx + 1 and optical_switch_timestamps[idx+1] < t:
+            switch_channels[idx] = 0
+        else:
+            switch_channels[i] = optical_switch_channels[idx]
+    switch_channels[switch_channels <= 0] = np.nan # no site selected
+    switch_channels -= 1 # 1-indexed to 0-indexed
+
+    stimulation_site = [exp_metadata['stimulation_site'][int(ch)] if not np.isnan(ch) else None for ch in switch_channels]
+
+    if debug:
+        plt.figure()
+        plt.step(optical_switch_timestamps, optical_switch_channels, where='post')
+        plt.plot(trigger_timestamps, switch_channels + 1, 'ro')
+        for i, txt in enumerate(stimulation_site):
+            plt.text(trigger_timestamps[i], switch_channels[i] + 1, txt, fontsize=6, ha='center', va='center', color='w')
+        plt.xlabel('time (s)')
+        plt.ylabel('switch channel (1-indexed)')
+
+    if return_switch_ch:
+        return stimulation_site, switch_channels
+    else:
+        return stimulation_site
+
 def get_target_events(exp_data, exp_metadata):
     '''
     For target acquisition tasks, get an (n_event, n_target) array encoding the position
@@ -1031,6 +1109,7 @@ def get_ref_dis_frequencies(data, metadata):
     on each trial of the experiment.
 
     Note:
+        This function should be used with caution on task entries that have mismatched sync and bmi3d events!
         Prior to 11-16-2022, bmi3d did not allow the number of experimental frequencies to be set by the experimenter, 
             and this parameter defaulted to 8.
         Prior to 2-23-2023, bmi3d did not save the generator index in the task data, and this had to be calculated 
@@ -1091,6 +1170,7 @@ def get_ref_dis_frequencies(data, metadata):
 
     # recreate random trial order of reference & disturbance frequencies
     np.random.seed(params['seed'])
+    o = np.random.rand(params['ntrials'],primes.size) # phase offset - need to generate this like in bmi3d to reproduce correct random order
     order = np.random.choice([0,1])
     if order == 0:
         trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
@@ -1104,7 +1184,10 @@ def get_ref_dis_frequencies(data, metadata):
     cycles = data['bmi3d_events']['time'] # bmi3d cycle number
 
     start_codes = [metadata['event_sync_dict']['TARGET_ON']]
-    end_codes = [metadata['event_sync_dict']['TRIAL_END']]
+    if 'PAUSE_START' in metadata['event_sync_dict']:
+        end_codes = [metadata['event_sync_dict']['TRIAL_END'], metadata['event_sync_dict']['PAUSE_START']]
+    else:
+        end_codes = [metadata['event_sync_dict']['TRIAL_END'], metadata['event_sync_dict']['PAUSE']]
     
     _, segment_cycles = base.get_trial_segments(events, cycles, start_codes, end_codes)
 

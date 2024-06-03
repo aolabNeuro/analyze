@@ -216,6 +216,31 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plt.tight_layout()
         savefig(docs_dir,filename)
 
+    def test_plot_corr_over_elec_distance(self):
+
+        duration = 0.5
+        samplerate = 1000
+        n_channels = 30
+        frequency = 100
+        amplitude = 0.5
+        elec_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
+        elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
+        
+        plt.figure()
+        plot_corr_over_elec_distance(elec_data, elec_pos, label='test')
+        filename = 'corr_over_dist.png'
+        savefig(docs_dir,filename)
+
+    def test_plot_corr_across_entries(self):
+        subjects = ['beignet', 'beignet']
+        ids = [5974, 5974]
+        dates = ['2022-07-01', '2022-07-01']
+        plt.figure()
+        plot_corr_across_entries(data_dir, subjects, ids, dates)
+        filename = 'corr_over_entries.png'
+        savefig(docs_dir,filename)
+
+
     
 class CurveFittingTests(unittest.TestCase):
     def test_plot_tuning_curves(self):
@@ -225,6 +250,7 @@ class CurveFittingTests(unittest.TestCase):
         mds_true = np.linspace(1, 3, nunits)/2
         pds_offset = np.arange(-45,270,45)
         data = np.zeros((nunits,8))*np.nan
+        np.random.seed(0)
         for ii in range(nunits):
             noise = np.random.normal(1, 0.2, size=(1,8))
             data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
@@ -240,6 +266,7 @@ class CurveFittingTests(unittest.TestCase):
         
     def test_plot_boxplots(self):
         # Rectangular array
+        np.random.seed(0)
         data = np.random.normal(0, 2, size=(20, 5))
         xaxis_pts = np.array([2,3,4,4.75,5.5])
         fig, ax = plt.subplots(1,1)
@@ -348,7 +375,7 @@ class AnimationTests(unittest.TestCase):
         aopy.visualization.saveanim(ani, docs_dir, 'test_anim_behavior.mp4')
                 
 
-class OtherPlottingTests(unittest.TestCase):
+class KinematicsPlottingTests(unittest.TestCase):
 
     def test_plot_targets(self):
 
@@ -617,6 +644,8 @@ class OtherPlottingTests(unittest.TestCase):
         filename = 'events_time'
         savefig(write_dir,filename)
 
+class TestPlotUtils(unittest.TestCase):
+
     @unittest.skip("bug in new versions of matplotlib, waiting for resolution")
     def test_advance_plot_color(self):
         plt.subplots()
@@ -634,22 +663,6 @@ class OtherPlottingTests(unittest.TestCase):
         plt.plot(np.arange(10), 1 + np.ones(10))
 
         filename = 'reset_plot_color.png'
-        savefig(docs_dir,filename)
-
-    def test_plot_corr_over_elec_distance(self):
-
-        duration = 0.5
-        samplerate = 1000
-        n_channels = 30
-        frequency = 100
-        amplitude = 0.5
-        acq_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
-        acq_ch = (np.arange(n_channels)+1).astype(int)
-        elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
-        
-        plt.figure()
-        plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, label='test')
-        filename = 'corr_over_dist.png'
         savefig(docs_dir,filename)
 
     def test_savefig(self):
@@ -671,6 +684,32 @@ class OtherPlottingTests(unittest.TestCase):
         assert isinstance(axes[1, 0], plt.Axes)
         assert isinstance(axes[1, 1], plt.Axes)
         aopy.visualization.savefig(docs_dir, "labeled_subplots.png")
+
+    def test_place_subplots(self):
+        fig = plt.figure(figsize=(4,6))
+        positions = [[1, 2], [3, 4]]
+        width = 1
+        height = 1
+        ax = place_subplots(fig, positions, width, height)
+        ax[0].annotate('1', (0.5,0.5), ha='center', va='center', fontsize=40)
+        ax[1].annotate('2', (0.5,0.5), ha='center', va='center', fontsize=40)
+        aopy.visualization.savefig(docs_dir, "place_subplots_1.png", transparent=False)
+
+        fig = plt.figure(figsize=(4,6))
+        positions = [[1, 1.5], [3, 4.5]]
+        width = 2
+        height = 3
+        ax = place_subplots(fig, positions, width, height)
+        ax[0].annotate('1', (0.5,0.5), ha='center', va='center', fontsize=40)
+        ax[1].annotate('2', (0.5,0.5), ha='center', va='center', fontsize=40)
+        aopy.visualization.savefig(docs_dir, "place_subplots_2.png", transparent=False)
+
+    def test_place_Opto32_subplots(self):
+        fig, ax = place_Opto32_subplots()
+        for i, ax in enumerate(ax):
+            ax.annotate(str(i+1), (0.5,0.5), ha='center', va='center',  fontsize=40)
+        aopy.visualization.savefig(docs_dir, "place_Opto32_subplots.png", transparent=False)
+
 
 class TestEyePlots(unittest.TestCase):
 

@@ -167,17 +167,17 @@ class DigitalCalcTests(unittest.TestCase):
         
         fps = 120
         nt = fps*duration
-        offset = 0.1 # timestamps start strictly after time zero
+        offset = 0.01 # timestamps start strictly after time zero
         framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
         drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
         timestamps = offset + np.arange(nt)/fps + framerate_error + drift
         samples = (timestamps * samplerate).astype(int)
 
         frame_data = ground_truth_data[samples,:]
-        interp_samplerate = 1000
+        interp_samplerate = 120
         interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
 
-        fig, ax = plt.subplots(2,1)
+        fig, ax = plt.subplots(3,1, figsize=(5,6))
         visualization.plot_timeseries(frame_data[:,0], fps, ax=ax[0])
         visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[0])
         ax[0].set_title(f'{freq} Hz signal')
@@ -189,10 +189,20 @@ class DigitalCalcTests(unittest.TestCase):
         ax[1].set_xscale('linear')
         ax[1].set_xlim(0,30)
         ax[1].set_ylabel('Peak amplitude')
+        ax[1].legend(['without sampling', 'with sampling'])
         plt.tight_layout()
 
+        # Compare with different upsampling rates
+        visualization.plot_timeseries(ground_truth_data[:,0], samplerate, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120)
+        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120*100)
+        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
+        ax[2].set_xlim(0.0,0.3)
+        ax[2].legend(['original', 'no upsample', 'upsample to 10,000 Hz'])
+
         filename = 'sample_timestamped_data.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_get_dch_data(self):
         dig_data = [0, 1, 0, 1, 1, 0]
@@ -1091,6 +1101,26 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('exp_data', contents)
         self.assertIn('mocap_data', contents)
 
+    def test_get_switched_stimulation_sites(self):
+        subject = 'test'
+        te_id = 15494
+        date = '2024-03-19'
+
+        # Some code to make the preprocessed file (raw data too big to store here)
+        # files = {}
+        # files['hdf'] = 'test20240319_08_te15494.hdf'
+        # files['ecube'] = '2024-03-19_BMI3D_te15494'
+        # proc_single(data_dir, files, data_dir, subject, te_id, date, ['exp'], overwrite=True)
+
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, subject, te_id, date)
+        times, _, _, _ = preproc.bmi3d._get_laser_trial_times(
+            exp_data, exp_metadata, laser_trigger='qwalor_trigger', laser_sensor='qwalor_sensor'
+        )
+        sites = get_switched_stimulation_sites(data_dir, subject, te_id, date, times, debug=True)
+        visualization.savefig(docs_dir, 'switched_stimulation_sites.png', transparent=False)
+
+        np.testing.assert_allclose(sites, 0)
+
     def test_get_laser_trial_times(self):
         time_before = 0.05
         time_after = 0.05
@@ -1463,7 +1493,27 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(np.all(~bad_trials[4:]))
 
         filename = 'detect_bad_trials.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+    def test_detect_bad_timepoints(self):
+        nt = 500
+        nch = 10
+        np.random.seed(0)
+        data = np.random.normal(size=(nt, nch)) 
+        data[50:52,:] += 10 # timepoint is noisy across all electrodes
+        data[100:102,2:] -= 10 # timepoint is noisy on most electrodes
+        for t in range(nt-100,nt):
+            data[t,t%nch] -= 10 # single timepoint is noisy but different timepoint for each channel
+                
+        bad_timepoints = quality.detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=True)
+            
+        filename = 'detect_bad_timepoints.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+        self.assertEqual(len(bad_timepoints), nt)
+        self.assertTrue(np.all(bad_timepoints[50:52]))
+        self.assertTrue(np.all(bad_timepoints[100:102]))
+        self.assertFalse(np.any(bad_timepoints[-100:]))
+
 
     def test_high_freq_data_detection(self):
         bad_data_mask, bad_data_mask_all_ch = quality.high_freq_data_detection(
@@ -1482,6 +1532,14 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(sat_data_mask.shape, (self.data.shape[0],))
         self.assertEqual(np.count_nonzero(sat_data_mask), 0)
 
+    def test_detect_bad_exp_data(self):
+        # first entry doesn't exist, second has buggy sync events, third is normal
+        subjects = ['beignet', 'beignet', 'beignet']
+        ids = [100, 8694, 8695]
+        dates = [datetime.date(2023, 3, 10), datetime.date(2023, 3, 10), datetime.date(2023, 3, 10)]
+        bad_entries = detect_bad_exp_data(data_dir, subjects, ids, dates)
+        np.testing.assert_array_equal(bad_entries, [ [subjects[0],dates[0],ids[0]], [subjects[1],dates[1],ids[1]] ])
+        
 class OculomaticTests(unittest.TestCase):
     
     def test_parse_oculomatic(self):

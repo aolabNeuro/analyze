@@ -344,6 +344,35 @@ def fit_linear_regression(X:np.ndarray, Y:np.ndarray, coefficient_coeff_warning_
         
     return slope, intercept, corr_coeff
 
+def calc_freq_domain_values(data, samplerate):
+    '''
+    Use FFT to decompose time series data into frequency domain and return
+    non-negative frequency components
+    For math details, see: https://www.sjsu.edu/people/burford.furman/docs/me120/FFT_tutorial_NI.pdf
+
+    Args:
+        data (nt, nch): timeseries data, can be a single channel vector
+        samplerate (float): sampling rate of the data
+
+    Returns:
+        tuple: Tuple containing:
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **freqvalues (nt/2, nch):** array of complex numbers at the above frequencies (each containing magnitude and phase)
+    '''
+    if np.ndim(data) < 2:
+        data = np.expand_dims(data, 1)
+
+    # Compute FFT along time dimension
+    freq_data = np.fft.fft(data, axis=0)
+    length = np.shape(freq_data)[0]
+    freq = np.fft.fftfreq(length, d=1./samplerate)
+
+    # Only take non-negative frequency components
+    non_negative_freq = freq[freq>=0]
+    non_negative_freq_data = freq_data[freq>=0,:]/complex(length,0) # normalize by length
+    non_negative_freq_data[1:,:] = non_negative_freq_data[1:,:]*2 # account for half the peak amplitude being at the negative frequency component
+    return non_negative_freq, non_negative_freq_data
+
 def calc_freq_domain_amplitude(data, samplerate, rms=False):
     '''
     Use FFT to decompose time series data into frequency domain to calculate the
@@ -356,20 +385,15 @@ def calc_freq_domain_amplitude(data, samplerate, rms=False):
 
     Returns:
         tuple: Tuple containing:
-            | **freqs (nt):** array of frequencies (essentially the x axis of a spectrogram) 
-            | **amplitudes (nt, nch):** array of amplitudes at the above frequencies (the y axis)
+            | **freqs (nt/2):** array of frequencies (essentially the x axis of a spectrogram) 
+            | **amplitudes (nt/2, nch):** array of amplitudes at the above frequencies (the y axis)
     '''
-    if np.ndim(data) < 2:
-        data = np.expand_dims(data, 1)
+    non_negative_freq, non_negative_freq_data = calc_freq_domain_values(data, samplerate)
 
-    # Compute FFT along time dimension
-    freq_data = np.fft.fft(data, axis=0)
-    length = np.shape(freq_data)[0]
-    freq = np.fft.fftfreq(length, d=1./samplerate)
-    data_ampl = abs(freq_data[freq>=0,:])*2/length # compute the one-sided amplitude
-    non_negative_freq = freq[freq>=0]
+    # Compute the one-sided amplitude
+    data_ampl = abs(non_negative_freq_data)
 
-    # Apply factor of root 2 to turn amplitude into RMS amplitude
+    # Divide non-DC components by root 2 to turn amplitude into RMS amplitude
     if rms:
         data_ampl[1:,:] = data_ampl[1:,:]/np.sqrt(2)
     return non_negative_freq, data_ampl
@@ -493,13 +517,12 @@ def calc_rolling_average(data, window_size=11, mode='copy'):
         data_convolved = data_convolved[0]*np.ones(data.shape)
     return data_convolved
 
-def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
+def calc_corr_over_elec_distance(elec_data, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
     '''
     Calculates mean absolute correlation between acq_data across channels with the same distance between them.
     
     Args:
-        acq_data (nt, nch): acquisition data indexed by acq_ch
-        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_data (nt, nelec): electrode data with nch corresponding to elec_pos
         elec_pos (nelec, 2): x, y position of each electrode
         bins (int or array): input into scipy.stats.binned_statistic, can be a number or a set of bins
         method (str, optional): correlation method to use ('pearson' or 'spearman')
@@ -510,23 +533,24 @@ def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='sp
             | **dist (nbins):** electrode distance at each bin
             | **corr (nbins):** correlation at each bin
 
+    Updated:
+        2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
     '''
+    assert elec_data.shape[1] == elec_pos.shape[0], "Number of electrodes don't match!"
     dist = utils.calc_euclid_dist_mat(elec_pos)
     if method == 'spearman':
-        c, _ = stats.spearmanr(acq_data, axis=0)
+        c, _ = stats.spearmanr(elec_data, axis=0)
     elif method == 'pearson':
-        c = np.corrcoef(acq_data.T)
+        c = np.corrcoef(elec_data.T)
     else:
         raise ValueError(f"Unknown correlation method {method}")
-    
-    c_ = c[np.ix_(acq_ch-1, acq_ch-1)] # note use of open mesh to get the right logical index
-    
+        
     if exclude_zero_dist:
         zero_dist = dist == 0
         dist = dist[~zero_dist]
-        c_ = c_[~zero_dist]
+        c = c[~zero_dist]
         
-    corr, edges, _ = stats.binned_statistic(dist.flatten(), np.abs(c_.flatten()), statistic='mean', bins=bins)
+    corr, edges, _ = stats.binned_statistic(dist.flatten(), np.abs(c.flatten()), statistic='mean', bins=bins)
     dist = (edges[:-1] + edges[1:]) / 2
 
     return dist, corr
@@ -1643,3 +1667,71 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     NCC[nan_idx1] = np.nan
     
     return NCC, shifts
+
+def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
+    '''
+    Compute a confidence interval from samples, not the mean of samples
+    If you want to compute it for the mean of samples, use scipy.stats.t.interval.
+    
+    Args:
+        sample (nsamples): data samples
+        hist_bins (int or sequence of scalars): the number of bins or array of bin edges
+        alpha (float): significance level to define a confidece interval. Defaults to 0.025
+        ax (pyplot.Axes, optional): axis on which to plot data histogram and confidence interval. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to ax.hist()
+        
+    Returns:
+        (list): lower and upper bounds in the confidence interval
+    '''
+    
+    # Compute cdf from histogram in samples
+    count, bin_edges = np.histogram(sample, bins=hist_bins)
+    bin_edges = bin_edges[1:] - (bin_edges[1] - bin_edges[0])/2 # Use center of bins
+    pdf = count / sum(count)
+    cdf = np.cumsum(pdf)
+    
+    # Compute lower and upper bound
+    lower_bound = bin_edges[np.where(cdf>alpha)[0][0]]
+    upper_bound = bin_edges[np.where(cdf<1-alpha)[0][-1]]
+    
+    # Plot histogram and confidence interval
+    if ax is not None:
+        ax.hist(sample,**kwarg)
+        ax.axvline(lower_bound, color='r', linestyle='--')
+        ax.axvline(upper_bound, color='r', linestyle='--')
+        ax.set(ylabel='# count')
+        
+        ax2 = ax.twinx()
+        ax2.plot(bin_edges, cdf, 'k')
+        ax2.set(ylabel='cdf')
+        
+    return [lower_bound, upper_bound]
+
+def calc_confidence_interval_overlap(CI1, CI2):
+    '''
+    Calculate the overlap between two confidence intervals.
+
+    Parameters:
+        CI1 (tuple or list): Tuple containing the lower and upper bounds of the first confidence interval.
+        CI2 (tuple or list): Tuple containing the lower and upper bounds of the second confidence interval.
+
+    Returns:
+        (float): Overlap ratio (0 to 1) between the two confidence intervals.
+    '''
+    
+    lower1, upper1 = CI1
+    lower2, upper2 = CI2
+    
+    # Calculate overlap
+    overlap_lower = max(lower1, lower2)
+    overlap_upper = min(upper1, upper2)
+    overlap_width = max(0, overlap_upper - overlap_lower)
+
+    # Calculate widths of the intervals
+    width1 = upper1 - lower1
+    width2 = upper2 - lower2
+    
+    # Calculate overlap ratio
+    overlap = (overlap_width / min(width1, width2))
+    
+    return overlap

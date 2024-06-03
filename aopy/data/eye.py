@@ -70,8 +70,8 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
         eye_metadata['calibration_version'] = best_version
         eye_metadata['calibration_date'] = best_date
         preproc_file = get_preprocessed_filename(subject, te_id, date, 'eye')
-        preproc_dir = os.path.join(preproc_dir, subject)
-        save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
-        save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
+        preproc_dir_subject = os.path.join(preproc_dir, subject)
+        save_hdf(preproc_dir_subject, preproc_file, eye_data, "/eye_data", append=True)
+        save_hdf(preproc_dir_subject, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
     return best_id, te_ids

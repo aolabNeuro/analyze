@@ -256,23 +256,27 @@ class FilterTests(unittest.TestCase):
         self.assertEqual(data_ds.shape, (10, 2))
         self.assertTrue(abs(np.mean(data) - np.mean(data_ds)) < 1)
 
-        fs_ds = self.fs/5
-        x_ds = precondition.downsample(self.x, self.fs, fs_ds)
-        fig, ax = plt.subplots(2,2)
-        ax[0,0].plot(self.t, self.x)
-        ax[0,0].set_ylabel(f"{self.fs} hz")
+        fs = 25000
+        fs_ds = 100
+        x, t = utils.generate_test_signal(0.5, fs, [4, 25], [1, 2])
+
+        x_ds = precondition.downsample(x, fs, fs_ds)
+        fig, ax = plt.subplots(2,1)
+        ax[0].plot(t, x)
         t_ds = np.arange(len(x_ds))/fs_ds
-        ax[1,0].plot(t_ds, x_ds)
-        ax[1,0].set_ylabel(f"{fs_ds} hz")
-        ax[1,0].set_xlabel("time (s)")
-        visualization.plot_freq_domain_amplitude(self.x, self.fs, ax=ax[0,1])
-        ax[0,1].set_xlim(0,5000)
-        ax[0,1].set_xlabel('')
-        visualization.plot_freq_domain_amplitude(x_ds, fs_ds, ax=ax[1,1])
-        ax[1,1].set_xlim(0,5000)
+        ax[0].plot(t_ds, x_ds)
+        ax[0].set_ylabel(f"{fs_ds} hz")
+        ax[0].set_xlabel("time (s)")
+        ax[0].set_ylabel("amplitude")
+        ax[0].set_xlim(0,0.2)
+        ax[0].legend(['Original', 'Downsampled'])
+        visualization.plot_freq_domain_amplitude(x, fs, ax=ax[1])
+        visualization.plot_freq_domain_amplitude(x_ds, fs_ds, ax=ax[1])
+        ax[1].set_xlim(0,5000)
+        ax[0].legend(['Original', 'Downsampled'])
         plt.tight_layout()
         filename = 'downsample.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Test non-integer downsample factor
         data_ds = precondition.downsample(data, 100, 13)
@@ -298,7 +302,8 @@ class FilterTests(unittest.TestCase):
     def test_filter_lfp(self):
         
         test_data = np.random.uniform(size=(100000,2))
-        filt = precondition.filter_lfp(test_data, 25000)
+        filt, fs = precondition.filter_lfp(test_data, 25000)
+        self.assertEqual(fs, 1000)
         self.assertEqual(filt.shape, (100000/25, 2))
         self.assertAlmostEqual(np.mean(test_data), np.mean(filt), places=3)
 
@@ -311,7 +316,7 @@ class FilterTests(unittest.TestCase):
 
     def test_filter_kinematics(self):
         fs = 100
-        fn = lambda x: precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)
+        fn = lambda x: precondition.filter_kinematics(x, fs, low_cut=15, buttord=4)[0]
         HelperFunctions.test_filter(fn, fs=fs, T=5, freq=[1,3,30], a=[5, 2, 0.5], noise=0.2)
         fname = 'filter_kinematics.png'
         savefig(docs_dir, fname)
@@ -504,7 +509,8 @@ class EyeTests(unittest.TestCase):
         orig = self.calibrated_eye_data[:int(self.samplerate*length)]
         t_orig = np.arange(len(orig))/self.samplerate
         samplerate = 1000
-        data_filt = filter_eye(orig, self.samplerate, downsamplerate=samplerate)
+        data_filt, new_samplerate = filter_eye(orig, self.samplerate, downsamplerate=samplerate)
+        self.assertEqual(new_samplerate, samplerate)
 
         le_orig = orig[:,:2]
         le_filt = data_filt[:,:2]
@@ -544,7 +550,7 @@ class EyeTests(unittest.TestCase):
 
         # Important to low-pass filter before computing acceleration
         samplerate = 1000
-        pos_filt = filter_eye(pos, self.samplerate, downsamplerate=samplerate)
+        pos_filt, _ = filter_eye(pos, self.samplerate, downsamplerate=samplerate)
         accel = convert_pos_to_accel(pos_filt, samplerate)
         fig, ax = plt.subplots(4,1)
         plot_timeseries(pos, self.samplerate, ax=ax[0])        
@@ -564,7 +570,7 @@ class EyeTests(unittest.TestCase):
 
     def test_detect_saccades(self):
         samplerate = 1000
-        le_data_filt = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=samplerate)
+        le_data_filt, _ = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=samplerate)
 
         onset, duration, distance = detect_saccades(le_data_filt, samplerate, debug=True, debug_window=(0, 5))
         savefig(docs_dir, 'detect_saccades.png')
