@@ -723,6 +723,10 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             eye_data = eye_data['raw_data']
         elif datatype == 'eye_closed_mask':
             eye_data = eye_data['eye_closed_mask']
+        elif datatype == 'eye_diameter' and 'diameter' in eye_data.keys():
+            eye_data = eye_data['diameter']
+        elif datatype == 'eye_diameter':
+            raise ValueError(f"No eye diameter data for {te_id}")
         elif 'calibrated_data' in eye_data.keys():
             eye_data = eye_data['calibrated_data']
         else:
