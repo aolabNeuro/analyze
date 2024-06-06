@@ -414,12 +414,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
-    def test_get_interp_kinematics(self):
+    def test_get_interp_task_data(self):
         # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
-        targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
+        targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(hand_interp.shape[1], 3)
@@ -453,11 +453,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         assert exp_metadata['trajectory_amplitude'] > 0
         assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
 
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
-        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
-        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(ref_interp.shape[1], 2)
@@ -496,11 +496,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         assert exp_metadata['trajectory_amplitude'] > 0
         assert not json.loads(exp_metadata['sequence_params'])['disturbance']
         
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
-        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
-        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(ref_interp.shape[1], 2)

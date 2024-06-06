@@ -536,7 +536,7 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000, **kwargs):
+def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1000, **kwargs):
     '''
     Gets interpolated kinematic data from preprocessed experiment data to the desired 
     sampling rate. Cursor kinematics are returned in screen coordinates, while other 
@@ -565,7 +565,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         .. code-block:: python
         
             exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, 'test',  3498, '2021-12-13')
-            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+            cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
 
             plt.figure()
             visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
@@ -576,7 +576,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
        
         .. code-block:: python
 
-            hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
+            hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
             ax = plt.axes(projection='3d')
             visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
 
@@ -586,7 +586,7 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
         .. code-block:: python
             
-            targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
+            targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
             time = np.arange(len(targets_interp))/100
             plt.plot(time, targets_interp[:,:,0]) # plot just the x coordinate
             plt.xlim(10, 20)
@@ -600,8 +600,8 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         .. code-block:: python
             
             exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
-            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps'])
-            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
             time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
             plt.plot(time, cursor_interp[:int(exp_metadata['fps']*120),1], color='blueviolet', label='cursor') # plot just the y coordinate
             plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
@@ -615,9 +615,9 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
         .. code-block:: python
             
-            user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps'])
-            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-            dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps'])
+            user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps'])
             time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
             plt.plot(time, user_interp[:int(exp_metadata['fps']*120),1], color='darkturquoise', label='user')
             plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
@@ -656,6 +656,8 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
+    elif datatype == 'cycle':
+        data_cycles = np.arange(len(exp_data['task'])) # cycle number
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
     else:
@@ -687,12 +689,13 @@ def get_velocity_segments(*args, norm=True, **kwargs):
     return get_kinematic_segments(*args, **kwargs, preproc=preproc)
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
+def get_task_data(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cycle', **kwargs):
     '''
-    Return all kinds of kinematics from preprocessed data. Caches the data for faster loading.
+    Return interpolated task data. Wraps :func:`~aopy.data.bmi3d.get_interp_task_data` but 
+    caches the data for faster loading.
 
     Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_kinematics by setting 
+        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
         upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
         same samplerate.
 
@@ -705,7 +708,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.   
-        kwargs: additional keyword arguments to pass to get_interp_kinematics 
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
 
     Raises:
         ValueError: if the datatype is invalid
@@ -715,8 +718,44 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    raw_data = get_interp_task_data(exp_data, exp_metadata, datatype, samplerate, **kwargs)
+    if preproc is not None:
+        data, samplerate = preproc(raw_data, samplerate)
+    else:
+        data = raw_data
 
+    return data, samplerate
+
+@lru_cache(maxsize=1)
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
+    '''
+    Return all kinds of kinematics from preprocessed data. Caches the data for faster loading. 
+
+    Note: 
+        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
+        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
+        same samplerate.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.   
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+
+    Raises:
+        ValueError: if the datatype is invalid
+
+    Returns:
+        tuple: tuple containing:
+            | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
+            | **samplerate (float):** the sampling rate of the kinematics after preprocessing
+    '''
     if 'eye' in datatype:
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
@@ -730,41 +769,22 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         
         time = np.arange(len(eye_data))/eye_metadata['samplerate']
         raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
-    else:
-        raw_kinematics = get_interp_kinematics(
-            data, metadata, datatype, samplerate=samplerate, **kwargs
-        )
 
-    time = np.arange(len(raw_kinematics))/samplerate
-    if preproc is not None:
-        kinematics, samplerate = preproc(raw_kinematics, samplerate)
+        time = np.arange(len(raw_kinematics))/samplerate
+        if preproc is not None:
+            kinematics, samplerate = preproc(raw_kinematics, samplerate)
+        else:
+            kinematics = raw_kinematics
     else:
-        kinematics = raw_kinematics
+        kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, samplerate,
+                                               datatype=datatype, preproc=preproc, **kwargs)
 
     return kinematics, samplerate
 
-def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
+def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
                           preproc=None, datatype='cursor', **kwargs):
     '''
-    Return one segment of kinematics
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-        start_time (float): time in the recording at which the desired segment starts
-        end_time (float): time in the recording at which the desired segment ends
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
-        datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
-        kwargs: additional keyword arguments to pass to get_kinematics
-
-    Returns:
-        tuple: tuple containing:
-            | **segment (nt, nch):** single kinematic segment from the given experiment after preprocessing
-            | **samplerate (float):** the sampling rate of the kinematics after preprocessing
+    Helper function to return one segment of kinematics
     '''
     kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
     assert kinematics is not None
@@ -827,7 +847,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
                                                                   trial_start_codes, trial_end_codes)
     segments = [
-        get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, **kwargs)[0] 
+        _get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, **kwargs)[0] 
         for t in trial_times
     ]
     trajectories = np.array(segments, dtype='object')
@@ -1623,7 +1643,7 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
 
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
 
-    segments = [get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
+    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
                 for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
     trajectories = np.array(segments, dtype='object')
     return trajectories
