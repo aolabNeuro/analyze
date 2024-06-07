@@ -531,6 +531,22 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         filename = 'get_interp_user_tracking_tablet.png'
         visualization.savefig(docs_dir, filename)
 
+    def test_get_task_data(self):
+
+        # Plot cycle count
+        ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
+        self.assertEqual(len(ts_data), 7031)
+        self.assertEqual(samplerate, 120)
+        time = np.arange(len(ts_data))/samplerate
+        plt.figure()
+        plt.plot(time[1:], 1/np.diff(ts_data), 'ko')
+        plt.xlabel('time (s)')
+        plt.ylabel('cycle step')
+        plt.ylim(0, 2)
+        figname = 'get_cycle_data.png'
+        visualization.savefig(docs_dir, figname, transparent=False)
+        plt.close()
+
     def test_get_kinematic_segments(self):
 
         # Plot cursor trajectories - expect 9 trials

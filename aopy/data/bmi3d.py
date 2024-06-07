@@ -536,7 +536,7 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1000, **kwargs):
+def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1000, step=1, **kwargs):
     '''
     Gets interpolated kinematic data from preprocessed experiment data to the desired 
     sampling rate. Cursor kinematics are returned in screen coordinates, while other 
@@ -552,6 +552,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             For other kinematics, try to interp exp_data['task'][datatype]
         samplerate (float, optional): The desired output sampling rate in Hz. 
             Defaults to 1000.
+        step (int, optional): The step size to slice the data. Default 1.
         **kwargs: Additional keyword arguments to pass to sample_timestamped_data()
 
     Returns:
@@ -664,7 +665,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         raise ValueError(f"Unknown datatype {datatype}")
     
     # Interpolate
-    data_time = sample_timestamped_data(data_cycles, clock, samplerate, append_time=10, **kwargs)
+    data_time = sample_timestamped_data(data_cycles[::step], clock[::step], samplerate, append_time=10, **kwargs)
 
     return data_time
 
@@ -689,7 +690,7 @@ def get_velocity_segments(*args, norm=True, **kwargs):
     return get_kinematic_segments(*args, **kwargs, preproc=preproc)
 
 @lru_cache(maxsize=1)
-def get_task_data(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cycle', **kwargs):
+def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, step=1, preproc=None, **kwargs):
     '''
     Return interpolated task data. Wraps :func:`~aopy.data.bmi3d.get_interp_task_data` but 
     caches the data for faster loading.
@@ -704,10 +705,12 @@ def get_task_data(preproc_dir, subject, te_id, date, samplerate, preproc=None, d
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
+        datatype (str): column of task data to load. 
+        samplerate (float): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        step (int, optional): integer step to slice the data. Default 1.
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
-        datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.   
         kwargs: additional keyword arguments to pass to get_interp_task_data 
 
     Raises:
@@ -717,9 +720,29 @@ def get_task_data(preproc_dir, subject, te_id, date, samplerate, preproc=None, d
         tuple: tuple containing:
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
+
+    Examples:
+
+        .. code-block:: python
+
+            subject = 'beignet'
+            te_id = 4301
+            date = '2021-01-01'
+            ts_data, samplerate = get_task_data(preproc_dir, subject, te_id, date, 'cycle')
+            time = np.arange(len(ts_data))/samplerate
+            plt.figure()
+            plt.plot(time[1:], 1/np.diff(ts_data), 'ko')
+            plt.xlabel('time (s)')
+            plt.ylabel('cycle step')
+            plt.ylim(0, 2)
+            
+        .. image:: _images/get_cycle_data.png
     '''
     exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    raw_data = get_interp_task_data(exp_data, exp_metadata, datatype, samplerate, **kwargs)
+    if samplerate is None:
+        samplerate = exp_metadata['fps']
+
+    raw_data = get_interp_task_data(exp_data, exp_metadata, datatype, samplerate, step=step, **kwargs)
     if preproc is not None:
         data, samplerate = preproc(raw_data, samplerate)
     else:
@@ -776,8 +799,8 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         else:
             kinematics = raw_kinematics
     else:
-        kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, samplerate,
-                                               datatype=datatype, preproc=preproc, **kwargs)
+        kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
+                                               samplerate, preproc=preproc, **kwargs)
 
     return kinematics, samplerate
 
