@@ -1101,10 +1101,13 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
     return data, samplerate
 
 @lru_cache(maxsize=1)
-def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None,
-                         start_time=None, end_time=None, latency=0.02, datatype='lfp', **kwargs):
+def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
+                         start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
+                         **kwargs):
     '''
-    Should be same as extract_features_offline, but just slightly optimized
+    Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
+    Using this function, you can replicate closely the features that would have been extracted from 
+    a real-time BMI3D experiment, even if the experiment did not include a decoder.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -1114,13 +1117,16 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
         decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
             uses the sampling rate of the experiment.
+        channels (int array, optional): which channel indices to load. If None (the default), 
+            uses the channels specified in the decoder.
+        
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
             a smoothing function.
         kwargs: additional keyword arguments to pass to sample_timestamped_data 
 
     Returns:
         tuple: tuple containing:
-            | **state (nt, nstate):** decoded states from the given experiment after preprocessing
+            | **feats (nt, nfeats):** lfp features for the given channels after preprocessing
             | **samplerate (float):** the sampling rate of the states after preprocessing
 
     '''
@@ -1132,11 +1138,22 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
         ts_metadata = load_hdf_group(preproc_dir_subject, ts_filename, 
                                                f'{datatype}_metadata', cached=True)
         end_time = ts_metadata['n_samples']/ts_metadata['samplerate']
-    
+
     # Set up extractor
     f_extractor = decoder.extractor_cls(None, **decoder.extractor_kwargs)
-    channels = [c-1 for c in f_extractor.channels]
+    if channels is None:
+        channels = [c-1 for c in f_extractor.channels]
     lfp_samplerate = f_extractor.fs
+
+    # Find times to extract
+    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)    
+    step = int(decoder.call_rate * decoder.binlen)
+    ts = exp_data['clock']['timestamp_sync'][::step]
+    ts = ts[ts > start_time]
+    if end_time is not None:
+        ts = ts[ts < end_time]
+    if len(ts) == 0:
+        raise ValueError("No timestamps found in the specified time range")
 
     # Load ts data
     ts_start_time = start_time - f_extractor.win_len - latency
@@ -1150,14 +1167,6 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
         ts_data = ts_data[::downsample_factor]
         ts_samplerate = lfp_samplerate
     
-    # Find times to extract
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)    
-    step = int(decoder.call_rate * decoder.binlen)
-    ts = exp_data['clock']['timestamp_sync'][::step]
-    ts = ts[ts > start_time]
-    if end_time is not None:
-        ts = ts[ts < end_time]
-
     # Extract
     n_pts = int(f_extractor.win_len * ts_samplerate)
     neural_feature = np.zeros((len(ts), len(f_extractor.bands), len(channels)))
