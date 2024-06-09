@@ -1103,7 +1103,7 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
 @lru_cache(maxsize=1)
 def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
                          start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
-                         **kwargs):
+                         decode=False, **kwargs):
     '''
     Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
     Using this function, you can replicate closely the features that would have been extracted from 
@@ -1122,6 +1122,8 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
         
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
             a smoothing function.
+        decode (bool, optional): whether to run the features through the decoder before resampling. Only
+            works if `channels` is None or `len(channels) == len(decoder.channels)`. Default False.
         kwargs: additional keyword arguments to pass to sample_timestamped_data 
 
     Returns:
@@ -1169,24 +1171,28 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
     
     # Extract
     n_pts = int(f_extractor.win_len * ts_samplerate)
-    neural_feature = np.zeros((len(ts), len(f_extractor.bands), len(channels)))
+    cycle_data = np.zeros((len(ts), len(f_extractor.bands), len(channels)))
     for i, t in enumerate(ts):
         sample_num = int((t-ts_start_time-latency) * ts_samplerate)
         cont_samples = ts_data[max(0,sample_num-n_pts):min(ts_data.shape[0], sample_num)]
         if cont_samples.shape[0] < n_pts:
-            neural_feature[i] *= np.nan
+            cycle_data[i] *= np.nan
         else:
-            neural_feature[i] = f_extractor.extract_features(cont_samples.T).T
+            cycle_data[i] = f_extractor.extract_features(cont_samples.T).T
+
+    # Run the features through the decoder before resampling if necessary
+    if decode and len(channels) == len(decoder.channels):
+        cycle_data = decoder.decode(cycle_data)
     
     # Interpolate and preprocess
     if samplerate is None:
         samplerate = exp_metadata['fps']
-    raw_data = sample_timestamped_data(neural_feature, ts, samplerate, append_time=10, **kwargs)
+    raw_data = sample_timestamped_data(cycle_data, ts, samplerate, append_time=10, **kwargs)
     if preproc is not None:
         data, samplerate = preproc(raw_data, samplerate)
     else:
         data = raw_data
-
+    data = get_data_segment(data, start_time, end_time, samplerate) # cut off any extra data
     return data, samplerate
 
 def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
