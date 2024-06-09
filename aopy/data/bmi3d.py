@@ -1100,7 +1100,86 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
 
     return data, samplerate
 
+@lru_cache(maxsize=1)
+def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None,
+                         start_time=None, end_time=None, latency=0.02, datatype='lfp', **kwargs):
+    '''
+    Should be same as extract_features_offline, but just slightly optimized
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **state (nt, nstate):** decoded states from the given experiment after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+
+    '''
+    if start_time is None:
+        start_time = 0.
+    if end_time is None:
+        ts_filename = get_preprocessed_filename(subject, te_id, date, datatype)
+        preproc_dir_subject = os.path.join(preproc_dir, subject)
+        ts_metadata = load_hdf_group(preproc_dir_subject, ts_filename, 
+                                               f'{datatype}_metadata', cached=True)
+        end_time = ts_metadata['n_samples']/ts_metadata['samplerate']
     
+    # Set up extractor
+    f_extractor = decoder.extractor_cls(None, **decoder.extractor_kwargs)
+    channels = [c-1 for c in f_extractor.channels]
+    lfp_samplerate = f_extractor.fs
+
+    # Load ts data
+    ts_start_time = start_time - f_extractor.win_len - latency
+    ts_data, ts_samplerate = get_ts_data_segment(
+        preproc_dir, subject, te_id, date, ts_start_time, 
+        end_time, channels=channels, datatype=datatype
+    )
+    if ts_samplerate != lfp_samplerate:
+        downsample_factor = ts_samplerate // lfp_samplerate
+        print(f"Downsampling by a factor of {downsample_factor}")
+        ts_data = ts_data[::downsample_factor]
+        ts_samplerate = lfp_samplerate
+    
+    # Find times to extract
+    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)    
+    step = int(decoder.call_rate * decoder.binlen)
+    ts = exp_data['clock']['timestamp_sync'][::step]
+    ts = ts[ts > start_time]
+    if end_time is not None:
+        ts = ts[ts < end_time]
+
+    # Extract
+    n_pts = int(f_extractor.win_len * ts_samplerate)
+    neural_feature = np.zeros((len(ts), len(f_extractor.bands), len(channels)))
+    for i, t in enumerate(ts):
+        sample_num = int((t-ts_start_time-latency) * ts_samplerate)
+        cont_samples = ts_data[max(0,sample_num-n_pts):min(ts_data.shape[0], sample_num)]
+        if cont_samples.shape[0] < n_pts:
+            neural_feature[i] *= np.nan
+        else:
+            neural_feature[i] = f_extractor.extract_features(cont_samples.T).T
+    
+    # Interpolate and preprocess
+    if samplerate is None:
+        samplerate = exp_metadata['fps']
+    raw_data = sample_timestamped_data(neural_feature, ts, samplerate, append_time=10, **kwargs)
+    if preproc is not None:
+        data, samplerate = preproc(raw_data, samplerate)
+    else:
+        data = raw_data
+
+    return data, samplerate
+
 def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     '''
     Loads the x,y,z location of targets in a preprocessed HDF file given by their index. Requires
