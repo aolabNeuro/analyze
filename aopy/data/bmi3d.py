@@ -1182,7 +1182,8 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
 
     # Run the features through the decoder before resampling if necessary
     if decode and len(channels) == len(decoder.channels):
-        cycle_data = decoder.decode(cycle_data)
+        decoder_features = cycle_data.reshape(len(cycle_data), -1).T
+        cycle_data = decoder.decode(decoder_features)
     
     # Interpolate and preprocess
     if samplerate is None:
