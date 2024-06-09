@@ -1156,6 +1156,72 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
     Note:
         For best accuracy, use 'broadband' or other datatype without any filtering. Using filtered 'lfp'
         results in DC shifted features.
+
+    Examples:
+
+        .. code-block:: python
+
+            subject = 'affi'
+            te_id = 17269
+            date = '2024-05-03'
+            preproc_dir = data_dir
+            start_time = 10
+            end_time = 30
+
+        Extract features using :func:`~aopy.data.bmi3d.extract_lfp_features` and states using 
+        :func:`~aopy.data.bmi3d.extract_lfp_features` with `decode=True`:
+        
+        .. code-block:: python
+            features_offline, samplerate_offline = extract_lfp_features(
+                preproc_dir, subject, te_id, date, decoder, 
+                start_time=start_time, end_time=end_time)
+            state_offline, samplerate_offline = extract_lfp_features(
+                preproc_dir, subject, te_id, date, decoder, 
+                start_time=start_time, end_time=end_time, decode=True)
+             
+        Get online extracted features from :func:`~aopy.data.bmi3d.get_extracted_features` and
+        states from :func:`~aopy.data.bmi3d.get_decoded_states` for comparison:
+
+        .. code-block:: python
+
+            features_online, samplerate_online = get_extracted_features(
+                preproc_dir, subject, te_id, date, decoder,
+                start_time=start_time, end_time=end_time)
+            state_online, _ = get_decoded_states(
+                preproc_dir, subject, te_id, date, decoder,
+                start_time=start_time, end_time=end_time)
+
+        Plot the online and offline features:
+
+        .. code-block:: python
+
+            time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+            time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+            plt.figure(figsize=(8,6))
+            plt.subplot(2,1,1)
+            plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+            plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+            plt.xlabel('time (s)')
+            plt.ylabel('power')
+            plt.legend()
+            plt.title('readout 1')
+            
+        And states:
+
+        .. code-block:: python
+        
+            plt.subplot(2,1,2)
+            plt.plot(time_offline, state_offline[:,3], alpha=0.8, label='offline')
+            plt.plot(time_online, state_online[:,3], alpha=0.8, label='online')
+            # plt.plot(time_online, state_online_2[:,3], alpha=0.8, label='online rerun')    
+            plt.xlabel('time (s)')
+            plt.ylabel('state')
+            plt.legend()
+            plt.title('x velocity')
+            plt.tight_layout()
+            
+        ..image:: _images/extract_decoder_features.png
     '''
     if start_time is None:
         start_time = 0.
@@ -1973,7 +2039,11 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
                           decoder, samplerate=None, channels=None, datatype='lfp', 
                           preproc=None, decode=False, **kwargs):
     '''
-    Extract lfp feature segments across arbitrary preprocessed files.
+    Extract (new, offline) lfp feature segments across arbitrary preprocessed files. Uses
+    a decoder object to extract features from either lfp or broadband timeseries data. Can
+    be applied offline to arbitrary channels. If used on broadband data from a BCI experiment,
+    the features extracted will be (nearly) the same as the online features if the same decoder
+    is used.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -1998,6 +2068,109 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
         tuple: tuple containing:
             | **segments (ntrial,):** list of tensors of (nt, nfeat) feature data from each trial
             | **samplerate (float):** samplerate of the feature data
+    
+    Examples:
+
+        Plot online extracted lfp features and overlay offline extracted feature segments
+
+        .. code-block:: python  
+
+            subject = 'affi'
+            te_id = 17269
+            date = '2024-05-03'
+            subjects = [subject, subject, subject]
+            te_ids = [te_id, te_id, te_id]
+            dates = [date, date, date]
+            start_time = 10
+            end_time = 30
+            start_times = [10, 15, 20]
+            end_times = [14, 18, 28]
+
+        Load the decoder that was used in the experiment
+
+        .. code-block:: python
+
+            with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file)
+
+        Load the full features and state data for comparison
+
+        .. code-block:: python
+
+            features_offline, samplerate_offline = extract_lfp_features(
+                preproc_dir, subject, te_id, date, decoder, 
+                start_time=start_time, end_time=end_time)
+            state_offline, samplerate_offline = extract_lfp_features(
+                preproc_dir, subject, te_id, date, decoder, 
+                start_time=start_time, end_time=end_time, decode=True)
+            features_online, samplerate_online = get_extracted_features(
+                preproc_dir, subject, te_id, date, decoder,
+                start_time=start_time, end_time=end_time)
+            state_online, _ = get_decoded_states(
+                preproc_dir, subject, te_id, date, decoder,
+                start_time=start_time, end_time=end_time)
+
+            time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+            time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+            plt.figure(figsize=(8,6))
+            plt.subplot(2,1,1)
+            plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+            plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+            plt.xlabel('time (s)')
+            plt.ylabel('power')
+            plt.title('readout 1')
+            
+            plt.subplot(2,1,2)
+            plt.plot(time_offline, state_offline[:,3], alpha=0.8, label='offline')
+            plt.plot(time_online, state_online[:,3], alpha=0.8, label='online')
+            plt.xlabel('time (s)')
+            plt.ylabel('state')
+            plt.title('x velocity')
+            plt.tight_layout()
+
+        Tabulate the segments
+
+        .. code-block:: python
+
+            features_offline, samplerate_offline = tabulate_lfp_features(
+                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+            state_offline, samplerate_offline = tabulate_lfp_features(
+                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
+                decode=True)
+            features_online, samplerate_online = tabulate_feature_data(
+                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+            state_online, _ = tabulate_state_data(
+                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+
+            for idx in range(len(start_times)):
+                time_offline = np.arange(len(features_offline[idx]))/samplerate_offline + start_times[idx]
+                time_online = np.arange(len(features_online[idx]))/samplerate_online + start_times[idx]
+
+                plt.subplot(2,1,1)
+                plt.plot(time_offline, features_offline[idx][:,1], 'k--')
+                plt.plot(time_online, features_online[idx][:,1], 'k--')
+                
+                plt.subplot(2,1,2)
+                plt.plot(time_offline, state_offline[idx][:,3], 'k--')
+                plt.plot(time_online, state_online[idx][:,3], 'k--')
+            
+        Add legends
+
+        .. code-block:: python
+
+            plt.subplot(2,1,1)
+            plt.plot([], [], 'k--', label='segments')
+            plt.legend()
+            plt.subplot(2,1,2)
+            plt.plot([], [], 'k--', label='segments')
+            plt.legend()
+
+        .. image:: _images/tabulate_lfp_features.png
+            
+    See also:
+        :func:`~aopy.data.bmi3d.tabulate_feature_data`
+        :func:`~aopy.data.bmi3d.tabulet_state_data`
     '''
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
 
@@ -2015,8 +2188,8 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
 def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
                           datatype='lfp_power', samplerate=None, preproc=None, **kwargs):
     '''
-    Grab decoder feature segments across arbitrary preprocessed files. Wrapper around 
-    tabulate_task_data.
+    Grab (online extracted) decoder feature segments across arbitrary preprocessed files. Wrapper 
+    around tabulate_task_data.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -2046,7 +2219,7 @@ def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end
 def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
                         datatype='decoder_state', samplerate=None, preproc=None, **kwargs):
     '''
-    Grab decoded state segments across arbitrary preprocessed files. Wrapper around 
+    Grab (online decoded) state segments across arbitrary preprocessed files. Wrapper around 
     tabulate_task_data.
 
     Args:

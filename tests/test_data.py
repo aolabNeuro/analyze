@@ -948,15 +948,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         features_offline, samplerate_offline = extract_lfp_features(
             preproc_dir, subject, te_id, date, decoder, 
             start_time=start_time, end_time=end_time)
-
         state_offline, samplerate_offline = extract_lfp_features(
             preproc_dir, subject, te_id, date, decoder, 
             start_time=start_time, end_time=end_time, decode=True)
-
         features_online, samplerate_online = get_extracted_features(
             preproc_dir, subject, te_id, date, decoder,
             start_time=start_time, end_time=end_time)
-
         state_online, _ = get_decoded_states(
             preproc_dir, subject, te_id, date, decoder,
             start_time=start_time, end_time=end_time)
@@ -982,21 +979,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Tabulate the segments
         features_offline, samplerate_offline = tabulate_lfp_features(
-            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder
-        )
-
+            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
         state_offline, samplerate_offline = tabulate_lfp_features(
             preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
-            decode=True
-        )
-
+            decode=True)
         features_online, samplerate_online = tabulate_feature_data(
-            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder
-        )
-
+            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
         state_online, _ = tabulate_state_data(
-            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder
-        )
+            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
 
         for idx in range(len(start_times)):
             time_offline = np.arange(len(features_offline[idx]))/samplerate_offline + start_times[idx]
