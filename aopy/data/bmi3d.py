@@ -814,8 +814,8 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
 
     return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
 
-def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, 
-                           datatype='lfp_power', preproc=None, **kwargs):
+def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None, 
+                           end_time=None, datatype='lfp_power', preproc=None, **kwargs):
     '''
     Fetches online extracted features from readouts of a BCI experiment. Wrapper around get_task_data.
     
@@ -827,22 +827,36 @@ def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerat
         decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
             uses the sampling rate of the experiment.
+        start_time (float, optional): start time of the segment to load in seconds. Default None,
+            which loads from the beginning of the data.
+        end_time (float, optional): end time of the segment to load in seconds. Default None,
+            which loads until the end of the data.
+        datatype (str, optional): type of features to load. Defaults to 'lfp_power'.
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
             a smoothing function.
         kwargs: additional keyword arguments to pass to sample_timestamped_data 
 
     Returns:
         tuple: tuple containing:
-            | **state (nt, nstate):** decoded states from the given experiment after preprocessing
+            | **state (nt, nfeats):** decoded states from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the states after preprocessing
 
     '''
     step = int(decoder.call_rate*decoder.binlen)
-    return get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=samplerate,
-                         step=step, preproc=preproc, **kwargs)
+    state, samplerate = get_task_data(
+        preproc_dir, subject, te_id, date, datatype, samplerate=samplerate,
+        step=step, preproc=preproc, **kwargs)
+    
+    if start_time is not None or end_time is not None:
+        if start_time is None:
+            start_time = 0
+        if end_time is None:
+            end_time = len(state)/samplerate
+        state = get_data_segment(state, start_time, end_time, samplerate)
+    return state, samplerate
 
-def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=None, 
-                       datatype='decoder_state', preproc=None, **kwargs):
+def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None,
+                       end_time=None, preproc=None, **kwargs):
     '''
     Fetches online decoded states from readouts in a BCI experiment. Wrapper around get_task_data.
     
@@ -854,6 +868,10 @@ def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=No
         decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
             uses the sampling rate of the experiment.
+        start_time (float, optional): start time of the segment to load in seconds. Default None,
+            which loads from the beginning of the data.
+        end_time (float, optional): end time of the segment to load in seconds. Default None,
+            which loads until the end of the data.
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
             a smoothing function.
         kwargs: additional keyword arguments to pass to sample_timestamped_data 
@@ -863,9 +881,8 @@ def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=No
             | **state (nt, nstate):** decoded states from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the states after preprocessing
     '''
-    step = int(decoder.call_rate*decoder.binlen)
-    return get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=samplerate,
-                         step=step, preproc=preproc, **kwargs)
+    return get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=samplerate, start_time=start_time, 
+                           end_time=end_time, datatype='decoder_state', preproc=preproc, **kwargs)
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True, preproc=None, datatype='cursor',
@@ -1119,7 +1136,12 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
             uses the sampling rate of the experiment.
         channels (int array, optional): which channel indices to load. If None (the default), 
             uses the channels specified in the decoder.
-        
+        start_time (float, optional): time (in seconds) in the recording at which the desired segment starts
+        end_time (float, optional): time (in seconds) in the recording at which the desired segment ends
+        latency (float, optional): time (in seconds) to include before the trigger times
+        datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'. If
+            the sampling rate of the data is different from the decoder, the data will be downsampled
+            by decimation.
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
             a smoothing function.
         decode (bool, optional): whether to run the features through the decoder before resampling. Only
@@ -1131,6 +1153,9 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
             | **feats (nt, nfeats):** lfp features for the given channels after preprocessing
             | **samplerate (float):** the sampling rate of the states after preprocessing
 
+    Note:
+        For best accuracy, use 'broadband' or other datatype without any filtering. Using filtered 'lfp'
+        results in DC shifted features.
     '''
     if start_time is None:
         start_time = 0.
@@ -1179,11 +1204,11 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
             cycle_data[i] *= np.nan
         else:
             cycle_data[i] = f_extractor.extract_features(cont_samples.T).T
+    cycle_data = np.reshape(cycle_data, (len(ts), -1)) # (nt, nfeats)
 
     # Run the features through the decoder before resampling if necessary
     if decode and len(channels) == len(decoder.channels):
-        decoder_features = cycle_data.reshape(len(cycle_data), -1).T
-        cycle_data = decoder.decode(decoder_features)
+        cycle_data = decoder.decode(cycle_data.T)
     
     # Interpolate and preprocess
     if samplerate is None:

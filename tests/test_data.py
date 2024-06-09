@@ -17,6 +17,7 @@ import pandas as pd
 from matplotlib.testing.compare import compare_images
 import datetime
 import json
+import pickle
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -548,26 +549,22 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.close()
 
     def test_extract_lfp_features(self):
+        with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file)
 
-        from riglib.bmi.extractor import LFPMTMPowerExtractor
-        channels = [1, 2]
-        decoder = lambda: None
-        decoder.extractor_cls = LFPMTMPowerExtractor
-        decoder.extractor_kwargs = dict(channels=channels, bands=[(80,200)])
-        decoder.binlen = 0.1
-        decoder.call_rate = 60
-        decoder.channels = channels
-        
+        # Test with no LFP data
         def test_fn():
             extract_lfp_features(write_dir, self.subject, self.te_id, self.date, 
                                              decoder)
-        
         self.assertRaises(ValueError, test_fn)
 
         # Test with LFP data
         subject = 'affi'
         te_id = 17269
         date = '2024-05-03'
+        preproc_dir = data_dir
+        start_time = 10
+        end_time = 30
 
         # Reduce the size of the LFP data
         # lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, subject, te_id, date)
@@ -578,22 +575,42 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # save_hdf(data_dir, 'affi/preproc_2024-05-03_affi_17269_lfp.hdf', lfp_metadata, "/lfp_metadata", append=True)
 
         features_offline, samplerate_offline = extract_lfp_features(
-            data_dir, subject, te_id, date, decoder, end_time=30.)
-        
+            preproc_dir, subject, te_id, date, decoder, 
+            start_time=start_time, end_time=end_time)
+
+        state_offline, samplerate_offline = extract_lfp_features(
+            preproc_dir, subject, te_id, date, decoder, 
+            start_time=start_time, end_time=end_time, decode=True)
+
         features_online, samplerate_online = get_extracted_features(
-            data_dir, subject, te_id, date, decoder)
-        
+            preproc_dir, subject, te_id, date, decoder,
+            start_time=start_time, end_time=end_time)
+
+        state_online, _ = get_decoded_states(
+            preproc_dir, subject, te_id, date, decoder,
+            start_time=start_time, end_time=end_time)
+
         time_offline = np.arange(len(features_offline))/samplerate_offline
         time_online = np.arange(len(features_online))/samplerate_online
 
-        plt.figure(figsize=(8,4))
-        plt.plot(time_offline, features_offline[:,0,1], alpha=0.8, label='offline')
+        plt.figure(figsize=(8,6))
+        plt.subplot(2,1,1)
+        plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
         plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
         plt.xlabel('time (s)')
         plt.ylabel('power')
         plt.legend()
         plt.title('readout 1')
-        plt.xlim(0, 30.)
+        
+        plt.subplot(2,1,2)
+        plt.plot(time_offline, state_offline[:,3], alpha=0.8, label='offline')
+        plt.plot(time_online, state_online[:,3], alpha=0.8, label='online')
+        # plt.plot(time_online, state_online_2[:,3], alpha=0.8, label='online rerun')    
+        plt.xlabel('time (s)')
+        plt.ylabel('state')
+        plt.legend()
+        plt.title('x velocity')
+        plt.tight_layout()
         
         filename = 'extract_decoder_features.png'
         savefig(docs_dir, filename, transparent=False)
