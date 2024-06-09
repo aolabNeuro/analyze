@@ -814,6 +814,59 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
 
     return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
 
+def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, 
+                           datatype='lfp_power', preproc=None, **kwargs):
+    '''
+    Fetches online extracted features from readouts of a BCI experiment. Wrapper around get_task_data.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **state (nt, nstate):** decoded states from the given experiment after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+
+    '''
+    step = int(decoder.call_rate*decoder.binlen)
+    return get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=samplerate,
+                         step=step, preproc=preproc, **kwargs)
+
+def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=None, 
+                       datatype='decoder_state', preproc=None, **kwargs):
+    '''
+    Fetches online decoded states from readouts in a BCI experiment. Wrapper around get_task_data.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **state (nt, nstate):** decoded states from the given experiment after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+    '''
+    step = int(decoder.call_rate*decoder.binlen)
+    return get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=samplerate,
+                         step=step, preproc=preproc, **kwargs)
+
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True, preproc=None, datatype='cursor',
                            samplerate=1000, **kwargs):
@@ -1670,6 +1723,95 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
                 for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
     trajectories = np.array(segments, dtype='object')
     return trajectories
+
+def tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
+                       datatype, samplerate=None, step=1, preproc=None, **kwargs):
+    '''
+    Grab task data from trials across arbitrary preprocessed files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        datatype (str): column of task data to load. 
+        samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        step (int, optional): integer step to slice the data. Default 1.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+    Returns:
+        (ntrial,): list of tensors of (nt, nch) task data from each trial
+    '''
+
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
+
+    segments = []
+    for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times):
+        task_data, samplerate = get_task_data(preproc_dir, s, t, d, samplerate, preproc, datatype, **kwargs)
+        segments.append(get_data_segment(task_data, ts, te, samplerate, step=step))
+
+    segments = np.array(segments, dtype='object')
+    return segments
+
+def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
+                          datatype='lfp_power', samplerate=None, preproc=None, **kwargs):
+    '''
+    Grab decoder feature data from trials across arbitrary preprocessed files. Wrapper around 
+    tabulate_task_data.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        datatype (str, optional): column of task data to load. Default 'lfp_power'.
+        samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        step (int, optional): integer step to slice the data. Default 1.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+    Returns:
+        (ntrial,): list of tensors of (nt, nch) task data from each trial
+    '''
+    step = int(decoder.call_rate*decoder.binlen)
+    return tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
+                              datatype, samplerate=samplerate, step=step, preproc=preproc, **kwargs)
+    
+def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
+                        datatype='decoder_state', samplerate=None, preproc=None, **kwargs):
+    '''
+    Grab decoded state data from trials across arbitrary preprocessed files. Wrapper around 
+    tabulate_task_data.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        datatype (str, optional): column of task data to load. Default 'decoder_state'.
+        samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        step (int, optional): integer step to slice the data. Default 1.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+    Returns:
+        (ntrial,): list of tensors of (nt, nch) task data from each trial
+    '''
+    step = int(decoder.call_rate*decoder.binlen)
+    return tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
+                              datatype, samplerate=samplerate, step=step, preproc=preproc, **kwargs)
 
 def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
                        debug=True, df=None, **kwargs):
