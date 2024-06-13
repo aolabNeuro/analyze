@@ -262,7 +262,7 @@ def get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, *c
         for j in range(ncircles):
             circles[j].center = circle_ts[j][i]
             lines[j].set_data(*circle_ts[j][max(0,i-nhist):i+1,:2].T)
-        return ax
+        return circles + lines
 
     return plotdata
                        
