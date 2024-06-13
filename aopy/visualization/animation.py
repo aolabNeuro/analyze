@@ -255,7 +255,8 @@ def get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, *c
     for j in range(ncircles):
         circles.append(plt.Circle(circle_ts[j][0], radius=circle_radii[j], alpha=0.5, color=circle_colors[j], animated=True))
         ax.add_artist(circles[-1])
-        lines.append(plt.plot(*(circle_ts[j][:1,:2].T), color=circle_colors[j], animated=True)[0])
+        if nhist > 0:
+            lines.append(plt.plot(*(circle_ts[j][:1,:2].T), color=circle_colors[j], animated=True)[0])
     
     # Plotting function
     def plotdata(i):
