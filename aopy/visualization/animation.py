@@ -253,9 +253,9 @@ def get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, *c
     circles = []
     lines = []
     for j in range(ncircles):
-        circles.append(plt.Circle(circle_ts[j][0], radius=circle_radii[j], alpha=0.5, color=circle_colors[j]))
+        circles.append(plt.Circle(circle_ts[j][0], radius=circle_radii[j], alpha=0.5, color=circle_colors[j], animated=True))
         ax.add_artist(circles[-1])
-        lines.append(plt.plot(*(circle_ts[j][:1,:2].T), color=circle_colors[j])[0])
+        lines.append(plt.plot(*(circle_ts[j][:1,:2].T), color=circle_colors[j], animated=True)[0])
     
     # Plotting function
     def plotdata(i):
@@ -338,5 +338,5 @@ def animate_behavior(targets, cursor, eye, samplerate, bounds,
     
     # Return the FuncAnimation object
     nframes = np.min([len(t) for t in circle_ts])
-    ani = FuncAnimation(fig, func, frames=nframes, interval=1000./samplerate)  
+    ani = FuncAnimation(fig, func, frames=nframes, interval=1000./samplerate, blit=True)  
     return ani
