@@ -271,7 +271,7 @@ def get_animate_circles_func(samplerate, bounds, circle_radii, circle_colors, *c
                        
 def animate_behavior(targets, cursor, eye, samplerate, bounds, 
                      target_radius, target_colors, cursor_radius, cursor_color='blue', 
-                     eye_radius=0.25, eye_color='purple', history=0.):
+                     eye_radius=0.25, eye_color='purple', history=0., ax=None):
     '''
     Animate target, cursor, and eye data together. 
 
@@ -327,9 +327,11 @@ def animate_behavior(targets, cursor, eye, samplerate, bounds,
 
             <video controls src="_static/test_anim_behavior.mp4"></video>
     '''
-
-    fig, ax = plt.subplots(1, 1)
-
+    if ax is None:
+        fig, ax = plt.Figure()
+    else:
+        fig = ax.get_figure()
+        
     # Use the animate_circles helper function 
     n_targets = len(targets)
     circle_radii = ([target_radius] * n_targets) + [cursor_radius, eye_radius]
