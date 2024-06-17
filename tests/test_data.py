@@ -1386,7 +1386,8 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(te.task_desc, 'task_desc')
         self.assertEqual(te.notes, '')
         self.assertEqual(te.duration, 3.0)
-        self.assertEqual(te.n_trials, 1)
+        self.assertEqual(te.n_trials, 2)
+        self.assertEqual(te.n_rewards, 1)
         self.assertEqual(te.features[0], 'feat_1')
         decoder = te.get_decoder_record()
         self.assertEqual(decoder, None)
@@ -1423,6 +1424,14 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(grouped[0]), 4) # duration = 0.0
         self.assertEqual(len(grouped[1]), 2) # duration = 3.0
 
+    def test_summarize_entries(self):
+            
+        sessions = db.lookup_sessions()
+        summary = db.summarize_entries(sessions)
+        self.assertEqual(len(summary), 6)
+
+        summary = db.summarize_entries(sessions, sum_trials=True)
+        self.assertEqual(len(summary), 5) # one duplicate task
 
 if __name__ == "__main__":
     unittest.main()
