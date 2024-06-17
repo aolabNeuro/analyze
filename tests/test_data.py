@@ -1283,6 +1283,7 @@ class DatabaseTests(unittest.TestCase):
 
 
     def test_lookup_sessions(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Most basic lookup
         all_sessions = db.lookup_sessions()
@@ -1331,13 +1332,14 @@ class DatabaseTests(unittest.TestCase):
         db.DB_TYPE = 'bmi3d'
         db.BMI3D_DBNAME = 'rig2'
         self.assertRaises(Exception, db.lookup_sessions)
-        db.BMI3D_DBNAME = 'default'
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # And the rig name
         sessions = db.lookup_bmi_sessions(rig_name='siberut-bmi')
         self.assertEqual(len(sessions), 1)
 
     def test_lookup_decoders(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Most basic lookup
         all_decoders = db.lookup_decoders()
@@ -1358,7 +1360,8 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(decoders[0].name, "test_decoder")
 
     def test_filter_functions(self):
-        
+        db.BMI3D_DBNAME = 'test_aopy'
+
         # Filter by features
         filter_fn = db.filter_has_features("feat_1")
         sessions = db.lookup_sessions(filter_fn=filter_fn)
@@ -1373,6 +1376,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(sessions), 0)
 
     def test_BMI3DTaskEntry(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Test that all the fields work as they should
         te = db.lookup_sessions(task_desc='task_desc')[0]
@@ -1406,12 +1410,15 @@ class DatabaseTests(unittest.TestCase):
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
     def test_list_entry_details(self):
+        db.BMI3D_DBNAME = 'test_aopy'
+        db.BMI3D_DBNAME = 'test_aopy'
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test'])
         self.assertCountEqual([str(d) for d in date], [str(datetime.datetime.today().date())])
         
     def test_group_entries(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         sessions = db.lookup_sessions()
         grouped = db.group_entries(sessions) # by date
