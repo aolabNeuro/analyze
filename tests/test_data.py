@@ -1205,39 +1205,39 @@ class DatabaseTests(unittest.TestCase):
         from db.tracker import models
         
         # Clear the database
-        models.Decoder.objects.all().delete()
-        models.TaskEntry.objects.all().delete()
-        models.Subject.objects.all().delete()
-        models.Experimenter.objects.all().delete()
-        models.Sequence.objects.all().delete()
-        models.Task.objects.all().delete()
-        models.Feature.objects.all().delete()
-        models.Generator.objects.all().delete()
-        models.System.objects.all().delete()
+        models.Decoder.objects.using('test_aopy').all().delete()
+        models.TaskEntry.objects.using('test_aopy').all().delete()
+        models.Subject.objects.using('test_aopy').all().delete()
+        models.Experimenter.objects.using('test_aopy').all().delete()
+        models.Sequence.objects.using('test_aopy').all().delete()
+        models.Task.objects.using('test_aopy').all().delete()
+        models.Feature.objects.using('test_aopy').all().delete()
+        models.Generator.objects.using('test_aopy').all().delete()
+        models.System.objects.using('test_aopy').all().delete()
 
         # Make some test entries for subject, experimenter, and task 
         subj = models.Subject(name="test")
-        subj.save()
+        subj.save(using='test_aopy')
         expm = models.Experimenter(name="experimenter_1")
-        expm.save()
+        expm.save(using='test_aopy')
         task = models.Task(name="nothing")
-        task.save()
+        task.save(using='test_aopy')
         task = models.Task(name="manual control")
-        task.save()
+        task.save(using='test_aopy')
         task = models.Task(name="tracking")
-        task.save()
+        task.save(using='test_aopy')
         feat = models.Feature(name="feat_1")
-        feat.save()
+        feat.save(using='test_aopy')
         gen = models.Generator(name="test_gen", static=False)
-        gen.save()
+        gen.save(using='test_aopy')
         seq = models.Sequence(generator_id=gen.id, task_id=task.id, name="test_seq", params='{"seq_param_1": 1}')
-        seq.save()
+        seq.save(using='test_aopy')
 
         # Make a basic task entry
         subj = models.Subject.objects.get(name="test")
         task = models.Task.objects.get(name="tracking")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id)
-        te.save()
+        te.save(using='test_aopy')
 
         # Make a manual control task entry
         task = models.Task.objects.get(name="manual control")
@@ -1245,44 +1245,45 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
                             session="test session", project="test project", params='{"task_param_1": 1}', sequence_id=seq.id)
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
-        te.save()
+        te.save(using='test_aopy')
         te.feats.set([feat])
-        te.save()
+        te.save(using='test_aopy')
 
         # Add a decoder entry that was "trained" on a parent task entry
         task = models.Task.objects.get(name="nothing")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, entry_name="decoder parent")
-        te.save()
+        te.save(using='test_aopy')
         decoder = models.Decoder(name="test_decoder", entry_id=te.id)
-        decoder.save()
+        decoder.save(using='test_aopy')
 
         # And a flash task entry
         task = models.Task.objects.get(name="manual control")
         expm = models.Experimenter.objects.get(name="experimenter_1")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
-        te.save()
+        te.save(using='test_aopy')
 
         system = models.System(name="test_system", path="", archive="")
-        system.save()
+        system.save(using='test_aopy')
 
         # Add a bmi task entry
         task = models.Task(name="bmi control")
-        task.save()
+        task.save(using='test_aopy')
         subj = models.Subject.objects.get(name="test")
         expm = models.Experimenter.objects.get(name="experimenter_1")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, 
                               experimenter_id=expm.id, params='{"bmi": '+str(decoder.id)+'}')
-        te.save()
+        te.save(using='test_aopy')
 
         # Add a task entry from a different rig
         subj = models.Subject.objects.get(name="test")
         expm = models.Experimenter.objects.get(name="experimenter_1")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, rig_name="siberut-bmi")
-        te.save()
+        te.save(using='test_aopy')
 
 
     def test_lookup_sessions(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Most basic lookup
         all_sessions = db.lookup_sessions()
@@ -1331,13 +1332,14 @@ class DatabaseTests(unittest.TestCase):
         db.DB_TYPE = 'bmi3d'
         db.BMI3D_DBNAME = 'rig2'
         self.assertRaises(Exception, db.lookup_sessions)
-        db.BMI3D_DBNAME = 'default'
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # And the rig name
         sessions = db.lookup_bmi_sessions(rig_name='siberut-bmi')
         self.assertEqual(len(sessions), 1)
 
     def test_lookup_decoders(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Most basic lookup
         all_decoders = db.lookup_decoders()
@@ -1358,7 +1360,8 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(decoders[0].name, "test_decoder")
 
     def test_filter_functions(self):
-        
+        db.BMI3D_DBNAME = 'test_aopy'
+
         # Filter by features
         filter_fn = db.filter_has_features("feat_1")
         sessions = db.lookup_sessions(filter_fn=filter_fn)
@@ -1373,6 +1376,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(sessions), 0)
 
     def test_BMI3DTaskEntry(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Test that all the fields work as they should
         te = db.lookup_sessions(task_desc='task_desc')[0]
@@ -1407,12 +1411,14 @@ class DatabaseTests(unittest.TestCase):
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
     def test_list_entry_details(self):
+        db.BMI3D_DBNAME = 'test_aopy'
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test'])
         self.assertCountEqual([str(d) for d in date], [str(datetime.datetime.today().date())])
         
     def test_group_entries(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         sessions = db.lookup_sessions()
         grouped = db.group_entries(sessions) # by date
