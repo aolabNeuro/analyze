@@ -7,7 +7,7 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 install_requires = [
-    'numpy',
+    'numpy<2.0',
     'xarray',
     'pandas',
     'psutil',
@@ -18,7 +18,7 @@ install_requires = [
     'nitime',
     'xlrd',
     'openpyxl',
-    'matplotlib>=3.6',
+    'matplotlib>=3.9',
     'scipy',
     'PyWavelets',
     'Pillow',
@@ -32,7 +32,7 @@ install_requires = [
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.7.1",
+    version="0.7.3",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

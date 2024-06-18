@@ -1,7 +1,6 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 import string
-from typing import Tuple, Union
 import warnings
 import seaborn as sns
 import matplotlib
@@ -25,9 +24,11 @@ from tqdm import tqdm
 import pandas as pd
 from datetime import timedelta
 
+from .. import precondition
 from .. import analysis
-from ..data import load_chmap
+from .. import data as aodata
 from .. import utils
+from .. import preproc
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''
@@ -203,7 +204,7 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kw
 
         .. image:: _images/place_Opto32_subplots.png
     '''
-    stim_pos, _, _ = load_chmap('Opto32')
+    stim_pos, _, _ = aodata.load_chmap('Opto32')
 
     # Normalize the positions to the width and height of the figure
     stim_pos = (stim_pos - np.mean(stim_pos, axis=0)) / (np.max(stim_pos) - np.min(stim_pos)) * fig_size + fig_size/2
@@ -503,7 +504,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
         extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
 
     # Set the 'bad' color to something different
-    cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
+    cmap = copy.copy(plt.get_cmap(cmap))
     if nan_color:
         cmap.set_bad(color=nan_color)
     
@@ -574,7 +575,7 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, a
         ax = plt.gca()
     
     # Load the signal path files
-    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244', theta=theta)
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type='ECoG244', theta=theta)
 
     # Remove bad electrodes
     bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
@@ -660,7 +661,7 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
         print("Annotating acquisition channel numbers")
 
     # Get channel map (overwrite acq_ch if it was supplied to get the correct shape acq_ch)
-    elec_pos, acq_ch, elecs = load_chmap(drive_type, acq_ch, theta)
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type, acq_ch, theta)
 
     # Annotate each channel
     if isinstance(color, str) or len(color) < len(elec_pos):
@@ -1651,14 +1652,14 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     
     return fig
 
-def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
+
+def plot_corr_over_elec_distance(elec_data, elec_pos, ax=None, **kwargs):
     '''
     Makes a plot of correlation vs electrode distance for the given data.
     
     Args:
-        acq_data (nt, nch): acquisition data indexed by acq_ch
-        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
-        elec_pos (nelec, 2): x, y position of each electrode in cm
+        elec_data (nt, nelec): electrode data with nch corresponding to elec_pos
+        elec_pos (nelec, 2): x, y position of each electrode
         ax (pyplot.Axes, optional): axis on which to plot
         kwargs (dict, optional): other arguments to supply to :func:`aopy.analysis.calc_corr_over_elec_distance`
 
@@ -1682,16 +1683,75 @@ def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
 
         .. image:: _images/corr_over_dist.png
 
+    Updated:
+        2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
     '''
     if ax is None:
         ax = plt.gca()
     label = kwargs.pop('label', None)
-    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
+    dist, corr = analysis.calc_corr_over_elec_distance(elec_data, elec_pos, **kwargs)
     ax.plot(dist, corr, label=label)
     ax.set_xlabel('binned electrode distance (cm)')
     ax.set_ylabel('correlation')
     ax.set_ylim(0,1)
 
+def plot_corr_across_entries(preproc_dir, subjects, ids, dates, band=(70,200), taper_len=0.1, num_seconds=60, 
+                             cmap='viridis', ax=None, remove_bad_ch=True, **bad_ch_kwargs):
+    '''
+    Plot the correlation vs electrode distance for each entry in the given list of subjects, ids, and dates.
+    
+    Args:
+        preproc_dir (str): path to the preprocessed data directory
+        subjects (list): list of subject names
+        ids (list): list of te_ids
+        dates (list): list of dates
+        band (tuple, optional): frequency band to filter the data. Default (70, 200)
+        taper_len (float, optional): length of taper to use in the filter. Default 0.1
+        num_seconds (int, optional): number of seconds to use in the correlation calculation. Default 60
+        cmap (str, optional): colormap to use for plotting. Default 'viridis'
+        ax (pyplot.Axes, optional): axis on which to plot. Default current axis
+        remove_bad_ch (bool, optional): whether to remove bad channels from the data. Default True
+        bad_ch_kwargs (dict, optional): keyword arguments to pass to :func:`a
+    
+    Example:
+        Plotting the correlation vs electrode distance for a few entries in the preprocessed data directory.
+
+        .. image:: _images/corr_over_entries.png
+    '''
+    assert len(subjects) == len(ids) == len(dates), "Subjects, ids, and dates must be equal length"
+    
+    if ax is None:
+        ax = plt.gca()    
+    ax.set_prop_cycle('color', sns.color_palette(cmap, len(subjects)))
+        
+    for subject, te_id, date in zip(subjects, ids, dates):
+
+        try:
+            lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+            exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        except:
+            print(f"Could not find data for entry {te_id} ({subject} on {date})")
+            continue
+        try:
+            elec_pos, acq_ch, _ = aodata.load_chmap(exp_metadata['drmap_drive_type'])
+        except:
+            elec_pos, acq_ch, _ = aodata.load_chmap('ECoG244')
+
+        samplerate = lfp_metadata['samplerate']
+        short_data = lfp_data[:num_seconds*samplerate,acq_ch-1]
+        filt_data = precondition.mt_bandpass_filter(short_data, band, taper_len, 
+                                                            samplerate, verbose=False)
+        
+        if remove_bad_ch:
+            bad_ch = preproc.quality.detect_bad_ch_outliers(filt_data, **bad_ch_kwargs)
+            filt_data = filt_data[:,~bad_ch]
+            elec_pos = elec_pos[~bad_ch]
+        
+        plot_corr_over_elec_distance(filt_data, elec_pos, label=date, ax=ax)
+
+    leg = ax.legend(bbox_to_anchor = (1,1))
+    for obj in leg.legend_handles:
+        obj.set_linewidth(4.0)
 
 def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwargs):
     '''

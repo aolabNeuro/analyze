@@ -854,6 +854,7 @@ def get_ref_dis_frequencies(data, metadata):
     on each trial of the experiment.
 
     Note:
+        This function should be used with caution on task entries that have mismatched sync and bmi3d events!
         Prior to 11-16-2022, bmi3d did not allow the number of experimental frequencies to be set by the experimenter, 
             and this parameter defaulted to 8.
         Prior to 2-23-2023, bmi3d did not save the generator index in the task data, and this had to be calculated 
@@ -914,6 +915,7 @@ def get_ref_dis_frequencies(data, metadata):
 
     # recreate random trial order of reference & disturbance frequencies
     np.random.seed(params['seed'])
+    o = np.random.rand(params['ntrials'],primes.size) # phase offset - need to generate this like in bmi3d to reproduce correct random order
     order = np.random.choice([0,1])
     if order == 0:
         trial_r_idx = np.array([even_idx, odd_idx]*params['ntrials'], dtype='object')
@@ -927,7 +929,10 @@ def get_ref_dis_frequencies(data, metadata):
     cycles = data['bmi3d_events']['time'] # bmi3d cycle number
 
     start_codes = [metadata['event_sync_dict']['TARGET_ON']]
-    end_codes = [metadata['event_sync_dict']['TRIAL_END']]
+    if 'PAUSE_START' in metadata['event_sync_dict']:
+        end_codes = [metadata['event_sync_dict']['TRIAL_END'], metadata['event_sync_dict']['PAUSE_START']]
+    else:
+        end_codes = [metadata['event_sync_dict']['TRIAL_END'], metadata['event_sync_dict']['PAUSE']]
     
     _, segment_cycles = base.get_trial_segments(events, cycles, start_codes, end_codes)
 

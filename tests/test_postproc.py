@@ -254,6 +254,7 @@ class TestGetFuncs(unittest.TestCase):
         min_trial = get_minimum_trials_per_target(target_idx_test, cond_mask_test)
         trial_mask = get_conditioned_trials_per_target(target_idx_test, min_trial, cond_mask_test, replacement=False, seed=None)
         self.assertEqual(min_trial,3)
+        self.assertTrue(np.all(target_idx_test[trial_mask] == [1,2,3,1,2,3,1,2,3]))
         self.assertTrue(sum(target_idx_test[trial_mask] == 1) == min_trial)
         self.assertTrue(sum(target_idx_test[trial_mask] == 2) == min_trial)
         self.assertTrue(sum(target_idx_test[trial_mask] == 3) == min_trial)

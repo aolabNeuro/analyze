@@ -19,3 +19,8 @@ Examples:
 .. toctree::
 
     examples/memory_limit_example.ipynb
+
+.. toctree::
+
+    examples/save_segments.ipynb
+    

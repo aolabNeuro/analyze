@@ -409,13 +409,12 @@ class CalcTests(unittest.TestCase):
 
 
     def test_calc_corr_over_elec_distance(self):
-        acq_data = np.array([[1, 2, 3], [4, 5, 6]])
-        acq_ch = np.array([1, 2])
+        elec_data = np.array([[1, 2, 3], [4, 5, 6]]).T
         elec_pos = np.array(
             [[1, 1],
-            [2,2],]
+            [2, 2]]
         )
-        dist, corr = aopy.analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, method='pearson', bins=1, exclude_zero_dist=True)
+        dist, corr = aopy.analysis.calc_corr_over_elec_distance(elec_data, elec_pos, method='pearson', bins=1, exclude_zero_dist=True)
 
         self.assertEqual(corr.size, 1)
         self.assertEqual(dist.size, 1)
@@ -1609,21 +1608,144 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_allclose(target_idx, [0, 6, 2, 1, 0])
 
     def test_movement_onset_and_cursor_leave_time(self):
-        fs = 1
-        cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,1,1,0,0,1,1,1,1,1,]]).T,\
-            np.array([[1,0,0,0,0,0,0,-1,-1,-1],[0,1,0,0,0,0,0,1,1,1,]]).T])
-        trial_start = np.array([0,0])
-        target_onset = np.array([1,2])
-        gocue = np.array([4,5])
-        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=1)
-        self.assertTrue(np.all(movement_onset == np.array([5,7])))
+        fs = 1000
+        duration = 10
+        t = np.arange(duration*fs)/fs
+        y1 = 10*np.sin(2*np.pi*30*t) + 0.1*np.sin(2*np.pi*5*t)
+        y2 = np.zeros(t.shape[0])
+        y2[t>5] = 5*np.sin(2*np.pi*1*t[t>5])
+        yz = np.zeros(t.shape[0])
+        cursor_test = np.array([np.stack([y1+y2,yz]).T])
         
+        trial_start = np.array([0])
+        target_onset= np.array([2])
+        gocue = np.array([4])
+        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=20.0, butter_order=4, low_cut=20, thr=None)
+        self.assertTrue((movement_onset > 5)*(movement_onset < 5.1))
+        
+        fs = 1
         cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
             np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
         cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
         self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
 
+    def test_calc_tracking_error(self):
+        samplerate = 100
+        t = np.arange(samplerate*20) # 20sec signal
+        exp_freqs = [.2, .5] # [f1, f2] Hz
+        
+        A1 = 4
+        A2 = 3
+
+        offset = 0
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        offset = 1
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        fig, ax = plt.subplots(4,1, figsize=(10,10))
+        ax[0].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[0].plot(t, target_traj, 'tab:orange', label='target')
+        ax[0].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[0].set_ylabel('position (cm)'); ax[0].set_ylim([-10,10])
+        ax[0].set_xticklabels([])
+        ax[0].legend()
+
+        offset = 3
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[1].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[1].plot(t, target_traj, 'tab:orange', label='target')
+        ax[1].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[1].set_ylabel('position (cm)'); ax[1].set_ylim([-10,10])
+        ax[1].set_xticklabels([])
+
+        offset = -2
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = (A1+offset) * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + (A2+offset) * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[2].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[2].plot(t, target_traj, 'tab:orange', label='target')
+        ax[2].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[2].set_ylabel('position (cm)'); ax[2].set_ylim([-10,10])
+        ax[2].set_xticklabels([])
+
+        offset = -2
+        target_traj = A1 * np.sin((2*np.pi)*(exp_freqs[0]/samplerate)*t) + A2 * np.sin((2*np.pi)*(exp_freqs[1]/samplerate)*t)
+        cursor_traj = target_traj + offset
+        self.assertAlmostEqual(offset**2, aopy.analysis.calc_tracking_error(cursor_traj, target_traj))
+
+        ax[3].set_title(f'MSE = {offset**2}cm $^2$')
+        ax[3].plot(t, target_traj, 'tab:orange', label='target')
+        ax[3].plot(t, cursor_traj, 'darkviolet', label='cursor')
+        ax[3].set_ylabel('position (cm)'); ax[3].set_ylim([-10,10])
+        ax[3].set_xlabel('samples')
+        filename = 'tracking_error.png'
+        savefig(docs_dir,filename)
+
+    def test_calc_tracking_in_time(self):
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 48, 239] # 5 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
+
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 48, 239] # 6 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(6*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(6*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
+
+        inter_event_int = 1
+        event_codes = [16, 2, 80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 
+                       80, 96, 79, 239] # 5 "tracking in" segments
+        event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
+        self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
+        self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
+
 class ControlTheoreticAnalysisTests(unittest.TestCase):
+    def test_get_machine_dynamics(self):
+        freqs = np.linspace(0,1,20)
+        exp_freqs = freqs[::2] # "even" freqs
+        print(freqs)
+        print(exp_freqs)
+        
+        M = controllers.get_machine_dynamics(freqs, 0)
+        np.testing.assert_equal(len(M), 20) # check length of M matches length of freqs 
+        np.testing.assert_array_equal(M, np.ones(20,)) # check M is all 1s (0th order system)
+
+        M = controllers.get_machine_dynamics(freqs, 1)
+        np.testing.assert_equal(len(M), 20) # check length of M matches length of freqs
+
+        M = controllers.get_machine_dynamics(freqs, 2)
+        np.testing.assert_equal(len(M), 20) # check length of M matches length of freqs
+
+        M_exp_freqs = controllers.get_machine_dynamics(freqs, 2, exp_freqs) # same as above, but only return M at exp_freqs
+        np.testing.assert_equal(len(M_exp_freqs), 10) # check length of M_exp_freqs matches length of exp_freqs
+        np.testing.assert_array_equal(M[::2], M_exp_freqs) # check M_exp_freqs matches M indexed at even freqs
+
+        # only need to run once, because it fails (as expected - function doesn't recognize 3rd order system)
+        # M = controllers.get_machine_dynamics(freqs, 3)
+
     def test_calc_transfer_function(self):
         samplerate = 100
         t = np.arange(samplerate) # 1sec signal
@@ -1723,7 +1845,23 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         trial_pairs = controllers.pair_trials_by_frequency(ref_freqs, dis_freqs, max_trial_distance=2, limit_pairs_per_trial=False)
         np.testing.assert_array_equal(trial_pairs, expected_pairs)
 
+class ConfidenceIntervalTests(unittest.TestCase):
+    def test_get_confidence_interval(self):
+        np.random.seed(1)
+        uniform_random = np.random.uniform(size=10000)
+        hist_bins = np.linspace(0,1,10000)
+        interval = aopy.analysis.get_confidence_interval(uniform_random, hist_bins)
+        self.assertEqual(round(interval[0],3), 0.026)
+        self.assertEqual(round(interval[1],3), 0.975)
+    
+    def test_calc_confidence_interval_overlap(self):
+        CI1 = [10,20]
+        CI2 = [17,30]
+        overlap = aopy.analysis.calc_confidence_interval_overlap(CI1,CI2)
+        self.assertEqual(overlap,(20-17)/(20-10))
+        
 if __name__ == "__main__":
+
     unittest.main()
 
 

@@ -21,7 +21,7 @@ if sys.version_info >= (3,9):
 else:
     from importlib_resources import files, as_file
 
-from ..preproc import get_trial_data
+from .. import preproc
 
 ###############################################################################
 # Loading preprocessed data
@@ -328,7 +328,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/", cached=Fals
         _load_hdf_data_cached.cache_clear()
     return _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group=data_group)
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Cached version of load_hdf_data
@@ -369,7 +369,7 @@ def load_hdf_group(data_dir, hdf_filename, group="/", cached=False):
         _load_hdf_group_cached.cache_clear()
     return _load_hdf_group_cached(data_dir, hdf_filename, group=group)
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def _load_hdf_group_cached(data_dir, hdf_filename, group="/"):
     '''
     Loads any datasets from the given hdf group into a dictionary. Also will
@@ -404,8 +404,9 @@ def _load_hdf_group_cached(data_dir, hdf_filename, group="/"):
     hdf.close()
     return data
 
-def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
-                       samplerate, trigger_time, time_before, time_after):
+def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
+                       samplerate, trigger_time, time_before, time_after,
+                       channels=None):
     '''
     Load a segment of HDF timeseries data given start and end times and a sampling rate.
 
@@ -418,6 +419,45 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
         trigger_time (float): time (in seconds) in the recording at which the desired segment starts
         time_before (float): time (in seconds) to include before the trigger times
         time_after (float): time (in seconds) to include after the trigger times
+        channels (list, optional): list of channels to include in the segment (default all channels
+    
+    Raises:
+        ValueError: if the dataset cannot be found in the file
+
+    Returns:
+        tuple: tuple containing:
+            | **segment (nt, nch):** data segment from the given preprocessed file
+            | **samplerate (float):** sampling rate of the returned data    
+    '''
+    filepath = os.path.join(preproc_dir, filename)
+    hdf = h5py.File(filepath, 'r')
+    
+    # Check that the data group exists
+    dataname = os.path.join(data_group, data_name).replace("\\", "/")
+    if dataname not in hdf:
+        raise ValueError('{} not found in file {}'.format(dataname, filepath))
+    
+    # Get the ts segment
+    ts_data = hdf[dataname]
+    segment = preproc.get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate, channels=channels)
+
+    hdf.close()
+    return segment
+
+def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
+                       samplerate, start_time, end_time, channels=None):
+    '''
+    Load a segment of HDF timeseries data given a start and end time and a sampling rate.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        filename (str): filename of the hdf file where the data resides
+        data_group (str): hdf group of the desired dataset
+        data_name (str): hdf name of the desired dataset
+        samplerate (float): the sampling rate of the data in Hz
+        start_time (float): time (in seconds) in the recording at which the desired segment starts
+        end_time (float): time (in seconds) in the recording at which the desired segment ends
+        channels (list, optional): list of channels to include in the segment (default all channels)
 
     Raises:
         ValueError: if the dataset cannot be found in the file
@@ -437,7 +477,7 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
     
     # Get the ts segment
     ts_data = hdf[dataname]
-    segment = get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate)
+    segment = preproc.get_data_segment(ts_data, start_time, end_time, samplerate, channels=channels)
     
     hdf.close()
     return segment

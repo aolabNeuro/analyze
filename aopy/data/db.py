@@ -8,6 +8,8 @@ import sys
 from collections import defaultdict
 import warnings
 import traceback
+import pandas as pd
+import numpy as np
 try:
     from db import dbfunctions as bmi3d
     from db.tracker import dbq
@@ -73,7 +75,8 @@ def lookup_sessions(id=None, subject=None, date=None, task_name=None, task_desc=
             kwargs['experimenter__name'] = experimenter
         
         # Initial lookup, wrapped into BMI3DTaskEntry objects
-        entries = bmi3d.get_task_entries(dbname=this.BMI3D_DBNAME, **kwargs)
+        dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+        entries = bmi3d.get_task_entries(dbname=dbname, **kwargs)
         entries = [BMI3DTaskEntry(e) for e in entries]
 
         # Additional filtering
@@ -140,7 +143,8 @@ def lookup_decoders(id=None, parent_id=None, **kwargs):
     if parent_id is not None:
         kwargs['entry_id'] = parent_id
 
-    records = bmi3d.models.Decoder.objects.filter(**kwargs)
+    dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+    records = bmi3d.models.Decoder.objects.using(dbname).filter(**kwargs)
     return [BMI3DDecoder(r) for r in records]
 
 '''
@@ -317,6 +321,21 @@ class BMI3DTaskEntry():
     @property
     def n_trials(self):
         '''
+        Number of total trials presented
+
+        Returns:
+            int: number of total trials
+        '''
+        try:
+            report = json.loads(self.record.report)
+        except: 
+            return 0
+        total = report['n_trials']
+        return total
+    
+    @property
+    def n_rewards(self):
+        '''
         Number of rewarded trials
 
         Returns:
@@ -327,11 +346,7 @@ class BMI3DTaskEntry():
         except: 
             return 0
         rewards = report['n_success_trials']
-        total = report['n_trials']
-        if rewards == 0:
-            return total # in the case of laser or flash trials, no rewards
-        
-        return rewards
+        return rewards        
 
     def get_decoder(self, decoder_dir=None):
         '''
@@ -583,3 +598,58 @@ def group_entries(sessions, grouping_fn=lambda te: te.date):
     for date in keys:
         grouped_ids.append(tuple(keyed_ids[date]))
     return grouped_ids
+
+def summarize_entries(entries, sum_trials=False):
+    '''
+    Generates a dataframe summarizing the subject, date, task, number of trials, 
+    and duration in minutes of each entry in the input list. Optionally sum the
+    number of trials and duration for unique tasks across days for each subject
+    
+    Args:
+        entries (list): list of bmi3d task entries
+        sum_trials (bool, optional): sum the number of trials and duration across
+            unique tasks for each day for each subject
+
+    Returns:
+        pd.DataFrame: dataframe of entry summaries
+
+    Examples:
+
+        .. code-block:: python
+
+            date_obj = date.fromisoformat('2023-02-06')
+            entries = db.lookup_sessions(date=date_obj)
+            df = db.summarize_entries(entries)
+            display(df)
+
+        .. image:: _images/db_summarize_sessions.png
+
+        .. code-block:: python
+
+            df_unique = db.summarize_entries(entries, sum_trials=True)
+            display(df_unique)
+
+        .. image:: _images/db_summarize_sessions_sum.png
+
+    '''
+
+    # Generate a summary dataframe
+    desc = {
+        'subject': [e.subject for e in entries],
+        'te_id': [e.id for e in entries],
+        'date': [e.date for e in entries],
+        'time': [e.datetime.time().replace(microsecond=0) for e in entries],
+        'task_name': [e.task_name for e in entries],
+        'task_desc': [e.task_desc for e in entries],
+        'n_rewards': [e.n_rewards for e in entries],
+        'n_trials': [e.n_trials for e in entries],
+        'duration_minutes': [np.round(e.duration/60, 1) for e in entries],
+    }
+    all_sessions = pd.DataFrame(desc)
+    if sum_trials is False:
+        return all_sessions
+
+    # Optionally sum the dataframe across unique tasks on each day for each subject
+    unique_sessions = all_sessions.drop('te_id', axis=1).groupby(
+        ['subject', 'date', 'task_name', 'task_desc']).sum(numeric_only=True)
+    return unique_sessions
