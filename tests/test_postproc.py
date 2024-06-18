@@ -1,4 +1,5 @@
 from aopy.postproc import *
+from aopy.postproc.centerout import *
 import aopy
 import numpy as np
 import warnings
@@ -250,7 +251,25 @@ class TestGetFuncs(unittest.TestCase):
 
 class TestCenterout(unittest.TestCase):
 
-    def test_get_mapping(self):
+    def test_transform_optitrack2hand_coordinates(self):
+        o_coords = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        expected_h_coords = np.array([[3, 2, 1], [6, 5, 4], [9, 8, 7]])
+        np.testing.assert_array_equal(transform_optitrack2hand_coordinates(o_coords), expected_h_coords)
+
+    def test_transform_optitrack2hand_coordinates_single_point(self):
+        o_coords = np.array([[0, 1, 2]])
+        expected_h_coords = np.array([[2, 1, 0]])
+        np.testing.assert_array_equal(transform_optitrack2hand_coordinates(o_coords), expected_h_coords)
+
+    def test_transform_bmi3dscreen2cursor_coordinates(self):
+        b_coords = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        expected_c_coords = np.array([[1, 3, 2], [4, 6, 5], [7, 9, 8]])
+        np.testing.assert_array_equal(transform_bmi3dscreen2cursor_coordinates(b_coords), expected_c_coords)
+
+    def test_transform_bmi3dscreen2cursor_coordinates_single_point(self):
+        b_coords = np.array([[1, 0, 2]])
+        expected_c_coords = np.array([[1, 2, 0]])
+        np.testing.assert_array_equal(transform_bmi3dscreen2cursor_coordinates(b_coords), expected_c_coords)
 
 
 if __name__ == "__main__":

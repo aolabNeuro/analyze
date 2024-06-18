@@ -71,6 +71,7 @@ def _get_mapping(exp_metadata):
 
     Hand coordinates are centered about the hand space origin (i.e. offset already applied)
     '''
+
     offset = exp_metadata['offset']
     offset_arr = np.array(
         [[1, 0, 0, 0],
@@ -105,7 +106,7 @@ def _get_mapping(exp_metadata):
 
 
 def _transform_coords(hand_data, exp_metadata):
-  '''
+    '''
     Transforms hand data into mapping used in center out experiment
   Args:
       hand_traj (3D numpy array): 3D array of hand trajectory data (n_timepoints x 3) : hand data when output from get_kinematics is in BMI3D coordinates.
@@ -114,7 +115,7 @@ def _transform_coords(hand_data, exp_metadata):
   Returns:
       transformed_hand_traj (3D numpy array)
 
-  '''
+    '''
     offset = exp_metadata['offset']
     offset_arr = np.array(
         [[1, 0, 0, 0],
@@ -188,23 +189,24 @@ def transform_optitrack2hand_coordinates(o_coords):
     """
     Transforms coordinates from the Optitrack coordinates (O) to the intuitive hand coordinates for plotting (H).
 
-    :: image:: _images/MC_coord_definition.png
-
     Parameters:
-        o_coords (numpy array): The original coordinates as a numpy array [Ox, Oy, Oz].
+        o_coords (numpy array): Optitrack data in Optitrack coordinates [Ox, Oy, Oz] as a numpy array (n_timepoints x 3).
 
     Returns:
         numpy array: The transformed coordinates [Hx, Hy, Hz].
+
+    .. image:: _images/hand_data_coordinates.png
+
     """
     # Transformation matrix
     T = np.array([
-        [0, 1, 0],
         [0, 0, 1],
+        [0, 1, 0],
         [1, 0, 0]
     ])
 
     # Perform the matrix multiplication
-    h_coords = T.dot(o_coords)
+    h_coords = o_coords.dot(T)
 
     return h_coords
 
@@ -213,14 +215,14 @@ def transform_bmi3dscreen2cursor_coordinates(b_coords):
     """
     Transforms coordinates from the BMI3d screen coordinates (B) to the intuitive cursor coordinates for plotting (H).
     Note: Get kinematics functions output hand kinematics in optitrack coordinates & cursor kinematics in bmi3d coordinates
-
-    :: image:: _images/MC_coord_definition.png
-
     Parameters:
-        b_coords (numpy array): The original coordinates as a numpy array [Bx, By, Bz].
+        b_coords (numpy array): cursor data in BMI3d screen coordinates [Bx, By, Bz] as a numpy array (n_timepoints x 3).
 
     Returns:
         numpy array: The transformed coordinates [Cx, Cy, Cz].
+
+    .. image:: _images/cursor_data_coordinates.png
+
     """
     # Transformation matrix
     T = np.array([
@@ -230,6 +232,6 @@ def transform_bmi3dscreen2cursor_coordinates(b_coords):
     ])
 
     # Perform the matrix multiplication
-    c_coords = T.dot(b_coords)
+    c_coords = b_coords.dot(T)
 
     return c_coords
