@@ -108,16 +108,15 @@ def get_target_tuning(data, target_idx, target_locations, return_significance=Fa
     Returns:
         tuple: Tuple containing:
             | **target_angles (ntargets):** angles of target locations in radians
-            | **means_d (nch, ntargets):** mean firing rate per neuron per target direction
-            | **stds_d (nch, ntargets):** standard deviation from mean firing rate per neuron
-            | **pvalue (nch, optional):** significance of modulation
+            | **means_d (ntargets, nch):** mean firing rate per neuron per target direction
+            | **stds_d (ntargets, nch):** standard deviation from mean firing rate per neuron
+            | **pvalue (ntargets, nch):** significance of modulation
     '''
-    assert len(target_locations) == len(target_idx), "Target locations and indices must have the same length"
     target_locations = np.array(target_locations)
     assert target_locations.shape[1] == 2, "Target locations must be 2D"
 
     target_angles = np.array([np.arctan2(*t) for t in target_locations])
-    return target_angles, *get_mean_fr_per_condition(data, target_idx, return_significance=return_significance)
+    return target_angles, *(v.T for v in get_mean_fr_per_condition(data, target_idx, return_significance=return_significance))
 
 def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''

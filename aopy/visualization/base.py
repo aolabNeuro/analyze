@@ -1288,20 +1288,17 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
 
     ax.set_xlabel(r'Time ($\mu$s)')    
     
-def plot_direction_tuning(direction, mean, var=None, wrap=True, modulo=2*np.pi, ylabel='success rate', ax=None):
+def plot_direction_tuning(direction, mean, var=None, wrap=True, ylabel='success rate', ax=None):
     '''
     Plot tuning curves for directional data. The mean is plotted as a solid line and the variance as 
-    a shaded region around the mean. Works with both cartesian and polar axes. 
+    a shaded region around the mean. Works with both cartesian and polar axes.
     
     Args:
-        direction (ndir): direction of each tuning curve
+        direction (ndir): direction of each tuning curve in radians
         mean (ndir, nch): mean of the tuning curve for each channel. If only one channel, can be (ndir,)
         var (ndir, nch): variance of the tuning curve for each channel. If only one channel, can be (ndir,)
             Can also be left blank if there is no variance to plot.
         wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
-        modulo (float, optional): value at which to wrap the direction values. Default is 2*np.pi for data where
-            the direction spans an entire circle. For cases where -pi is the same as +pi, a modulo of np.pi 
-            would be input instead.
         ylabel (str, optional): label for the y-axis. Default "success rate"
         ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
     
@@ -1332,7 +1329,12 @@ def plot_direction_tuning(direction, mean, var=None, wrap=True, modulo=2*np.pi, 
         direction = np.unique(direction)
     assert len(direction) == len(mean), "Direction and mean must have the same length"
 
-    # Sort the data
+    # Sort the data and decide if the data fills a full circle or half circle
+    if np.max(np.abs(direction)) > 2*np.pi:
+        direction = np.radians(direction) # probably in degrees by mistake
+    modulo = np.pi
+    if np.max(direction) - np.min(direction) >= (np.pi):
+        modulo = np.pi * 2
     direction = np.array(direction) % modulo
     idx = np.argsort(direction)
 
@@ -1358,7 +1360,7 @@ def plot_direction_tuning(direction, mean, var=None, wrap=True, modulo=2*np.pi, 
         ax.text(np.radians(label_position-1),ax.get_rmax()*1.1,ylabel,
             rotation=label_position,ha='left',va='center')
     except:
-        ax.set_xlabel('Target angle (deg)')
+        ax.set_xlabel('direction (deg)')
         ax.set_ylabel(ylabel)
     
 def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):

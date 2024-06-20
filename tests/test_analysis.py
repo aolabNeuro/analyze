@@ -210,6 +210,26 @@ class misc_tests(unittest.TestCase):
         np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
 
 class tuningcurve_fitting_tests(unittest.TestCase):
+
+    def test_get_target_tuning(self):
+        erp = np.zeros((100, 2, 16))
+        erp[:,0,:4] = 1
+        erp[:,0,4:8] = 2
+        erp[:,0,8:12] = 3
+        erp[:,0,12:] = 4
+        target_idx = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3]
+        target_locations = np.array([[0, 1], [1, 1], [1, 0], [-1, 0]])
+
+        directions, mean, var = aopy.analysis.get_target_tuning(erp, target_idx, target_locations)
+        print(directions)
+        self.assertEqual(directions.size, 4)
+        self.assertEqual(mean.size, 8)
+        self.assertEqual(var.size, 8)
+        print(mean.shape)
+        plt.figure()
+        aopy.visualization.plot_direction_tuning(directions, mean, var)
+        aopy.visualization.savefig(docs_dir, 'get_target_tuning.png', transparent=False)
+
     def test_run_tuningcurve_fit(self):
         nunits = 7
         targets = np.arange(0, 360, 45)

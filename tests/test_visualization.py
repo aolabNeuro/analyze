@@ -289,12 +289,25 @@ class CurveFittingTests(unittest.TestCase):
         plot_direction_tuning(direction, mean, var)
         savefig(docs_dir, 'direction_tuning.png', transparent=False)
 
+        plt.figure()
+        plot_direction_tuning(np.degrees(direction), mean, var)
+        savefig(write_dir, 'direction_tuning_degrees.png', transparent=False)
+
         # Again with polar plot
         fig = plt.figure()
         ax = fig.add_subplot(projection='polar')
 
         plot_direction_tuning(direction, mean, var)
         savefig(docs_dir, 'direction_tuning_polar.png', transparent=False)
+
+        # Make sure it works with a 180 degree range
+        direction = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+        mean = [1, 2, 3, 2]
+
+        plt.figure()
+        plot_direction_tuning(direction, mean)
+        savefig(write_dir, 'direction_tuning_modulo.png', transparent=False)
+
 
     def test_plot_boxplots(self):
         # Rectangular array
