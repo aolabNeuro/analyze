@@ -99,7 +99,7 @@ def load_optitrack_data(data_dir, filename):
     if mocap_metadata['Rotation Type'] != 'Quaternion':
         warnings.warn('Rotation type must be Quaternion')
     if mocap_metadata['Format Version'] not in ['1.23', '1.24']:
-        warnings.warn(f'Export version {mocap_metadata['Format Version']} not supported')
+        warnings.warn(f"Export version {mocap_metadata['Format Version']} not supported")
 
     # Load the data columns
     column_names_idx_csvrow = 5 # Header row index
