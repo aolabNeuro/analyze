@@ -1,5 +1,6 @@
 import csv
 import os
+import warnings
 from pandas import read_csv
 
 def load_optitrack_metadata(data_dir, filename, metadata_row=0):
@@ -95,8 +96,10 @@ def load_optitrack_data(data_dir, filename):
     mocap_metadata = load_optitrack_metadata(data_dir, filename)
     if not mocap_metadata:
         raise Exception('No metadata found for optitrack file')
-    assert mocap_metadata['Rotation Type'] == 'Quaternion', 'Rotation type must be Quaternion'
-    assert mocap_metadata['Format Version'] == '1.23', 'Only supports version 1.23'
+    if mocap_metadata['Rotation Type'] != 'Quaternion':
+        warnings.warn('Rotation type must be Quaternion')
+    if mocap_metadata['Format Version'] not in ['1.23', '1.24']:
+        warnings.warn(f"Export version {mocap_metadata['Format Version']} not supported")
 
     # Load the data columns
     column_names_idx_csvrow = 5 # Header row index
