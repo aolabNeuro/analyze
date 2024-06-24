@@ -259,11 +259,56 @@ class CurveFittingTests(unittest.TestCase):
         # Test without ax input
         fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+        savefig(docs_dir, filename, transparent=False)
 
         # test with ax input
         fig, ax = plt.subplots(2,4)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
+
+    def test_plot_direction_tuning(self):
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        mean = [1, 2, 3, 2]
         
+        plt.figure()
+        plot_direction_tuning(direction, mean)
+        savefig(write_dir, 'direction_tuning_simple.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(direction, mean, wrap=False)
+        savefig(write_dir, 'direction_tuning_simple_polar.png', transparent=False)
+
+        # Try multichannel
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        mean = np.array([[1, 2, 3, 2], [2, 3, 4, 3]]).T
+        var = np.array([[0.2, 0.3, 0.1, 0.], [0.4, 0.6, 0.2, 0]]).T
+        
+        plt.figure()
+        plot_direction_tuning(direction, mean, var)
+        savefig(docs_dir, 'direction_tuning.png', transparent=False)
+
+        plt.figure()
+        plot_direction_tuning(np.degrees(direction), mean, var)
+        savefig(write_dir, 'direction_tuning_degrees.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(direction, mean, var)
+        savefig(docs_dir, 'direction_tuning_polar.png', transparent=False)
+
+        # Make sure it works with a 180 degree range
+        direction = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+        mean = [1, 2, 3, 2]
+
+        plt.figure()
+        plot_direction_tuning(direction, mean)
+        savefig(write_dir, 'direction_tuning_modulo.png', transparent=False)
+
+
     def test_plot_boxplots(self):
         # Rectangular array
         np.random.seed(0)
