@@ -157,10 +157,10 @@ def practice_function_matt(favorite_number):
     '''
     This function judges your favorite number from the user input.
 
-    Inputs:
+    Args:
         favorite_number (int): your favorite number
 
-    Outputs: 
+    Returns: 
         string: a judgmental string about your fav number
     '''
 
