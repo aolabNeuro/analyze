@@ -161,7 +161,7 @@ def practice_function_matt(favorite_number):
         favorite_number [interger]: your favorite number
 
     Outputs: 
-        string_out [string]: returns a judgmental string about your fav number
+        string: a judgmental string about your fav number
     '''
 
     if favorite_number != 7:
