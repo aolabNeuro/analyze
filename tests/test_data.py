@@ -578,39 +578,20 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             preproc_dir, subject, te_id, date, decoder, 
             start_time=start_time, end_time=end_time)
 
-        state_offline, samplerate_offline = extract_lfp_features(
-            preproc_dir, subject, te_id, date, decoder, 
-            start_time=start_time, end_time=end_time, decode=True)
-
         features_online, samplerate_online = get_extracted_features(
-            preproc_dir, subject, te_id, date, decoder,
-            start_time=start_time, end_time=end_time)
-
-        state_online, _ = get_decoded_states(
             preproc_dir, subject, te_id, date, decoder,
             start_time=start_time, end_time=end_time)
 
         time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
         time_online = np.arange(len(features_online))/samplerate_online + start_time
 
-        plt.figure(figsize=(8,6))
-        plt.subplot(2,1,1)
+        plt.figure(figsize=(8,3))
         plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
         plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
         plt.xlabel('time (s)')
         plt.ylabel('power')
         plt.legend()
         plt.title('readout 1')
-        
-        plt.subplot(2,1,2)
-        plt.plot(time_offline, state_offline[:,3], alpha=0.8, label='offline')
-        plt.plot(time_online, state_online[:,3], alpha=0.8, label='online')
-        # plt.plot(time_online, state_online_2[:,3], alpha=0.8, label='online rerun')    
-        plt.xlabel('time (s)')
-        plt.ylabel('state')
-        plt.legend()
-        plt.title('x velocity')
-        plt.tight_layout()
         
         filename = 'extract_decoder_features.png'
         savefig(docs_dir, filename, transparent=False)
@@ -948,63 +929,35 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         features_offline, samplerate_offline = extract_lfp_features(
             preproc_dir, subject, te_id, date, decoder, 
             start_time=start_time, end_time=end_time)
-        state_offline, samplerate_offline = extract_lfp_features(
-            preproc_dir, subject, te_id, date, decoder, 
-            start_time=start_time, end_time=end_time, decode=True)
         features_online, samplerate_online = get_extracted_features(
             preproc_dir, subject, te_id, date, decoder,
             start_time=start_time, end_time=end_time)
-        state_online, _ = get_decoded_states(
-            preproc_dir, subject, te_id, date, decoder,
-            start_time=start_time, end_time=end_time)
-
         time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
         time_online = np.arange(len(features_online))/samplerate_online + start_time
 
-        plt.figure(figsize=(8,6))
-        plt.subplot(2,1,1)
+        plt.figure(figsize=(8,3))
         plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
         plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
         plt.xlabel('time (s)')
         plt.ylabel('power')
         plt.title('readout 1')
         
-        plt.subplot(2,1,2)
-        plt.plot(time_offline, state_offline[:,3], alpha=0.8, label='offline')
-        plt.plot(time_online, state_online[:,3], alpha=0.8, label='online')
-        plt.xlabel('time (s)')
-        plt.ylabel('state')
-        plt.title('x velocity')
         plt.tight_layout()
 
         # Tabulate the segments
         features_offline, samplerate_offline = tabulate_lfp_features(
             preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
-        state_offline, samplerate_offline = tabulate_lfp_features(
-            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
-            decode=True)
         features_online, samplerate_online = tabulate_feature_data(
-            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
-        state_online, _ = tabulate_state_data(
             preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
 
         for idx in range(len(start_times)):
             time_offline = np.arange(len(features_offline[idx]))/samplerate_offline + start_times[idx]
             time_online = np.arange(len(features_online[idx]))/samplerate_online + start_times[idx]
 
-            plt.subplot(2,1,1)
             plt.plot(time_offline, features_offline[idx][:,1], 'k--')
             plt.plot(time_online, features_online[idx][:,1], 'k--')
-            
-            plt.subplot(2,1,2)
-            plt.plot(time_offline, state_offline[idx][:,3], 'k--')
-            plt.plot(time_online, state_online[idx][:,3], 'k--')
         
         # Add legends
-        plt.subplot(2,1,1)
-        plt.plot([], [], 'k--', label='segments')
-        plt.legend()
-        plt.subplot(2,1,2)
         plt.plot([], [], 'k--', label='segments')
         plt.legend()
 

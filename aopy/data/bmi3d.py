@@ -552,7 +552,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             For other kinematics, try to interp exp_data['task'][datatype]
         samplerate (float, optional): The desired output sampling rate in Hz. 
             Defaults to 1000.
-        step (int, optional): The step size to slice the data. Default 1.
+        step (int, optional): task data will be decimated with steps this big. Default 1.
         **kwargs: Additional keyword arguments to pass to sample_timestamped_data()
 
     Returns:
@@ -708,7 +708,7 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
         datatype (str): column of task data to load. 
         samplerate (float): choose the samplerate of the data in Hz. Default None,
             which uses the sampling rate of the experiment.
-        step (int, optional): integer step to slice the data. Default 1.
+        step (int, optional): task data will be decimated with steps this big. Default 1.
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
         kwargs: additional keyword arguments to pass to get_interp_task_data 
@@ -827,9 +827,9 @@ def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerat
         decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
             uses the sampling rate of the experiment.
-        start_time (float, optional): start time of the segment to load in seconds. Default None,
+        start_time (float, optional): start time of the segment to load (in seconds). Default None,
             which loads from the beginning of the data.
-        end_time (float, optional): end time of the segment to load in seconds. Default None,
+        end_time (float, optional): end time of the segment to load (in seconds). Default None,
             which loads until the end of the data.
         datatype (str, optional): type of features to load. Defaults to 'lfp_power'.
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
@@ -868,9 +868,9 @@ def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=No
         decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
             uses the sampling rate of the experiment.
-        start_time (float, optional): start time of the segment to load in seconds. Default None,
+        start_time (float, optional): start time of the segment to load (in seconds). Default None,
             which loads from the beginning of the data.
-        end_time (float, optional): end time of the segment to load in seconds. Default None,
+        end_time (float, optional): end time of the segment to load (in seconds). Default None,
             which loads until the end of the data.
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
             a smoothing function.
@@ -1118,13 +1118,17 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
     return data, samplerate
 
 @lru_cache(maxsize=1)
-def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
+def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
                          start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
                          decode=False, **kwargs):
     '''
     Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
     Using this function, you can replicate closely the features that would have been extracted from 
     a real-time BMI3D experiment, even if the experiment did not include a decoder.
+
+    This private function has an optional paramter `decode` which allows you to run the features through
+    the decoder before resampling. This is useful only for verifying that the features extracted offline
+    are similar to those extracted online. Not to be used for any other purpose.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -1153,75 +1157,6 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
             | **feats (nt, nfeats):** lfp features for the given channels after preprocessing
             | **samplerate (float):** the sampling rate of the states after preprocessing
 
-    Note:
-        For best accuracy, use 'broadband' or other datatype without any filtering. Using filtered 'lfp'
-        results in DC shifted features.
-
-    Examples:
-
-        .. code-block:: python
-
-            subject = 'affi'
-            te_id = 17269
-            date = '2024-05-03'
-            preproc_dir = data_dir
-            start_time = 10
-            end_time = 30
-
-        Extract features using :func:`~aopy.data.bmi3d.extract_lfp_features` and states using 
-        :func:`~aopy.data.bmi3d.extract_lfp_features` with `decode=True`:
-        
-        .. code-block:: python
-            features_offline, samplerate_offline = extract_lfp_features(
-                preproc_dir, subject, te_id, date, decoder, 
-                start_time=start_time, end_time=end_time)
-            state_offline, samplerate_offline = extract_lfp_features(
-                preproc_dir, subject, te_id, date, decoder, 
-                start_time=start_time, end_time=end_time, decode=True)
-             
-        Get online extracted features from :func:`~aopy.data.bmi3d.get_extracted_features` and
-        states from :func:`~aopy.data.bmi3d.get_decoded_states` for comparison:
-
-        .. code-block:: python
-
-            features_online, samplerate_online = get_extracted_features(
-                preproc_dir, subject, te_id, date, decoder,
-                start_time=start_time, end_time=end_time)
-            state_online, _ = get_decoded_states(
-                preproc_dir, subject, te_id, date, decoder,
-                start_time=start_time, end_time=end_time)
-
-        Plot the online and offline features:
-
-        .. code-block:: python
-
-            time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
-            time_online = np.arange(len(features_online))/samplerate_online + start_time
-
-            plt.figure(figsize=(8,6))
-            plt.subplot(2,1,1)
-            plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
-            plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
-            plt.xlabel('time (s)')
-            plt.ylabel('power')
-            plt.legend()
-            plt.title('readout 1')
-            
-        And states:
-
-        .. code-block:: python
-        
-            plt.subplot(2,1,2)
-            plt.plot(time_offline, state_offline[:,3], alpha=0.8, label='offline')
-            plt.plot(time_online, state_online[:,3], alpha=0.8, label='online')
-            # plt.plot(time_online, state_online_2[:,3], alpha=0.8, label='online rerun')    
-            plt.xlabel('time (s)')
-            plt.ylabel('state')
-            plt.legend()
-            plt.title('x velocity')
-            plt.tight_layout()
-            
-        ..image:: _images/extract_decoder_features.png
     '''
     if start_time is None:
         start_time = 0.
@@ -1286,6 +1221,92 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
         data = raw_data
     data = get_data_segment(data, start_time, end_time, samplerate) # cut off any extra data
     return data, samplerate
+
+def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
+                         start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
+                         **kwargs):
+    '''
+    Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
+    Using this function, you can replicate closely the features that would have been extracted from 
+    a real-time BMI3D experiment, even if the experiment did not include a decoder.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        channels (int array, optional): which channel indices to load. If None (the default), 
+            uses the channels specified in the decoder.
+        start_time (float, optional): time (in seconds) in the recording at which the desired segment starts
+        end_time (float, optional): time (in seconds) in the recording at which the desired segment ends
+        latency (float, optional): time (in seconds) to include before the trigger times
+        datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'. If
+            the sampling rate of the data is different from the decoder, the data will be downsampled
+            by decimation.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **feats (nt, nfeats):** lfp features for the given channels after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+
+    Note:
+        For best accuracy, use 'broadband' or other datatype without any filtering. Using filtered 'lfp'
+        results in DC shifted features.
+
+    Examples:
+
+        .. code-block:: python
+
+            subject = 'affi'
+            te_id = 17269
+            date = '2024-05-03'
+            preproc_dir = data_dir
+            start_time = 10
+            end_time = 30
+
+        Extract features using :func:`~aopy.data.bmi3d.extract_lfp_features` and states using 
+        :func:`~aopy.data.bmi3d.extract_lfp_features` with `decode=True`:
+        
+        .. code-block:: python
+            features_offline, samplerate_offline = extract_lfp_features(
+                preproc_dir, subject, te_id, date, decoder, 
+                start_time=start_time, end_time=end_time)
+             
+        Get online extracted features from :func:`~aopy.data.bmi3d.get_extracted_features` and
+        states from :func:`~aopy.data.bmi3d.get_decoded_states` for comparison:
+
+        .. code-block:: python
+
+            features_online, samplerate_online = get_extracted_features(
+                preproc_dir, subject, te_id, date, decoder,
+                start_time=start_time, end_time=end_time)
+
+        Plot the online and offline features:
+
+        .. code-block:: python
+
+            time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+            time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+            plt.figure(figsize=(8,3))
+            plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+            plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+            plt.xlabel('time (s)')
+            plt.ylabel('power')
+            plt.legend()
+            plt.title('readout 1')
+                        
+        ..image:: _images/extract_decoder_features.png
+    '''
+    return _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=samplerate, 
+                                 channels=channels, start_time=start_time, end_time=end_time, latency=latency, 
+                                 datatype=datatype, preproc=preproc, **kwargs)
 
 def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     '''
@@ -1999,7 +2020,7 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
     return trajectories
 
 def tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
-                       datatype, samplerate=None, step=1, preproc=None, **kwargs):
+                       datatype, samplerate=None, steps=1, preproc=None, **kwargs):
     '''
     Grab task data from trials across arbitrary preprocessed files.
 
@@ -2008,12 +2029,13 @@ def tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_ti
         subjects (list of str): Subject name for each recording
         ids (list of int): Block number of Task entry object for each recording
         dates (list of str): Date for each recording
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
         datatype (str): column of task data to load. 
         samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
             which uses the sampling rate of the experiment.
-        start_times (list of float): times in the recording at which the desired segments starts
-        end_times (list of float): times in the recording at which the desired segments ends
-        step (int, optional): integer step to slice the data. Default 1.
+        steps (list of int, optional): task data will be decimated with steps this big. If a single
+            integer is given, it will be applied to all trials. Default 1.
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
         kwargs: additional keyword arguments to pass to get_interp_task_data 
@@ -2024,9 +2046,16 @@ def tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_ti
     '''
 
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
+    try:
+        if len(steps) == len(subjects):
+            pass
+    except:
+        if steps is None:
+            steps = 1
+        steps = [steps for _ in range(len(subjects))]
 
     segments = []
-    for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times):
+    for s, t, d, ts, te, step in zip(subjects, te_ids, dates, start_times, end_times, steps):
         task_data, samplerate = get_task_data(
             preproc_dir, s, t, d, datatype, samplerate=samplerate, step=step,
             preproc=preproc, **kwargs) # cached for each unique recording
@@ -2036,8 +2065,8 @@ def tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_ti
     return segments, samplerate
 
 def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end_times,
-                          decoder, samplerate=None, channels=None, datatype='lfp', 
-                          preproc=None, decode=False, **kwargs):
+                          decoders, samplerate=None, channels=None, datatype='lfp', 
+                          preproc=None, **kwargs):
     '''
     Extract (new, offline) lfp feature segments across arbitrary preprocessed files. Uses
     a decoder object to extract features from either lfp or broadband timeseries data. Can
@@ -2053,7 +2082,8 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
         datatype (str, optional): column of task data to load. Default 'lfp_power'.
         start_times (list of float): times in the recording at which the desired segments starts
         end_times (list of float): times in the recording at which the desired segments ends
-        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        decoders (list of riglib.bmi.Decoder): decoder objects for each recording. If only one decoder
+            is supplied, it will be applied to all recordings.
         samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
             which uses the sampling rate of the experiment.
         channels (list of int, optional): list of channel indices to extract. Default None, which
@@ -2093,41 +2123,26 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
             with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
             decoder = pickle.load(file)
 
-        Load the full features and state data for comparison
+        Load the full features for comparison
 
         .. code-block:: python
 
             features_offline, samplerate_offline = extract_lfp_features(
                 preproc_dir, subject, te_id, date, decoder, 
                 start_time=start_time, end_time=end_time)
-            state_offline, samplerate_offline = extract_lfp_features(
-                preproc_dir, subject, te_id, date, decoder, 
-                start_time=start_time, end_time=end_time, decode=True)
             features_online, samplerate_online = get_extracted_features(
-                preproc_dir, subject, te_id, date, decoder,
-                start_time=start_time, end_time=end_time)
-            state_online, _ = get_decoded_states(
                 preproc_dir, subject, te_id, date, decoder,
                 start_time=start_time, end_time=end_time)
 
             time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
             time_online = np.arange(len(features_online))/samplerate_online + start_time
 
-            plt.figure(figsize=(8,6))
-            plt.subplot(2,1,1)
+            plt.figure(figsize=(8,3))
             plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
             plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
             plt.xlabel('time (s)')
             plt.ylabel('power')
             plt.title('readout 1')
-            
-            plt.subplot(2,1,2)
-            plt.plot(time_offline, state_offline[:,3], alpha=0.8, label='offline')
-            plt.plot(time_online, state_online[:,3], alpha=0.8, label='online')
-            plt.xlabel('time (s)')
-            plt.ylabel('state')
-            plt.title('x velocity')
-            plt.tight_layout()
 
         Tabulate the segments
 
@@ -2135,34 +2150,19 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
 
             features_offline, samplerate_offline = tabulate_lfp_features(
                 preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
-            state_offline, samplerate_offline = tabulate_lfp_features(
-                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
-                decode=True)
             features_online, samplerate_online = tabulate_feature_data(
-                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
-            state_online, _ = tabulate_state_data(
                 preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
 
             for idx in range(len(start_times)):
                 time_offline = np.arange(len(features_offline[idx]))/samplerate_offline + start_times[idx]
                 time_online = np.arange(len(features_online[idx]))/samplerate_online + start_times[idx]
-
-                plt.subplot(2,1,1)
                 plt.plot(time_offline, features_offline[idx][:,1], 'k--')
                 plt.plot(time_online, features_online[idx][:,1], 'k--')
-                
-                plt.subplot(2,1,2)
-                plt.plot(time_offline, state_offline[idx][:,3], 'k--')
-                plt.plot(time_online, state_online[idx][:,3], 'k--')
             
-        Add legends
+        Add legend
 
         .. code-block:: python
 
-            plt.subplot(2,1,1)
-            plt.plot([], [], 'k--', label='segments')
-            plt.legend()
-            plt.subplot(2,1,2)
             plt.plot([], [], 'k--', label='segments')
             plt.legend()
 
@@ -2173,19 +2173,24 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
         :func:`~aopy.data.bmi3d.tabulet_state_data`
     '''
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
+    try:
+        if len(decoders) == len(subjects):
+            pass
+    except:
+        decoders = [decoders for _ in range(len(subjects))]
 
     segments = []
-    for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times):
+    for s, t, d, ts, te, dec in zip(subjects, te_ids, dates, start_times, end_times, decoders):
         lfp_features, samplerate = extract_lfp_features(
-            preproc_dir, s, t, d, decoder, samplerate=samplerate, channels=channels,
+            preproc_dir, s, t, d, dec, samplerate=samplerate, channels=channels,
             start_time=ts, end_time=te, datatype=datatype, preproc=preproc, 
-            decode=decode, **kwargs
+            **kwargs
         )
         segments.append(lfp_features)
 
     return segments, samplerate
 
-def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
+def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoders,
                           datatype='lfp_power', samplerate=None, preproc=None, **kwargs):
     '''
     Grab (online extracted) decoder feature segments across arbitrary preprocessed files. Wrapper 
@@ -2196,13 +2201,13 @@ def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end
         subjects (list of str): Subject name for each recording
         ids (list of int): Block number of Task entry object for each recording
         dates (list of str): Date for each recording
-        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
         datatype (str, optional): column of task data to load. Default 'lfp_power'.
         samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
             which uses the sampling rate of the experiment.
         start_times (list of float): times in the recording at which the desired segments starts
         end_times (list of float): times in the recording at which the desired segments ends
-        step (int, optional): integer step to slice the data. Default 1.
+        decoders (list of riglib.bmi.Decoder): decoder object with binlen and call_rate attributes. If
+            only one decoder is supplied, it will be applied to all recordings.
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
         kwargs: additional keyword arguments to pass to get_interp_task_data 
@@ -2212,11 +2217,15 @@ def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end
             | **segments (ntrial,):** list of tensors of (nt, nfeat) feature data from each trial
             | **samplerate (float):** samplerate of the feature data
         '''
-    step = int(decoder.call_rate*decoder.binlen)
+    try:
+        if len(decoders) == len(subjects):
+            steps = [int(decoder.call_rate*decoder.binlen) for decoder in decoders]
+    except:
+        steps = int(decoders.call_rate*decoders.binlen)
     return tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
-                              datatype, samplerate=samplerate, step=step, preproc=preproc, **kwargs)
+                              datatype, samplerate=samplerate, steps=steps, preproc=preproc, **kwargs)
     
-def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder,
+def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoders,
                         datatype='decoder_state', samplerate=None, preproc=None, **kwargs):
     '''
     Grab (online decoded) state segments across arbitrary preprocessed files. Wrapper around 
@@ -2227,13 +2236,13 @@ def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_t
         subjects (list of str): Subject name for each recording
         ids (list of int): Block number of Task entry object for each recording
         dates (list of str): Date for each recording
-        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
         datatype (str, optional): column of task data to load. Default 'decoder_state'.
         samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
             which uses the sampling rate of the experiment.
         start_times (list of float): times in the recording at which the desired segments starts
         end_times (list of float): times in the recording at which the desired segments ends
-        step (int, optional): integer step to slice the data. Default 1.
+        decoders (list of riglib.bmi.Decoder): decoder object with binlen and call_rate attributes. If
+            only one decoder is supplied, it will be applied to all recordings.
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
         kwargs: additional keyword arguments to pass to get_interp_task_data 
@@ -2243,9 +2252,13 @@ def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_t
             | **segments (ntrial,):** list of tensors of (nt, nfeat) state data from each trial
             | **samplerate (float):** samplerate of the state data
     '''
-    step = int(decoder.call_rate*decoder.binlen)
+    try:
+        if len(decoders) == len(subjects):
+            steps = [int(decoder.call_rate*decoder.binlen) for decoder in decoders]
+    except:
+        steps = int(decoders.call_rate*decoders.binlen)
     return tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
-                              datatype, samplerate=samplerate, step=step, preproc=preproc, **kwargs)
+                              datatype, samplerate=samplerate, steps=steps, preproc=preproc, **kwargs)
 
 def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_before, time_after, 
                      channels=None, datatype='lfp'):
