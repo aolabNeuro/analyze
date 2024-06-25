@@ -152,3 +152,21 @@ def practice_function_gus(favorite_food):
     '''
     string_out = 'my favorite food is ' + favorite_food
     return string_out
+
+def practice_function_matt(favorite_number):
+    '''
+    This function judges your favorite number from the user input.
+
+    Inputs:
+        favorite_number [interger]: your favorite number
+
+    Outputs: 
+        string_out [string]: returns a judgmental string about your fav number
+    '''
+
+    if favorite_number != 7:
+        result = 'Bad choice'
+    else:
+        result = 'Wow me too!'
+    
+    return result
