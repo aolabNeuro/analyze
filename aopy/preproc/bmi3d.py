@@ -510,7 +510,7 @@ def _prepare_bmi3d_v1(data, metadata):
         'clean_hand_position' in data and
         len(data['clean_hand_position']) > 0):
         metadata['hand_interp_samplerate'] = 1000
-        data['hand_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
+        data['hand_interp'] = aodata.get_interp_task_data(data, metadata, datatype='hand', samplerate=metadata['hand_interp_samplerate'])
 
     # And interpolated cursor kinematics
     if ('timestamp_sync' in corrected_clock.dtype.names and 
@@ -518,7 +518,7 @@ def _prepare_bmi3d_v1(data, metadata):
         'cursor' in task.dtype.names and
         len(task['cursor']) > 0):
         metadata['cursor_interp_samplerate'] = 1000
-        data['cursor_interp'] = aodata.get_interp_kinematics(data, metadata, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
+        data['cursor_interp'] = aodata.get_interp_task_data(data, metadata, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
         
     return data, metadata
 
