@@ -273,6 +273,16 @@ class BMI3DTaskEntry():
         return self.record.task_params
 
     @property
+    def sequence_name(self):
+        '''
+        Sequence name, e.g. `centerout_2D`
+
+        Returns:
+            str: sequence name
+        '''
+        return self.record.sequence.generator.name
+
+    @property
     def sequence_params(self):
         '''
         All sequence parameters, e.g. `ntargets` or `target_radius`
