@@ -158,7 +158,7 @@ def practice_function_matt(favorite_number):
     This function judges your favorite number from the user input.
 
     Inputs:
-        favorite_number [interger]: your favorite number
+        favorite_number (int): your favorite number
 
     Outputs: 
         string: a judgmental string about your fav number
