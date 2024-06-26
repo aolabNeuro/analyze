@@ -1439,5 +1439,11 @@ class DatabaseTests(unittest.TestCase):
         summary = db.summarize_entries(sessions, sum_trials=True)
         self.assertEqual(len(summary), 5) # one duplicate task
 
+    def test_onehot_sequence_encoding(self):
+
+        sessions = db.lookup_mc_sessions()
+        df = db.onehot_sequence_encoding(sessions, sequence_types=['centerout_2D'])
+        self.assertEqual(df.shape[1], 4) 
+
 if __name__ == "__main__":
     unittest.main()
