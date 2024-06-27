@@ -654,7 +654,7 @@ def summarize_entries(entries, sum_trials=False):
         ['subject', 'date', 'task_name', 'task_desc']).sum(numeric_only=True)
     return unique_sessions
 
-def onehot_sequence_encoding(sessions,sequence_types):
+def encode_onehot_sequence_name(sessions,sequence_types):
     '''
     Generates a dataframe summarizing the id, subject, date and by onehot 
     encoding the sequences of interest of each entry in the input session list.
@@ -674,10 +674,10 @@ def onehot_sequence_encoding(sessions,sequence_types):
                           'rand_target_chain_3D', 'corners_2D', 'centerout_2D_different_center', 
                           'sequence_2D', 'centerout_2D_select', 'single_laser_pulse']
                           
-        df = db.onehot_sequence_encoding(entries, sequence_types)
+        df = db.encode_onehot_sequence_name(entries, sequence_types)
         display(df)
 
-    .. image:: _images/db_onehot_sequence_encoding.png  '''
+    .. image:: _images/db_encode_onehot_sequence_name.png  '''
     
     #sets row and col count
     row_count = len(sessions)
