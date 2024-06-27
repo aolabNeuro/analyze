@@ -1375,6 +1375,13 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions(filter_fn=filter_fn)
         self.assertEqual(len(sessions), 0)
 
+        # Test filtering in lookup_mc_sessions and lookup_flash_sessions
+        filter_fn = db.filter_has_features("feat_1")
+        sessions = db.lookup_mc_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 1)
+        sessions = db.lookup_flash_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 0)
+
     def test_BMI3DTaskEntry(self):
         db.BMI3D_DBNAME = 'test_aopy'
 
