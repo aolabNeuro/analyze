@@ -93,16 +93,14 @@ def lookup_flash_sessions(mc_task_name='manual control', **kwargs):
     Returns list of entries for all flash sessions on the given date.
     See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' in te.task_desc)
-    return lookup_sessions(task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+    return lookup_sessions(task_name=mc_task_name, entry_name__contains='flash', **kwargs)
 
 def lookup_mc_sessions(mc_task_name='manual control', **kwargs):
     '''
     Returns list of entries for all manual control sessions on the given date
     See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' not in te.task_desc)
-    return lookup_sessions(task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+    return lookup_sessions(task_name=mc_task_name, entry_name__regex=r'^(?!.*flash).*$', **kwargs)
 
 def lookup_tracking_sessions(tracking_task_name='tracking', **kwargs):
     '''
