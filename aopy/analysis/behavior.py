@@ -427,3 +427,30 @@ def angle_between(v1, v2, in_degrees=False):
         angle = angle*180/np.pi
 
     return angle
+
+def vector_angle(vector, in_degrees=False):
+    '''
+    Computes the angle of a vector on the unit circle.
+
+    Args:
+        vector (list or array): D-dimensional vector
+        in_degrees (bool, optional): whether to return the angle in units of degrees. Default is False.
+
+    Returns:
+        float: angle (in radians or degrees)
+    '''
+    D = len(vector)
+    assert D==2, "This function currently works best for 2-dimensional vectors"
+
+    ref_vector = np.zeros((D,))
+    ref_vector[0] = 1
+    angle = angle_between(ref_vector, vector)
+    
+    # take the explementary (conjugate) angle for vectors that lie in Q3 or Q4
+    if vector[1]<0: # negative y-coordinate
+        angle = 2*np.pi - angle
+
+    if in_degrees:
+        angle = angle*180/np.pi
+
+    return angle
