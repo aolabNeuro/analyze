@@ -1809,3 +1809,69 @@ def plot_laser_sensor_alignment(sensor_volts, samplerate, stim_times, ax=None):
     plt.xlabel('time (ms)')
     plt.title('laser sensor aligned')
     return im
+
+def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=None, **kwargs):
+    '''
+    Plot a circular histogram of angles on a given ax. Adapted from: 
+        https://stackoverflow.com/questions/22562364/circular-polar-histogram-in-python. 
+
+    Args:            
+        data (arr): angles to plot, in radians.
+        bins (int, optional): defines the number of equal-width bins in the range. Default is 16.
+        offset (float, optional): the offset for the location of the 0 direction, in radians. 
+            Default is 0.
+        density (bool, optional): If True, plots bars proportional to area. If False, plots bars
+            proportional to radius. Default is False.
+        gaps (bool, optional): whether to allow gaps between bins. If True, the bins will only span the values
+            of the data. If False, the bins are forced to partition the entire [-pi, pi] range. Default is False.
+        ax (pyplot.Axes, optional): axes on which to plot. Should be an axis instance created with 
+            subplot_kw=dict(projection='polar'). Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to ax.bar
+
+    Returns:
+        n (arr or list of arr): the number of values in each bin
+        bins (arr): the edges of the bins
+        patches (`.BarContainer` or list of a single `.Polygon`): container of individual artists used to create the histogram
+            or list of such containers if there are multiple input datasets
+
+    Examples:
+        .. image:: _images/circular_histograms.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    # Wrap angles to [-pi, pi)
+    data = (data+np.pi) % (2*np.pi) - np.pi
+
+    # Force bins to partition entire circle
+    if not gaps:
+        bins = np.linspace(-np.pi, np.pi, num=bins+1)
+
+    # Bin data and record counts
+    n, bins = np.histogram(data, bins=bins)
+
+    # Compute width of each bin
+    widths = np.diff(bins)
+
+    # By default plot frequency proportional to area
+    if density:
+        # Area to assign each bin
+        area = n / data.size
+        # Calculate corresponding bin radius
+        radius = (area/np.pi) ** .5
+    # Otherwise plot frequency proportional to radius
+    else:
+        radius = n
+
+    # Plot data on ax
+    patches = ax.bar(bins[:-1], radius, zorder=1, align='edge', width=widths,
+                     edgecolor='C0', fill=False, linewidth=1, **kwargs)
+
+    # Set the direction of the zero angle
+    ax.set_theta_offset(offset)
+
+    # Remove ylabels for area plots (they are mostly obstructive)
+    if density:
+        ax.set_yticks([])
+
+    return n, bins, patches
