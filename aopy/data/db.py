@@ -669,31 +669,33 @@ def encode_onehot_sequence_name(sessions,sequence_types):
     Generates a dataframe summarizing the id, subject, date and by onehot 
     encoding the sequences of interest of each entry in the input session list.
 
- Args:
-     sessions (list): list of bmi3d task entries
-     sequence_types (list): Array of sequence_name strings. Can only be a list of strings
+    Args:
+        sessions (list): list of bmi3d task entries
+        sequence_types (list): Array of sequence_name strings. Can only be a list of strings
 
- Returns:
-     pd.Dataframe: Dataframe of entry summaries containing sequence name occurance
-         
- Examples:
-     .. code-block:: python
-        
-        sessions = db.lookup_mc_sessions()
-        sequence_types = ['rand_target_chain_2D', 'centerout_2D', 'out_2D', 
-                          'rand_target_chain_3D', 'corners_2D', 'centerout_2D_different_center', 
-                          'sequence_2D', 'centerout_2D_select', 'single_laser_pulse']
-                          
-        df = db.encode_onehot_sequence_name(entries, sequence_types)
-        display(df)
+    Returns:
+        pd.Dataframe: Dataframe of entry summaries containing sequence name occurance
+            
+    Examples:
 
-    .. image:: _images/db_encode_onehot_sequence_name.png  '''
+        .. code-block:: python
+            
+            sessions = db.lookup_mc_sessions()
+            sequence_types = ['rand_target_chain_2D', 'centerout_2D', 'out_2D', 
+                            'rand_target_chain_3D', 'corners_2D', 'centerout_2D_different_center', 
+                            'sequence_2D', 'centerout_2D_select', 'single_laser_pulse']
+                            
+            df = db.encode_onehot_sequence_name(entries, sequence_types)
+            display(df)
+
+        .. image:: _images/db_encode_onehot_sequence_name.png  
+    '''
     
-    #sets row and col count
+    # sets row and col count
     row_count = len(sessions)
     col_count = ['id','subject','date'] + sequence_types
 
-    #creates correct size matrix with all 0s as inputs
+    # creates correct size matrix with all 0s as inputs
     df_matrix = [[0 for _ in range(len(col_count))] for _ in range(row_count)]
 
     for row_id, entry in enumerate(sessions):
@@ -708,5 +710,4 @@ def encode_onehot_sequence_name(sessions,sequence_types):
             pass
 
     df = pd.DataFrame(df_matrix, columns = col_count)
-
     return df
