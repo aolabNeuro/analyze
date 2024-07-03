@@ -1612,13 +1612,14 @@ def plot_corr_over_elec_distance(elec_data, elec_pos, ax=None, **kwargs):
 
     Updated:
         2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
+        2024-07-01 (LRS): Fixed default x-axis label units to mm.
     '''
     if ax is None:
         ax = plt.gca()
     label = kwargs.pop('label', None)
     dist, corr = analysis.calc_corr_over_elec_distance(elec_data, elec_pos, **kwargs)
     ax.plot(dist, corr, label=label)
-    ax.set_xlabel('binned electrode distance (cm)')
+    ax.set_xlabel('binned electrode distance (mm)')
     ax.set_ylabel('correlation')
     ax.set_ylim(0,1)
 
