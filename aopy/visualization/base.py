@@ -1859,6 +1859,8 @@ def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=No
         area = n / data.size
         # Calculate corresponding bin radius
         radius = (area/np.pi) ** .5
+         # Remove ylabels for area plots (they are mostly obstructive)
+        ax.set_yticks([])
     # Otherwise plot frequency proportional to radius
     else:
         radius = n
