@@ -1861,18 +1861,15 @@ def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=No
         radius = (area/np.pi) ** .5
          # Remove ylabels for area plots (they are mostly obstructive)
         ax.set_yticks([])
+
     # Otherwise plot frequency proportional to radius
     else:
         radius = n
 
     # Plot data on ax
-    patches = ax.bar(bins[:-1], radius, zorder=1, align='edge', width=widths,
-                     edgecolor='C0', fill=False, linewidth=1, **kwargs)
+    patches = ax.bar(bins[:-1], radius, width=widths, align='edge', **kwargs)
 
     # Set the direction of the zero angle
-    ax.set_theta_offset(offset)
-
-    # Remove ylabels for area plots (they are mostly obstructive)
-   
+    ax.set_theta_offset(offset)  
 
     return n, bins, patches

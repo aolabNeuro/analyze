@@ -649,13 +649,13 @@ class KinematicsPlottingTests(unittest.TestCase):
         angles = np.random.normal(loc=np.pi/4, scale=np.pi/8, size=1000)
 
         # compare plotting the same data with vs. without allowing gaps in the bins
-        plot_circular_hist(angles, bins=16, ax=ax[0,0], gaps=False)
-        plot_circular_hist(angles, bins=16, ax=ax[0,1], gaps=True)
+        plot_circular_hist(angles, bins=16, ax=ax[0,0], gaps=False, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[0,1], gaps=True, edgecolor='tab:blue', fill=False)
         ax[0,1].set_title('Bins not forced to span across entire circle')
 
         # compare plotting the same data with value represented by bar radius vs. area 
-        plot_circular_hist(angles, bins=16, ax=ax[1,0], density=False)
-        plot_circular_hist(angles, bins=16, ax=ax[1,1], density=True)
+        plot_circular_hist(angles, bins=16, ax=ax[1,0], density=False, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[1,1], density=True, edgecolor='tab:blue', fill=False)
         ax[1,1].set_title('Value in bin represented by bar area, not radius')
 
         filename = 'circular_histograms'
