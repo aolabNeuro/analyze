@@ -1873,7 +1873,6 @@ def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=No
     ax.set_theta_offset(offset)
 
     # Remove ylabels for area plots (they are mostly obstructive)
-    if density:
         ax.set_yticks([])
 
     return n, bins, patches
