@@ -1304,6 +1304,8 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
                         
         ..image:: _images/extract_decoder_features.png
     '''
+    if channels is not None:
+        channels = tuple(channels) # make sure it's hashable
     return _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=samplerate, 
                                  channels=channels, start_time=start_time, end_time=end_time, latency=latency, 
                                  datatype=datatype, preproc=preproc, **kwargs)
