@@ -6,9 +6,17 @@ Getting Started:
 Installation
 ------------
 
+To install aopy, run the following command in your terminal (don't install `aopy` by mistake, that's a different package):
+
 ::
 
     > pip install aolab-aopy
+
+Or to update an existing installation:
+
+::
+
+    > pip install aolab-aopy --upgrade
 
 Overview of functions
 ---------------------

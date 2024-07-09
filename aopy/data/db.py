@@ -663,3 +663,51 @@ def summarize_entries(entries, sum_trials=False):
     unique_sessions = all_sessions.drop('te_id', axis=1).groupby(
         ['subject', 'date', 'task_name', 'task_desc']).sum(numeric_only=True)
     return unique_sessions
+
+def encode_onehot_sequence_name(sessions,sequence_types):
+    '''
+    Generates a dataframe summarizing the id, subject, date and by onehot 
+    encoding the sequences of interest of each entry in the input session list.
+
+    Args:
+        sessions (list): list of bmi3d task entries
+        sequence_types (list): Array of sequence_name strings. Can only be a list of strings
+
+    Returns:
+        pd.Dataframe: Dataframe of entry summaries containing sequence name occurance
+            
+    Examples:
+
+        .. code-block:: python
+            
+            sessions = db.lookup_mc_sessions()
+            sequence_types = ['rand_target_chain_2D', 'centerout_2D', 'out_2D', 
+                            'rand_target_chain_3D', 'corners_2D', 'centerout_2D_different_center', 
+                            'sequence_2D', 'centerout_2D_select', 'single_laser_pulse']
+                            
+            df = db.encode_onehot_sequence_name(entries, sequence_types)
+            display(df)
+
+        .. image:: _images/db_encode_onehot_sequence_name.png  
+    '''
+    
+    # sets row and col count
+    row_count = len(sessions)
+    col_count = ['id','subject','date'] + sequence_types
+
+    # creates correct size matrix with all 0s as inputs
+    df_matrix = [[0 for _ in range(len(col_count))] for _ in range(row_count)]
+
+    for row_id, entry in enumerate(sessions):
+        df_matrix[row_id][0] = entry.id
+        df_matrix[row_id][1] = entry.subject
+        df_matrix[row_id][2] = entry.date
+        try:
+            for col_id, sequence in enumerate(sequence_types):
+                if entry.sequence_name == sequence:
+                    df_matrix[row_id][col_id + 3] = 1
+        except:
+            pass
+
+    df = pd.DataFrame(df_matrix, columns = col_count)
+    return df
