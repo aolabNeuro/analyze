@@ -645,7 +645,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         savefig(write_dir,filename)
 
     def test_plot_circular_hist(self):
-        fig, ax = plt.subplots(2, 2, subplot_kw=dict(projection='polar'), figsize=(12,12))
+        fig, ax = plt.subplots(3, 2, subplot_kw=dict(projection='polar'), figsize=(12,18))
         angles = np.random.normal(loc=np.pi/4, scale=np.pi/8, size=1000)
 
         # compare plotting the same data with vs. without allowing gaps in the bins
@@ -654,9 +654,15 @@ class KinematicsPlottingTests(unittest.TestCase):
         ax[0,1].set_title('Bins not forced to span across entire circle')
 
         # compare plotting the same data with value represented by bar radius vs. area 
-        plot_circular_hist(angles, bins=16, ax=ax[1,0], density=False, edgecolor='tab:blue', fill=False)
-        plot_circular_hist(angles, bins=16, ax=ax[1,1], density=True, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[1,0], proportional_area=False, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[1,1], proportional_area=True, edgecolor='tab:blue', fill=False)
         ax[1,1].set_title('Value in bin represented by bar area, not radius')
+
+        # compare plotting the same data plotted as a probability density function or normalized by the max bin value
+        plot_circular_hist(angles, bins=16, ax=ax[2,0], density=True, edgecolor='tab:blue', fill=False)
+        ax[2,0].set_title('Bin values represent the probability density function')
+        plot_circular_hist(angles, bins=16, ax=ax[2,1], normalize=True, edgecolor='tab:blue', fill=False)
+        ax[2,1].set_title('Bin values are normalized to a max value of 1')
 
         filename = 'circular_histograms'
         savefig(docs_dir, filename)
