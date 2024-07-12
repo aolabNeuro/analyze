@@ -1197,14 +1197,16 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     
     # Extract
     n_pts = int(f_extractor.win_len * ts_samplerate)
-    cycle_data = np.zeros((len(ts), len(f_extractor.bands), len(channels)))
+    n_ch = len(channels)
+    n_freq = len(f_extractor.bands)
+    cycle_data = np.zeros((len(ts), n_freq, n_ch))
     for i, t in enumerate(ts):
         sample_num = int((t-ts_start_time-latency) * ts_samplerate)
         cont_samples = ts_data[max(0,sample_num-n_pts):min(ts_data.shape[0], sample_num)]
         if cont_samples.shape[0] < n_pts:
             cycle_data[i] *= np.nan
         else:
-            cycle_data[i] = f_extractor.extract_features(cont_samples.T).T
+            cycle_data[i] = f_extractor.extract_features(cont_samples.T).T.reshape(n_freq, n_ch)
     cycle_data = np.reshape(cycle_data, (len(ts), -1)) # (nt, nfeats)
 
     # Run the features through the decoder before resampling if necessary
