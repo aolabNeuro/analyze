@@ -1811,7 +1811,7 @@ def plot_laser_sensor_alignment(sensor_volts, samplerate, stim_times, ax=None):
     plt.title('laser sensor aligned')
     return im
 
-def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=None, **kwargs):
+def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area=False, gaps=False, normalize=False, ax=None, **kwargs):
     '''
     Plot a circular histogram of angles on a given ax. Adapted from: 
         https://stackoverflow.com/questions/22562364/circular-polar-histogram-in-python. 
@@ -1819,12 +1819,15 @@ def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=No
     Args:            
         data (arr): angles to plot, in radians.
         bins (int, optional): defines the number of equal-width bins in the range. Default is 16.
+        density (bool, optional): whether to return the probability density function at each bin, instead of the number of samples 
+            (passed to np.histogram). Default is False.
         offset (float, optional): the offset for the location of the 0 direction, in radians. 
             Default is 0.
-        density (bool, optional): If True, plots bars proportional to area. If False, plots bars
+        proportional_area (bool, optional): If True, plots bars proportional to area. If False, plots bars
             proportional to radius. Default is False.
         gaps (bool, optional): whether to allow gaps between bins. If True, the bins will only span the values
             of the data. If False, the bins are forced to partition the entire [-pi, pi] range. Default is False.
+        normalize (bool, optional): whether to normalize the bin values such that the max value is 1. Default is False.
         ax (pyplot.Axes, optional): axes on which to plot. Should be an axis instance created with 
             subplot_kw=dict(projection='polar'). Default current axis.
         kwargs (dict, optional): other keyword arguments to pass to ax.bar
@@ -1849,13 +1852,13 @@ def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=No
         bins = np.linspace(-np.pi, np.pi, num=bins+1)
 
     # Bin data and record counts
-    n, bins = np.histogram(data, bins=bins)
+    n, bins = np.histogram(data, bins=bins, density=density)
 
     # Compute width of each bin
     widths = np.diff(bins)
 
-    # By default plot frequency proportional to area
-    if density:
+    # If indicated, plot frequency proportional to area
+    if proportional_area:
         # Area to assign each bin
         area = n / data.size
         # Calculate corresponding bin radius
@@ -1866,6 +1869,10 @@ def plot_circular_hist(data, bins=16, offset=0, density=False, gaps=False, ax=No
     # Otherwise plot frequency proportional to radius
     else:
         radius = n
+
+    # If indicated, normalize the bar values so that the max is 1
+    if normalize:
+        radius = radius/np.max(radius)
 
     # Plot data on ax
     patches = ax.bar(bins[:-1], radius, width=widths, align='edge', **kwargs)
