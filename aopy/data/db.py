@@ -17,6 +17,9 @@ except:
     warnings.warn("Database not configured")
     traceback.print_exc()
 
+from .. import data as aodata
+from .. import preproc
+
 '''
 Lookup
 '''
@@ -458,6 +461,51 @@ class BMI3DTaskEntry():
         sources.append('eye')
         
         return sources
+    
+    def preprocess(self, data_dir, preproc_dir, overwrite=False, exclude_sources=[], system_subfolders=None, **kwargs):
+        '''
+        Preprocess the data associated with this task entry
+
+        Args:
+            data_dir (str): directory where the raw data is stored
+            preproc_dir (str): directory where the preprocessed data will be written
+            overwrite (bool, optional): whether or not to overwrite existing preprocessed data. Defaults to False.
+            exclude_sources (list, optional): list of sources to exclude from preprocessing. Defaults to [].
+            system_subfolders (dict, optional): dictionary of system subfolders where the
+                data for that system is located. If None, defaults to the system name
+            kwargs (dict, optional): additional keyword arguments to pass to the preprocessing function
+
+        Returns:
+            str: error message if there was an error during preprocessing
+        '''
+
+        # Get the raw data files
+        files = self.get_raw_files(system_subfolders=system_subfolders)
+        if len(files) == 0:
+            print("No files for entry!")
+            return
+        if 'hdf' in files.keys():
+            self.record.make_hdf_self_contained(data_dir=data_dir) # update the hdf metadata from the database
+        
+        # Choose which sources to preprocess
+        sources = self.get_preprocessed_sources()
+        for src in exclude_sources:
+            sources.remove(src)
+
+        # Prepare the preproc directory
+        preproc_dir = os.path.join(preproc_dir, self.subject)
+        if not os.path.exists(preproc_dir):
+            os.mkdir(preproc_dir)
+        
+        # Preprocess the data, keeping track of any errors and returning them
+        error = None
+        try:
+            preproc.proc_single(data_dir, files, preproc_dir, self.subject, self.id, self.date, 
+                                sources, overwrite=overwrite, **kwargs)
+        except Exception as exc:
+            traceback.print_exc()
+            error = traceback.format_exc()
+        return error
     
     def get_db_object(self):
         '''

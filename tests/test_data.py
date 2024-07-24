@@ -1529,6 +1529,11 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(decoder.name, "test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
+        # Test preprocess function
+        te = db.lookup_sessions(task_desc='task_desc')[0]
+        error = te.preprocess(data_dir, write_dir)
+        self.assertEqual(error, None)
+
     def test_list_entry_details(self):
         db.BMI3D_DBNAME = 'test_aopy'
         sessions = db.lookup_sessions(task_desc='task_desc')
