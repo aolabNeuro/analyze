@@ -1,9 +1,9 @@
-from pydoc import doc
 import unittest
 from aopy.visualization import *
 import aopy
 import numpy as np
 import os
+import pickle
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -766,7 +766,13 @@ class TestDecoderPlots(unittest.TestCase):
 
     def test_plot_decoder_weights(self):
 
-        decoder = 
+        from aopy.data import db
+        with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file, fix_imports=False)
+
+        bmi3d.plot_decoder_weights(decoder)
+        filename = 'decoder_weights.png'
+        savefig(docs_dir, filename, transparent=False)
 
 if __name__ == "__main__":
     unittest.main()

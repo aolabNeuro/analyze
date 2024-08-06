@@ -98,6 +98,4 @@ def plot_decoder_weights(decoder):
     ax[2].set_title('Pos weight vectors')
     plot_decoder_weight_vectors(decoder, 3, 5, colors, ax=ax[3])
     ax[3].set_title('Vel weight vectors')
-
     fig.tight_layout()
-    plt.show()
