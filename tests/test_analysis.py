@@ -1722,6 +1722,14 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
         self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
 
+    def test_vector_angle(self):
+        # test with vectors in Q1, Q2, Q3, Q4
+        for i in range(9):
+            theta = i/4*np.pi
+            v = [np.cos(theta), np.sin(theta)]
+            self.assertAlmostEqual(aopy.analysis.vector_angle(v), theta)
+            self.assertAlmostEqual(aopy.analysis.vector_angle(v, in_degrees=True), theta*180/np.pi)
+
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):
         freqs = np.linspace(0,1,20)

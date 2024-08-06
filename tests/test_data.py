@@ -17,6 +17,7 @@ import pandas as pd
 from matplotlib.testing.compare import compare_images
 import datetime
 import json
+import pickle
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -414,12 +415,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
-    def test_get_interp_kinematics(self):
+    def test_get_interp_task_data(self):
         # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
-        targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
+        targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(hand_interp.shape[1], 3)
@@ -453,11 +454,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         assert exp_metadata['trajectory_amplitude'] > 0
         assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
 
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
-        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
-        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(ref_interp.shape[1], 2)
@@ -496,11 +497,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         assert exp_metadata['trajectory_amplitude'] > 0
         assert not json.loads(exp_metadata['sequence_params'])['disturbance']
         
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
-        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
-        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(ref_interp.shape[1], 2)
@@ -530,6 +531,70 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.legend()
         filename = 'get_interp_user_tracking_tablet.png'
         visualization.savefig(docs_dir, filename)
+
+    def test_get_task_data(self):
+
+        # Plot cycle count
+        ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
+        self.assertEqual(len(ts_data), 7031)
+        self.assertEqual(samplerate, 120)
+        time = np.arange(len(ts_data))/samplerate
+        plt.figure()
+        plt.plot(time[1:], 1/np.diff(ts_data), 'ko')
+        plt.xlabel('time (s)')
+        plt.ylabel('cycle step')
+        plt.ylim(0, 2)
+        figname = 'get_cycle_data.png'
+        visualization.savefig(docs_dir, figname, transparent=False)
+        plt.close()
+
+    def test_extract_lfp_features(self):
+        with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file)
+
+        # Test with no LFP data
+        def test_fn():
+            extract_lfp_features(write_dir, self.subject, self.te_id, self.date, 
+                                             decoder)
+        self.assertRaises(ValueError, test_fn)
+
+        # Test with LFP data
+        subject = 'affi'
+        te_id = 17269
+        date = '2024-05-03'
+        preproc_dir = data_dir
+        start_time = 10
+        end_time = 30
+
+        # Reduce the size of the LFP data
+        # lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, subject, te_id, date)
+        # lfp_data = lfp_data[:1000*30] # only keep first 30 seconds
+        # os.remove(os.path.join(data_dir, 'affi/preproc_2024-05-03_affi_17269_lfp.hdf'))
+        # print('lfp data', lfp_data.nbytes)
+        # save_hdf(data_dir, 'affi/preproc_2024-05-03_affi_17269_lfp.hdf', {'lfp_data': lfp_data})
+        # save_hdf(data_dir, 'affi/preproc_2024-05-03_affi_17269_lfp.hdf', lfp_metadata, "/lfp_metadata", append=True)
+
+        features_offline, samplerate_offline = extract_lfp_features(
+            preproc_dir, subject, te_id, date, decoder, 
+            start_time=start_time, end_time=end_time)
+
+        features_online, samplerate_online = get_extracted_features(
+            preproc_dir, subject, te_id, date, decoder,
+            start_time=start_time, end_time=end_time)
+
+        time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+        time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+        plt.figure(figsize=(8,3))
+        plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+        plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+        plt.xlabel('time (s)')
+        plt.ylabel('power')
+        plt.legend()
+        plt.title('readout 1')
+        
+        filename = 'extract_decoder_features.png'
+        savefig(docs_dir, filename, transparent=False)
 
     def test_get_kinematic_segments(self):
 
@@ -844,6 +909,60 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         visualization.plot_trajectories(kin, bounds=bounds)
         figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(write_dir, figname)
+
+    def test_tabulate_features(self):
+        preproc_dir = data_dir
+        subject = 'affi'
+        te_id = 17269
+        date = '2024-05-03'
+        subjects = [subject, subject, subject]
+        te_ids = [te_id, te_id, te_id]
+        dates = [date, date, date]
+        start_time = 10
+        end_time = 30
+        start_times = [10, 15, 20]
+        end_times = [14, 18, 28]
+        with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file)
+
+        # Load the full features and state data for comparison
+        features_offline, samplerate_offline = extract_lfp_features(
+            preproc_dir, subject, te_id, date, decoder, 
+            start_time=start_time, end_time=end_time)
+        features_online, samplerate_online = get_extracted_features(
+            preproc_dir, subject, te_id, date, decoder,
+            start_time=start_time, end_time=end_time)
+        time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+        time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+        plt.figure(figsize=(8,3))
+        plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+        plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+        plt.xlabel('time (s)')
+        plt.ylabel('power')
+        plt.title('readout 1')
+        
+        plt.tight_layout()
+
+        # Tabulate the segments
+        features_offline, samplerate_offline = tabulate_lfp_features(
+            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+        features_online, samplerate_online = tabulate_feature_data(
+            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+
+        for idx in range(len(start_times)):
+            time_offline = np.arange(len(features_offline[idx]))/samplerate_offline + start_times[idx]
+            time_online = np.arange(len(features_online[idx]))/samplerate_online + start_times[idx]
+
+            plt.plot(time_offline, features_offline[idx][:,1], 'k--')
+            plt.plot(time_online, features_online[idx][:,1], 'k--')
+        
+        # Add legends
+        plt.plot([], [], 'k--', label='segments')
+        plt.legend()
+
+        filename = 'tabulate_decoder_features.png'
+        savefig(docs_dir, filename, transparent=False)
 
     def test_tabulate_ts_data(self):
 
@@ -1410,6 +1529,11 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(decoder.name, "test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
+        # Test preprocess function
+        te = db.lookup_sessions(task_desc='task_desc')[0]
+        error = te.preprocess(data_dir, write_dir)
+        self.assertEqual(error, None)
+
     def test_list_entry_details(self):
         db.BMI3D_DBNAME = 'test_aopy'
         sessions = db.lookup_sessions(task_desc='task_desc')
@@ -1438,6 +1562,12 @@ class DatabaseTests(unittest.TestCase):
 
         summary = db.summarize_entries(sessions, sum_trials=True)
         self.assertEqual(len(summary), 5) # one duplicate task
+
+    def test_encode_onehot_sequence_name(self):
+
+        sessions = db.lookup_mc_sessions()
+        df = db.encode_onehot_sequence_name(sessions, sequence_types=['centerout_2D'])
+        self.assertEqual(df.shape[1], 4) 
 
 if __name__ == "__main__":
     unittest.main()

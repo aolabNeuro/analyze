@@ -36,6 +36,15 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         os.mkdir(preproc_dir)
     preproc_dir_base = os.path.dirname(preproc_dir)
 
+    # Remove existing files if overwrite is True
+    for source in preproc_jobs:
+        filename = aodata.get_preprocessed_filename(subject, te_id, date, source)
+        filepath = os.path.join(preproc_dir, subject, filename)
+        if overwrite and os.path.exists(filepath):
+            os.remove(filepath)
+            print(f'Removed existing file {filepath}')
+
+    # Process each job individually
     if 'exp' in preproc_jobs:
         print('processing experiment data...')
         exp_filename = get_preprocessed_filename(subject, te_id, date, 'exp')

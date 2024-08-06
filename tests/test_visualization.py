@@ -79,7 +79,6 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
         savefig(docs_dir, filename)
 
-
     def test_single_spatial_map(self):
         data = 2.0
         x_pos, y_pos = np.meshgrid(1,1)
@@ -281,6 +280,7 @@ class CurveFittingTests(unittest.TestCase):
         plot_boxplots(data, xaxis_pts, ax=ax)
         filename = 'boxplot_example_nonrectangular.png'
         savefig(docs_dir, filename, transparent=False)
+
 
 class AnimationTests(unittest.TestCase):
 
@@ -644,6 +644,29 @@ class KinematicsPlottingTests(unittest.TestCase):
         filename = 'events_time'
         savefig(write_dir,filename)
 
+    def test_plot_circular_hist(self):
+        fig, ax = plt.subplots(3, 2, subplot_kw=dict(projection='polar'), figsize=(12,18))
+        angles = np.random.normal(loc=np.pi/4, scale=np.pi/8, size=1000)
+
+        # compare plotting the same data with vs. without allowing gaps in the bins
+        plot_circular_hist(angles, bins=16, ax=ax[0,0], gaps=False, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[0,1], gaps=True, edgecolor='tab:blue', fill=False)
+        ax[0,1].set_title('Bins not forced to span across entire circle')
+
+        # compare plotting the same data with value represented by bar radius vs. area 
+        plot_circular_hist(angles, bins=16, ax=ax[1,0], proportional_area=False, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[1,1], proportional_area=True, edgecolor='tab:blue', fill=False)
+        ax[1,1].set_title('Value in bin represented by bar area, not radius')
+
+        # compare plotting the same data plotted as a probability density function or normalized by the max bin value
+        plot_circular_hist(angles, bins=16, ax=ax[2,0], density=True, edgecolor='tab:blue', fill=False)
+        ax[2,0].set_title('Bin values represent the probability density function')
+        plot_circular_hist(angles, bins=16, ax=ax[2,1], normalize=True, edgecolor='tab:blue', fill=False)
+        ax[2,1].set_title('Bin values are normalized to a max value of 1')
+
+        filename = 'circular_histograms'
+        savefig(docs_dir, filename)
+
 class TestPlotUtils(unittest.TestCase):
 
     @unittest.skip("bug in new versions of matplotlib, waiting for resolution")
@@ -654,7 +677,6 @@ class TestPlotUtils(unittest.TestCase):
 
         filename = 'advance_plot_color.png'
         savefig(docs_dir,filename)
-
 
     def test_reset_plot_color(self):
         plt.subplots()
