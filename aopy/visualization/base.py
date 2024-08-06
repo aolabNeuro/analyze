@@ -532,7 +532,8 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, ax=None, **kwargs):
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, drive_type='ECoG244', cmap='bwr', 
+                          theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
@@ -575,7 +576,7 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, a
         ax = plt.gca()
     
     # Load the signal path files
-    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type='ECoG244', theta=theta)
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type, theta=theta)
 
     # Remove bad electrodes
     bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1

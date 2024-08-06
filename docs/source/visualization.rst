@@ -16,3 +16,8 @@ Animation
 ~~~~~~~~~
 .. automodule:: aopy.visualization.animation
     :members:
+
+BMI3D
+~~~~~
+.. automodule:: aopy.visualization.bmi3d
+    :members:

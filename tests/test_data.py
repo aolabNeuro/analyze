@@ -8,7 +8,7 @@ from aopy.data import optitrack
 from aopy.data import bmi3d
 from aopy.data import db
 from aopy.postproc.base import get_calibrated_eye_data
-from aopy.visualization import *
+from aopy import visualization
 from aopy import preproc
 import unittest
 import os
@@ -146,16 +146,16 @@ class BMI3DTests(unittest.TestCase):
         self.assertEqual(data.shape[0], 25000)
         figname = 'load_ecube_data_groundtruth.png'
         plt.figure()
-        plot_timeseries(data, 25000)
-        savefig(write_dir, figname)
+        visualization.plot_timeseries(data, 25000)
+        visualization.savefig(write_dir, figname)
 
         # Compare to using the load_ecube_data() function
         data = bmi3d.load_ecube_data(sim_filepath, 'Headstages')
         self.assertEqual(data.shape[1], 8)
         self.assertEqual(data.shape[0], 25000)
         plt.figure()
-        plot_timeseries(data, 25000)
-        savefig(write_dir, 'load_ecube_data.png')
+        visualization.plot_timeseries(data, 25000)
+        visualization.savefig(write_dir, 'load_ecube_data.png')
 
         fig1 = os.path.join(write_dir, figname)
         fig2 = os.path.join(write_dir, 'load_ecube_data.png')
@@ -198,8 +198,8 @@ class BMI3DTests(unittest.TestCase):
             data = np.concatenate((data, chunk), axis=0)
         self.assertEqual(data.shape[0], 25000)
         plt.figure()
-        plot_timeseries(data, 25000)
-        savefig(write_dir, 'load_ecube_data_chunked.png') # should be the same as 'load_ecube_data.png'
+        visualization.plot_timeseries(data, 25000)
+        visualization.savefig(write_dir, 'load_ecube_data_chunked.png') # should be the same as 'load_ecube_data.png'
 
     def test_proc_ecube_data(self):
         import os
@@ -594,7 +594,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.title('readout 1')
         
         filename = 'extract_decoder_features.png'
-        savefig(docs_dir, filename, transparent=False)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_get_kinematic_segments(self):
 
@@ -962,7 +962,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.legend()
 
         filename = 'tabulate_decoder_features.png'
-        savefig(docs_dir, filename, transparent=False)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_tabulate_ts_data(self):
 
