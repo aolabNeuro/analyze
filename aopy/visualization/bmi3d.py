@@ -5,11 +5,11 @@ import aopy.visualization
 
 def plot_decoder_weight_matrix(decoder, ax=None):
     """
-    Plot the decoder weight matrix.
+    Plot the decoder weight matrix. Compatible with Decoder objects with 
+    KFDecoder and lindecoder filters.
 
     Args:
-        matrix (np.ndarray): The weight matrix to plot.
-        decoder (object): The decoder object containing unit and state information.
+        decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
         ax (matplotlib.axes.Axes, optional): The axes on which to plot. Defaults to None.
     """
     if ax is None:
@@ -36,8 +36,10 @@ def plot_readout_map(decoder, readouts, drive_type='ECoG244', cmap='YlGnBu', ax=
     Plot the spatial location of readouts.
 
     Args:
-        decoder (object): The decoder object containing channel information.
+        decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
         readouts (list): The readout channels.
+        drive_type (str, optional): The type of drive. Defaults to 'ECoG244'.
+        cmap (str, optional): The colormap to use. Defaults to 'YlGnBu'.
         ax (matplotlib.axes.Axes, optional): The axes on which to plot. Defaults to None.
     """
     if ax is None:
@@ -53,10 +55,9 @@ def plot_decoder_weight_vectors(decoder, x_idx, y_idx, colors, ax=None):
     Plot decoder weight vectors.
 
     Args:
-        decoder (object): The decoder object containing unit information.
-        matrix (np.ndarray): The weight matrix.
-        x_idx (int): The index for the x dimension of the vector.
-        y_idx (int): The index for the y dimension of the vector.
+        decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
+        x_idx (int): The index for the x state in the decoder's weight matrix
+        y_idx (int): The index for the y state in the decoder's weight matrix
         colors (list): List of colors for the vectors.
         ax (matplotlib.axes.Axes, optional): The axes on which to plot. Defaults to None.
     """
@@ -78,22 +79,25 @@ def plot_decoder_weight_vectors(decoder, x_idx, y_idx, colors, ax=None):
     ax.set(xlabel='Px weight', ylabel='Py weight', 
            xlim=(-max_len,max_len), ylim=(-max_len,max_len))
 
-def plot_decoder_weights(decoder):
+def plot_decoder_weights(decoder, drive_type='ECoG244', cmap='YlGnBu'):
     """
-    Plot the decoder weights and spatial locations.
+    Plot the decoder weight matrix, readout map, and weight vectors.
 
     Args:
-        decoder (object): The decoder object containing weight and channel information.
+        decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
+        drive_type (str, optional): The type of drive. Defaults to 'ECoG244'.
+        cmap (str, optional): The colormap to use. Defaults to 'YlGnBu'.
     """
     fig, ax = plt.subplots(2, 2, figsize=(8, 8))
     ax = ax.flatten()
 
     plot_decoder_weight_matrix(decoder, ax=ax[0])
     ax[0].set_title('Weight matrix')
-    plot_readout_map(decoder, decoder.channels, ax=ax[1])
+    plot_readout_map(decoder, decoder.channels, drive_type=drive_type, 
+                     cmap=cmap, ax=ax[1])
     ax[1].set_title('Readout location')
 
-    colors = sns.color_palette('YlGnBu', n_colors=len(decoder.channels))
+    colors = sns.color_palette(cmap, n_colors=len(decoder.channels))
     plot_decoder_weight_vectors(decoder, 0, 2, colors, ax=ax[2])
     ax[2].set_title('Pos weight vectors')
     plot_decoder_weight_vectors(decoder, 3, 5, colors, ax=ax[3])
