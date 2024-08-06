@@ -740,5 +740,11 @@ class TestEyePlots(unittest.TestCase):
         filename = 'eye_calibration.png'
         savefig(docs_dir,filename, transparent=False)
 
+class TestDecoderPlots(unittest.TestCase):
+
+    def test_plot_decoder_weights(self):
+
+        decoder = 
+
 if __name__ == "__main__":
     unittest.main()
