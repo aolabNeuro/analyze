@@ -83,6 +83,12 @@ def plot_decoder_weights(decoder, drive_type='ECoG244', cmap='YlGnBu'):
     """
     Plot the decoder weight matrix, readout map, and weight vectors.
 
+    Example:
+
+        A KF decoder with 7 states and 16 readout channels.
+
+        .. image:: ..images/decoder_weights.png
+
     Args:
         decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
         drive_type (str, optional): The type of drive. Defaults to 'ECoG244'.
