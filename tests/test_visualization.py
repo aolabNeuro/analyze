@@ -764,13 +764,13 @@ class TestEyePlots(unittest.TestCase):
 
 class TestDecoderPlots(unittest.TestCase):
 
-    def test_plot_decoder_weights(self):
+    def test_plot_decoder_summary(self):
 
         from aopy.data import db
         with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
             decoder = pickle.load(file, fix_imports=False)
 
-        bmi3d.plot_decoder_weights(decoder)
+        bmi3d.plot_decoder_summary(decoder)
         filename = 'decoder_weights.png'
         savefig(docs_dir, filename, transparent=False)
 

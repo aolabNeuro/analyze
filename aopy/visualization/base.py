@@ -532,7 +532,52 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, drive_type='ECoG244', cmap='bwr', 
+def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244', cmap='bwr', 
+                           theta=0, ax=None, **kwargs):
+    '''
+    Plot a 2D spatial map of data from a spatial electrode array.
+
+    Args:
+        data ((256,) array): values from the ECoG array to plot in 2D
+        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        drive_type (str, optional): type of drive. Defaults to 'ECoG244'.
+        cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
+            e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
+            by 90 degrees. Default 0.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): dictionary of additional keyword argument pairs to send to calc_data_map and plot_spatial_map.
+
+    Returns:
+        pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+    '''
+    
+    if ax is None:
+        ax = plt.gca()
+    
+    # Load the signal path files
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type, theta=theta)
+
+    # Remove bad electrodes
+    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
+    data[bad_ch] = np.nan
+        
+    # Interpolate or directly compute the map
+    if interp:
+        interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
+        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
+    else:
+        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
+        xy = [elec_pos[:,0], elec_pos[:,1]]
+
+    # Plot
+    plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
+    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
+    return im
+
+
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', 
                           theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
@@ -571,29 +616,8 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, drive_type='ECoG244', 
             # Missing electrodes should be filled in with linear interp.
 
     '''
-    
-    if ax is None:
-        ax = plt.gca()
-    
-    # Load the signal path files
-    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type, theta=theta)
-
-    # Remove bad electrodes
-    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
-    data[bad_ch] = np.nan
-        
-    # Interpolate or directly compute the map
-    if interp:
-        interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
-        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
-    else:
-        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
-        xy = [elec_pos[:,0], elec_pos[:,1]]
-
-    # Plot
-    plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
-    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
-    return im
+    return plot_spatial_drive_map(data, bad_elec=bad_elec, interp=interp, drive_type='ECoG244', 
+                                  cmap=cmap, theta=theta, ax=ax, **kwargs)
 
 def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
     '''
