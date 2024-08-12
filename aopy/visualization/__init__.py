@@ -5,3 +5,4 @@ from .animation import *
 
 # For new submodules, import just the namespace
 from . import eye
+from . import bmi3d
