@@ -280,5 +280,13 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
+    def test_get_relevant_saccade_idx(self):
+        onset_target = np.array([0,2,0,0])
+        offset_target = np.array([0,1,1,1])
+        saccade_distance = np.array([1.0,2.0,2.0,3.0])
+        target_idx = 1
+        relevant_saccade_idx = get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx)
+        self.assertTrue(relevant_saccade_idx == 3)
+        
 if __name__ == "__main__":
     unittest.main()
