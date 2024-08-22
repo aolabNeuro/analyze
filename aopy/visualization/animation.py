@@ -145,6 +145,7 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr', clim=None):
         y (list): list of y positions
         samplerate (float): rate of the data_map samples
         cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
+        clim ((cmin, cmax) tuple, optional): color limits for the colormap. Defaults to None.
     
     Returns:
         matplotlib.animation.FuncAnimation: animation object
