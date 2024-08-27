@@ -532,7 +532,53 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, ax=None, **kwargs):
+def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244', cmap='bwr', 
+                           theta=0, ax=None, **kwargs):
+    '''
+    Plot a 2D spatial map of data from a spatial electrode array.
+
+    Args:
+        data ((256,) array): values from the ECoG array to plot in 2D
+        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        drive_type (str, optional): type of drive. Defaults to 'ECoG244'.
+        cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
+            e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
+            by 90 degrees. Default 0.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): dictionary of additional keyword argument pairs to send to calc_data_map and plot_spatial_map.
+
+    Returns:
+        pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+    '''
+    
+    if ax is None:
+        ax = plt.gca()
+    
+    # Load the signal path files
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type, theta=theta)
+
+    # Remove bad electrodes
+    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
+    data[bad_ch] = np.nan
+        
+    # Interpolate or directly compute the map
+    if interp:
+        interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
+        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
+    else:
+        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
+        xy = [elec_pos[:,0], elec_pos[:,1]]
+
+    # Plot
+    plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
+    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
+    return im
+
+
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', 
+                          theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
@@ -570,29 +616,8 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, a
             # Missing electrodes should be filled in with linear interp.
 
     '''
-    
-    if ax is None:
-        ax = plt.gca()
-    
-    # Load the signal path files
-    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type='ECoG244', theta=theta)
-
-    # Remove bad electrodes
-    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
-    data[bad_ch] = np.nan
-        
-    # Interpolate or directly compute the map
-    if interp:
-        interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
-        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
-    else:
-        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
-        xy = [elec_pos[:,0], elec_pos[:,1]]
-
-    # Plot
-    plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
-    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
-    return im
+    return plot_spatial_drive_map(data, bad_elec=bad_elec, interp=interp, drive_type='ECoG244', 
+                                  cmap=cmap, theta=theta, ax=ax, **kwargs)
 
 def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
     '''
@@ -1612,13 +1637,14 @@ def plot_corr_over_elec_distance(elec_data, elec_pos, ax=None, **kwargs):
 
     Updated:
         2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
+        2024-07-01 (LRS): Fixed default x-axis label units to mm.
     '''
     if ax is None:
         ax = plt.gca()
     label = kwargs.pop('label', None)
     dist, corr = analysis.calc_corr_over_elec_distance(elec_data, elec_pos, **kwargs)
     ax.plot(dist, corr, label=label)
-    ax.set_xlabel('binned electrode distance (cm)')
+    ax.set_xlabel('binned electrode distance (mm)')
     ax.set_ylabel('correlation')
     ax.set_ylim(0,1)
 
@@ -1809,3 +1835,74 @@ def plot_laser_sensor_alignment(sensor_volts, samplerate, stim_times, ax=None):
     plt.xlabel('time (ms)')
     plt.title('laser sensor aligned')
     return im
+
+def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area=False, gaps=False, normalize=False, ax=None, **kwargs):
+    '''
+    Plot a circular histogram of angles on a given ax. Adapted from: 
+        https://stackoverflow.com/questions/22562364/circular-polar-histogram-in-python. 
+
+    Args:            
+        data (arr): angles to plot, in radians.
+        bins (int, optional): defines the number of equal-width bins in the range. Default is 16.
+        density (bool, optional): whether to return the probability density function at each bin, instead of the number of samples 
+            (passed to np.histogram). Default is False.
+        offset (float, optional): the offset for the location of the 0 direction, in radians. 
+            Default is 0.
+        proportional_area (bool, optional): If True, plots bars proportional to area. If False, plots bars
+            proportional to radius. Default is False.
+        gaps (bool, optional): whether to allow gaps between bins. If True, the bins will only span the values
+            of the data. If False, the bins are forced to partition the entire [-pi, pi] range. Default is False.
+        normalize (bool, optional): whether to normalize the bin values such that the max value is 1. Default is False.
+        ax (pyplot.Axes, optional): axes on which to plot. Should be an axis instance created with 
+            subplot_kw=dict(projection='polar'). Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to ax.bar
+
+    Returns:
+        n (arr or list of arr): the number of values in each bin
+        bins (arr): the edges of the bins
+        patches (`.BarContainer` or list of a single `.Polygon`): container of individual artists used to create the histogram
+            or list of such containers if there are multiple input datasets
+
+    Examples:
+        .. image:: _images/circular_histograms.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    # Wrap angles to [-pi, pi)
+    data = (data+np.pi) % (2*np.pi) - np.pi
+
+    # Force bins to partition entire circle
+    if not gaps:
+        bins = np.linspace(-np.pi, np.pi, num=bins+1)
+
+    # Bin data and record counts
+    n, bins = np.histogram(data, bins=bins, density=density)
+
+    # Compute width of each bin
+    widths = np.diff(bins)
+
+    # If indicated, plot frequency proportional to area
+    if proportional_area:
+        # Area to assign each bin
+        area = n / data.size
+        # Calculate corresponding bin radius
+        radius = (area/np.pi) ** .5
+         # Remove ylabels for area plots (they are mostly obstructive)
+        ax.set_yticks([])
+
+    # Otherwise plot frequency proportional to radius
+    else:
+        radius = n
+
+    # If indicated, normalize the bar values so that the max is 1
+    if normalize:
+        radius = radius/np.max(radius)
+
+    # Plot data on ax
+    patches = ax.bar(bins[:-1], radius, width=widths, align='edge', **kwargs)
+
+    # Set the direction of the zero angle
+    ax.set_theta_offset(offset)  
+
+    return n, bins, patches

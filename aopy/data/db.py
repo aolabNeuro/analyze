@@ -17,6 +17,9 @@ except:
     warnings.warn("Database not configured")
     traceback.print_exc()
 
+from .. import data as aodata
+from .. import preproc
+
 '''
 Lookup
 '''
@@ -77,7 +80,7 @@ def lookup_sessions(id=None, subject=None, date=None, task_name=None, task_desc=
         # Initial lookup, wrapped into BMI3DTaskEntry objects
         dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
         entries = bmi3d.get_task_entries(dbname=dbname, **kwargs)
-        entries = [BMI3DTaskEntry(e) for e in entries]
+        entries = [BMI3DTaskEntry(e, dbname=dbname) for e in entries]
 
         # Additional filtering
         if len(entries) == 0:
@@ -93,8 +96,7 @@ def lookup_flash_sessions(mc_task_name='manual control', **kwargs):
     Returns list of entries for all flash sessions on the given date.
     See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' in te.task_desc)
-    return lookup_sessions(task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+    return lookup_sessions(task_name=mc_task_name, entry_name__contains='flash', **kwargs)
 
 def lookup_mc_sessions(mc_task_name='manual control', **kwargs):
     '''
@@ -459,6 +461,51 @@ class BMI3DTaskEntry():
         
         return sources
     
+    def preprocess(self, data_dir, preproc_dir, overwrite=False, exclude_sources=[], system_subfolders=None, **kwargs):
+        '''
+        Preprocess the data associated with this task entry
+
+        Args:
+            data_dir (str): directory where the raw data is stored
+            preproc_dir (str): directory where the preprocessed data will be written
+            overwrite (bool, optional): whether or not to overwrite existing preprocessed data. Defaults to False.
+            exclude_sources (list, optional): list of sources to exclude from preprocessing. Defaults to [].
+            system_subfolders (dict, optional): dictionary of system subfolders where the
+                data for that system is located. If None, defaults to the system name
+            kwargs (dict, optional): additional keyword arguments to pass to the preprocessing function
+
+        Returns:
+            str: error message if there was an error during preprocessing
+        '''
+
+        # Get the raw data files
+        files = self.get_raw_files(system_subfolders=system_subfolders)
+        if len(files) == 0:
+            print("No files for entry!")
+            return
+        if 'hdf' in files.keys():
+            self.record.make_hdf_self_contained(data_dir=data_dir, dbname=self.dbname) # update the hdf metadata from the database
+        
+        # Choose which sources to preprocess
+        sources = self.get_preprocessed_sources()
+        for src in exclude_sources:
+            sources.remove(src)
+
+        # Prepare the preproc directory
+        preproc_dir = os.path.join(preproc_dir, self.subject)
+        if not os.path.exists(preproc_dir):
+            os.mkdir(preproc_dir)
+        
+        # Preprocess the data, keeping track of any errors and returning them
+        error = None
+        try:
+            preproc.proc_single(data_dir, files, preproc_dir, self.subject, self.id, self.date, 
+                                sources, overwrite=overwrite, **kwargs)
+        except Exception as exc:
+            traceback.print_exc()
+            error = traceback.format_exc()
+        return error
+    
     def get_db_object(self):
         '''
         Get the raw database object representing this task entry
@@ -663,3 +710,51 @@ def summarize_entries(entries, sum_trials=False):
     unique_sessions = all_sessions.drop('te_id', axis=1).groupby(
         ['subject', 'date', 'task_name', 'task_desc']).sum(numeric_only=True)
     return unique_sessions
+
+def encode_onehot_sequence_name(sessions,sequence_types):
+    '''
+    Generates a dataframe summarizing the id, subject, date and by onehot 
+    encoding the sequences of interest of each entry in the input session list.
+
+    Args:
+        sessions (list): list of bmi3d task entries
+        sequence_types (list): Array of sequence_name strings. Can only be a list of strings
+
+    Returns:
+        pd.Dataframe: Dataframe of entry summaries containing sequence name occurance
+            
+    Examples:
+
+        .. code-block:: python
+            
+            sessions = db.lookup_mc_sessions()
+            sequence_types = ['rand_target_chain_2D', 'centerout_2D', 'out_2D', 
+                            'rand_target_chain_3D', 'corners_2D', 'centerout_2D_different_center', 
+                            'sequence_2D', 'centerout_2D_select', 'single_laser_pulse']
+                            
+            df = db.encode_onehot_sequence_name(entries, sequence_types)
+            display(df)
+
+        .. image:: _images/db_encode_onehot_sequence_name.png  
+    '''
+    
+    # sets row and col count
+    row_count = len(sessions)
+    col_count = ['id','subject','date'] + sequence_types
+
+    # creates correct size matrix with all 0s as inputs
+    df_matrix = [[0 for _ in range(len(col_count))] for _ in range(row_count)]
+
+    for row_id, entry in enumerate(sessions):
+        df_matrix[row_id][0] = entry.id
+        df_matrix[row_id][1] = entry.subject
+        df_matrix[row_id][2] = entry.date
+        try:
+            for col_id, sequence in enumerate(sequence_types):
+                if entry.sequence_name == sequence:
+                    df_matrix[row_id][col_id + 3] = 1
+        except:
+            pass
+
+    df = pd.DataFrame(df_matrix, columns = col_count)
+    return df
