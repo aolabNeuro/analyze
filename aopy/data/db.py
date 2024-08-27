@@ -80,7 +80,7 @@ def lookup_sessions(id=None, subject=None, date=None, task_name=None, task_desc=
         # Initial lookup, wrapped into BMI3DTaskEntry objects
         dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
         entries = bmi3d.get_task_entries(dbname=dbname, **kwargs)
-        entries = [BMI3DTaskEntry(e) for e in entries]
+        entries = [BMI3DTaskEntry(e, dbname=dbname) for e in entries]
 
         # Additional filtering
         if len(entries) == 0:
@@ -485,7 +485,7 @@ class BMI3DTaskEntry():
             print("No files for entry!")
             return
         if 'hdf' in files.keys():
-            self.record.make_hdf_self_contained(data_dir=data_dir) # update the hdf metadata from the database
+            self.record.make_hdf_self_contained(data_dir=data_dir, dbname=self.dbname) # update the hdf metadata from the database
         
         # Choose which sources to preprocess
         sources = self.get_preprocessed_sources()
