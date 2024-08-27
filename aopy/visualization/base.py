@@ -1311,8 +1311,83 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
     else:
         ax.plot(time_axis, waveforms)
 
-    ax.set_xlabel(r'Time ($\mu$s)')
+    ax.set_xlabel(r'Time ($\mu$s)')    
+    
+def plot_direction_tuning(direction, mean, var=None, wrap=True, ylabel='success rate', ax=None):
+    '''
+    Plot tuning curves for directional data. The mean is plotted as a solid line and the variance as 
+    a shaded region around the mean. Works with both cartesian and polar axes.
+    
+    Args:
+        direction (ndir): direction of each tuning curve in radians
+        mean (ndir, nch): mean of the tuning curve for each channel. If only one channel, can be (ndir,)
+        var (ndir, nch): variance of the tuning curve for each channel. If only one channel, can be (ndir,)
+            Can also be left blank if there is no variance to plot.
+        wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
+    
+    Example:
+        Polar plot of tuning curves for 4 targets
 
+        .. code-block:: python
+            fig = plt.figure()
+            ax = fig.add_subplot(projection='polar')
+            
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            mean = np.array([[1, 2, 3, 2], [2, 3, 4, 3]]).T
+            var = np.array([[0.2, 0.3, 0.1, 0.], [0.4, 0.6, 0.2, 0]]).T
+
+        .. image:: _images/direction_tuning_polar.png
+    '''
+    if var is None:
+        var = np.zeros_like(mean)
+    assert np.shape(mean) == np.shape(var), "Mean and variance must have the same shape"
+    if np.ndim(mean) == 1:
+        mean = np.expand_dims(mean, 1)
+        var = np.expand_dims(var, 1)
+
+    if ax is None:
+        ax = plt.gca()
+            
+    if len(direction) != len(mean):
+        direction = np.unique(direction)
+    assert len(direction) == len(mean), "Direction and mean must have the same length"
+
+    # Sort the data and decide if the data fills a full circle or half circle
+    if np.max(np.abs(direction)) > 2*np.pi:
+        direction = np.radians(direction) # probably in degrees by mistake
+    modulo = np.pi
+    if np.max(direction) - np.min(direction) >= (np.pi):
+        modulo = np.pi * 2
+    direction = np.array(direction) % modulo
+    idx = np.argsort(direction)
+
+    # Wrap around the circle
+    if wrap:
+        direction = np.hstack((direction[idx], [direction[idx[0]] + modulo]))
+        mean = np.vstack((mean[idx], [mean[idx[0]]]))
+        var = np.vstack((var[idx], [var[idx[0]]]))
+    else:
+        direction = direction[idx]
+        mean = mean[idx]
+        var = var[idx]
+
+    if ax.name != 'polar':
+        direction = np.degrees(direction)
+
+    for ch in range(mean.shape[1]):
+        ax.plot(direction, mean[:,ch])
+        ax.fill_between(direction, mean[:,ch]-var[:,ch], mean[:,ch]+var[:,ch], alpha=0.5)
+
+    try:
+        label_position=ax.get_rlabel_position()
+        ax.text(np.radians(label_position-1),ax.get_rmax()*1.1,ylabel,
+            rotation=label_position,ha='left',va='center')
+    except:
+        ax.set_xlabel('direction (deg)')
+        ax.set_ylabel(ylabel)
+    
 def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     '''
     This function plots the tuning curves output from analysis.run_tuningcurve_fit overlaying the actual firing rate data.
