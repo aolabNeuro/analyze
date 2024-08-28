@@ -103,7 +103,8 @@ def lookup_mc_sessions(mc_task_name='manual control', **kwargs):
     Returns list of entries for all manual control sessions on the given date
     See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    return lookup_sessions(task_name=mc_task_name, entry_name__regex=r'^(?!.*flash).*$', **kwargs)
+    sessions = lookup_sessions(task_name=mc_task_name, **kwargs)
+    return [s for s in sessions if s.task_desc != 'flash']
 
 def lookup_tracking_sessions(tracking_task_name='tracking', **kwargs):
     '''
