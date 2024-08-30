@@ -87,7 +87,7 @@ def plot_decoder_summary(decoder, drive_type='ECoG244', cmap='YlGnBu'):
 
         A KF decoder with 7 states and 16 readout channels.
 
-        .. image:: ..images/decoder_weights.png
+        .. image:: _images/decoder_weights.png
 
     Args:
         decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
