@@ -650,7 +650,7 @@ def map_elec2acq(signalpath_table, elecs):
         return acq_chs[elec_idx]
 
 
-def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y'):
+def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, rotation_offset=(0,0), xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -662,6 +662,7 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0,
             electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates 
             the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
+        rotation_offset (tuple): X and Y coordinates of the rotation center. Defaults to (0,0)
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
 
@@ -686,7 +687,7 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0,
     if theta != 0:
         theta = np.deg2rad(theta)
         rot_mat = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
-        acq_ch_position = acq_ch_position @ rot_mat
+        acq_ch_position = ((acq_ch_position - rotation_offset) @ rot_mat) + rotation_offset
 
     return acq_ch_position, acq_chs, connected_elecs
 
@@ -716,7 +717,9 @@ def map_data2elec(datain, signalpath_table, acq_ch_subset=None, zero_indexing=Fa
     
     return dataout, acq_chs, connected_elecs
 
-def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
+def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, 
+                        theta=0, rotation_offset=(0,0), xpos_name='topdown_x', ypos_name='topdown_y', 
+                        zero_indexing=False):
     '''
     Map data from its acquisition channel to the electrodes recorded from and their position. Wrapper for aopy.data.map_acq2pos
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -729,6 +732,7 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
             will be return. If a requested acquisition channel isn't returned a warned will be displayed
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates the map 
             clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
+        rotation_offset (tuple): X and Y coordinates of the rotation center. Defaults to (0,0)
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
         zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
@@ -768,14 +772,31 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
                                         X position is in the first column and Y position is in the second column
             | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
             | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
+    
+    Examples:
+
+        .. code-block:: python
+
+            plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+            annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+            annotate_spatial_map_channels(drive_type='Opto32', color='b')
+            annotate_spatial_map_channels(drive_type='ECoG244', color='r', theta=90)
+            annotate_spatial_map_channels(drive_type='Opto32', color='g', theta=90)
+            
+        .. image:: _images/ecog244_opto32_theta90.png
+
+
     '''
     config_files = files('aopy').joinpath('config')
+    rotation_offset = (0,0)
     if drive_type == 'ECoG244':
         signal_path_filepath = as_file(config_files.joinpath('210910_ecog_signal_path.xlsx'))
         elec_to_pos_filepath = as_file(config_files.joinpath('244ch_viventi_ecog_elec_to_pos.xlsx'))
+        rotation_offset = (5.625, 5.625)
     elif drive_type == 'Opto32':
         signal_path_filepath = as_file(config_files.joinpath('221021_opto_signal_path.xlsx'))
         elec_to_pos_filepath = as_file(config_files.joinpath('32ch_fiber_optic_assy_elec_to_pos.xlsx'))
+        rotation_offset = (5.625, 5.625)
     else:
         raise ValueError('Drive type not supported')
     
@@ -785,7 +806,8 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
         layout = pd.read_excel(f)
     if acq_ch_subset is not None:
         acq_ch_subset = np.array(acq_ch_subset, dtype='int')
-    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, **kwargs)
+    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, 
+                       rotation_offset=rotation_offset, **kwargs)
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''
