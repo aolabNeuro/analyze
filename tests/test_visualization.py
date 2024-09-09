@@ -377,6 +377,25 @@ class AnimationTests(unittest.TestCase):
 
 class KinematicsPlottingTests(unittest.TestCase):
 
+    def test_color_targets(self):
+        # Generate 8 targets at radius 6.5 from the center
+        angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        radius = 6.5
+        target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+        
+        # Add the center target
+        target_locations = np.vstack(([0, 0], target_locations))
+        
+        target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, others are index 1
+        colors = ['black'] + sns.color_palette("husl", 8)
+        target_radius = 0.5  # Increased for visibility
+        bounds = (-8, 8, -8, 8)  # Adjusted to fit all targets
+        fig, ax = plt.subplots(figsize=(8, 8))  # Larger figure for better visibility
+        color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+        ax.set_aspect('equal')  # Ensure circular appearance
+        filename = 'color_targets.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_plot_targets(self):
 
         # Draw four outer targets and one center target
@@ -665,7 +684,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         ax[2,1].set_title('Bin values are normalized to a max value of 1')
 
         filename = 'circular_histograms'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
 class TestPlotUtils(unittest.TestCase):
 
