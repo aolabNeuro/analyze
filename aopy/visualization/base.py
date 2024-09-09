@@ -777,7 +777,57 @@ def set_bounds(bounds, ax=None):
         ax.set(xlim=(1.1 * bounds[0], 1.1 * bounds[1]),
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
+def color_targets(target_locations, target_idx, colors, target_radius, bounds=None, ax=None, **kwargs):
+    '''
+    Color targets according to their index. Useful for visualizing unique targets when trajectories
+    aren't obviously aligned to specific targets.
 
+    Example:
+        Plot eight targets in a center-out task.
+        
+        .. code-block:: python
+
+            # Generate 8 targets at radius 6.5 from the center
+            angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+            radius = 6.5
+            target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+            
+            # Add the center target
+            target_locations = np.vstack(([0, 0], target_locations))
+            
+            target_idx = [0] + [1] * 8  # Center is index 0, others are index 1
+            colors = ['red', 'blue']
+            target_radius = 0.5  # Increased for visibility
+            bounds = (-8, 8, -8, 8)  # Adjusted to fit all targets
+            fig, ax = plt.subplots(figsize=(8, 8))  # Larger figure for better visibility
+            color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+            ax.set_aspect('equal')  # Ensure circular appearance
+
+        .. image:: _images/color_targets.png
+
+    Args:
+        target_locations ((ntargets, 2) or (ntargets, 3) array): array of target (x, y[, z]) locations
+        target_idx ((ntargets,) array): array of indices for each target, used to determine color
+        colors (list): list of colors corresponding to each unique index in target_idx
+        target_radius (float): radius of the targets in cm
+        bounds (tuple, optional): 4- or 6-element tuple describing (-x, x, -y, y[, -z, z]) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on (2D or 3D)
+        **kwargs: additional keyword arguments to pass to plot_circles()
+
+    Returns:
+        None
+    '''
+    
+    assert len(target_locations) == len(target_idx), "Locations must be the same length as indices"
+    target_locations = np.array(np.array(target_locations).tolist())
+    target_idx = np.array(np.array(target_idx).tolist())
+    loc_idx = np.concatenate((np.expand_dims(target_idx, 1), target_locations), axis=1)
+    loc_idx = np.unique(loc_idx, axis=0)
+    for row in loc_idx:
+        idx = row[0].astype(int)
+        loc = row[1:]
+        plot_circles([loc], target_radius, colors[idx], bounds=bounds, ax=ax, **kwargs)
+        
 def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, 
                  origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
