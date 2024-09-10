@@ -1304,7 +1304,7 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
             plt.legend()
             plt.title('readout 1')
                         
-        ..image:: _images/extract_decoder_features.png
+        .. image:: _images/extract_decoder_features.png
     '''
     return _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=samplerate, 
                                  channels=channels, start_time=start_time, end_time=end_time, latency=latency, 

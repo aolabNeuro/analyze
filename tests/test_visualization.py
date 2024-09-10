@@ -119,12 +119,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         savefig(docs_dir, filename)
 
         plt.figure()
-        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
-        annotate_spatial_map_channels(drive_type='ECoG244', color='k', theta=90)
-        annotate_spatial_map_channels(drive_type='Opto32', color='b', theta=90)
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+        annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+        annotate_spatial_map_channels(drive_type='Opto32', color='b')
+        annotate_spatial_map_channels(drive_type='ECoG244', color='r', theta=90)
+        annotate_spatial_map_channels(drive_type='Opto32', color='g', theta=90)
         plt.axis('off')
         filename = 'ecog244_opto32_theta90.png'
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
