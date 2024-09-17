@@ -360,6 +360,8 @@ def get_data_map(data, x_pos, y_pos):
         (m,n array): map of the data on the grid defined by x_pos and y_pos
     '''
     data = np.reshape(data, -1)
+    x_pos = np.round(x_pos, 9) # avoid floating point errors
+    y_pos = np.round(y_pos, 9)
 
     X = np.unique(x_pos)
     Y = np.unique(y_pos)
@@ -538,7 +540,7 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
     Plot a 2D spatial map of data from a spatial electrode array.
 
     Args:
-        data ((256,) array): values from the ECoG array to plot in 2D
+        data ((nch,) array): values from the spatial drive to plot in 2D
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         drive_type (str, optional): type of drive. Defaults to 'ECoG244'.

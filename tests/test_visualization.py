@@ -648,6 +648,7 @@ class KinematicsPlottingTests(unittest.TestCase):
 
     def test_plot_circular_hist(self):
         fig, ax = plt.subplots(3, 2, subplot_kw=dict(projection='polar'), figsize=(12,18))
+        np.random.seed(0)
         angles = np.random.normal(loc=np.pi/4, scale=np.pi/8, size=1000)
 
         # compare plotting the same data with vs. without allowing gaps in the bins
