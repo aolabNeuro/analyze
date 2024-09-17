@@ -746,7 +746,8 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
             | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
     
-    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, theta=theta, xpos_name=xpos_name, ypos_name=ypos_name)
+    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, theta=theta, 
+                                                            rotation_offset=rotation_offset, xpos_name=xpos_name, ypos_name=ypos_name)
     if zero_indexing:
         dataout = datain[:,acq_chs]
     else:
