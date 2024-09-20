@@ -223,3 +223,36 @@ def concat_neuropixel_within_day(np_datadir, kilosort_dir, subject, date, ch_con
         print('No data to concatenate')
 
     return savedir_names
+
+def sync_ts_data(data, sync_timestamp):
+    '''
+    Synchronize time series data by padding nan or cropping datapoints based on synchronized timestamps
+    so that data would begin at 0 on the synchronized time axis
+    
+    Args:
+        data (nt, nch): time series data to preprocess
+        sync_timestamp (nt): synchronized timestamps
+        
+    Returns:
+        sync_data (sync_nt, nch): synchronized time series data. The shape of data changes.
+    '''
+    
+    dt = sync_timestamp[1]-sync_timestamp[0]
+    
+    if data.ndim == 1:
+        data = data[:,np.newaxis]
+        nch = data.shape[1]
+
+    # When the initial timestamp is more than 0, pad np.nan so that data could begin at time 0
+    if sync_timestamp[0]>=0:
+        tmp = np.arange(sync_timestamp[0]-dt,0,-dt)
+        padding_datapoints = tmp.shape[0]
+        pad_to_data = np.zeros((padding_datapoints,nch))*np.nan
+        sync_data = np.concatenate([pad_to_data, data],axis=0)
+        
+    # When the initial timestamp is less than 0, crop the head of data so that data could begin at time 0
+    else:
+        not_crop_datapoints = sync_timestamp >= 0
+        sync_data = data[not_crop_datapoints,:]
+        
+    return np.squeeze(sync_data)
