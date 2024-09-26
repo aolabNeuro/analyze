@@ -49,7 +49,7 @@ def get_filenames_in_dir(base_dir, te):
         files[system] = filename
     return files
 
-def get_preprocessed_filename(subject, te_id, date, data_source):
+def get_preprocessed_filename(subject, te_id, date, data_source, port_number=None):
     '''
     Generates preprocessed filenames as per our naming conventions. 
     Format: preproc_<Date>_<MonkeyName>_<TaskEntry>_<DataSource>.hdf
@@ -58,12 +58,19 @@ def get_preprocessed_filename(subject, te_id, date, data_source):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
-        data_source (str): Processed data type (exp, eye, broadband, lfp, etc.)
+        data_source (str): Processed data type (exp, eye, broadband, lfp, ap, etc.)
+        port_number (int): Port number (1 based indexing) for multiple recordings
     
     Returns:
         str: filename
     '''  
-    return f"preproc_{date}_{subject}_{te_id}_{data_source}.hdf"
+    
+    if port_number:
+        filename = f"preproc_{date}_{subject}_{te_id}_{data_source}_port{port_number}.hdf"
+    else:
+        filename = f"preproc_{date}_{subject}_{te_id}_{data_source}.hdf"
+        
+    return filename
 
 def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     '''
@@ -150,7 +157,7 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
     metadata = load_hdf_group(preproc_dir, filename, 'broadband_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_lfp_data(preproc_dir, subject, te_id, date, cached=True):
+def load_preproc_lfp_data(preproc_dir, subject, te_id, date, port_number=None, cached=True):
     '''
     Loads LFP data from a preprocessed file.
 
@@ -159,12 +166,13 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        port_number (int): Port number (1 based indexing) for multiple recordings
 
     Returns:
         dict: lfp data
         dict: Dictionary of lfp metadata
     '''
-    filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
+    filename = get_preprocessed_filename(subject, te_id, date, 'lfp', port_number=port_number)
     preproc_dir = os.path.join(preproc_dir, subject)
     data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
     metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
