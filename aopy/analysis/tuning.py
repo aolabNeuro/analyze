@@ -146,3 +146,34 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
                 pd[iunit] = np.nan
 
     return fit_params, md, pd
+
+def calc_dprime(*dist):
+    '''
+    d-prime or the sensitivity index is the peak-to-peak difference of the mean of the signals 
+    for two categories divided by their pooled (mean) standard deviation. The formula is as follows:
+    
+    .. math::
+
+        d' = \\frac{µ_{max} - µ_{min}}{\sqrt{\sum_{i=0}^{n-1} (p_i)\sigma_i^2}}
+
+    where $µ_{max}$ and $µ_{min}$ are the mean of the two categories, $p_i$ is the proportion of trials
+    in the i-th category, and $\sigma_i^2$ is the standard deviation of the i-th category.
+
+    Args:
+        *dist (ntr, nch): distribution of the data for each category. d-prime is calculated along the first axis.
+
+    Returns:
+        (nch): d-prime value for each channel or unit.
+    
+    Examples:
+    
+        $d'$ is essentially a signal-to-noise ratio. You can think of the numerator as the maximum distance 
+        between two signals, while the denominator is the average noise at each signal. For example, in a two-target 
+        classification, the numerator becomes exactly the difference in signal between the two targets. Values of 
+        1, 2, and 3 correspond to correctly classifying the two targets at 69, 84, and 93 percent correct, respectively.
+    '''
+    means = [np.mean(d, axis=0) for d in dist]
+    peak_to_peak_dist = np.max(means, axis=0) - np.min(means, axis=0)
+    sum_vars = np.sum([(len(d)-1)*np.std(d, axis=0) for d in dist])
+    mean_vars = sum_vars / np.sum([len(d)-1 for d in dist])
+    return peak_to_peak_dist / mean_vars
