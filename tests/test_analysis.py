@@ -282,26 +282,26 @@ class TestTuning(unittest.TestCase):
         s1 = np.std(noise_dist, axis=0)
         s2 = np.std(signal_dist, axis=0)
         mean_diff = m2 - m1
-        sd_sum = ((len(noise_dist)-1) * s1 + ((len(signal_dist)-1) * s2))
-        sd_pooled = sd_sum/(len(noise_dist) + len(signal_dist) - 2)
+        sd_sum = (len(noise_dist) * s1 + (len(signal_dist) * s2))
+        sd_pooled = sd_sum/(len(noise_dist) + len(signal_dist))
         dprime_hand = mean_diff / sd_pooled
 
         np.testing.assert_allclose(dprime, dprime_hand)
 
         # Simple multi-channel test
-        noise_dist = np.array([[0, 1], [0, 1]]).T
-        signal_dist = np.array([[1, 2], [1, 2]]).T
-        print(noise_dist.shape)
+        noise_dist = np.array([[0, 1], [0, 1], [0, 1]]).T
+        signal_dist = np.array([[0.5, 1.5], [1, 2], [1.5, 2.5]]).T
         dprime = aopy.analysis.calc_dprime(noise_dist, signal_dist)
 
-        np.testing.assert_allclose(dprime, np.array([1, 1]))
+        np.testing.assert_allclose(dprime, np.array([1, 2, 3]))
 
         # Multi-class test
-        noise_dist = np.array([[0, 1, 0, 1], [0, 1, 0, 1]]).T
-        signal_dist = np.array([[1, 2, 1, 2], [2, 3, 2, 3]]).T
-        dprime = aopy.analysis.calc_dprime(noise_dist, signal_dist)
+        dist_1 = np.array([0, 1])
+        dist_2 = np.array([1, 2])
+        dist_3 = np.array([2, 3])
+        dprime = aopy.analysis.calc_dprime(dist_1, dist_2, dist_3)
 
-        np.testing.assert_allclose(dprime, np.array([1, 2.]))
+        np.testing.assert_allclose(dprime, 4)
 
 class CalcTests(unittest.TestCase):
 
