@@ -782,29 +782,6 @@ def color_targets(target_locations, target_idx, colors, target_radius, bounds=No
     Color targets according to their index. Useful for visualizing unique targets when trajectories
     aren't obviously aligned to specific targets.
 
-    Example:
-        Plot eight targets in a center-out task.
-        
-        .. code-block:: python
-
-            # Generate 8 targets at radius 6.5 from the center
-            angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
-            radius = 6.5
-            target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
-            
-            # Add the center target
-            target_locations = np.vstack(([0, 0], target_locations))
-            
-            target_idx = [0] + [1] * 8  # Center is index 0, others are index 1
-            colors = ['red', 'blue']
-            target_radius = 0.5  # Increased for visibility
-            bounds = (-8, 8, -8, 8)  # Adjusted to fit all targets
-            fig, ax = plt.subplots(figsize=(8, 8))  # Larger figure for better visibility
-            color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
-            ax.set_aspect('equal')  # Ensure circular appearance
-
-        .. image:: _images/color_targets.png
-
     Args:
         target_locations ((ntargets, 2) or (ntargets, 3) array): array of target (x, y[, z]) locations
         target_idx ((ntargets,) array): array of indices for each target, used to determine color
@@ -814,8 +791,35 @@ def color_targets(target_locations, target_idx, colors, target_radius, bounds=No
         ax (plt.Axis, optional): axis to plot the targets on (2D or 3D)
         **kwargs: additional keyword arguments to pass to plot_circles()
 
-    Returns:
-        None
+    Examples:
+        Create and plot eight targets for a center-out task.
+        
+        .. code-block:: python
+
+            angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+            radius = 6.5
+            target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+            target_locations = np.vstack(([0, 0], target_locations))
+
+        Specify the colors per target index in case they are out of order.
+            
+        .. code-block:: python
+
+            target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, peripheral are index 1 through 9
+            colors = ['black'] + sns.color_palette("husl", 8)
+            target_radius = 0.5
+            bounds = (-8, 8, -8, 8)
+
+        Use :func:`~aopy.visualization.color_targets` to plot the targets
+        
+        .. code-block:: python
+
+            fig, ax = plt.subplots(figsize=(8, 8))
+            color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+            ax.set_aspect('equal')
+            filename = 'color_targets.png'
+
+        .. image:: _images/color_targets.png
     '''
     
     assert len(target_locations) == len(target_idx), "Locations must be the same length as indices"

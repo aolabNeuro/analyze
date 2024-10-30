@@ -385,14 +385,17 @@ class KinematicsPlottingTests(unittest.TestCase):
         
         # Add the center target
         target_locations = np.vstack(([0, 0], target_locations))
-        
-        target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, others are index 1
+        target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, peripheral are index 1 through 9
+
+        # Choose plotting parameters
         colors = ['black'] + sns.color_palette("husl", 8)
-        target_radius = 0.5  # Increased for visibility
-        bounds = (-8, 8, -8, 8)  # Adjusted to fit all targets
-        fig, ax = plt.subplots(figsize=(8, 8))  # Larger figure for better visibility
+        target_radius = 0.5
+        bounds = (-8, 8, -8, 8)
+
+        # Plot the targets
+        fig, ax = plt.subplots(figsize=(8, 8))
         color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
-        ax.set_aspect('equal')  # Ensure circular appearance
+        ax.set_aspect('equal')
         filename = 'color_targets.png'
         savefig(docs_dir, filename, transparent=False)
 
