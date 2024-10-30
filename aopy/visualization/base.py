@@ -828,7 +828,7 @@ def color_targets(target_locations, target_idx, colors, target_radius, bounds=No
         .. image:: _images/color_targets.png
     '''
     
-    assert len(target_locations) == len(target_idx), "Locations must be the same length as indices"
+    assert len(target_locations) == len(target_idx) == len(colors), "Locations and colors must be the same length as indices"
     target_locations = np.array(np.array(target_locations).tolist())
     target_idx = np.array(np.array(target_idx).tolist())
     loc_idx = np.concatenate((np.expand_dims(target_idx, 1), target_locations), axis=1)
