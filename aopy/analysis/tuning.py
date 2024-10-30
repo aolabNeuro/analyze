@@ -146,3 +146,64 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
                 pd[iunit] = np.nan
 
     return fit_params, md, pd
+
+def calc_dprime(*dist):
+    '''
+    d-prime or the sensitivity index is the peak-to-peak difference of means of the signals 
+    across categories divided by their pooled (mean) standard deviation. The formula is as follows:
+    
+    .. math::
+
+        d' = \\frac{µ_{max} - µ_{min}}{\sqrt{\sum_{i=0}^{n-1} (p_i)\sigma_i^2}}
+
+    where $µ_{max} - µ_{min}$ is the peak-to-peak distance across category means, $p_i$ is the proportion 
+    of trials in the i-th category, and $\sigma_i^2$ is the standard deviation of the i-th category.
+
+    Args:
+        *dist (ntr, nch): distribution of the data for each category. d-prime is calculated along the first axis.
+
+    Returns:
+        (nch): d-prime value for each channel or unit.
+    
+    Examples:
+    
+        $d'$ is essentially a signal-to-noise ratio. In the simple case of two distributions, the numerator 
+        is the distance between the two means while the denominator is the average noise within each distribution. 
+        If the distributions are normal and of equal variance then the $d'$ value becomes the z-score of the 
+        difference between the two means.
+
+        .. code-block:: python
+        
+            noise_dist = np.array([[0, 1], [0, 1], [0, 1]]).T
+            signal_dist = np.array([[0.5, 1.5], [1, 2], [1.5, 2.5]]).T
+            dprime = aopy.analysis.calc_dprime(noise_dist, signal_dist)
+            print(dprime)
+            >>> np.array([1, 2, 3])
+
+        If there are more than two classes, d-prime finds the maximum signal-to-noise ratio, as illustrated in
+        this pictorial from Williams, J. J. (2013). The numerator (peak-to-peak distance between distributions) 
+        approximates the "signal" while the denominator (pooled standard deviation of each distribution)
+        approximates the "noise".
+
+        .. image:: _images/dprime.png
+
+        Another simple example with 3 distributions:
+
+        .. code-block:: python
+
+            dist_1 = np.array([0, 1])
+            dist_2 = np.array([1, 2])
+            dist_3 = np.array([2, 3])
+            dprime = aopy.analysis.calc_dprime(dist_1, dist_2, dist_3)
+            print(dprime)
+            >>> 4.
+    '''
+    means = [np.mean(d, axis=0) for d in dist]
+    try:
+        np.shape(means)
+    except:
+        raise ValueError('Input distributions must all have the same number of channels.')
+    peak_to_peak_dist = np.max(means, axis=0) - np.min(means, axis=0)
+    n_trials = np.sum([len(d) for d in dist])
+    pooled_std = np.sum([len(d)*np.std(d, axis=0)/n_trials for d in dist], axis=0)
+    return peak_to_peak_dist / pooled_std
