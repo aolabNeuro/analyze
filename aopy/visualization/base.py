@@ -185,7 +185,7 @@ def place_subplots(fig, positions, width, height, **kwargs):
         ax.append(fig.add_axes([left, bottom, width, height], **kwargs))
     return ax
 
-def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kwargs):
+def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), theta=0, **kwargs):
     '''
     Wrapper around place_subplots() for the Opto32 stimulation sites.
 
@@ -193,6 +193,7 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kw
         fig_size (float): width and height (in inches) of the figure
         subplot_size (float): width and height (in inches) of each subplot
         offset (tuple): x and y offset (in inches) from the bottom left corner of the figure
+        theta (float): rotation (in degrees) to apply to positions.
         kwargs (dict, optional): other keyword arguments to pass to fig.add_axes
 
     Returns:
@@ -204,7 +205,7 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kw
 
         .. image:: _images/place_Opto32_subplots.png
     '''
-    stim_pos, _, _ = aodata.load_chmap('Opto32')
+    stim_pos, _, _ = aodata.load_chmap('Opto32', theta=theta)
 
     # Normalize the positions to the width and height of the figure
     stim_pos = (stim_pos - np.mean(stim_pos, axis=0)) / (np.max(stim_pos) - np.min(stim_pos)) * fig_size + fig_size/2
@@ -360,6 +361,8 @@ def get_data_map(data, x_pos, y_pos):
         (m,n array): map of the data on the grid defined by x_pos and y_pos
     '''
     data = np.reshape(data, -1)
+    x_pos = np.round(x_pos, 9) # avoid floating point errors
+    y_pos = np.round(y_pos, 9)
 
     X = np.unique(x_pos)
     Y = np.unique(y_pos)
@@ -377,7 +380,7 @@ def get_data_map(data, x_pos, y_pos):
     return data_map
 
 
-def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', threshold_dist=None):
+def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', threshold_dist=None, extent=None):
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
@@ -405,6 +408,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         grid_size (tuple): number of points along each axis
         interp_method (str): method used for interpolation
         threshold_dist (float): distance to neighbors before disregarding a point on the image
+        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
+            which will use the min and max of the x and y positions.
 
     Returns:
         tuple: tuple containing:
@@ -412,7 +417,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
             | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
-    extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
+    if extent is None:
+        extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
@@ -538,7 +544,7 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
     Plot a 2D spatial map of data from a spatial electrode array.
 
     Args:
-        data ((256,) array): values from the ECoG array to plot in 2D
+        data ((nch,) array): values from the spatial drive to plot in 2D
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         drive_type (str, optional): type of drive. Defaults to 'ECoG244'.

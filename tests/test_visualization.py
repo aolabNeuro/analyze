@@ -119,12 +119,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         savefig(docs_dir, filename)
 
         plt.figure()
-        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
-        annotate_spatial_map_channels(drive_type='ECoG244', color='k', theta=90)
-        annotate_spatial_map_channels(drive_type='Opto32', color='b', theta=90)
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+        annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+        annotate_spatial_map_channels(drive_type='Opto32', color='b')
+        annotate_spatial_map_channels(drive_type='ECoG244', color='r', theta=90)
+        annotate_spatial_map_channels(drive_type='Opto32', color='g', theta=90)
         plt.axis('off')
         filename = 'ecog244_opto32_theta90.png'
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
@@ -668,6 +670,7 @@ class KinematicsPlottingTests(unittest.TestCase):
 
     def test_plot_circular_hist(self):
         fig, ax = plt.subplots(3, 2, subplot_kw=dict(projection='polar'), figsize=(12,18))
+        np.random.seed(0)
         angles = np.random.normal(loc=np.pi/4, scale=np.pi/8, size=1000)
 
         # compare plotting the same data with vs. without allowing gaps in the bins
