@@ -1704,19 +1704,19 @@ class NeuropixelTests(unittest.TestCase):
         self.assertTrue(np.all(spike_indices_unit['0']>0))
         self.assertTrue(np.all(spike_indices_unit['1']>0))
     
-    def test_sync_ts_data(self):
+    def test_sync_ts_data_timestamps(self):
         ndata = 20
         
         # Test for cropping
         data = np.random.rand(ndata)
         sync_timestamp = np.linspace(-0.1,0.5,ndata)
-        sync_data = sync_ts_data(data, sync_timestamp)
+        sync_data, _ = sync_ts_data_timestamps(data, sync_timestamp)
         self.assertTrue(sync_data.shape[0], sum(sync_timestamp>0))
 
         # Test for padding
         data = np.random.rand(ndata)
         sync_timestamp = np.linspace(0.3,0.5,ndata)
-        sync_data = sync_ts_data(data, sync_timestamp)
+        sync_data, _ = sync_ts_data_timestamps(data, sync_timestamp)
         
         dt = sync_timestamp[1] - sync_timestamp[0]
         num_padding = np.arange(sync_timestamp[0]-dt,0,-dt).shape[0]
