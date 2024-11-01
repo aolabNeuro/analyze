@@ -723,12 +723,14 @@ def downsample(data, old_samplerate, new_samplerate):
     old_samples = data.shape[0]
     downsample_factor = int(old_samplerate/new_samplerate)
 
-    # Pad the data to a multiple of the downsample factor
-    pad_size = math.ceil(float(old_samples)/downsample_factor)*downsample_factor - old_samples
-    pad_shape = (pad_size,)
+    # Pad the data to a multiple of the downsample factor plus half the downsample factor to avoid phase shift
+    new_samples = math.ceil(float(old_samples)/downsample_factor)*downsample_factor
+    new_shape = (new_samples,)
     if data.ndim > 1:
-        pad_shape = np.concatenate(([pad_size], data.shape[1:]))
-    data_padded = np.append(data, np.zeros(pad_shape)*np.NaN, axis=0)
+        new_shape = np.concatenate(([new_samples], data.shape[1:]))
+    data_padded = np.zeros(new_shape)*np.NaN
+    old_samples_kept = min(old_samples, new_samples-downsample_factor//2)
+    data_padded[downsample_factor//2:downsample_factor//2+old_samples_kept] = data[:old_samples_kept]
 
     # Downsample using average
     if data.ndim == 1:
