@@ -23,34 +23,16 @@ def sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,
             | **scaling (float):** scaling factor between streams
     '''
     
-    while bar_duration >0.001:
-        # Get each barcode timing and label
-        barcode_ontimes_np,barcode_np = extract_barcodes_from_times(on_times_np,off_times_np,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
-        barcode_ontimes_ecube,barcode_ecube = extract_barcodes_from_times(on_times_ecube,off_times_ecube,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
-
-        # Check if barcodes are consistent across streams
-        n_barcode = min(len(barcode_ecube),len(barcode_np))
-        num_different_barcodes = 0
-        for idx in range(n_barcode):
-            barcode = barcode_ecube[idx]
-            if barcode != barcode_np[idx]:
-                num_different_barcodes += 1
-        
-        # If barcodes are the same across streams, break this loop
-        if num_different_barcodes == 0:
-            break
-        bar_duration -= 0.0001
-            
-    if verbose:
-        print(f'bar duration: {bar_duration}\n')
-        print(f'neuropixel barcode times: {barcode_ontimes_np}\n')
-        print(f'neuropixel barcode: {barcode_np}\n')
-        print(f'ecube barcode times: {barcode_ontimes_ecube}\n')
-        print(f'ecube barcode: {barcode_ecube}\n')
+    # Get each barcode timing and label
+    barcode_ontimes_np,barcode_np = extract_barcodes_from_times(on_times_np,off_times_np,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
+    barcode_ontimes_ecube,barcode_ecube = extract_barcodes_from_times(on_times_ecube,off_times_ecube,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
         
     # Get the first and last barcode timing in the recording at each stream
     first_last_times_np, first_last_times_ecube = get_first_last_times(barcode_ontimes_np,barcode_ontimes_ecube,barcode_np, barcode_ecube) 
 
+    if verbose:
+        print(f'neuropixels barcode times: {first_last_times_np}, ecube barcode times{first_last_times_ecube}')
+        
     return sync_timestamp_offline(raw_timestamp, first_last_times_np, first_last_times_ecube)
 
 def classify_ks_unit(spike_times, spike_label):
