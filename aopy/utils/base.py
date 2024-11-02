@@ -766,3 +766,38 @@ def convert_port_number(port_number, datatype='ap'):
     probe_dir = f'Neuropix-PXI-100.Probe{letter}-{datatype.upper()}'
     
     return probe_dir
+
+def multiply_mat_batch(data, mat, save_path, sample_rate, scale = 1, batch_length = 2, dtype='int16'):
+    '''
+    Multiply a matrix to data in each batch to save memory. The result is saved in save_path.
+    This function can be used to multiply an inverse matrix by spike band time series.
+    
+    Args:
+        data (nt, nch): neural data. This should be a memory mapping array.
+        mat (anysize, nch): matrix to multiply by data
+        save_path (str): file path to save destriped lfp data
+        sample_rate (float): sampling rate in Hz
+        scale (float, optional): Scaling factor to multiply by data. 1/200 is necessary for whitened data in kilosort4. default is 1.
+        batch_length (int, optional): batch size in second. default is 2 seconds.
+        dtype (str, optional): dtype for data. default is int16.
+    
+    Returns:
+        None
+    
+    '''
+    batch_size = int(sample_rate * batch_length)
+    n_samples, n_channels = data.shape
+    Nbatches = np.ceil(n_samples/batch_size).astype(int)
+
+    # Multiply matrix in each batch to save memory
+    x = np.memmap(save_path, dtype=dtype, mode='w+', shape=(n_samples, n_channels))
+
+    for ibatch in range(Nbatches):
+        if ibatch < Nbatches-1:
+            tmp = mat @ (scale*data[ibatch*batch_size:(ibatch+1)*batch_size, :].T)
+            x[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp.T).astype(dtype)
+        else:
+            tmp = mat @ (scale*data[ibatch*batch_size:, :].T)
+            x[ibatch*batch_size:,:] = (tmp.T).astype(dtype)
+
+        x.flush()
