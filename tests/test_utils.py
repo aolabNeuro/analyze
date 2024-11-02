@@ -5,6 +5,7 @@ from aopy.visualization import plot_timeseries, savefig
 import os
 import numpy as np
 import unittest
+from pathlib import Path
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -400,6 +401,22 @@ class TestMath(unittest.TestCase):
 
         self.assertEqual(q, -1)
 
+    def test_multiply_mat_batch(self):
+        
+        save_path = Path(data_dir) / 'test_aaa'
+
+        data = np.random.randint(0,100, (100,5))
+        mat = np.random.randint(0,100, (5,5))
+        sample_rate = 1
+
+        multiply_mat_batch(data, mat, save_path, sample_rate, scale = 1, batch_length = 10)
+        multiplied_mat = np.memmap(save_path, shape=data.shape, dtype='int16')
+
+        A = mat @ data.T
+        A = A.T
+
+        self.assertTrue(np.all(A == multiplied_mat))
+        
 class MemoryTests(unittest.TestCase):
 
     def test_get_memory_available(self):
