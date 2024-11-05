@@ -407,15 +407,14 @@ class TestMath(unittest.TestCase):
 
         data = np.random.randint(0,100, (100,5))
         mat = np.random.randint(0,100, (5,5))
-        sample_rate = 1
 
-        multiply_mat_batch(data, mat, save_path, sample_rate, scale = 1, batch_length = 10)
+        multiply_mat_batch(data, mat, save_path, scale = 1, max_memory_gb = 10)
         multiplied_mat = np.memmap(save_path, shape=data.shape, dtype='int16')
-
         A = mat @ data.T
-        A = A.T
 
-        self.assertTrue(np.all(A == multiplied_mat))
+        self.assertTrue(np.all(A.T == multiplied_mat))
+        del multiplied_mat
+        save_path.unlink()
         
 class MemoryTests(unittest.TestCase):
 
