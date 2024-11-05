@@ -27,7 +27,8 @@ install_requires = [
     'tqdm',
     'open-ephys-python-tools',
     'aolab-bmi3d>=1.0',
-    'sympy'
+    'sympy',
+    'ibllib'
 ]
 
 setuptools.setup(
