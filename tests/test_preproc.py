@@ -1726,14 +1726,14 @@ class NeuropixelTests(unittest.TestCase):
     def test_destripe_lfp_batch(self):
         save_path = Path(data_dir) / 'test_a'
 
-        data = np.random.randint(0,50, (10000,384))
         sample_rate = 1000
-        bit_volts=0.1
+        bit_volts = 0.1
+        data = np.random.randint(0,1000, (1000,384))
 
-        destripe_lfp_batch(data, save_path, sample_rate, bit_volts, batch_length = 180, dtype='int16')
+        destripe_lfp_batch(data, save_path, sample_rate, bit_volts, max_memory_gb = .05, dtype='int16')
         destriped_data = np.memmap(save_path, shape=data.shape, dtype='int16')
 
-        print(np.all(data.shape == destriped_data.shape))
+        np.testing.assert_(np.all(data.shape == destriped_data.shape))
         del destriped_data # delete memmap file to completely delete the file later
         save_path.unlink()
           

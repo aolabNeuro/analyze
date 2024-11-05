@@ -242,7 +242,7 @@ def sync_ts_data_timestamps(data, sync_timestamps):
         
     return np.squeeze(sync_data), sync_timestamps
 
-def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, batch_length = 180, dtype='int16'):
+def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_gb = 1., dtype='int16'):
     
     '''
     Destripe LFP data in each batch to save memory. The result is saved in save_path.
@@ -252,7 +252,7 @@ def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, batch_length
         save_path (str): file path to save destriped lfp data
         sample_rate (float): sampling rate in Hz
         bit_volts (float): volt per bit
-        batch_length (int): batch size in second
+        max_memory_gb (float): memory size in GB to determine batch size. default is 1.0 GB.
     
     Returns:
         None
@@ -260,21 +260,17 @@ def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, batch_length
     '''
 
     # Load data and metadata
-    n_samples, _ = lfp_data.shape
+    n_samples, n_channels = lfp_data.shape
 
     # Create memmap array to save destriped lfp data
     lfp_destriped = np.memmap(save_path, dtype=dtype, mode='w+', shape=lfp_data.shape)
 
     # Destripe lfp
-    batch_size = int(sample_rate * batch_length)
+    batch_size = int (max_memory_gb*1e9 / (n_channels*np.dtype(type(bit_volts)).itemsize))
+    batch_size += 21 # ensure that batch size is more than 21 to run destrip_lfp
     Nbatches = np.ceil(n_samples/batch_size).astype(int)
 
     for ibatch in range(Nbatches):
-        if ibatch < Nbatches-1:
-            tmp = destripe_lfp((lfp_data[ibatch*batch_size:(ibatch+1)*batch_size, :]*bit_volts).T/1e6, sample_rate)*1e6
-            lfp_destriped[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp/bit_volts).T.astype(dtype)
-        else:
-            tmp = destripe_lfp((lfp_data[ibatch*batch_size:, :]*bit_volts).T/1e6, sample_rate)*1e6
-            lfp_destriped[ibatch*batch_size:, :] = (tmp/bit_volts).T.astype(dtype)
-            
+        tmp = destripe_lfp((lfp_data[ibatch*batch_size:(ibatch+1)*batch_size, :]*bit_volts).T/1e6, sample_rate)*1e6
+        lfp_destriped[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp/bit_volts).T.astype(dtype)
         lfp_destriped.flush()
