@@ -242,7 +242,7 @@ def sync_ts_data_timestamps(data, sync_timestamps):
         
     return np.squeeze(sync_data), sync_timestamps
 
-def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_gb = 1., dtype='int16'):
+def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_gb = 1., dtype='int16', min_batch_size = 21):
     
     '''
     Destripe LFP data in each batch to save memory. The result is saved in save_path.
@@ -253,6 +253,8 @@ def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_g
         sample_rate (float): sampling rate in Hz
         bit_volts (float): volt per bit
         max_memory_gb (float): memory size in GB to determine batch size. default is 1.0 GB.
+        dtype (str, optional): dtype for data. default is int16.
+        min_batch_size (int): the number of size in integer to ensure that batch size is more than min_batch_size to run destripe_lfp
     
     Returns:
         None
@@ -267,7 +269,7 @@ def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_g
 
     # Destripe lfp
     batch_size = int (max_memory_gb*1e9 / (n_channels*np.dtype(type(bit_volts)).itemsize))
-    batch_size += 21 # ensure that batch size is more than 21 to run destrip_lfp
+    batch_size += min_batch_size # ensure that batch size is more than 21 to run destrip_lfp
     Nbatches = np.ceil(n_samples/batch_size).astype(int)
 
     for ibatch in range(Nbatches):
