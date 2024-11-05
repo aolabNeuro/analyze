@@ -1576,5 +1576,16 @@ class DatabaseTests(unittest.TestCase):
         df = db.encode_onehot_sequence_name(sessions, sequence_types=['centerout_2D'])
         self.assertEqual(df.shape[1], 4) 
 
+    def test_add_metadata_columns(self):
+
+        sessions = db.lookup_sessions()
+        df = pd.DataFrame({
+            'te_id': [e.id for e in sessions],
+        })
+        db.add_metadata_columns(df, sessions, ['id_copy', 'test'], [lambda e: e.id, lambda e: 'test'])
+        self.assertEqual(len(df), len(sessions))
+        self.assertEqual(df['id_copy'].sum(), df['te_id'].sum())
+        self.assertTrue(all(df['test'] == 'test'))
+
 if __name__ == "__main__":
     unittest.main()
