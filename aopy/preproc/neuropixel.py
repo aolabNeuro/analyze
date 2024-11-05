@@ -3,6 +3,7 @@ from ..utils import extract_barcodes_from_times, get_first_last_times, sync_time
 from ..data import load_neuropixel_data, load_ks_output, get_channel_bank_name
 import os
 import glob
+from ibldsp.voltage import destripe_lfp
 
 def sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,off_times_ecube,inter_barcode_interval=20,bar_duration=0.02,verbose=False):
     '''
@@ -240,3 +241,40 @@ def sync_ts_data_timestamps(data, sync_timestamps):
         sync_timestamps = sync_timestamps[not_crop_datapoints]
         
     return np.squeeze(sync_data), sync_timestamps
+
+def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, batch_length = 180, dtype='int16'):
+    
+    '''
+    Destripe LFP data in each batch to save memory. The result is saved in save_path.
+    
+    Args:
+        lfp_data (nt, nch): LFP data. This should be a memory mapping array.
+        save_path (str): file path to save destriped lfp data
+        sample_rate (float): sampling rate in Hz
+        bit_volts (float): volt per bit
+        batch_length (int): batch size in second
+    
+    Returns:
+        None
+    
+    '''
+
+    # Load data and metadata
+    n_samples, _ = lfp_data.shape
+
+    # Create memmap array to save destriped lfp data
+    lfp_destriped = np.memmap(save_path, dtype=dtype, mode='w+', shape=lfp_data.shape)
+
+    # Destripe lfp
+    batch_size = int(sample_rate * batch_length)
+    Nbatches = np.ceil(n_samples/batch_size).astype(int)
+
+    for ibatch in range(Nbatches):
+        if ibatch < Nbatches-1:
+            tmp = destripe_lfp((lfp_data[ibatch*batch_size:(ibatch+1)*batch_size, :]*bit_volts).T/1e6, sample_rate)*1e6
+            lfp_destriped[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp/bit_volts).T.astype(dtype)
+        else:
+            tmp = destripe_lfp((lfp_data[ibatch*batch_size:, :]*bit_volts).T/1e6, sample_rate)*1e6
+            lfp_destriped[ibatch*batch_size:, :] = (tmp/bit_volts).T.astype(dtype)
+            
+        lfp_destriped.flush()
