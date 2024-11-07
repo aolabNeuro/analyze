@@ -3,6 +3,7 @@ from ..utils import extract_barcodes_from_times, get_first_last_times, sync_time
 from ..data import load_neuropixel_data, load_ks_output, get_channel_bank_name
 import os
 import glob
+from ibldsp.voltage import destripe_lfp
 from .. import preproc
 from .. import data
 import pickle
@@ -26,34 +27,16 @@ def sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,
             | **scaling (float):** scaling factor between streams
     '''
     
-    while bar_duration >0.001:
-        # Get each barcode timing and label
-        barcode_ontimes_np,barcode_np = extract_barcodes_from_times(on_times_np,off_times_np,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
-        barcode_ontimes_ecube,barcode_ecube = extract_barcodes_from_times(on_times_ecube,off_times_ecube,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
-
-        # Check if barcodes are consistent across streams
-        n_barcode = min(len(barcode_ecube),len(barcode_np))
-        num_different_barcodes = 0
-        for idx in range(n_barcode):
-            barcode = barcode_ecube[idx]
-            if barcode != barcode_np[idx]:
-                num_different_barcodes += 1
-        
-        # If barcodes are the same across streams, break this loop
-        if num_different_barcodes == 0:
-            break
-        bar_duration -= 0.0001
-            
-    if verbose:
-        print(f'bar duration: {bar_duration}\n')
-        print(f'neuropixel barcode times: {barcode_ontimes_np}\n')
-        print(f'neuropixel barcode: {barcode_np}\n')
-        print(f'ecube barcode times: {barcode_ontimes_ecube}\n')
-        print(f'ecube barcode: {barcode_ecube}\n')
+    # Get each barcode timing and label
+    barcode_ontimes_np,barcode_np = extract_barcodes_from_times(on_times_np,off_times_np,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
+    barcode_ontimes_ecube,barcode_ecube = extract_barcodes_from_times(on_times_ecube,off_times_ecube,inter_barcode_interval=inter_barcode_interval,bar_duration=bar_duration)
         
     # Get the first and last barcode timing in the recording at each stream
     first_last_times_np, first_last_times_ecube = get_first_last_times(barcode_ontimes_np,barcode_ontimes_ecube,barcode_np, barcode_ecube) 
 
+    if verbose:
+        print(f'neuropixels barcode times: {first_last_times_np}, ecube barcode times{first_last_times_ecube}')
+        
     return sync_timestamp_offline(raw_timestamp, first_last_times_np, first_last_times_ecube)
 
 def classify_ks_unit(spike_times, spike_label):
@@ -226,6 +209,76 @@ def concat_neuropixel_within_day(np_datadir, kilosort_dir, subject, date, ch_con
         print('No data to concatenate')
 
     return savedir_names
+
+def sync_ts_data_timestamps(data, sync_timestamps):
+    '''
+    Synchronize time series data by padding nan or cropping datapoints based on synchronized timestamps
+    so that data would begin at 0 on the synchronized time axis
+    
+    Args:
+        data (nt, nch): time series data to preprocess
+        sync_timestamp (nt): synchronized timestamps
+        
+    Returns:
+        sync_data (sync_nt, nch): synchronized time series data. The shape of data changes.
+    '''
+    
+    dt = sync_timestamps[1]-sync_timestamps[0]
+    
+    if data.ndim == 1:
+        data = data[:,np.newaxis]
+        nch = data.shape[1]
+
+    # When the initial timestamp is more than 0, pad np.nan so that data could begin at time 0
+    if sync_timestamps[0]>=0:
+        tmp = np.arange(sync_timestamps[0]-dt,0,-dt)
+        padding_datapoints = tmp.shape[0]
+        pad_to_data = np.zeros((padding_datapoints,nch))*np.nan
+        sync_data = np.concatenate([pad_to_data, data],axis=0)
+        sync_timestamps = np.concatenate([pad_to_data[:,0], sync_timestamps],axis=0)
+        
+    # When the initial timestamp is less than 0, crop the head of data so that data could begin at time 0
+    else:
+        not_crop_datapoints = sync_timestamps >= 0
+        sync_data = data[not_crop_datapoints,:]
+        sync_timestamps = sync_timestamps[not_crop_datapoints]
+        
+    return np.squeeze(sync_data), sync_timestamps
+
+def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_gb = 1., dtype='int16', min_batch_size = 21):
+    
+    '''
+    Destripe LFP data in each batch to save memory. The result is saved in save_path.
+    
+    Args:
+        lfp_data (nt, nch): LFP data. This should be a memory mapping array.
+        save_path (str): file path to save destriped lfp data
+        sample_rate (float): sampling rate in Hz
+        bit_volts (float): volt per bit
+        max_memory_gb (float): memory size in GB to determine batch size. default is 1.0 GB.
+        dtype (str, optional): dtype for data. default is int16.
+        min_batch_size (int): the number of size in integer to ensure that batch size is more than min_batch_size to run destripe_lfp
+    
+    Returns:
+        None
+    
+    '''
+
+    # Load data and metadata
+    n_samples, n_channels = lfp_data.shape
+
+    # Create memmap array to save destriped lfp data
+    lfp_destriped = np.memmap(save_path, dtype=dtype, mode='w+', shape=lfp_data.shape)
+
+    # Destripe lfp
+    batch_size = int (max_memory_gb*1e9 / (n_channels*np.dtype(type(bit_volts)).itemsize))
+    batch_size += min_batch_size # ensure that batch size is more than 21 to run destrip_lfp
+    Nbatches = np.ceil(n_samples/batch_size).astype(int)
+
+    for ibatch in range(Nbatches):
+        tmp = destripe_lfp((lfp_data[ibatch*batch_size:(ibatch+1)*batch_size, :]*bit_volts).T/1e6, sample_rate)*1e6
+        lfp_destriped[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp/bit_volts).T.astype(dtype)
+        lfp_destriped.flush()
 
 
 def make_average_neuropixel_array(te_id, date, subject, aligning_index, tbefore, tafter):

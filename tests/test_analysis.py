@@ -210,7 +210,8 @@ class misc_tests(unittest.TestCase):
                                      np.round(np.vstack([M,M]) @ task_subspace.T, 10))
         np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
 
-class tuningcurve_fitting_tests(unittest.TestCase):
+class TestTuning(unittest.TestCase):
+
     def test_run_tuningcurve_fit(self):
         nunits = 7
         targets = np.arange(0, 360, 45)
@@ -266,6 +267,42 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_equal(pvalue[0]>0.05, True)
         np.testing.assert_equal(pvalue[1]<0.05, True)
         np.testing.assert_equal(pvalue[2]>0.05, True)
+
+    def test_calc_dprime(self):
+
+        # Single channel test
+        np.random.seed(0)
+        noise_dist = np.random.normal(0, 1, 1000)
+        signal_dist = np.random.normal(1, 1, 1000)
+        
+        dprime = aopy.analysis.calc_dprime(noise_dist, signal_dist)
+
+        # Recalculate by hand
+        m1 = np.mean(noise_dist, axis=0)
+        m2 = np.mean(signal_dist, axis=0)
+        s1 = np.std(noise_dist, axis=0)
+        s2 = np.std(signal_dist, axis=0)
+        mean_diff = m2 - m1
+        sd_sum = (len(noise_dist) * s1 + (len(signal_dist) * s2))
+        sd_pooled = sd_sum/(len(noise_dist) + len(signal_dist))
+        dprime_hand = mean_diff / sd_pooled
+
+        np.testing.assert_allclose(dprime, dprime_hand)
+
+        # Simple multi-channel test
+        noise_dist = np.array([[0, 1], [0, 1], [0, 1]]).T
+        signal_dist = np.array([[0.5, 1.5], [1, 2], [1.5, 2.5]]).T
+        dprime = aopy.analysis.calc_dprime(noise_dist, signal_dist)
+
+        np.testing.assert_allclose(dprime, np.array([1, 2, 3]))
+
+        # Multi-class test
+        dist_1 = np.array([0, 1])
+        dist_2 = np.array([1, 2])
+        dist_3 = np.array([2, 3])
+        dprime = aopy.analysis.calc_dprime(dist_1, dist_2, dist_3)
+
+        np.testing.assert_allclose(dprime, 4)
 
 class CalcTests(unittest.TestCase):
 

@@ -711,7 +711,7 @@ def summarize_entries(entries, sum_trials=False):
         ['subject', 'date', 'task_name', 'task_desc']).sum(numeric_only=True)
     return unique_sessions
 
-def encode_onehot_sequence_name(sessions,sequence_types):
+def encode_onehot_sequence_name(sessions, sequence_types):
     '''
     Generates a dataframe summarizing the id, subject, date and by onehot 
     encoding the sequences of interest of each entry in the input session list.
@@ -758,3 +758,54 @@ def encode_onehot_sequence_name(sessions,sequence_types):
 
     df = pd.DataFrame(df_matrix, columns = col_count)
     return df
+
+def add_metadata_columns(df, sessions, column_names, apply_fns):
+    '''
+    Adds metadata columns (in-place) to a dataframe keyed on session id (e.g. from 
+    :func:`~aopy.data.tabulate_behavior_data`). Specify the same number of column names
+    as functions. Each function should take a single session as input and return a
+    single value of any type. The return value will be appended to the dataframe in all
+    rows where the task entry id (te_id) matches the input session. 
+
+    Args:
+        df (pd.DataFrame): dataframe of session summaries
+        sessions (list): list of bmi3d task entry objects
+        column_names (list of str): list of column names to append to the dataframe
+        apply_fns (list of functions): functions to apply to each session to generate metadata columns
+
+    Examples:
+
+        Addding a metadata column to a dataframe of session summaries
+
+        .. code-block:: python
+
+            date_obj = date.fromisoformat('2023-02-06')
+            entries = db.lookup_sessions(date=date_obj)
+            df = db.summarize_entries(entries)
+            db.append_metadata_columns(df, entries, 'hs_data', lambda x: x.get_task_param('record_headstage'))
+            display(df)
+
+        Adding session and experimenter info after tabulating behavior data
+        
+        .. code-block:: python
+
+            date_obj = date.fromisoformat('2023-02-06')
+            entries = db.lookup_sessions(date=date_obj)
+            df = aopy.data.tabulate_behavior_data(entries)
+            db.append_metadata_columns(df, entries, ['session', 'experimenter'], 
+                                                    [lambda x: x.session, lambda x: x.experimenter])
+            display(df)
+
+        More information about `entries` can be found in :class:`~aopy.data.db.BMI3DTaskEntry`
+    '''
+    try:
+        len(column_names) == len(apply_fns)
+    except TypeError:
+        column_names = [column_names]
+        apply_fns = [apply_fns]
+    if len(column_names) != len(apply_fns):
+        raise ValueError("column_names and apply_fns must be the same length")
+    
+    for col, fn in zip(column_names, apply_fns):
+        for entry in (sessions):
+            df.loc[df['te_id'] == entry.id, col] = fn(entry)
