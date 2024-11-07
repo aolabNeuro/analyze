@@ -1117,6 +1117,91 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
 
     return data, samplerate
 
+def get_spike_data_segment(preproc_dir, subject, te_id, date, port, start_time, end_time, bin_width=.01):
+    '''
+    Loads and extracts a segment of spiking data for a given subject and experiment, optionally binning the spike times.
+
+    Args:
+        preproc_dir (str): Path to the preprocessed data directory.
+        subject (str): Subject name.
+        te_id (str): Task entry number.
+        date (str): The date of the experiment.
+        port (int, optional): The port number corresponding to the spike data.
+        start_time (float): The start time [s] of the segment to extract.
+        end_time (float): The end time [s] of the segment to extract.
+        bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. If set to `None`, no binning is applied and spike times are returned.
+        
+    Returns:
+        tuple: A tuple containing:
+            - spike_segment (dict): A dictionary where keys are unit labels and values are arrays of spike times (or binned spike counts) for that unit.
+            - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
+    
+    '''
+
+    # Load data
+    filename_mc = aopy.data.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = aopy.data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    
+    # Parse segment and bin spikes if necessary.
+    spike_segment = {}
+    for unit_label in list(spike_data.keys()):
+        temp_spike_segment = spike_data[unit_label][np.logical_and(spike_data[unit_label]>=start_time, spike_data[unit_label]<=end_time)]
+        if bin_width is None:
+            spike_segment[unit_label] = temp_spike_segment
+            bins = None
+        else:
+            spike_segment[unit_label], bins = aopy.precondition.bin_spike_times(temp_spike_segment, 0, end_time, bin_width)
+
+    return spike_segment, bins
+
+def get_spike_data_aligned(preproc_dir, subject, te_id, date, port, trigger_times, time_before, time_after, bin_width=0.01):
+    """
+    Loads spike data for a given subject and experiment, then aligns binned spike to trigger times.
+
+    .. image:: _images/spike_align_example.png
+
+    Args:
+        preproc_dir (str): Path to the preprocessed data directory.
+        subject (str): Subject name.
+        te_id (str): Task entry number.
+        date (str): The date of the experiment.
+        port (int): The port number corresponding to the spike data.
+        trigger_times (numpy.ndarray): 1D Array of trigger times (in seconds) for each trial to which spike data should be aligned.
+        time_before (float): The amount of time (in seconds) before each trigger time to include in the aligned spike data.
+        time_after (float): The amount of time (in seconds) after each trigger time to include in the aligned spike data.
+        bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. 
+
+    Returns:
+        tuple: A tuple containing:
+            - spike_aligned (numpy.ndarray): A 3D array of aligned spike data with shape (ntime, nunits, ntrials), where:
+                - ntime is the number of time bins between `time_before` and `time_after` around each trigger.
+                - nch is the number of units.
+                - ntrials is the number of trials (trigger events).
+            - unit_labels (list of str): A list of unit labels corresponding to the 'nunits' dimension in the aligned spike data.
+            - bins (numpy.ndarray): The time bin centers relative to the trigger times.
+    """
+    # Load data
+    filename_mc = aopy.data.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = aopy.data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    
+    # Define relevant variables
+    samplerate = int(np.round(1/bin_width))
+    bins = np.arange(-time_before, time_after, bin_width) + bin_width/2
+    ntime = int(np.round((time_after+time_before)/bin_width))
+    nch = len(spike_data)
+    ntrials = len(trigger_times)
+    
+    # Parse segment and bin spikes if necessary.
+    unit_labels = list(spike_data.keys())
+    spike_aligned = np.zeros((ntime, nch, ntrials))*np.nan #(ntime, nch, ntrials)
+    for iunit, unit_label in enumerate(unit_labels):
+        binned_spikes, _ = aopy.precondition.bin_spike_times(spike_data[unit_label], 0, trigger_times[-1]+time_after, bin_width)
+        spike_aligned[:,iunit,:] = np.squeeze(aopy.preproc.base.trial_align_data(binned_spikes, trigger_times-(bin_width/2), time_before, time_after, samplerate)) # Squeeze to remove singleton dimension from only doing one unit at a time. Adjust trigger times to center on the previously binned spikes. 
+        
+    return spike_aligned, unit_labels, bins
+
+
+
 @lru_cache(maxsize=1)
 def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
                          start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
@@ -2341,7 +2426,35 @@ def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_
         segments.append(segment)
         
     return segments, samplerate
+
+def tabulate_spike_data_segments(preproc_dir, subject, te_id, date, ports, start_time, end_time, bin_width=0.01):
+    '''
+        Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
+
+        Args:
+            preproc_dir (str): base directory where the files live
+            subjects (list of str): Subject name for each recording
+            ids (list of int): Block number of Task entry object for each recording
+            dates (list of str): Date for each recording
+            start_times (list of float): times in the recording at which the desired segments start
+            end_times (list of float): times in the recording at which the desired segments end
+            bin_width (int): Bin width to bin spike times at. If None, the segments of spike times will be returned. 
+
+        Returns:
+                tuple: A tuple containing:
+                    - segments (list of dicts): A list where each element is a dictionary of spike data for a unit in a specific experiment.
+                    - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
+    '''
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times) == len(ports)
+    
+    # Fetch the segments
+    segments = []
+    for s, t, d, p, st, et in list(zip(subjects, te_ids, dates, ports, start_times, end_times)):
+        segment, bins = get_spike_data_segment(preproc_dir, s, t, d, p, st, et, bin_width=bin_width)
+        segments.append(segment)
         
+    return segments, bins
+
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''
     Load the default BMI3D task codes. File-specific codes can be found in exp_metadata['event_sync_dict']

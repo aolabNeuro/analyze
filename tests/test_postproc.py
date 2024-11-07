@@ -280,5 +280,54 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
+class TestNeuropixelFuncs(unittest.TestCase):
+
+    def test_calc_presence_ratio(self):
+        # Test no trials
+        data = np.zeros((10, 0, 5))  # 10 time points, 0 trials, 5 units
+        presence_ratio, present_units = calc_presence_ratio(data)
+        self.assertEqual(presence_ratio.shape[0], 5)
+        self.assertTrue(np.all(present_units == False))
+
+        # Test all units active
+        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        presence_ratio, present_units = calc_presence_ratio(data)
+        self.assertTrue(np.all(present_units))  # All units should be present
+        self.assertTrue(np.all(presence_ratio == 1.0))  # Presence ratio should be 1 for all units
+
+        # Test return_details argument
+        data = np.zeros((10, 5, 2))  # 10 time points, 5 trials, 2 units
+        data[1:5, [0, 1, 0, 1, 1], 0] = 1  # Unit 0 is active in trials 1, 3, and 4
+        data[1:3, [0, 1, 1, 0, 0], 1] = 1  # Unit 1 is active in trials 1 and 2
+        _, _, presence_details = calc_presence_ratio(data, return_details=True)
+        self.assertTrue(np.array_equal(presence_details, data))  # Should match trials and units shape
+    
+        # Test all units active
+        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        presence_ratio, present_units = calc_presence_ratio(data)
+        self.assertTrue(np.all(present_units))  # All units should be present
+        self.assertTrue(np.all(presence_ratio == 1.0))
+
+        # Test some units inactive
+        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data[1:3, [0, 1, 1, 0, 0], 0] = 1  # Only unit 0 is active in trials 1 and 2
+        data[0:5, [0, 1, 0, 1, 0], 1] = 1  # Only unit 1 is active in trials 0, 1, 3
+        presence_ratio, present_units = calc_presence_ratio(data, min_trial_prop=0.5)
+        self.assertEqual(presence_ratio.shape[0], 3)
+        self.assertTrue(np.all(present_units[[0, 1]]))  # Units 0 and 1 should be present
+        self.assertFalse(present_units[2])  # Unit 2 should not be present
+
+        # Test different min_trial_prop
+        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data[1:5, [0, 1, 0, 1, 1], 0] = 1  # Unit 0 is active in trials 1, 3, and 4
+        data[1:3, [0, 1, 1, 0, 0], 1] = 1  # Unit 1 is active in trials 1 and 2
+        data[0:2, [1, 0, 1, 0, 0], 2] = 1  # Unit 2 is active in trials 0 and 2
+        
+        # Test with a higher min_trial_prop
+        presence_ratio, present_units = calc_presence_ratio(data, min_trial_prop=0.6)
+        self.assertTrue(present_units[0])  # Unit 0 should be present
+        self.assertTrue(present_units[1])  # Unit 1 should be present
+        self.assertFalse(present_units[2])
+
 if __name__ == "__main__":
     unittest.main()
