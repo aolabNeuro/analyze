@@ -3,6 +3,9 @@ from ..utils import extract_barcodes_from_times, get_first_last_times, sync_time
 from ..data import load_neuropixel_data, load_ks_output, get_channel_bank_name
 import os
 import glob
+from .. import preproc
+from .. import data
+import pickle
 
 def sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,off_times_ecube,inter_barcode_interval=20,bar_duration=0.02,verbose=False):
     '''
@@ -223,3 +226,85 @@ def concat_neuropixel_within_day(np_datadir, kilosort_dir, subject, date, ch_con
         print('No data to concatenate')
 
     return savedir_names
+
+
+def make_average_neuropixel_array(te_id, date, subject, aligning_index, tbefore, tafter):
+    """
+    Generates an averaged neuropixel LFP array around specified alignment events.
+
+    Parameters:
+        te_id (int): Identifier for the experimental trial.
+        date (str): Date of the experiment.
+        subject (str): Subject ID.
+        aligning_index (int): Index of the event to align on.
+            index 0 = cursor enter center target
+
+            index 1 = peripheral target on
+
+            index 2 = Go-Cue
+
+            index 3 = cursor enter peripheral target
+
+            index 4 = reward
+
+            index 5 = trial end
+        tbefore (int): Time before the alignment event in seconds.
+        tafter (int): Time after the alignment event in seconds.
+
+    Returns:
+        average_array (np.array): Averaged LFP array across trials.
+        stacked_arrays_3d (np.array): 3D array with trial-wise, aligned LFP data.
+    """
+    
+    # Define paths and file names
+    data_path_preproc = "/data/preprocessed/"
+    type = "lfp"
+    filename_opto = f"preproc_{date}_{subject}_{te_id}_{type}.hdf"
+    
+    # Load LFP data
+    with open(f"/media/moor-data/postprocessed/beignet/neuropixel_lfp_destriped/lfp_destriped_{te_id}", 'rb') as file:
+        lfp_data_destriped = pickle.load(file)
+    lfp_data = data.load_hdf_group(os.path.join(data_path_preproc, subject), filename_opto, f"{type}")
+
+    # Load behavior times and filter for rewarded trials
+    subject, te_id, date = [subject], [te_id], [date]
+    times = data.bmi3d.tabulate_behavior_data_center_out(data_path_preproc, subject, te_id, date)
+    rewarded_times = times[times["reward"] == True].reset_index()
+
+    # Extract and transpose LFP data
+    lfp = np.array(lfp_data_destriped[0]).T
+
+    # Align times based on selected index and compute time window
+    selected_event_times = [events[aligning_index] for events in rewarded_times["event_times"]]
+    total_time = tbefore + tafter
+
+    # Get trial-aligned indices for LFP data
+    align_times, trial_indices = preproc.base.trial_align_times(lfp_data['sync_timestamp'], selected_event_times, tbefore, tafter)
+
+    # Filter out trials with mismatched lengths
+    valid_trial_indices = [indices for indices in trial_indices if len(indices) == (2500 * total_time)]
+
+    # Initialize 3D array to hold aligned trial data (time x channels x trials)
+    num_trials = len(valid_trial_indices)
+    num_channels = 384
+    num_samples = 2500 * total_time
+    stacked_arrays_3d = np.full((num_samples, num_channels, num_trials), np.nan)
+
+    # Process each trial and subtract baseline from each channel
+    for j, indices in enumerate(valid_trial_indices):
+        trial_data = lfp[indices]
+        adjusted_channels = []
+
+        for ch in range(num_channels):
+            channel_data = trial_data[:, ch]
+            baseline = np.mean(channel_data[:1000])  # Baseline is the mean of the first 1000 samples
+            adjusted_channel = channel_data - baseline
+            adjusted_channels.append(adjusted_channel)
+
+        # Stack adjusted channel data into the 3D array
+        stacked_arrays_3d[:, :, j] = np.array(adjusted_channels).T
+
+    # Calculate the average across trials
+    average_array = np.nanmean(stacked_arrays_3d, axis=2)
+
+    return average_array, stacked_arrays_3d

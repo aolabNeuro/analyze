@@ -11,6 +11,7 @@ import scipy
 import os
 import matplotlib.pyplot as plt
 from scipy import signal
+from unittest.mock import MagicMock
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -1867,6 +1868,49 @@ class ConfidenceIntervalTests(unittest.TestCase):
         CI2 = [17,30]
         overlap = aopy.analysis.calc_confidence_interval_overlap(CI1,CI2)
         self.assertEqual(overlap,(20-17)/(20-10))
+        
+
+class TestCalcMaxCohAndLags(unittest.TestCase):
+    def setUp(self):
+        # Define the parameters for the test
+        self.lags = [-0.1, 0, 0.1]  # Lags in seconds
+        self.frequency_range = [0, 4]  # Frequency range (0 to 4 Hz)
+        
+        # Simulate some LFP data with random values
+        self.num_channels = 3
+        self.num_timepoints = 5000
+        self.lfp_array1 = np.random.randn(self.num_channels, self.num_timepoints)
+        self.lfp_array2 = np.random.randn(self.num_channels, self.num_timepoints)
+
+        # Mock taper parameters and the coherence calculation function
+        global precondition
+        precondition = MagicMock()
+        precondition.convert_taper_parameters = MagicMock(return_value=(256, 2, 3))  # Mock return values for tapers
+
+        global calc_mt_tfcoh
+        calc_mt_tfcoh = MagicMock(return_value=(
+            np.linspace(0, 200, 100),  # Mock frequency array (0-200 Hz)
+            np.linspace(-0.5, 0.5, 50),  # Mock time array (centered around 0)
+            np.random.rand(100, 50)  # Mock coherence array (freq x time)
+        ))
+
+    def test_calc_max_coh_and_lags(self):
+        # Run the function
+        max_coherence_matrix, lag_of_max_coherence_matrix = aopy.analysis.calc_max_coh_and_lags(
+            self.lags, self.lfp_array1, self.lfp_array2, self.frequency_range
+        )
+
+        # Check the shapes of the output matrices
+        self.assertEqual(max_coherence_matrix.shape, (self.num_channels, self.num_channels))
+        self.assertEqual(lag_of_max_coherence_matrix.shape, (self.num_channels, self.num_channels))
+
+        # Verify the values fall within expected ranges
+        self.assertTrue(np.all(max_coherence_matrix >= 0) and np.all(max_coherence_matrix <= 1), 
+                        "Coherence values should be between 0 and 1")
+
+        # Check if lags are converted to milliseconds in lag_of_max_coherence_matrix
+        self.assertTrue(np.all(np.isin(lag_of_max_coherence_matrix, np.array(self.lags) * 1000)),
+                        "Lags should be in milliseconds and match the provided lags")
         
 if __name__ == "__main__":
 

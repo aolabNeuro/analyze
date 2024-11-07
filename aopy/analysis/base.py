@@ -3,6 +3,7 @@
 
 import numpy as np
 from matplotlib import pyplot as plt
+import copy
 
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
@@ -1735,3 +1736,90 @@ def calc_confidence_interval_overlap(CI1, CI2):
     overlap = (overlap_width / min(width1, width2))
     
     return overlap
+
+
+def calc_max_coh_and_lags(lags, lfp_array1, lfp_array2, frequency_range):
+    """
+    Calculate the maximum coherence and corresponding lags between pairs of channels
+    in two local field potential (LFP) arrays within a specified frequency range.
+    
+    Parameters:
+    - lags: List of time lags (in seconds) to apply to the channels in lfp_array1.
+    - lfp_array1: First LFP array (e.g., motor cortex data) with shape (n_channels, n_timepoints).
+    - lfp_array2: Second LFP array (e.g., pre-motor cortex data) with shape (n_channels, n_timepoints).
+    - frequency_range: Frequency range of interest (e.g., [0, 4] Hz for delta band).
+
+    Returns:
+    - max_coherence_matrix: Matrix of maximum coherence values for each channel pair.
+    - lag_of_max_coherence_matrix: Matrix of corresponding lags (in ms) for max coherence values.
+    """
+    # Taper parameters
+    NW, BW, step, fk, fs = 0.5, 4, 0.005, 200, 2500
+    n, half_bw, num_tapers = precondition.convert_taper_parameters(NW, BW)
+    print(f"Using {num_tapers} tapers, taper length {n}, half-bandwidth {half_bw}")
+
+    # Get channel counts
+    num_channels_lfp1 = lfp_array1.shape[0]
+    num_channels_lfp2 = lfp_array2.shape[0]
+
+    # Initialize matrices for max coherence values and their corresponding lags
+    max_coherence_matrix = np.zeros((num_channels_lfp1, num_channels_lfp2))
+    lag_of_max_coherence_matrix = np.zeros((num_channels_lfp1, num_channels_lfp2))
+
+    def apply_lag(signal, lag, fs):
+        """
+        Shift a signal by a specified lag in seconds, converting to samples.
+        Positive lag shifts forward, negative lag shifts backward.
+        """
+        lag_samples = int(lag * fs)
+        return np.roll(signal, lag_samples)
+
+    def compute_coherence_for_pair(channel_lfp1, channel_lfp2):
+        """
+        Compute coherence between a specific pair of channels for all specified lags.
+        Returns coherence values for each lag at time zero.
+        """
+        coherence_at_zero_lag = np.empty(len(lags))
+
+        for idx, lag in enumerate(lags):
+            # Process signal from lfp_array1 and normalize
+            signal1 = lfp_array1[channel_lfp1, :]
+            signal1 = copy.deepcopy((signal1 - np.mean(signal1)) / np.std(signal1))
+            signal1 = apply_lag(signal1, lag, fs)
+
+            # Process signal from lfp_array2 and normalize
+            signal2 = lfp_array2[channel_lfp2, :]
+            signal2 = copy.deepcopy((signal2 - np.mean(signal2)) / np.std(signal2))
+
+            # Stack signals for coherence computation
+            data = np.vstack((signal1, signal2))
+            frequencies, timepoints, coherence = calc_mt_tfcoh(
+                data.T, [0, 1], n, half_bw, num_tapers, fs, step, fk=fk, pad=2, ref=False, imaginary=False
+            )
+
+            # Find the time index closest to zero
+            zero_time_idx = np.argmin(np.abs(timepoints))
+
+            # Average coherence within the specified frequency range
+            freq_indices = np.where((frequencies > frequency_range[0]) & (frequencies < frequency_range[1]))[0]
+            mean_coherence = np.mean(coherence[freq_indices, :], axis=0)
+            coherence_at_zero_lag[idx] = mean_coherence[zero_time_idx]
+
+        return coherence_at_zero_lag
+
+    # Calculate max coherence and lags for each channel pair
+    for ch_lfp1 in range(num_channels_lfp1):
+        for ch_lfp2 in range(num_channels_lfp2):
+            print(f"Processing LFP1 channel {ch_lfp1}, LFP2 channel {ch_lfp2}")
+            delta_coherence = compute_coherence_for_pair(ch_lfp1, ch_lfp2)
+
+            # Find maximum coherence and corresponding lag
+            max_coherence = np.max(delta_coherence)
+            max_lag_index = np.argmax(delta_coherence)
+            max_lag = lags[max_lag_index] * 1000  # Convert lag to milliseconds
+
+            # Store max coherence and lag in matrices
+            max_coherence_matrix[ch_lfp1, ch_lfp2] = max_coherence
+            lag_of_max_coherence_matrix[ch_lfp1, ch_lfp2] = max_lag
+
+    return max_coherence_matrix, lag_of_max_coherence_matrix

@@ -9,6 +9,9 @@ from aopy.preproc import quality
 from aopy.data import *
 import numpy as np
 import unittest
+from unittest.mock import patch, MagicMock
+import pickle
+import io
 
 
 test_dir = os.path.dirname(__file__)
@@ -1720,6 +1723,66 @@ class LaserTests(unittest.TestCase):
         voltage = [0.12, 0.08, 0.14]
         powers = preproc.laser.calibrate_sensor(voltage, 12.)
         np.testing.assert_allclose(powers, [8.57,  5.07, 10.32], atol=1e-2)
+
+
+class TestMakeAverageNeuropixelArray(unittest.TestCase):
+
+    @patch("builtins.open", new_callable=MagicMock)
+    @patch("aopy.data.load_hdf_group")
+    @patch("aopy.data.bmi3d.tabulate_behavior_data_center_out")
+    @patch("aopy.preproc.base.trial_align_times")
+    def test_make_average_neuropixel_array(self, mock_trial_align_times, mock_tabulate_behavior_data, mock_load_hdf_group, mock_open):
+        # Define mock inputs
+        te_id = 123
+        date = "2023-01-01"
+        subject = "subject_1"
+        aligning_index = 2  # Example aligning index for "Go-Cue"
+        tbefore = 2  # 2 seconds before
+        tafter = 2  # 2 seconds after
+
+        # Set up mock LFP data and behavior times
+        mock_lfp_data_destriped = [np.random.randn(384, 10000)]
+        
+        # Simulate binary file content for pickle
+        mock_file = io.BytesIO(pickle.dumps(mock_lfp_data_destriped))
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        mock_lfp_data = {"sync_timestamp": np.linspace(0, 10000, 10000)}
+        mock_load_hdf_group.return_value = mock_lfp_data
+
+        # Mock behavior times, with 'reward' and event times for alignment
+        mock_behavior_data = pd.DataFrame({
+            "reward": [True, False, True],  # Only reward trials are used
+            "event_times": [
+                [0.5, 1.0, 2.0, 3.0, 4.0, 5.0],
+                [1.5, 2.0, 3.0, 4.0, 5.0, 6.0],
+                [2.5, 3.0, 4.0, 5.0, 6.0, 7.0]
+            ]
+        })
+
+        # Mock trial alignment indices based on sync timestamps and event times
+        mock_trial_align_times.return_value = (
+            [1.5, 2.5, 3.5],  # Aligned event times
+            [np.arange(2500 * 4), np.arange(2500 * 4), np.arange(2500 * 4)]
+        )
+
+        # Call the function with mock data
+        average_array, stacked_arrays_3d = make_average_neuropixel_array(
+            te_id, date, subject, aligning_index, tbefore, tafter
+        )
+
+        # Assert output shapes
+        expected_num_samples = 2500 * (tbefore + tafter)
+        self.assertEqual(average_array.shape, (expected_num_samples, 384), "Average array shape is incorrect")
+        self.assertEqual(stacked_arrays_3d.shape, (expected_num_samples, 384, 3), "Stacked arrays 3D shape is incorrect")
+
+        # Check for baseline adjustment by asserting that the mean of the baseline window is near zero for each channel
+        baseline_means = np.mean(stacked_arrays_3d[:1000, :, :], axis=0)  # Baseline is first 1000 samples
+        self.assertTrue(np.allclose(baseline_means, 0, atol=1e-1), "Baseline not adjusted correctly across channels")
+
+        # Check if NaN mean handling is correct (should have no NaNs in the final average)
+        self.assertFalse(np.isnan(average_array).any(), "average_array should not contain NaNs")
+
 
 if __name__ == "__main__":
     unittest.main()
