@@ -1139,8 +1139,8 @@ def get_spike_data_segment(preproc_dir, subject, te_id, date, port, start_time, 
     '''
 
     # Load data
-    filename_mc = aopy.data.get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_data = aopy.data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
     
     # Parse segment and bin spikes if necessary.
     spike_segment = {}
@@ -1150,7 +1150,7 @@ def get_spike_data_segment(preproc_dir, subject, te_id, date, port, start_time, 
             spike_segment[unit_label] = temp_spike_segment
             bins = None
         else:
-            spike_segment[unit_label], bins = aopy.precondition.bin_spike_times(temp_spike_segment, 0, end_time, bin_width)
+            spike_segment[unit_label], bins = precondition.bin_spike_times(temp_spike_segment, start_time, end_time, bin_width)
 
     return spike_segment, bins
 
@@ -1181,8 +1181,8 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, port, trigger_time
             - bins (numpy.ndarray): The time bin centers relative to the trigger times.
     """
     # Load data
-    filename_mc = aopy.data.get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_data = aopy.data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
     
     # Define relevant variables
     samplerate = int(np.round(1/bin_width))
@@ -1195,8 +1195,8 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, port, trigger_time
     unit_labels = list(spike_data.keys())
     spike_aligned = np.zeros((ntime, nch, ntrials))*np.nan #(ntime, nch, ntrials)
     for iunit, unit_label in enumerate(unit_labels):
-        binned_spikes, _ = aopy.precondition.bin_spike_times(spike_data[unit_label], 0, trigger_times[-1]+time_after, bin_width)
-        spike_aligned[:,iunit,:] = np.squeeze(aopy.preproc.base.trial_align_data(binned_spikes, trigger_times-(bin_width/2), time_before, time_after, samplerate)) # Squeeze to remove singleton dimension from only doing one unit at a time. Adjust trigger times to center on the previously binned spikes. 
+        binned_spikes, _ = precondition.bin_spike_times(spike_data[unit_label], 0, trigger_times[-1]+time_after, bin_width)
+        spike_aligned[:,iunit,:] = np.squeeze(preproc.base.trial_align_data(binned_spikes, trigger_times-(bin_width/2), time_before, time_after, samplerate)) # Squeeze to remove singleton dimension from only doing one unit at a time. Adjust trigger times to center on the previously binned spikes. 
         
     return spike_aligned, unit_labels, bins
 
@@ -2427,7 +2427,7 @@ def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_
         
     return segments, samplerate
 
-def tabulate_spike_data_segments(preproc_dir, subject, te_id, date, ports, start_time, end_time, bin_width=0.01):
+def tabulate_spike_data_segments(preproc_dir, subjects, te_ids, dates, ports, start_times, end_times, bin_width=0.01):
     '''
         Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
 

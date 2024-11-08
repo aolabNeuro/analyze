@@ -91,7 +91,7 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, amp_thresh=50):
     return good_unit_labels, mean_wfs
 
 
-    def extract_ks_template_amplitudes(kilosort_dir, subject, te, date_ks, rec_site, max_time=None):
+def extract_ks_template_amplitudes(kilosort_dir, subject, te, date_ks, rec_site, max_time=None):
     '''
     Estimate if the amplitude distribution of a unit is cutoff by the noise threshold in the kilosort deconvolution
     
