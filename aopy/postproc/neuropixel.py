@@ -160,9 +160,7 @@ def extract_ks_template_amplitudes(preproc_dir, subject, te_id, date, port, data
     
     # Load kilosort data
     cluster_labels = np.load(os.path.join(merged_ks_path, 'spike_clusters.npy')) # Unpreprocessed output from kilosort
-    tf = np.load(os.path.join(merged_ks_path, 'tF.npy')) # Template features
-    kept_spikes = np.load(os.path.join(merged_ks_path, 'kept_spikes.npy'))
-    template_features = tf[kept_spikes,0,:]
+    template_features = np.load(os.path.join(merged_ks_path, 'amplitudes.npy'))
     
     # Load preprocessed (and synchronized) spike times. 
     filename_mc = data.get_preprocessed_filename(subject, te_id, date, 'spike')
@@ -179,8 +177,8 @@ def extract_ks_template_amplitudes(preproc_dir, subject, te_id, date, port, data
             relevant_spike_mask = np.logical_and(spike_times[str(icluster)] >= start_time, spike_times[str(icluster)] <= end_time)
         
         icluster_mask = cluster_labels == icluster
-        print(icluster_mask)
-        template_amp_temp = np.max(template_features[icluster_mask][relevant_spike_mask], axis=1) # template features has the projection onto multiple PCs of the template. We are only interested in PC1.
+        
+        template_amp_temp = template_features[icluster_mask][relevant_spike_mask] # template features has the projection onto multiple PCs of the template. We are only interested in PC1.
             
         template_amps[str(icluster)] = template_amp_temp
             
