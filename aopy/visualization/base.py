@@ -1537,8 +1537,8 @@ def reset_plot_color(ax):
     '''
     ax.set_prop_cycle(None)
 
-def plot_scalebar(ax, size, label, color='black', fontsize=18, vertical=False,
-                  **kwargs):
+def plot_scalebar(ax, size, label, color='black', fontsize=12, vertical=False,
+                  bbox_to_anchor=[0.1, 0.1], **kwargs):
     '''
     Add a scalebar to a plot with the given size and label.
     
@@ -1558,29 +1558,34 @@ def plot_scalebar(ax, size, label, color='black', fontsize=18, vertical=False,
         .. code-block:: python
 
             plt.subplots()
-            plt.plot(np.arange(10), np.ones(10))
-            aopy.visualization.plot_scalebar(plt.gca(), 10, '10 ms')
+            plt.plot(np.arange(10), np.arange(10)/10)
+            aopy.visualization.plot_scalebar(plt.gca(), 1.5, '1 s', color='orange')
+            aopy.visualization.plot_scalebar(plt.gca(), 0.15, '0.1 V', vertical=True, color='green')
+            aopy.visualization.plot_xy_scalebar(plt.gca(), 1.5, '1 s', 0.15, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+            filename = 'scalebar_example.png'
 
         .. image:: _images/scalebar_example.png
     '''
     if not vertical:
         xsize = size
-        ysize = 1
+        ysize = 0
         label_top = False
-        bbox_to_anchor = [0.1,0.0]
+        loc = 'upper left'
     else:
         xsize = 0
         ysize = size
-        label_top = True   
-        bbox_to_anchor = [0.0,0.15]    
+        label_top = True  
+        loc = 'lower center' 
+
+    # Draw the scalebar
     scalebar = AnchoredSizeBar(
         ax.transData,
         xsize,
         label,
-        loc='lower left',
+        loc=loc,
         bbox_to_anchor=bbox_to_anchor,
         bbox_transform=ax.transAxes,
-        pad=kwargs.pop('pad', 0.25),
+        pad=kwargs.pop('pad', 0),
         borderpad=kwargs.pop('borderpad', 0),
         sep=kwargs.pop('sep', 4),
         color=color,
@@ -1593,9 +1598,22 @@ def plot_scalebar(ax, size, label, color='black', fontsize=18, vertical=False,
     ax.add_artist(scalebar)
 
 
-def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=18, **kwargs):
+def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=12, **kwargs):
     '''
-    Add two scalebars to a plot with the given x and y sizes and labels.  
+    Shortcut to add two scalebars to a plot with the given x and y sizes and labels. 
+
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        xsize (float): size of the x scalebar
+        xlabel (str): label for the x scalebar
+        ysize (float): size of the y scalebar
+        ylabel (str): label for the y scalebar
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    See also:
+        :func:`~aopy.visualization.plot_scalebar`
     '''
     plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, **kwargs)
     plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, vertical=True, **kwargs)
