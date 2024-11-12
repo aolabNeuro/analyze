@@ -712,6 +712,13 @@ class TestPlotUtils(unittest.TestCase):
         filename = 'reset_plot_color.png'
         savefig(docs_dir,filename)
 
+    def test_plot_colorbar(self):
+        plt.subplots()
+        plt.plot(np.arange(10), np.ones(10))
+        aopy.visualization.plot_colorbar(plt.gca(), 10, '10 ms')
+        filename = 'plot_colorbar.png'
+        savefig(docs_dir,filename)
+
     def test_savefig(self):
 
         fig, ax = plt.subplots()

@@ -9,6 +9,8 @@ import matplotlib.dates as mdates
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -1534,6 +1536,69 @@ def reset_plot_color(ax):
         .. image:: _images/reset_plot_color.png
     '''
     ax.set_prop_cycle(None)
+
+def plot_scalebar(ax, size, label, color='black', fontsize=18, vertical=False,
+                  **kwargs):
+    '''
+    Add a scalebar to a plot with the given size and label.
+    
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        size (float): size of the scalebar
+        label (str): label for the scalebar
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        vertical (bool): If True, the scalebar will be vertical. Default is horizontal.
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    Examples:
+
+        Adding a scalebar to a plot with a size of 10 and a label of '10 ms'.
+
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.ones(10))
+            aopy.visualization.plot_scalebar(plt.gca(), 10, '10 ms')
+
+        .. image:: _images/scalebar_example.png
+    '''
+    if not vertical:
+        xsize = size
+        ysize = 1
+        label_top = False
+        bbox_to_anchor = [0.1,0.0]
+    else:
+        xsize = 0
+        ysize = size
+        label_top = True   
+        bbox_to_anchor = [0.0,0.15]    
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        xsize,
+        label,
+        loc='lower left',
+        bbox_to_anchor=bbox_to_anchor,
+        bbox_transform=ax.transAxes,
+        pad=kwargs.pop('pad', 0.25),
+        borderpad=kwargs.pop('borderpad', 0),
+        sep=kwargs.pop('sep', 4),
+        color=color,
+        frameon=False,
+        label_top=label_top,
+        size_vertical=ysize,
+        fontproperties=fm.FontProperties(size=fontsize),
+        **kwargs
+    )
+    ax.add_artist(scalebar)
+
+
+def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=18, **kwargs):
+    '''
+    Add two scalebars to a plot with the given x and y sizes and labels.  
+    '''
+    plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, **kwargs)
+    plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, vertical=True, **kwargs)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """
