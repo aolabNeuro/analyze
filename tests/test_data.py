@@ -71,6 +71,43 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
 
+class LoadPreprocTests_drive(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.id = '0000'
+        cls.subject = 'test'
+        cls.date = '2024-11-12'   
+        
+    def test_load_preproc_lfp_data(self):
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject, self.id, self.date, drive_number=1)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject, self.id, self.date, drive_number=2)        
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
+    def test_load_preproc_ap_data(self):
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject, self.id, self.date, drive_number=1)
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject, self.id, self.date, drive_number=2)        
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        
+    def test_load_preproc_spike_data(self):
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject, self.id, self.date, drive_number=1)
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject, self.id, self.date, drive_number=2)        
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        
+    def test_load_spike_waveforms(self):
+        wfs = load_spike_waveforms(data_dir, self.subject, self.id, self.date, drive_number=1)
+        self.assertIsInstance(wfs, dict)
+        wfs = load_spike_waveforms(data_dir, self.subject, self.id, self.date, drive_number=2)        
+        self.assertIsInstance(wfs, dict)
+                
 class OptitrackTests(unittest.TestCase):
         
     def test_load_mocap(self):
