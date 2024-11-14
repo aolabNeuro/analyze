@@ -338,11 +338,11 @@ class NeuropixelFuncs(unittest.TestCase):
         port = 1
         ref_period = 1
         ref_perc_thresh = 1
-        good_unit_labels, ref_violations = neuropixel.get_units_without_refractory_violations(data_dir, subject, te_id, date, port, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period, start_time=0, end_time=None)
+        filename_mc = aopy.data.get_preprocessed_filename(subject,te_id,date,'spike')
+        spike_times = data.load_hdf_group(os.path.join(data_dir,subject), filename_mc, f'drive{port}/spikes')
+        good_unit_labels, ref_violations = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period, start_time=0, end_time=None)
   
         # Load all unit labels
-        filename_mc = aopy.data.get_preprocessed_filename(subject, te_id, date, 'spike')  
-        spike_times = aopy.data.load_hdf_group(os.path.join(data_dir, subject), filename_mc, f'drive{port}/spikes')
         all_unit_labels = list(spike_times.keys())
 
         # Check internal consistency 
@@ -360,18 +360,18 @@ class NeuropixelFuncs(unittest.TestCase):
 
         # Check a longer refractory period that will cause many failed units
         ref_period_long = 100
-        good_unit_labels_long, ref_violations_long = neuropixel.get_units_without_refractory_violations(data_dir, subject, te_id, date, port, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period_long, start_time=0, end_time=None)
+        good_unit_labels_long, ref_violations_long = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period_long, start_time=0, end_time=None)
         self.assertFalse(len(good_unit_labels) == len(good_unit_labels_long))
 
         # Check a higher refractory period percent threshold that will cause all units to be acceptable.
         ref_perc_thresh_thresh = 100
-        good_unit_labels_thresh, ref_violations_thresh = neuropixel.get_units_without_refractory_violations(data_dir, subject, te_id, date, port, ref_perc_thresh=ref_perc_thresh_thresh, min_ref_period=ref_period_long, start_time=0, end_time=None)
+        good_unit_labels_thresh, ref_violations_thresh = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh_thresh, min_ref_period=ref_period_long, start_time=0, end_time=None)
         self.assertTrue(len(good_unit_labels_thresh) == len(all_unit_labels))
 
         # Check that start and end time arguments work
         start_time = 1
         end_time = 2
-        good_unit_labels_short, ref_violations_short = neuropixel.get_units_without_refractory_violations(data_dir, subject, te_id, date, port, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period, start_time=0, end_time=None)
+        good_unit_labels_short, ref_violations_short = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period, start_time=0, end_time=None)
         self.assertTrue(len(good_unit_labels_short)==len(good_unit_labels))
 
     def test_get_high_amplitude_units(self):

@@ -27,7 +27,7 @@ def calc_presence_ratio(data, min_trial_prop=0.9, return_details=False):
         return presence_ratio, presence_ratio>=min_trial_prop
     
 
-def get_units_without_refractory_violations(preproc_dir, subject, te_id, date, port, ref_perc_thresh=1, min_ref_period=1, start_time=0, end_time=None):
+def get_units_without_refractory_violations(spike_times, ref_perc_thresh=1, min_ref_period=1, start_time=0, end_time=None):
     '''
     Identify units with refractory period violations from spike times.
 
@@ -35,11 +35,7 @@ def get_units_without_refractory_violations(preproc_dir, subject, te_id, date, p
     for each unit, and returns the units whose percentage of violations are above a specified threshold.
 
     Args:
-        preproc_dir (str): Path to the preprocessed data directory.
-        subject (str): Subject name.
-        te_id (str): Task entry number
-        date (str): Date of the recording.
-        port (int): The port identifier for the spike data.
+        spike_times (dict): Loaded using data.load_preproc_spike_data(). Each key in the dictionary is a unit label string and the value is the 1D array of spike times. 
         ref_perc_thresh (float, optional): Threshold for the percentage of spikes that are allowed to violate the refractory period (default is 1%).
         min_ref_period (float, optional): The minimum refractory period in milliseconds (default is 1 ms).
         start_time (float, optional): Start time (in seconds) for the time window to consider spikes (default is 0).
@@ -50,11 +46,7 @@ def get_units_without_refractory_violations(preproc_dir, subject, te_id, date, p
             - good_unit_labels (ngoodunit long list of str): List of unit labels (IDs) that have an acceptable number of refractory period violations.
             - ref_violations (numpy.ndarray): An array of the percentage of refractory period violations for each unit.
     '''
-    # Load data
-    filename_mc = data.get_preprocessed_filename(subject, te_id, date, 'spike')    
-    spike_times = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
-    unit_labels = list(spike_times.keys())
-            
+    unit_labels = list(spike_times.keys())     
     nunits = len(unit_labels)
     
     ref_violations = np.zeros(nunits)*np.nan
@@ -68,8 +60,9 @@ def get_units_without_refractory_violations(preproc_dir, subject, te_id, date, p
             relevant_spike_times = spike_times[unit_lbl][np.logical_and(spike_times[unit_lbl] >= start_time, spike_times[unit_lbl] <= end_time)]
         
         # Only continue analysis if there are relevant spike times:
-        if len(relevant_spike_times) > 0:
-            ref_violations[iunit] = np.sum(np.diff(relevant_spike_times) < (min_ref_period/1000))/nspikes # convert from [ms] to [s]
+        nrelevant_spikes = len(relevant_spike_times)
+        if nrelevant_spikes > 0:
+            ref_violations[iunit] = np.sum(np.diff(relevant_spike_times) < (min_ref_period/1000))/nrelevant_spikes # convert from [ms] to [s]
             
             if (ref_violations[iunit]) <= (ref_perc_thresh/100): # Only return units if the proportion of spikes within the refractory period of a previous spike is too high. Also convert ref_perc_thresh to proportion.
                 good_unit_labels.append(unit_lbl)
@@ -103,7 +96,13 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
     ap_metadata = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/metadata')
     waveforms = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/waveforms')
     unit_labels = list(waveforms.keys())
-                
+    
+    # For historical purposes.
+    if 'bit_volts' in list(ap_metadata.keys()):
+        microvoltsperbit = ap_metadata['bit_volts']
+    elif 'voltsperbit' in list(ap_metadata.keys()):
+        microvoltsperbit = ap_metadata['voltsperbit']
+
     # Initialize variables
     nunits = len(unit_labels)
     nwf_time = waveforms[str(unit_labels[0])].shape[1] # Number of time points in each waveform.
@@ -119,7 +118,7 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
         
         relevant_wfs = waveforms[str(unit_lbl)][relevant_spike_mask,:,:]
         cent_wfs = relevant_wfs - np.mean(relevant_wfs, axis=1)[:,None,:] # Center each spike on each channel
-        mean_wf = np.mean(cent_wfs, axis=0)*ap_metadata['bit_volts'][0] # Mean across all spikes for each channel. becomes (ntime, nch) array
+        mean_wf = np.mean(cent_wfs, axis=0)*microvoltsperbit[0] # Mean across all spikes for each channel. becomes (ntime, nch) array
         
         p2p = np.abs(np.max(mean_wf, axis=0) - np.min(mean_wf, axis=0)) # Peak to peak amplitude for each channel
         
@@ -133,16 +132,19 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
 
 def extract_ks_template_amplitudes(preproc_dir, subject, te_id, date, port, data_source='Neuropixel', start_time=0, end_time=None):
     '''
-    Estimate if the amplitude distribution of a unit is cutoff by the noise threshold in the kilosort deconvolution
+    Extract the template amplitude for each spike from each unit. The template amplitude for a single spike is the amplitude of the projection of the waveform onto PC1 of the waveform template (chosen by kilosort).
     
     Args:
-        preproc_dir ():
-        subject (str):
-        te_id (list):
-        port (int):
-        date (date):
-        start_time (float):
-        max_time (float): [s]
+        preproc_dir (str): The directory containing the preprocessed data.
+        subject (str): The subject name.
+        te_id (str): The experiment task entry number.
+        date (str): The date of the experiment.
+        port (int): The port number identifying which probe to look at data from.
+        start_time (float, optional): Start time (in seconds) for the time window to consider spikes (default is 0).
+        end_time (float, optional): End time (in seconds) for the time window to consider spikes (default is None, meaning all spikes after `start_time` are considered).
+
+    Returns:
+        dict: Dictionary of template amplitudes for each spike. Each key is a unit label string and each value is a 1D array of template amplitudes for each spiek..
     '''    
     # Define filepaths 
     kilosort_dir = os.path.join(preproc_dir, 'kilosort')
