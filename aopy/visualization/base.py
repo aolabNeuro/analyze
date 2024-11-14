@@ -6,6 +6,7 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib import colors
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
@@ -23,6 +24,11 @@ import pandas as pd
 from tqdm import tqdm
 import pandas as pd
 from datetime import timedelta
+import sys
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
 
 from .. import precondition
 from .. import analysis
@@ -1967,3 +1973,82 @@ def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area
     ax.set_theta_offset(offset)  
 
     return n, bins, patches
+
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, invert=False, ax=None, **kwargs):
+    '''
+    Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
+    placed at the same coordinates as electrode positions for the given electrode drive. The image
+    is also optionally inverted and recolored with a single input color.
+
+    Args:
+        filepath (str): path to the image file
+        drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        color (str, optional): color to use for the image. Default is None.
+        invert (bool, optional): whether to invert the image. Default is False.
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. alpha.
+    '''
+    if ax is None:
+        ax = plt.gca()
+    with Image.open(filepath) as im:
+        a = np.array(im.convert('L'))/255
+        if color is None:
+            c = np.array(im.convert('RGB'))/255
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = c
+        else:
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = colors.to_rgb(color)
+        img[:,:,3] = a if invert else 1 - a
+    img = np.rot90(img, np.ceil(theta/90), axes=(1,0))
+    
+    # Calculate the proper extents
+    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
+    x = elec_pos[:,0]
+    y = elec_pos[:,1]
+    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+    x_spacing = (extent[1] - extent[0]) / (len(x) - 1)
+    y_spacing = (extent[3] - extent[2]) / (len(y) - 1)
+    extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+
+    ax.imshow(img, origin='upper', extent=extent, **kwargs)
+
+def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.5, **kwargs):
+    '''
+    Overlay a precomputed image of chamber sucli on a spatial map of electrodes. 
+    Images are stored in the aopy.config directory. Currently available images are:
+        - Affi LM1 ECoG244
+        - Beignet LM1 ECoG244
+
+    Args:
+        subject (str): subject name
+        chamber (str): chamber type
+        drive_type (str): drive type
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        alpha (float, optional): transparency of the image. Default is 0.5.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. color.
+
+    Examples:
+
+        .. code-block:: python
+
+            elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
+
+        .. image:: _images/overlay_sulci_beignet.png
+
+        .. code-block:: python
+            
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
+
+        .. image:: _images/overlay_sulci_affi.png
+
+    '''
+    config_dir = files('aopy').joinpath('config')
+    filename = f'{subject.lower()}_{chamber.lower()}_{drive_type.lower()}_sulci.png'
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        overlay_image_on_spatial_map(f, drive_type, theta=theta, alpha=alpha, **kwargs)

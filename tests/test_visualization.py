@@ -757,6 +757,19 @@ class TestPlotUtils(unittest.TestCase):
             ax.annotate(str(i+1), (0.5,0.5), ha='center', va='center',  fontsize=40)
         aopy.visualization.savefig(docs_dir, "place_Opto32_subplots.png", transparent=False)
 
+    def test_overlay_image_on_spatial_map(self):
+        plt.figure()
+        elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+        plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+        overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
+        filename = 'overlay_sulci_beignet.png'
+        savefig(docs_dir, filename)
+
+        plt.figure()
+        plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+        overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
+        filename = 'overlay_sulci_affi.png'
+        savefig(docs_dir, filename)
 
 class TestEyePlots(unittest.TestCase):
 
