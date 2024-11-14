@@ -1540,15 +1540,19 @@ def reset_plot_color(ax):
 def plot_scalebar(ax, size, label, color='black', fontsize=12, vertical=False,
                   bbox_to_anchor=[0.1, 0.1], **kwargs):
     '''
-    Add a scalebar to a plot with the given size and label.
+    Add a scalebar to a plot with the given size and label. The scalebar can be 
+    vertical or horizontal. The left edge (bottom edge if vertical) of the scalebar 
+    will be located at the given bbox_to_anchor position in Axis units (0 to 1).
     
     Args:
         ax (pyplot.Axes): axis to plot the scalebar on
-        size (float): size of the scalebar
-        label (str): label for the scalebar
+        size (float): size of the scalebar in units of the plot
+        label (str): label for the scalebar, e.g. '1 s' or '10 um'
         color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
         fontsize (int): size of the font for the label
         vertical (bool): If True, the scalebar will be vertical. Default is horizontal.
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
         **kwargs: additional keyword arguments to pass to AnchoredSizeBar
 
     Examples:
@@ -1598,7 +1602,8 @@ def plot_scalebar(ax, size, label, color='black', fontsize=12, vertical=False,
     ax.add_artist(scalebar)
 
 
-def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=12, **kwargs):
+def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=12, 
+                     bbox_to_anchor=[0.1, 0.1], **kwargs):
     '''
     Shortcut to add two scalebars to a plot with the given x and y sizes and labels. 
 
@@ -1610,13 +1615,17 @@ def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=1
         ylabel (str): label for the y scalebar
         color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
         fontsize (int): size of the font for the label
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
         **kwargs: additional keyword arguments to pass to AnchoredSizeBar
 
     See also:
         :func:`~aopy.visualization.plot_scalebar`
     '''
-    plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, **kwargs)
-    plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, vertical=True, **kwargs)
+    plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, 
+                  bbox_to_anchor=bbox_to_anchor, **kwargs)
+    plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, 
+                  vertical=True, bbox_to_anchor=bbox_to_anchor, **kwargs)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """
