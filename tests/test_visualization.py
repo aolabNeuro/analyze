@@ -712,6 +712,16 @@ class TestPlotUtils(unittest.TestCase):
         filename = 'reset_plot_color.png'
         savefig(docs_dir,filename)
 
+    def test_plot_scalebar(self):
+        plt.subplots()
+
+        plt.plot(np.arange(10), np.arange(10)/10)
+        aopy.visualization.plot_scalebar(plt.gca(), 1, '1 s', color='orange')
+        aopy.visualization.plot_scalebar(plt.gca(), 0.1, '0.1 V', vertical=True, color='green')
+        aopy.visualization.plot_xy_scalebar(plt.gca(), 1, '1 s', 0.1, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+        filename = 'scalebar_example.png'
+        savefig(docs_dir,filename)
+
     def test_savefig(self):
 
         fig, ax = plt.subplots()

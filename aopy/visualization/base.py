@@ -10,6 +10,8 @@ from matplotlib import colors
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -1540,6 +1542,96 @@ def reset_plot_color(ax):
         .. image:: _images/reset_plot_color.png
     '''
     ax.set_prop_cycle(None)
+
+def plot_scalebar(ax, size, label, color='black', fontsize=12, vertical=False,
+                  bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Add a scalebar to a plot with the given size and label. The scalebar can be 
+    vertical or horizontal. The left edge (bottom edge if vertical) of the scalebar 
+    will be located at the given bbox_to_anchor position in Axis units (0 to 1).
+    
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        size (float): size of the scalebar in units of the plot
+        label (str): label for the scalebar, e.g. '1 s' or '10 um'
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        vertical (bool): If True, the scalebar will be vertical. Default is horizontal.
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    Examples:
+
+        Adding a scalebar to a plot with a size of 10 and a label of '10 ms'.
+
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.arange(10)/10)
+            aopy.visualization.plot_scalebar(plt.gca(), 1.5, '1 s', color='orange')
+            aopy.visualization.plot_scalebar(plt.gca(), 0.15, '0.1 V', vertical=True, color='green')
+            aopy.visualization.plot_xy_scalebar(plt.gca(), 1.5, '1 s', 0.15, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+            filename = 'scalebar_example.png'
+
+        .. image:: _images/scalebar_example.png
+    '''
+    if not vertical:
+        xsize = size
+        ysize = 0
+        label_top = False
+        loc = 'upper left'
+    else:
+        xsize = 0
+        ysize = size
+        label_top = True  
+        loc = 'lower center' 
+
+    # Draw the scalebar
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        xsize,
+        label,
+        loc=loc,
+        bbox_to_anchor=bbox_to_anchor,
+        bbox_transform=ax.transAxes,
+        pad=kwargs.pop('pad', 0),
+        borderpad=kwargs.pop('borderpad', 0),
+        sep=kwargs.pop('sep', 4),
+        color=color,
+        frameon=False,
+        label_top=label_top,
+        size_vertical=ysize,
+        fontproperties=fm.FontProperties(size=fontsize),
+        **kwargs
+    )
+    ax.add_artist(scalebar)
+
+
+def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=12, 
+                     bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Shortcut to add two scalebars to a plot with the given x and y sizes and labels. 
+
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        xsize (float): size of the x scalebar
+        xlabel (str): label for the x scalebar
+        ysize (float): size of the y scalebar
+        ylabel (str): label for the y scalebar
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    See also:
+        :func:`~aopy.visualization.plot_scalebar`
+    '''
+    plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, 
+                  bbox_to_anchor=bbox_to_anchor, **kwargs)
+    plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, 
+                  vertical=True, bbox_to_anchor=bbox_to_anchor, **kwargs)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """
