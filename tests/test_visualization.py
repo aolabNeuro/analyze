@@ -241,6 +241,24 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'corr_over_entries.png'
         savefig(docs_dir,filename)
 
+    def test_plot_angles(self):
+
+        # Test with no magnitudes
+        angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+        plot_angles(angles)
+
+        filename = 'angles_simple.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        # Test with magnitudes
+        angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+        magnitudes = np.arange(len(angles)) + 1
+
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+        plot_angles(angles, magnitudes, ax)
+
+        filename = 'angles_magnitudes.png'
+        savefig(docs_dir, filename, transparent=False)
 
     
 class CurveFittingTests(unittest.TestCase):

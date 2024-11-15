@@ -1,7 +1,7 @@
 # latency.py
+# Functions for calculating latency and selectivity of neural responses.
 # 
 # AccLLR calculations are based on the paper:
-#
 # Banerjee A, Dean HL, Pesaran B. A likelihood method for computing selection times 
 # in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. 
 # doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8. https://pubmed.ncbi.nlm.nih.gov/20884767/
@@ -12,8 +12,158 @@ from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 import multiprocessing as mp
 import warnings
+from matplotlib import pyplot as plt
 
-from ..utils import first_nonzero
+from .. import visualization
+from .. import utils
+from . import base
+
+def detect_erp_response(nullcond, altcond, samplerate, num_sd=3, debug=False):
+    '''
+    Calculates the latency with which an ERP becomes maximized. Also checks for significant responses 
+    using a threshold of num_sd standard deviations above the mean of a null condition (e.g. baseline) 
+    response across time. Can be used on single trial or trial-averaged ERP data.
+    
+    Args:
+        nullcond (nt, nch, ntr): responses for null condition trials
+        altcond (nt, nch, ntr): responses for alternative condition trials
+        samplerate (float): sampling rate of the data
+        num_sd (float, optional): number of standard deviations to use as a threshold for significant response. Default 3.
+        debug (bool, optional): if True, plot the data and computed thresholds. Default False.
+
+    Returns:
+        (nch, ntr): array of latencies in seconds for each channel. NaN indicates no response above threshold.
+    
+    Examples:
+
+        Make a null baseline and an alternate condition response that are both uniform random noise. Then
+        add a linearly increasing signal to one channel in the alternate condition response. The other channel
+        will have no signal.
+
+        .. code-block:: python
+        
+            fs = 100
+            nt = fs * 2
+            nch = 2
+            ntr = 10
+            null_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+            alt_data = np.random.uniform(-1, 1, (nt, nch, ntr)) 
+            alt_data[:,1,:] += np.tile(np.expand_dims(np.arange(nt)/10, 1), (1,ntr))
+
+            latency = aopy.analysis.latency.detect_erp_response(null_data, alt_data, fs, 3, debug=True)
+            self.assertEqual(latency.shape, (nch, ntr))
+
+        .. image:: _images/detect_erp_response.png
+    
+    ''' 
+    mean = np.mean(nullcond, axis=0)
+    std = np.std(nullcond, axis=0)
+    significant = np.abs(altcond - mean) > num_sd * std
+    idx_latency = np.argmax(significant, axis=0)
+    idx_latency = np.where(np.any(significant, axis=0), idx_latency.astype(float), np.nan)
+    
+    if debug:
+        y_min = np.min(np.concatenate([nullcond, altcond]))
+        y_max = np.max(np.concatenate([nullcond, altcond]))
+
+        plt.figure(figsize=(10,5))
+        plt.subplot(1,2,1)
+        plt.hlines([mean + (num_sd * std)], 0, 1, transform=plt.gca().get_yaxis_transform(), color='r', linestyles='dashed')
+        visualization.plot_timeseries(nullcond, samplerate, color='k', alpha=0.5)
+        plt.ylim(y_min, y_max)
+        plt.title('nullcond')
+
+        plt.subplot(2,2,2)
+        plt.hlines([mean + (num_sd * std)], 0, 1, transform=plt.gca().get_yaxis_transform(), color='r', linestyles='dashed')
+        visualization.plot_timeseries(altcond[:,~np.isnan(idx_latency)], samplerate, color='m', alpha=0.5)
+        plt.xlabel('')
+        plt.xticks([])
+        plt.ylim(y_min, y_max)
+        plt.title('altcond detected')
+            
+        plt.subplot(2,2,4)
+        plt.hlines([mean + (num_sd * std)], 0, 1, transform=plt.gca().get_yaxis_transform(), color='r', linestyles='dashed')
+        visualization.plot_timeseries(altcond[:,np.isnan(idx_latency)], samplerate, color='c', alpha=0.5)
+        plt.ylim(y_min, y_max)
+        plt.title('altcond undetected')
+
+    return idx_latency/samplerate
+
+def detect_itpc_response(im_nullcond, im_altcond, samplerate, num_sd=3, debug=False):
+    '''
+    Calculates the latency with which itpc becomes maximized for the given analytical signals. Also
+    checks for significant responses using a threshold of num_sd standard deviations above the mean
+    of a null condition (e.g. baseline) response.
+    
+    Args:
+        im_nullcond (nt, nch, ntrial): analytical signals for null condition trials
+        im_altcond (nt, nch, ntrial): analytical signals for alternative condition trials
+        samplerate (float): sampling rate of the data
+        num_sd (float, optional): number of standard deviations to use as a threshold for significant response. Default 3.
+        debug (bool, optional): if True, plot the itpc values and computed thresholds. Default False.
+
+    Returns:
+        nch: array of latencies in seconds for each channel. NaN indicates no response above threshold.
+    
+    Examples:
+
+        Create a null baseline and an alternate condition response that are both uniform random noise. Then
+        add a sinusoidal signal to the alternate condition response. On one channel the signal is amplitude
+        1 (smaller than noise) and on the other channel it is amplitude 10 (bigger than noise).
+        
+        
+        .. code-block:: python
+        
+            fs = 100
+            nt = fs * 2
+            nch = 2
+            ntr = 10
+            null_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+            alt_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+            alt_data[:,0,:] += np.tile(np.expand_dims(np.sin(np.arange(nt)*np.pi/10), 1), (1,ntr))
+            alt_data[:,1,:] += np.tile(np.expand_dims(10*np.sin(np.arange(nt)*np.pi/10), 1), (1,ntr))
+
+            im_nullcond = signal.hilbert(null_data, axis=0)
+            im_altcond = signal.hilbert(alt_data, axis=0)
+
+            latency = aopy.analysis.latency.detect_itpc_response(im_nullcond, im_altcond, fs, 5, debug=True)
+
+        .. image:: _images/detect_itpc_response.png
+    ''' 
+    itpc = base.calc_itpc(im_altcond)
+    chance_itpc = base.calc_itpc(im_nullcond)
+    mean = np.mean(chance_itpc, axis=0)
+    std = np.std(chance_itpc, axis=0)
+    significant = np.abs(itpc - mean) > num_sd * std
+    idx_latency = np.argmax(significant, axis=0)
+    idx_latency = np.where(np.any(significant, axis=0), idx_latency.astype(float), np.nan)
+    
+    if debug:
+        plt.figure(figsize=(10,5))
+        plt.subplot(1,2,1)
+        plt.hlines([mean + (num_sd * std)], 0, 1, transform=plt.gca().get_yaxis_transform(), color='r', linestyles='dashed')
+        visualization.plot_timeseries(chance_itpc, samplerate, color='k', alpha=0.5)
+        plt.ylim(0,1)
+        plt.ylabel('ITPC')
+        plt.title('nullcond')
+
+        plt.subplot(2,2,2)
+        plt.hlines([mean + (num_sd * std)], 0, 1, transform=plt.gca().get_yaxis_transform(), color='r', linestyles='dashed')
+        visualization.plot_timeseries(itpc[:,~np.isnan(idx_latency)], samplerate, color='m', alpha=0.5)
+        plt.xlabel('')
+        plt.xticks([])
+        plt.ylim(0,1)
+        plt.ylabel('ITPC')
+        plt.title('altcond detected')
+            
+        plt.subplot(2,2,4)
+        plt.hlines([mean + (num_sd * std)], 0, 1, transform=plt.gca().get_yaxis_transform(), color='r', linestyles='dashed')
+        visualization.plot_timeseries(itpc[:,np.isnan(idx_latency)], samplerate, color='c', alpha=0.5)
+        plt.ylim(0,1)
+        plt.ylabel('ITPC')
+        plt.title('altcond undetected')
+
+    return idx_latency/samplerate
 
 def calc_llr_gauss(lfp, lfp_mean_1, lfp_mean_2, lfp_sigma_1, lfp_sigma_2):
     '''
@@ -213,8 +363,8 @@ def detect_accllr_fast(accllr, upper, lower):
     # Find the first value above the threshold for all trials at once
     lower_hit = accllr < lower
     upper_hit = accllr > upper
-    lower_hit_st = first_nonzero(lower_hit, axis=0, all_zeros_val=nt+1) # if no hit, then set nt+1
-    upper_hit_st = first_nonzero(upper_hit, axis=0, all_zeros_val=nt+1)
+    lower_hit_st = utils.first_nonzero(lower_hit, axis=0, all_zeros_val=nt+1) # if no hit, then set nt+1
+    upper_hit_st = utils.first_nonzero(upper_hit, axis=0, all_zeros_val=nt+1)
 
     # Break lower-upper ties
     lower_first = lower_hit_st < upper_hit_st

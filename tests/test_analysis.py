@@ -693,7 +693,47 @@ class ModelFitTests(unittest.TestCase):
         pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'upper', assume_gaussian=True)
         self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
 
-class AccLLRTests(unittest.TestCase):
+class LatencyTests(unittest.TestCase):
+
+    def test_detect_erp_response(self):
+        np.random.seed(0)
+
+        # Make a null baseline and an alternate condition response
+        fs = 100
+        nt = fs * 2
+        nch = 2
+        ntr = 10
+        null_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+        alt_data = np.random.uniform(-1, 1, (nt, nch, ntr)) 
+        alt_data[:,1,:] += np.tile(np.expand_dims(np.arange(nt)/10, 1), (1,ntr))
+
+        latency = aopy.analysis.latency.detect_erp_response(null_data, alt_data, fs, 3, debug=True)
+        self.assertEqual(latency.shape, (nch, ntr))
+
+        filename = 'detect_erp_response.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
+    def test_detect_itpc_response(self):
+        np.random.seed(0)
+
+        # Make a null baseline and an alternate condition response
+        fs = 100
+        nt = fs * 2
+        nch = 2
+        ntr = 10
+        null_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+        alt_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+        alt_data[:,0,:] += np.tile(np.expand_dims(np.sin(np.arange(nt)*np.pi/10), 1), (1,ntr))
+        alt_data[:,1,:] += np.tile(np.expand_dims(10*np.sin(np.arange(nt)*np.pi/10), 1), (1,ntr))
+
+        im_nullcond = signal.hilbert(null_data, axis=0)
+        im_altcond = signal.hilbert(alt_data, axis=0)
+
+        latency = aopy.analysis.latency.detect_itpc_response(im_nullcond, im_altcond, fs, 5, debug=True)
+        self.assertEqual(latency.shape, (nch,))
+
+        filename = 'detect_itpc_response.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_detect_accLLR(self, upper=10, lower=-10):
       
@@ -1441,6 +1481,54 @@ class SpectrumTests(unittest.TestCase):
         # Also test some other features
         f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                         ref=True, workers=2, dtype='int16')
+
+    def test_calc_itpc(self):
+        np.random.seed(0)
+
+        # Generate some test data with varying phase consistency
+        fs = 1000
+        nt = fs * 2
+        ntr = 100
+        t = np.arange(nt)/fs
+        data = np.zeros((t.shape[0],2,ntr)) # 2 channels
+
+        # 10 Hz sine with gaussian phase distribution across trials
+        for tr in range(ntr):
+            data[:,0,tr] = np.sin(2*np.pi*10*t + np.random.normal(np.pi/4, np.pi/8)) 
+
+        # 10 Hz sine with uniform random phase distribution across trials
+        for tr in range(ntr):
+            data[:,1,tr] = np.sin(2*np.pi*10*t + np.random.uniform(-np.pi, np.pi)) 
+
+        # Calculate an analytical signal using hilbert transform
+        im_data = signal.hilbert(data, axis=0)
+        itpc = aopy.analysis.calc_itpc(im_data)
+
+        plt.figure()
+
+        # Plot the data
+        plt.subplot(3,1,1)
+        aopy.visualization.plot_timeseries(np.mean(data, axis=2), fs)
+        plt.legend(['Channel 1', 'Channel 2'])
+        plt.ylabel('amplitude (a.u.)')
+        plt.title('Trial averaged data')
+
+        # Plot the angles at the first timepoint
+        angles = np.angle(im_data[0])
+        plt.subplot(3,2,3, projection= 'polar')
+        aopy.visualization.plot_angles(angles[0,:], color='tab:blue', alpha=0.5, linewidth=0.75)
+        plt.subplot(3,2,4, projection= 'polar')
+        aopy.visualization.plot_angles(angles[1,:], color='tab:orange', alpha=0.5, linewidth=0.75)
+
+        # Plot ITPC
+        plt.subplot(3,1,3)
+        aopy.visualization.plot_timeseries(itpc, fs)
+        plt.ylabel('ITPC')
+        plt.title('ITPC')
+
+        plt.tight_layout()
+        filename = 'itpc.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
 
 class BehaviorMetricsTests(unittest.TestCase):
