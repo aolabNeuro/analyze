@@ -100,8 +100,10 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
     # For historical purposes.
     if 'bit_volts' in list(ap_metadata.keys()):
         microvoltsperbit = ap_metadata['bit_volts']
+    elif 'microvoltsperbit' in list(ap_metadata.keys()):
+        microvoltsperbit = ap_metadata['microvoltsperbit']
     elif 'voltsperbit' in list(ap_metadata.keys()):
-        microvoltsperbit = ap_metadata['voltsperbit']
+        microvoltsperbit = 1e6*ap_metadata['voltsperbit']
 
     # Initialize variables
     nunits = len(unit_labels)
