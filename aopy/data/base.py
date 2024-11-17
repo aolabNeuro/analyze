@@ -65,6 +65,31 @@ def get_preprocessed_filename(subject, te_id, date, data_source):
     '''  
     return f"preproc_{date}_{subject}_{te_id}_{data_source}.hdf"
 
+def get_kilosort_foldername(subject, te_id, date, data_source):
+    """
+    Generates a folder name string to access the Kilosort output.
+
+    Args:
+        subject (str): The subject name.
+        te_id (int or list of int): The experiment task entry(s) to use. 
+        date (str): The experiment date.
+        data_source (str): The data source (e.g., 'Neuropixel') 
+
+    Returns:
+        str: A formatted folder name string for the kilosort output in the format:
+            "{date}_{data_source}_{subject}_te{te_id1}_te{te_id2}...".
+
+    """
+    if not isinstance(te_id, list):
+        te_id = [te_id]
+    
+    folder_name = f"{date}_{data_source}_{subject}"
+    for entry in te_id:
+        print(entry)
+        folder_name += f"_te{entry}"
+
+    return folder_name
+
 def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     '''
     Returns the task entry ids that have preprocessed files in the given directory matching

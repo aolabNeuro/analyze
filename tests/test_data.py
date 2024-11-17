@@ -1066,7 +1066,20 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertLessEqual(df['trial_time'][trial], 100.)
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
-            
+
+    def test_get_kilosort_foldername(self):
+        subject='affi'
+        te_id = 1000
+        date = datetime.date(2024,9,23)
+        data_source = 'Neuropixel'
+        foldername = get_kilosort_foldername(subject, te_id, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000")
+
+        # Test multiple TEs
+        te_ids = [1000,1001]
+        foldername = get_kilosort_foldername(subject, te_ids, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000_te1001")
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
