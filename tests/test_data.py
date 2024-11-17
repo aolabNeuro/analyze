@@ -1028,9 +1028,9 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         start_time = 0.1
         end_time = 0.15
         bin_width = 0.01
-        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), 1, start_time, end_time, bin_width=bin_width)
-        spike_segments_port2, _ = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), 2, start_time, end_time, bin_width=bin_width)
-        print(bins)
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
+        spike_segments_port2, _ = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 2, bin_width=bin_width)
+        
         port1_keys = list(spike_segments_port1.keys())
         port2_keys = list(spike_segments_port2.keys())
         port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
@@ -1041,7 +1041,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Check a different bin width
         bin_width=0.005
-        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), 1, start_time, end_time, bin_width=bin_width)
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
         port1_keys = list(spike_segments_port1.keys())
         port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
         self.assertEqual(port1_segment_lens[0], np.round((end_time-start_time)/bin_width).astype(int)) # Check that the data segment is the expected length
@@ -1049,7 +1049,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Check unbinned spike segments
         end_time=1
-        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), 1, start_time, end_time, bin_width=None)
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=None)
         spike_times = spike_segments_port1['24']
         self.assertTrue(np.logical_and(spike_times>=start_time, spike_times<=end_time).all()) # Check that all times are between the start and end
         self.assertEqual(np.sum(np.diff(spike_times)>0), len(spike_times)-1) # Check that spike times are monotonic.
@@ -1060,13 +1060,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         bin_width = 0.01
         flash_df = bmi3d.tabulate_behavior_data_flash(data_dir, ['affi'], [18378], [datetime.date(2024, 9, 23)])
         trigger_times = np.array(flash_df['flash_start_time'])
-        spike_aligned, unit_labels, bins = get_spike_data_aligned(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), 1, trigger_times, time_before, time_after, bin_width=bin_width)
+        spike_aligned, unit_labels, bins = get_spike_data_aligned(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before, time_after, 1, bin_width=bin_width)
 
         self.assertEqual(spike_aligned.shape[1], len(unit_labels))  # Assert that the correct number of units are in the aligned data. Plot will check other axis.
 
         # Plot for example figure 
-        spike_aligned1, unit_labels, bins1 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), 1, trigger_times, time_before,time_after,bin_width=0.01 )
-        spike_aligned2, unit_labels, bins2 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), 1, trigger_times, time_before,time_after,bin_width=0.001 )
+        spike_aligned1, unit_labels, bins1 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.01 )
+        spike_aligned2, unit_labels, bins2 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.001 )
         iunit = 24
         fig, ax = plt.subplots(1,2, figsize=(10,4))
         ax[0].pcolor(bins1, np.arange(len(trigger_times)), spike_aligned1[:,iunit,:].T, cmap='Grays') #24
@@ -1086,11 +1086,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         subjects = ['affi', 'affi']
         te_ids = [18378, 18378]
         dates = [datetime.date(2024, 9, 23), datetime.date(2024, 9, 23)]
-        ports = [1,2]
+        drives = [1,2]
         start_times = [.1,.1]
         end_times = [.15,.15]
         bin_width = 0.01
-        segments, bins = tabulate_spike_data_segments(data_dir, subjects, te_ids, dates, ports, start_times, end_times, bin_width)
+        segments, bins = tabulate_spike_data_segments(data_dir, subjects, te_ids, dates, start_times, end_times, drives, bin_width)
 
         self.assertEqual(len(segments), len(subjects))
         self.assertEqual(len(segments[0]['0']), 5)

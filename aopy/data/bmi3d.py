@@ -1117,7 +1117,7 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
 
     return data, samplerate
 
-def get_spike_data_segment(preproc_dir, subject, te_id, date, port, start_time, end_time, bin_width=.01):
+def get_spike_data_segment(preproc_dir, subject, te_id, date, start_time, end_time, drive=1, bin_width=.01):
     '''
     Loads and extracts a segment of spiking data for a given subject and experiment, optionally binning the spike times.
 
@@ -1126,9 +1126,9 @@ def get_spike_data_segment(preproc_dir, subject, te_id, date, port, start_time, 
         subject (str): Subject name.
         te_id (str): Task entry number.
         date (str): The date of the experiment.
-        port (int, optional): The port number corresponding to the spike data.
         start_time (float): The start time [s] of the segment to extract.
         end_time (float): The end time [s] of the segment to extract.
+        drive (int, optional): Which drive (port) to load data from.
         bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. If set to `None`, no binning is applied and spike times are returned.
         
     Returns:
@@ -1140,7 +1140,7 @@ def get_spike_data_segment(preproc_dir, subject, te_id, date, port, start_time, 
 
     # Load data
     filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
     
     # Parse segment and bin spikes if necessary.
     spike_segment = {}
@@ -1154,7 +1154,7 @@ def get_spike_data_segment(preproc_dir, subject, te_id, date, port, start_time, 
 
     return spike_segment, bins
 
-def get_spike_data_aligned(preproc_dir, subject, te_id, date, port, trigger_times, time_before, time_after, bin_width=0.01):
+def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, time_before, time_after, drive=1, bin_width=0.01):
     """
     Loads spike data for a given subject and experiment, then aligns binned spike to trigger times.
 
@@ -1165,10 +1165,10 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, port, trigger_time
         subject (str): Subject name.
         te_id (str): Task entry number.
         date (str): The date of the experiment.
-        port (int): The port number corresponding to the spike data.
         trigger_times (numpy.ndarray): 1D Array of trigger times (in seconds) for each trial to which spike data should be aligned.
         time_before (float): The amount of time (in seconds) before each trigger time to include in the aligned spike data.
         time_after (float): The amount of time (in seconds) after each trigger time to include in the aligned spike data.
+        drive (int): The drive number corresponding to the spike data.
         bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. 
 
     Returns:
@@ -1182,7 +1182,7 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, port, trigger_time
     """
     # Load data
     filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
     
     # Define relevant variables
     samplerate = int(np.round(1/bin_width))
@@ -2427,30 +2427,31 @@ def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_
         
     return segments, samplerate
 
-def tabulate_spike_data_segments(preproc_dir, subjects, te_ids, dates, ports, start_times, end_times, bin_width=0.01):
+def tabulate_spike_data_segments(preproc_dir, subjects, te_ids, dates, start_times, end_times, drives, bin_width=0.01):
     '''
-        Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
+    Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
 
-        Args:
-            preproc_dir (str): base directory where the files live
-            subjects (list of str): Subject name for each recording
-            ids (list of int): Block number of Task entry object for each recording
-            dates (list of str): Date for each recording
-            start_times (list of float): times in the recording at which the desired segments start
-            end_times (list of float): times in the recording at which the desired segments end
-            bin_width (int): Bin width to bin spike times at. If None, the segments of spike times will be returned. 
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        start_times (list of float): times in the recording at which the desired segments start
+        end_times (list of float): times in the recording at which the desired segments end
+        drives (list): Defines which drive to load data from. For neuropixel data this is usually '1' or '2'
+        bin_width (int): Bin width to bin spike times at. If None, the segments of spike times will be returned. 
 
-        Returns:
-                tuple: A tuple containing:
-                    - segments (list of dicts): A list where each element is a dictionary of spike data for a unit in a specific experiment.
-                    - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
+    Returns:
+            tuple: A tuple containing:
+                - segments (list of dicts): A list where each element is a dictionary of spike data for a unit in a specific experiment.
+                - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
     '''
-    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times) == len(ports)
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times) == len(drives)
     
     # Fetch the segments
     segments = []
-    for s, t, d, p, st, et in list(zip(subjects, te_ids, dates, ports, start_times, end_times)):
-        segment, bins = get_spike_data_segment(preproc_dir, s, t, d, p, st, et, bin_width=bin_width)
+    for s, t, d, dr, st, et in list(zip(subjects, te_ids, dates, drives, start_times, end_times)):
+        segment, bins = get_spike_data_segment(preproc_dir, s, t, d, st, et, dr, bin_width=bin_width)
         segments.append(segment)
         
     return segments, bins
