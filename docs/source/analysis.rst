@@ -56,3 +56,9 @@ Main function: :func:`~aopy.analysis.accllr.calc_accllr_st`
 
 .. automodule:: aopy.analysis.accllr
     :members:
+
+Connectivity
+^^^^^^^^^^^^
+
+.. automodule:: aopy.analysis.connectivity
+    :members:
