@@ -5,6 +5,7 @@ import warnings
 import unittest
 import os
 import matplotlib.pyplot as plt
+import datetime
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -280,7 +281,171 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
-   
+
+class NeuropixelFuncs(unittest.TestCase):
+
+    def test_calc_presence_ratio(self):
+        # Test no trials
+        data = np.zeros((10, 0, 5))  # 10 time points, 0 trials, 5 units
+        presence_ratio, present_units = aopy.postproc.neuropixel.calc_presence_ratio(data)
+        self.assertEqual(presence_ratio.shape[0], 5)
+        self.assertTrue(np.all(present_units == False))
+
+        # Test all units active
+        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        presence_ratio, present_units = neuropixel.calc_presence_ratio(data)
+        self.assertTrue(np.all(present_units))  # All units should be present
+        self.assertTrue(np.all(presence_ratio == 1.0))  # Presence ratio should be 1 for all units
+
+        # Test return_details argument
+        data = np.zeros((10, 5, 2))  # 10 time points, 5 trials, 2 units
+        data[1:5, [0, 1, 0, 1, 1], 0] = 1  # Unit 0 is active in trials 1, 3, and 4
+        data[1:3, [0, 1, 1, 0, 0], 1] = 1  # Unit 1 is active in trials 1 and 2
+        _, _, presence_details = neuropixel.calc_presence_ratio(data, return_details=True)
+        self.assertTrue(np.array_equal(presence_details, np.sum(data, axis=0) > 0))  # Should match trials and units shape
+
+        # Test all units active
+        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        presence_ratio, present_units = neuropixel.calc_presence_ratio(data)
+        self.assertTrue(np.all(present_units))  # All units should be present
+        self.assertTrue(np.all(presence_ratio == 1.0))
+
+        # Test some units inactive
+        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data[1:3, :3, 0] = 1  # Only unit 0 is active in trials 1 and 2
+        data[0:5, :3, 1] = 1  # Only unit 1 is active in trials 0, 1, 3
+        presence_ratio, present_units = neuropixel.calc_presence_ratio(data, min_trial_prop=0.5)
+        self.assertEqual(presence_ratio.shape[0], 3)
+        self.assertTrue(np.all(present_units[[0, 1]]))  # Units 0 and 1 should be present
+        self.assertFalse(present_units[2])  # Unit 2 should not be present
+
+        # Test different min_trial_prop
+        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data[1:5, :4, 0] = 1  # Unit 0 is active in trials 0,1, 2,3,
+        data[1:3, :3, 1] = 1  # Unit 1 is active in trials 0,1
+        data[0:2, 1, 2] = 1  # Unit 2 is active in trial 1
+
+        # Test with a higher min_trial_prop
+        presence_ratio, present_units = aopy.postproc.neuropixel.calc_presence_ratio(data, min_trial_prop=0.6)
+        self.assertTrue(present_units[0])  # Unit 0 should be present
+        self.assertTrue(present_units[1])  # Unit 1 should be present
+        self.assertFalse(present_units[2])
+        
+    
+    def test_get_units_without_refractory_violations(self):
+        subject='affi'
+        te_id = 18378
+        date = datetime.date(2024,9,23)
+        port = 1
+        ref_period = 1
+        ref_perc_thresh = 1
+        filename_mc = aopy.data.get_preprocessed_filename(subject,te_id,date,'spike')
+        spike_times = data.load_hdf_group(os.path.join(data_dir,subject), filename_mc, f'drive{port}/spikes')
+        good_unit_labels, ref_violations = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period, start_time=0, end_time=None)
+  
+        # Load all unit labels
+        all_unit_labels = list(spike_times.keys())
+
+        # Check internal consistency 
+        self.assertEqual(len(all_unit_labels), len(ref_violations))
+        bad_unit_labels = np.array(all_unit_labels)[ref_violations > ref_perc_thresh]
+        for bad_unit_label in bad_unit_labels:
+            self.assertFalse(bad_unit_label in good_unit_labels)
+    
+        # For the bad units double check by hand
+        for iunit, unit_label in enumerate(all_unit_labels):
+            if unit_label in bad_unit_labels:
+                spike_delta = np.diff(spike_times[unit_label])
+                bad_spike_perc = np.sum(spike_delta < (ref_period/1000))/len(spike_times[unit_label])
+                self.assertAlmostEqual(ref_violations[iunit], bad_spike_perc*100)
+
+        # Check a longer refractory period that will cause many failed units
+        ref_period_long = 100
+        good_unit_labels_long, ref_violations_long = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period_long, start_time=0, end_time=None)
+        self.assertFalse(len(good_unit_labels) == len(good_unit_labels_long))
+
+        # Check a higher refractory period percent threshold that will cause all units to be acceptable.
+        ref_perc_thresh_thresh = 100
+        good_unit_labels_thresh, ref_violations_thresh = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh_thresh, min_ref_period=ref_period_long, start_time=0, end_time=None)
+        self.assertTrue(len(good_unit_labels_thresh) == len(all_unit_labels))
+
+        # Check that start and end time arguments work
+        start_time = 1
+        end_time = 2
+        good_unit_labels_short, ref_violations_short = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period, start_time=0, end_time=None)
+        self.assertTrue(len(good_unit_labels_short)==len(good_unit_labels))
+
+    def test_get_high_amplitude_units(self):
+        subject='affi'
+        te_id = 'wftest'
+        date = datetime.date(2024,9,23)
+        port = 1
+        good_unit_labels, amps, mean_wfs = neuropixel.get_high_amplitude_units(data_dir, subject, te_id, date, port, amp_thresh=50)
+        self.assertTrue(len(good_unit_labels)==2) # two units should pass
+        self.assertTrue(len(amps)==2)
+        self.assertTrue((amps>50).all())
+        self.assertTrue(mean_wfs.shape[0]==60)
+        self.assertTrue(mean_wfs.shape[1]==2)
+
+        # Test a different amplitude threshold - only one unit should pass
+        good_unit_labels, amps, mean_wfs = neuropixel.get_high_amplitude_units(data_dir, subject, te_id, date, port, amp_thresh=100)
+        self.assertTrue(len(good_unit_labels)==1)
+        self.assertTrue(len(amps)==1)
+        self.assertTrue((amps>100).all())
+        self.assertTrue(mean_wfs.shape[0]==60)
+        self.assertTrue(mean_wfs.shape[1]==1)
+
+        # Check start and end time
+        good_unit_labels, amps, mean_wfs = neuropixel.get_high_amplitude_units(data_dir, subject, te_id, date, port, amp_thresh=20, start_time=0, end_time=3.5)
+        self.assertTrue('0' in good_unit_labels)
+        self.assertTrue('1' not in good_unit_labels)
+        self.assertTrue('2' not in good_unit_labels)
+
+        good_unit_labels, amps, mean_wfs = neuropixel.get_high_amplitude_units(data_dir, subject, te_id, date, port, amp_thresh=20, start_time=7, end_time=10)
+        self.assertTrue('0' not in good_unit_labels)
+        self.assertTrue('1' in good_unit_labels)
+        self.assertTrue('2' in good_unit_labels)
+
+    def test_extract_ks_template_amplitudes(self):
+        # Test basic functionality with known data
+        template_amps = neuropixel.extract_ks_template_amplitudes(data_dir, 'affi', 'tftest', datetime.date(2024,9,23), 1, data_source='Neuropixel', start_time=0, end_time=None)
+        for unit_lbl in list(template_amps.keys()):
+            self.assertTrue(len(template_amps[unit_lbl])==2)
+            self.assertTrue((template_amps[unit_lbl]==1).all())
+
+        # Test new start time and end time
+        template_amps = neuropixel.extract_ks_template_amplitudes(data_dir, 'affi', 'tftest', datetime.date(2024,9,23), 1, data_source='Neuropixel', start_time=3, end_time=12)
+        for unit_lbl in list(template_amps.keys()):
+            if unit_lbl == '0' or unit_lbl == '3':
+                self.assertTrue(len(template_amps[unit_lbl])==0)
+            else:
+                self.assertTrue(len(template_amps[unit_lbl])==2)
+                self.assertTrue((template_amps[unit_lbl]==1).all())
+
+    def test_apply_noise_cutoff_thresh(self):
+        np.random.seed(0)
+        good_spike_amplitudes = np.random.normal(10, 2, size=(1000))
+        template_amps = {}
+        template_amps['0'] = good_spike_amplitudes
+        template_amps['1'] = np.sort(good_spike_amplitudes)[600:]
+        template_amps['2'] = np.sort(good_spike_amplitudes)[200:]
+
+        low_bin_thresh = 0.1
+        uhq_std_thresh = 5
+        good_unit_labels, low_bin_perc, cutoff_metric = neuropixel.apply_noise_cutoff_thresh(template_amps, bin_width=0.2, low_bin_thresh=low_bin_thresh, uhq_std_thresh=uhq_std_thresh, min_spikes=10)
+        self.assertTrue(len(good_unit_labels)==1)
+        self.assertTrue(low_bin_perc[1] > low_bin_thresh or cutoff_metric[1] > uhq_std_thresh)
+        self.assertTrue(low_bin_perc[2] > low_bin_thresh or cutoff_metric[2] > uhq_std_thresh)
+
+        # Test by changing parameters so that every unit passes
+        low_bin_thresh = 0.9
+        uhq_std_thresh = 20
+        good_unit_labels, low_bin_perc, cutoff_metric = neuropixel.apply_noise_cutoff_thresh(template_amps, bin_width=0.2, low_bin_thresh=low_bin_thresh, uhq_std_thresh=uhq_std_thresh, min_spikes=10)
+        
+        self.assertTrue(len(good_unit_labels)==3)
+        self.assertTrue(low_bin_perc[1] < low_bin_thresh or cutoff_metric[1] < uhq_std_thresh)
+        self.assertTrue(low_bin_perc[2] < low_bin_thresh or cutoff_metric[2] < uhq_std_thresh)
+
 
 if __name__ == "__main__":
     unittest.main()

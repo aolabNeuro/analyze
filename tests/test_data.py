@@ -1139,7 +1139,20 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertLessEqual(df['trial_time'][trial], 100.)
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
-            
+
+    def test_get_kilosort_foldername(self):
+        subject='affi'
+        te_id = 1000
+        date = datetime.date(2024,9,23)
+        data_source = 'Neuropixel'
+        foldername = get_kilosort_foldername(subject, te_id, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000")
+
+        # Test multiple TEs
+        te_ids = [1000,1001]
+        foldername = get_kilosort_foldername(subject, te_ids, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000_te1001")
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
@@ -1648,6 +1661,17 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_mc_sessions()
         df = db.encode_onehot_sequence_name(sessions, sequence_types=['centerout_2D'])
         self.assertEqual(df.shape[1], 4) 
+
+    def test_add_metadata_columns(self):
+
+        sessions = db.lookup_sessions()
+        df = pd.DataFrame({
+            'te_id': [e.id for e in sessions],
+        })
+        db.add_metadata_columns(df, sessions, ['id_copy', 'test'], [lambda e: e.id, lambda e: 'test'])
+        self.assertEqual(len(df), len(sessions))
+        self.assertEqual(df['id_copy'].sum(), df['te_id'].sum())
+        self.assertTrue(all(df['test'] == 'test'))
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,9 +6,12 @@ import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib import colors
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -23,6 +26,11 @@ import pandas as pd
 from tqdm import tqdm
 import pandas as pd
 from datetime import timedelta
+import sys
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
 
 from .. import precondition
 from .. import analysis
@@ -783,7 +791,62 @@ def set_bounds(bounds, ax=None):
         ax.set(xlim=(1.1 * bounds[0], 1.1 * bounds[1]),
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
+def color_targets(target_locations, target_idx, colors, target_radius, bounds=None, ax=None, **kwargs):
+    '''
+    Color targets according to their index. Useful for visualizing unique targets when trajectories
+    aren't obviously aligned to specific targets.
 
+    Args:
+        target_locations ((ntargets, 2) or (ntargets, 3) array): array of target (x, y[, z]) locations
+        target_idx ((ntargets,) array): array of indices for each target, used to determine color
+        colors (list): list of colors corresponding to each unique index in target_idx
+        target_radius (float): radius of the targets in cm
+        bounds (tuple, optional): 4- or 6-element tuple describing (-x, x, -y, y[, -z, z]) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on (2D or 3D)
+        **kwargs: additional keyword arguments to pass to plot_circles()
+
+    Examples:
+        Create and plot eight targets for a center-out task.
+        
+        .. code-block:: python
+
+            angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+            radius = 6.5
+            target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+            target_locations = np.vstack(([0, 0], target_locations))
+
+        Specify the colors per target index in case they are out of order.
+            
+        .. code-block:: python
+
+            target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, peripheral are index 1 through 9
+            colors = ['black'] + sns.color_palette("husl", 8)
+            target_radius = 0.5
+            bounds = (-8, 8, -8, 8)
+
+        Use :func:`~aopy.visualization.color_targets` to plot the targets
+        
+        .. code-block:: python
+
+            fig, ax = plt.subplots(figsize=(8, 8))
+            color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+            ax.set_aspect('equal')
+            filename = 'color_targets.png'
+
+        .. image:: _images/color_targets.png
+    '''
+    
+    assert len(target_locations) == len(target_idx), "Locations must be the same length as indices"
+    target_locations = np.array(np.array(target_locations).tolist())
+    target_idx = np.array(np.array(target_idx).tolist())
+    loc_idx = np.concatenate((np.expand_dims(target_idx, 1), target_locations), axis=1)
+    loc_idx = np.unique(loc_idx, axis=0)
+    assert len(colors) >= len(np.unique(target_idx)), "Not enough colors for unique indices"
+    for row in loc_idx:
+        idx = row[0].astype(int)
+        loc = row[1:]
+        plot_circles([loc], target_radius, colors[idx], bounds=bounds, ax=ax, **kwargs)
+        
 def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, 
                  origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
@@ -1480,6 +1543,96 @@ def reset_plot_color(ax):
     '''
     ax.set_prop_cycle(None)
 
+def plot_scalebar(ax, size, label, color='black', fontsize=12, vertical=False,
+                  bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Add a scalebar to a plot with the given size and label. The scalebar can be 
+    vertical or horizontal. The left edge (bottom edge if vertical) of the scalebar 
+    will be located at the given bbox_to_anchor position in Axis units (0 to 1).
+    
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        size (float): size of the scalebar in units of the plot
+        label (str): label for the scalebar, e.g. '1 s' or '10 um'
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        vertical (bool): If True, the scalebar will be vertical. Default is horizontal.
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    Examples:
+
+        Adding a scalebar to a plot with a size of 10 and a label of '10 ms'.
+
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.arange(10)/10)
+            aopy.visualization.plot_scalebar(plt.gca(), 1.5, '1 s', color='orange')
+            aopy.visualization.plot_scalebar(plt.gca(), 0.15, '0.1 V', vertical=True, color='green')
+            aopy.visualization.plot_xy_scalebar(plt.gca(), 1.5, '1 s', 0.15, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+            filename = 'scalebar_example.png'
+
+        .. image:: _images/scalebar_example.png
+    '''
+    if not vertical:
+        xsize = size
+        ysize = 0
+        label_top = False
+        loc = 'upper left'
+    else:
+        xsize = 0
+        ysize = size
+        label_top = True  
+        loc = 'lower center' 
+
+    # Draw the scalebar
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        xsize,
+        label,
+        loc=loc,
+        bbox_to_anchor=bbox_to_anchor,
+        bbox_transform=ax.transAxes,
+        pad=kwargs.pop('pad', 0),
+        borderpad=kwargs.pop('borderpad', 0),
+        sep=kwargs.pop('sep', 4),
+        color=color,
+        frameon=False,
+        label_top=label_top,
+        size_vertical=ysize,
+        fontproperties=fm.FontProperties(size=fontsize),
+        **kwargs
+    )
+    ax.add_artist(scalebar)
+
+
+def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=12, 
+                     bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Shortcut to add two scalebars to a plot with the given x and y sizes and labels. 
+
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        xsize (float): size of the x scalebar
+        xlabel (str): label for the x scalebar
+        ysize (float): size of the y scalebar
+        ylabel (str): label for the y scalebar
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    See also:
+        :func:`~aopy.visualization.plot_scalebar`
+    '''
+    plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, 
+                  bbox_to_anchor=bbox_to_anchor, **kwargs)
+    plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, 
+                  vertical=True, bbox_to_anchor=bbox_to_anchor, **kwargs)
+
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """
     Runs `plot_channel_summary` and `combine_channel_figures` on all channels in a data array
@@ -1912,3 +2065,82 @@ def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area
     ax.set_theta_offset(offset)  
 
     return n, bins, patches
+
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, invert=False, ax=None, **kwargs):
+    '''
+    Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
+    placed at the same coordinates as electrode positions for the given electrode drive. The image
+    is also optionally inverted and recolored with a single input color.
+
+    Args:
+        filepath (str): path to the image file
+        drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        color (str, optional): color to use for the image. Default is None.
+        invert (bool, optional): whether to invert the image. Default is False.
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. alpha.
+    '''
+    if ax is None:
+        ax = plt.gca()
+    with Image.open(filepath) as im:
+        a = np.array(im.convert('L'))/255
+        if color is None:
+            c = np.array(im.convert('RGB'))/255
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = c
+        else:
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = colors.to_rgb(color)
+        img[:,:,3] = a if invert else 1 - a
+    img = np.rot90(img, np.ceil(theta/90), axes=(1,0))
+    
+    # Calculate the proper extents
+    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
+    x = elec_pos[:,0]
+    y = elec_pos[:,1]
+    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+    x_spacing = (extent[1] - extent[0]) / (len(x) - 1)
+    y_spacing = (extent[3] - extent[2]) / (len(y) - 1)
+    extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+
+    ax.imshow(img, origin='upper', extent=extent, **kwargs)
+
+def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.5, **kwargs):
+    '''
+    Overlay a precomputed image of chamber sucli on a spatial map of electrodes. 
+    Images are stored in the aopy.config directory. Currently available images are:
+        - Affi LM1 ECoG244
+        - Beignet LM1 ECoG244
+
+    Args:
+        subject (str): subject name
+        chamber (str): chamber type
+        drive_type (str): drive type
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        alpha (float, optional): transparency of the image. Default is 0.5.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. color.
+
+    Examples:
+
+        .. code-block:: python
+
+            elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
+
+        .. image:: _images/overlay_sulci_beignet.png
+
+        .. code-block:: python
+            
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
+
+        .. image:: _images/overlay_sulci_affi.png
+
+    '''
+    config_dir = files('aopy').joinpath('config')
+    filename = f'{subject.lower()}_{chamber.lower()}_{drive_type.lower()}_sulci.png'
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        overlay_image_on_spatial_map(f, drive_type, theta=theta, alpha=alpha, **kwargs)

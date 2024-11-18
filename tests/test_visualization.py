@@ -379,6 +379,28 @@ class AnimationTests(unittest.TestCase):
 
 class KinematicsPlottingTests(unittest.TestCase):
 
+    def test_color_targets(self):
+        # Generate 8 targets at radius 6.5 from the center
+        angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        radius = 6.5
+        target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+        
+        # Add the center target
+        target_locations = np.vstack(([0, 0], target_locations))
+        target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, peripheral are index 1 through 9
+
+        # Choose plotting parameters
+        colors = ['black'] + sns.color_palette("husl", 8)
+        target_radius = 0.5
+        bounds = (-8, 8, -8, 8)
+
+        # Plot the targets
+        fig, ax = plt.subplots(figsize=(8, 8))
+        color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+        ax.set_aspect('equal')
+        filename = 'color_targets.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_plot_targets(self):
 
         # Draw four outer targets and one center target
@@ -668,7 +690,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         ax[2,1].set_title('Bin values are normalized to a max value of 1')
 
         filename = 'circular_histograms'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
 class TestPlotUtils(unittest.TestCase):
 
@@ -688,6 +710,16 @@ class TestPlotUtils(unittest.TestCase):
         plt.plot(np.arange(10), 1 + np.ones(10))
 
         filename = 'reset_plot_color.png'
+        savefig(docs_dir,filename)
+
+    def test_plot_scalebar(self):
+        plt.subplots()
+
+        plt.plot(np.arange(10), np.arange(10)/10)
+        aopy.visualization.plot_scalebar(plt.gca(), 1, '1 s', color='orange')
+        aopy.visualization.plot_scalebar(plt.gca(), 0.1, '0.1 V', vertical=True, color='green')
+        aopy.visualization.plot_xy_scalebar(plt.gca(), 1, '1 s', 0.1, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+        filename = 'scalebar_example.png'
         savefig(docs_dir,filename)
 
     def test_savefig(self):
@@ -735,6 +767,19 @@ class TestPlotUtils(unittest.TestCase):
             ax.annotate(str(i+1), (0.5,0.5), ha='center', va='center',  fontsize=40)
         aopy.visualization.savefig(docs_dir, "place_Opto32_subplots.png", transparent=False)
 
+    def test_overlay_image_on_spatial_map(self):
+        plt.figure()
+        elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+        plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+        overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
+        filename = 'overlay_sulci_beignet.png'
+        savefig(docs_dir, filename)
+
+        plt.figure()
+        plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+        overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
+        filename = 'overlay_sulci_affi.png'
+        savefig(docs_dir, filename)
 
 class TestEyePlots(unittest.TestCase):
 
