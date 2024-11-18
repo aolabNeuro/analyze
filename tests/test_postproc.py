@@ -281,6 +281,7 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
+
 class NeuropixelFuncs(unittest.TestCase):
 
     def test_calc_presence_ratio(self):
@@ -444,6 +445,7 @@ class NeuropixelFuncs(unittest.TestCase):
         self.assertTrue(len(good_unit_labels)==3)
         self.assertTrue(low_bin_perc[1] < low_bin_thresh or cutoff_metric[1] < uhq_std_thresh)
         self.assertTrue(low_bin_perc[2] < low_bin_thresh or cutoff_metric[2] < uhq_std_thresh)
+
 
 if __name__ == "__main__":
     unittest.main()
