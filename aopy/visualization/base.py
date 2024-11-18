@@ -1934,6 +1934,81 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
 
     return pcm
 
+def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_grid=None, 
+                     cmap='viridis', **kwargs):
+    '''
+    Plot a grid of different frequency bands and time points for a given time-frequency map across
+    spatial locations.
+
+    Args:
+        freqs (nfreq,): frequency values
+        time (nt,): time values
+        tf_data (nfreq, nt, nch): time-frequency data across spatial channels
+        bands (list): list of tuples of frequency bands to plot
+        elec_pos (nch, 2): x, y position of each electrode
+        clim (tuple, optional): color limits for the plot, e.g. (0,1) for tfcoh maps. Default None
+        interp_grid (tuple, optional): (x, y) grid to interpolate the data onto. Default None
+        cmap (str, optional): colormap to use for plotting. Default 'viridis'
+        kwargs (dict, optional): other keyword arguments to pass to calc_data_map
+    
+    Returns:
+        list of pyplot.Axes: axes objects for each subplot in the grid
+
+    Examples:
+
+        Random power across space with increased power at time 1 and decreased power in high frequencies.
+
+        .. code-block:: python
+
+            nfreq = 100
+            nt = 3
+            nch = 100
+            freqs = np.linspace(1,250,nfreq)
+            time = np.linspace(0, 1, nt)
+            tf_data = np.random.rand(nfreq,nt,nch)
+            tf_data[:,1,:] *= 2 # increase power at time 1
+            tf_data[freqs > 10, :, :] *= 0.5 # decrease power in high frequencies
+            bands = [(1, 10), (10, 250)]
+            x, y = np.meshgrid(np.arange(10), np.arange(10))
+            elec_pos = np.zeros((100,2))
+            elec_pos[:,0] = x.reshape(-1)
+            elec_pos[:,1] = y.reshape(-1)
+            plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=(0,1), interp_grid=None, 
+                        cmap='viridis')
+        
+        .. image:: _images/tf_map_grid.png
+    '''
+    fig, ax = plt.subplots(len(bands), len(time), figsize=(4*len(time),4*len(bands)), layout='constrained')
+    for band_idx, band in enumerate(bands):
+        for t_idx, t in enumerate(time):
+            if ax.ndim == 2:
+                this_ax = ax[band_idx, t_idx]
+            else:
+                this_ax = ax[max(band_idx, t_idx)]
+            this_tf_data = tf_data[(freqs > band[0]) & (freqs < band[1]),t_idx,:]
+            if interp_grid is None:
+                data_map = get_data_map(
+                    np.squeeze(np.mean(this_tf_data, axis=0)),
+                    elec_pos[:,0],
+                    elec_pos[:,1]
+                )
+            else:
+                data_map = calc_data_map(
+                    np.squeeze(np.mean(this_tf_data, axis=0)),
+                    elec_pos[:,0],
+                    elec_pos[:,1],
+                    interp_grid,
+                    **kwargs
+                )  
+            im = plot_spatial_map(
+                data_map, elec_pos[:,0], elec_pos[:,1], 
+                cmap=cmap, ax=this_ax)
+            if clim is not None:
+                im.set_clim(clim)
+            plt.colorbar(im, ax=this_ax, shrink=0.7)
+            this_ax.set_title(f't={t:.2f}, {band[0]}-{band[1]} Hz')
+    return ax
+
 def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
     '''
     This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color. See also sns.color_palette for a gradient of RGB values within a Seaborn color palette.
