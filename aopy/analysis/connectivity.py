@@ -188,8 +188,6 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
     data_altcond, _, _, _ = accllr.prepare_erp(
         erp, erp, samplerate, time_before, time_after, nullcond_window, altcond_window)
     
-    print(data_altcond.shape)
-
     # Re-reference the data once
     if ref:
         data_altcond = data_altcond - np.mean(data_altcond, axis=1, keepdims=True) # mean across channels
