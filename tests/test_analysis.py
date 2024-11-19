@@ -1064,6 +1064,103 @@ class AccLLRTests(unittest.TestCase):
         filename = 'prepare_erp_for_accllr.png'
         aopy.visualization.savefig(docs_dir, filename)
         
+class ConnectivityTests(unittest.TestCase):
+
+    def test_get_acq_ch_near_stimulation_site(self):
+
+        # Some sanity checks
+        fn = lambda: aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(0) # no such stim site
+        self.assertRaises(ValueError, fn)
+
+        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(1, dist_thr=0) # no sites within small dist
+        self.assertEqual(chs.size, 0)
+
+        # Test known channels near stimulation site 14
+        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14)
+        np.testing.assert_allclose(chs, [57, 69, 70, 84])
+
+    def test_calc_connectivity_coh(self):
+        np.random.seed(0)
+
+        # Two channels with 50 Hz sine waves
+        T = 1
+        fs = 1000
+        nt = int(T*fs)
+        time = np.linspace(0,T,nt)
+        data = np.zeros((nt,2))
+        data[:,0] = np.sin(2*np.pi*50*time) # 50 Hz sine
+        data[:,1] = np.cos(2*np.pi*50*time) # 50 Hz cosine
+        data = np.expand_dims(data, axis=2) # 1 trial
+        data += np.random.normal(0, 0.1, data.shape) # add noise
+
+        n = 1.0
+        w = 10
+        n, p, k = aopy.precondition.convert_taper_parameters(n, w)
+        step = 0.5
+        f, t, coh, angle = aopy.analysis.connectivity.calc_connectivity_coh(data[:,[0]], data[:,[1]], 
+                                                                            n, p, k, fs, step, imaginary=False)
+
+        # Sanity checks
+        self.assertEqual(t.size, 1)
+        self.assertEqual(coh.shape, (f.size, t.size))
+        self.assertEqual(angle.shape, (f.size, t.size))
+        idx = np.searchsorted(f, 50)
+        self.assertGreater(coh[idx,0], 0.0) # coherence is nonzero at 50 Hz
+        idx2 = np.searchsorted(f, 100)
+        self.assertLess(coh[idx2,0], coh[idx,0]) # coherence at 100 Hz is less than coh at 50 Hz
+
+        # Test with multiple channels in each group
+        data = np.tile(data, (1,2,1))
+        f2, t2, coh2, angle2 = aopy.analysis.connectivity.calc_connectivity_coh(data[:,[0,2]], data[:,[1,3]], 
+                                                                            n, p, k, fs, step, imaginary=False)
+        np.testing.assert_allclose(f, f2)
+        np.testing.assert_allclose(t, t2)
+        np.testing.assert_allclose(coh, coh2)
+        np.testing.assert_allclose(angle, angle2)
+
+        # Without average
+        f2, t2, coh2, angle2, pairs = aopy.analysis.connectivity.calc_connectivity_coh(data[:,[0,2]], data[:,[1,3]], 
+                                                            n, p, k, fs, step, imaginary=False, average=False)
+        self.assertEqual(len(pairs), 4)
+        self.assertSetEqual(set(pairs), {(0,1), (0,0), (1,0), (1,1)})
+
+    def test_calc_connectivity_map_coh(self):
+        np.random.seed(0)
+
+        # Grid of channels with mostly noise but two channels have 50 Hz sine waves 
+        grid_size = 3
+        nch = grid_size**2
+        T = 1
+        fs = 1000
+        nt = int(T*fs)
+        ntr = 2
+        time = np.linspace(0,T,nt)
+        data = np.random.normal(0, 0.1, (nt,nch,ntr)) # start with noise
+        stim_ch_idx = 0
+        data[:,stim_ch_idx,0] += np.sin(2*np.pi*50*time) # 50 Hz sine
+        data[:,stim_ch_idx,1] += np.sin(2*np.pi*50*time) 
+        data[500:,4,0] += np.cos(2*np.pi*50*time[500:]) # 50 Hz cosine in second half of trial
+        data[500:,4,1] += np.cos(2*np.pi*50*time[500:]) 
+
+        n = 0.25
+        w = 10
+        step = 0.25
+        f, t, coh_all, angle_all = aopy.analysis.connectivity.calc_connectivity_map_coh(data, fs, 0.5, 0.5, [stim_ch_idx], 
+                                                                                n=n, bw=w, step=step, ref=False)
+
+        self.assertEqual(coh_all.shape, angle_all.shape)
+        
+        bands = [(40, 60), (100, 250)]
+        x, y = np.meshgrid(np.arange(grid_size), np.arange(grid_size))
+        elec_pos = np.zeros((nch,2))
+        elec_pos[:,0] = x.reshape(-1)
+        elec_pos[:,1] = y.reshape(-1)
+        aopy.visualization.plot_tf_map_grid(f, t, coh_all, bands, elec_pos, clim=(0,1), interp_grid=None, 
+                     cmap='viridis')
+        filename = 'connectivity_map_coh.png'
+        savefig(docs_dir, filename, transparent=False)
+
+
 class HelperFunctions:
 
     @staticmethod
