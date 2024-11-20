@@ -22,7 +22,7 @@ Eye
     :members:
 
 Neuropixel
-^^^
+^^^^^^^^^^
 
 .. automodule:: aopy.postproc.neuropixel
     :members:
