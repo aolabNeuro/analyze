@@ -10,15 +10,23 @@ from . import accllr
 def get_acq_ch_near_stimulation_site(stim_site, stim_layout='Opto32', electrode_layout='ECoG244', 
                                  dist_thr=1, return_idx=False):
     '''
-    Get acquisition channels near a stimulation site. Warning: this function returns channel
-    numbers, which sometimes are 1-indexed. Set the return_idx flag to True to get the channel
-    indices as well.
+    Get acquisition channels near a stimulation site. Use :func:`~aopy.data.load_chmap` to find the
+    channels for the stimulation and electrode sites.
+
+    Note: 
+        This function returns channel
+        numbers, which sometimes are 1-indexed. Set the return_idx flag to True to get the channel
+        indices as well.
 
     Args:
-        stim_site: int, stimulation site
-        stim_layout: str, layout of stimulation sites
-        electrode_layout: str, layout of electrodes
-        dist_thr: float or tuple, threshold for distance from stimulation site
+        stim_site (int): stimulation site (must match a channel in the stim_layout)
+        stim_layout (str): layout of stimulation sites, e.g. 'Opto32'. See 
+            :func:`~aopy.data.load_chmap` for options.
+        electrode_layout (str): layout of electrodes, e.g. 'ECoG244'. See
+            :func:`~aopy.data.load_chmap` for options.
+        dist_thr (float or tuple (min, max), optional): threshold for distance from stimulation site (in 
+            the same units as the electrode layout, typically mm). If a tuple, the distance must be greater 
+            than or equal to min and less than max. Default is 1.
 
     Returns:
         acq_ch: np.ndarray, acquisition channels near stimulation site
@@ -33,7 +41,7 @@ def get_acq_ch_near_stimulation_site(stim_site, stim_layout='Opto32', electrode_
     dist = np.linalg.norm(elec_pos - stim_site_pos, axis=1)
     try:
         idx = (dist < dist_thr[1]) & (dist >= dist_thr[0])
-    except:
+    except TypeError:
         idx = dist < dist_thr
 
     if return_idx:
