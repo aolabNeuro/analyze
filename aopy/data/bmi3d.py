@@ -642,17 +642,17 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
     # Fetch the relevant BMI3D data
     if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position'] # 3d hand position (optitrack coords: x,y,z) on each bmi3d cycle
+        data_cycles = exp_data['clean_hand_position'][:,[2,1,0]] # 3d hand position (from optitrack coords: z,y,x) on each bmi3d cycle
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
     elif datatype == 'user':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d cursor position before disturbance added (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] - exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # cursor position before disturbance added (bmi3d coords: x,z,y)
     elif datatype == 'reference':
-        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 2d target position (bmi3d coords: x,z)
+        data_cycles =  exp_data['task']['current_target'][:,[0,2,1]] # target position (bmi3d coords: x,z,y)
     elif datatype == 'disturbance':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d disturbance value (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # disturbance value (bmi3d coords: x,z,y)
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']

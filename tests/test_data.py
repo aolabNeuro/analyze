@@ -422,7 +422,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
         targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
 
-        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(targets_interp.shape[1], 9) # 9 targets including center
 
@@ -460,10 +460,10 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
         hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
 
-        self.assertEqual(cursor_interp.shape[1], 2)
-        self.assertEqual(ref_interp.shape[1], 2)
-        self.assertEqual(dis_interp.shape[1], 2)
-        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
+        self.assertEqual(ref_interp.shape[1], 3)
+        self.assertEqual(dis_interp.shape[1], 3)
+        self.assertEqual(user_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
@@ -503,10 +503,10 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
         hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
 
-        self.assertEqual(cursor_interp.shape[1], 2)
-        self.assertEqual(ref_interp.shape[1], 2)
-        self.assertEqual(dis_interp.shape[1], 2)
-        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
+        self.assertEqual(ref_interp.shape[1], 3)
+        self.assertEqual(dis_interp.shape[1], 3)
+        self.assertEqual(user_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
@@ -603,7 +603,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_end_codes = [REWARD, TRIAL_END]
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape[1], 2) # x z
+        self.assertEqual(trajs[1].shape[1], 3)
         bounds = [-10, 10, -10, 10]
         plt.figure()
         visualization.plot_trajectories(trajs, bounds=bounds)
@@ -645,7 +645,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test component wise velocity output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape[1], 2)
+        self.assertEqual(vel[1].shape[1], 3)
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
