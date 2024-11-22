@@ -10,6 +10,7 @@ import datetime
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(test_dir, 'docs')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -280,6 +281,36 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(onset_event==[20,30]))
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
+
+class TestMappingFuncs(unittest.TestCase):
+
+    def test_get_bmi3d_mc_input(self):
+        subject = 'beignet'
+        id = 8695
+        date = datetime.date(2023, 3, 10)
+        exp_data, exp_metadata = aopy.data.load_preproc_exp_data(data_dir, subject, id, date)
+
+        input = get_bmi3d_mc_input(exp_data['clean_hand_position'], exp_metadata['rotation'], exp_metadata['offset'])
+
+        plt.figure()
+        plt.subplot(1,2,1, projection='3d')
+        aopy.visualization.plot_trajectories(exp_data['clean_hand_position'], title='Original')
+
+        plt.subplot(1,2,2, projection='3d')
+        aopy.visualization.plot_trajectories(input, title='Transformed')
+
+        filename = 'test_get_bmi3d_mc_input.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
+        self.assertTrue(np.all(input[:,[2,1,0]] == exp_data['clean_hand_position'] + exp_metadata['offset']))           
+
+    def test_get_bmi3d_mc_mapping(self):
+
+        get_bmi3d_mc_mapping()
+
+    def get_bmi3d_mc_incremental_mappings(self):
+
+        get_bmi3d_mc_incremental_mappings()
 
 
 class NeuropixelFuncs(unittest.TestCase):

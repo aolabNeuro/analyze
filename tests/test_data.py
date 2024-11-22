@@ -431,13 +431,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.figure()
         visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         filename = 'get_interp_cursor_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         ax = plt.axes(projection='3d')
-        visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
+        visualization.plot_trajectories([hand_interp]) #, [-10, 10, -10, 10, -10, 10])
         filename = 'get_interp_hand_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         time = np.arange(len(targets_interp))/100
@@ -446,7 +446,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlabel('time (s)')
         plt.ylabel('x position (cm)')
         filename = 'get_interp_targets_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         # Test with tracking task data (rig1)
         exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
@@ -479,7 +479,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_cursor_tracking.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
@@ -489,7 +489,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_user_tracking.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
         
         # Test with tracking task data (tablet rig)
         exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'churro', 375, '2023-10-02')
@@ -520,7 +520,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_cursor_tracking_tablet.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
@@ -530,7 +530,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_user_tracking_tablet.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_get_task_data(self):
 

@@ -19,6 +19,7 @@ else:
 
 from .. import precondition
 from .. import preproc
+from .. import postproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
@@ -642,7 +643,9 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
     # Fetch the relevant BMI3D data
     if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position'][:,[2,1,0]] # 3d hand position (from optitrack coords: z,y,x) on each bmi3d cycle
+        # 3d hand position (from optitrack coords: z,y,x) on each bmi3d cycle
+        data_cycles = postproc.get_bmi3d_mc_input(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                  exp_metadata['offset'], exp_metadata['scale'])
     elif datatype == 'cursor':
         data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
     elif datatype == 'user':
