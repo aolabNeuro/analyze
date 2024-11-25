@@ -16,8 +16,6 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install OpenGL
-        uses: openrndr/setup-opengl@v1.1
       - name: Set up FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v1
         with:
@@ -27,6 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov torch
           pip install -e .
+          pip install PyOpenGL==3.1.1a1
       - name: Test with pytest
         run: |
           pytest --junitxml=junit/test-results.xml --cov=aopy --cov-report=xml --cov-report=html
