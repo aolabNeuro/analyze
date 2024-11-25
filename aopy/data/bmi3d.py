@@ -645,7 +645,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
     if datatype == 'hand':
         # 3d hand position (from optitrack coords: z,y,x) on each bmi3d cycle
         data_cycles = postproc.get_bmi3d_mc_input(exp_data['clean_hand_position'], exp_metadata['rotation'], 
-                                                  exp_metadata['offset'], exp_metadata['scale'])
+                                                  exp_metadata['offset'], np.sign(exp_metadata['scale']))
     elif datatype == 'cursor':
         data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
     elif datatype == 'user':
