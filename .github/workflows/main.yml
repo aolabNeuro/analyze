@@ -16,6 +16,8 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install OpenGL
+      - uses: openrndr/setup-opengl@v1.1
       - name: Set up FFmpeg
         uses: FedericoCarboni/setup-ffmpeg@v1
         with:
