@@ -581,13 +581,13 @@ class KinematicsPlottingTests(unittest.TestCase):
         plt.close()
 
         # Hand data plotted in 3d
-        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='manual_input')
         plt.figure()
         ax = plt.axes(projection='3d')
-        gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
+        gradient_trajectories(traj[:3], bounds=[-10,10,-10,10,-10,0], ax=ax)
 
         filename = 'gradient_trajectories_3d.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
         plt.close()
         
     def test_get_color_gradient_RGB(self):
