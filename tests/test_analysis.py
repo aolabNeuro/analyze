@@ -1072,12 +1072,26 @@ class ConnectivityTests(unittest.TestCase):
         fn = lambda: aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(0) # no such stim site
         self.assertRaises(ValueError, fn)
 
-        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(1, dist_thr=0) # no sites within small dist
+        chs, idx = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(1, dist_thr=0, return_idx=True) # no sites within small dist
         self.assertEqual(chs.size, 0)
+        self.assertEqual(idx.size, 0)
 
         # Test known channels near stimulation site 14
         chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14)
         np.testing.assert_allclose(chs, [57, 69, 70, 84])
+
+        # Test with distance range
+        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14, dist_thr=[0., 1.])
+        np.testing.assert_allclose(chs, [57, 69, 70, 84])
+
+        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14, dist_thr=[1., 2.])
+        self.assertTrue(set([57, 69, 70, 84]).isdisjoint(set(chs)))
+
+        # Test that return_idx yields the correct indices
+        chs, idx = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14, return_idx=True)
+        np.testing.assert_allclose(chs, [57, 69, 70, 84])
+        np.testing.assert_allclose(idx, [52, 63, 64, 77])
+
 
     def test_calc_connectivity_coh(self):
         np.random.seed(0)

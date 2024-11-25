@@ -27,6 +27,7 @@ def get_acq_ch_near_stimulation_site(stim_site, stim_layout='Opto32', electrode_
         dist_thr (float or tuple (min, max), optional): threshold for distance from stimulation site (in 
             the same units as the electrode layout, typically mm). If a tuple, the distance must be greater 
             than or equal to min and less than max. Default is 1.
+        return_idx (bool, optional): if True, return the channel indices as well. Default is False.
 
     Returns:
         acq_ch: np.ndarray, acquisition channels near stimulation site
@@ -36,16 +37,18 @@ def get_acq_ch_near_stimulation_site(stim_site, stim_layout='Opto32', electrode_
     stim_pos, stim_ch, _ = aodata.load_chmap(stim_layout)
     stim_site_pos = stim_pos[stim_ch == stim_site]
     if stim_site_pos.size == 0:
-        raise ValueError(f"Stimulation site {stim_site} not found in layout {stim_layout}")
+        raise ValueError(f"stim_site site {stim_site} not found in layout {stim_layout}")
     
     dist = np.linalg.norm(elec_pos - stim_site_pos, axis=1)
-    try:
+    if np.size(dist_thr) == 2:
         idx = (dist < dist_thr[1]) & (dist >= dist_thr[0])
-    except TypeError:
+    elif np.size(dist_thr) == 1:
         idx = dist < dist_thr
+    else:
+        raise ValueError("dist_thr must be a float or tuple (min, max) of floats")
 
     if return_idx:
-        return acq_ch[idx], idx
+        return acq_ch[idx], np.where(idx)[0]
     else:
         return acq_ch[idx]
 
@@ -145,6 +148,12 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
             (0 <= coh <= 1) between the pairs at each channel
         | **angle_all (n_freq, nt, nch):** phase difference (in radians) between the pairs
             at each channel
+
+    Note:
+        This is not the most efficient way to compute pairwise coherence since we end up repeating
+        the same calculations for each channel multiple times. Maybe a future enhancement. See the
+        implementation in the package `spectral_connectivity` for a more time-efficient (but memory-
+        inefficient) algorithm.
 
     Examples:
     
