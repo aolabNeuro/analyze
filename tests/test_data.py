@@ -419,7 +419,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
         cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=100)
         targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 3)
@@ -458,7 +458,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
         dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps'])
 
         self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(ref_interp.shape[1], 3)
@@ -501,7 +501,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
         dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
 
         self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(ref_interp.shape[1], 3)
@@ -622,7 +622,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.close()
 
         # Plot hand trajectories - expect same 9 trials but hand kinematics.
-        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand')
+        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='manual_input')
         self.assertEqual(len(hand_trajs), 9)
         self.assertEqual(hand_trajs[1].shape[1], 3)
         plt.figure()
