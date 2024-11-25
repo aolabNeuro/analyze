@@ -10,7 +10,7 @@ import datetime
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
-docs_dir = os.path.join(test_dir, 'docs')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -285,20 +285,49 @@ class TestEyeFuncs(unittest.TestCase):
 class TestMappingFuncs(unittest.TestCase):
 
     def test_get_bmi3d_mc_input(self):
+        # Test with fabricated data
+        coords = np.array([[0,0,0],[0,1,1],[0,2,2],[0,3,3],[0,4,4]])
+        offset = np.array([2,2,2])
+        original = coords - offset
+        rotation = 'yzx'
+        input = get_bmi3d_mc_input(original, rotation, offset)
+
+        expected = np.array([[0,0,0],[1,1,0],[2,2,0],[3,3,0],[4,4,0]])
+        np.testing.assert_allclose(input, expected)
+
+        # Test on some real optitrack data
         subject = 'beignet'
-        id = 8695
-        date = datetime.date(2023, 3, 10)
+        id = 5974
+        date = datetime.date(2022, 7, 1)
         exp_data, exp_metadata = aopy.data.load_preproc_exp_data(data_dir, subject, id, date)
 
-        input = get_bmi3d_mc_input(exp_data['clean_hand_position'], exp_metadata['rotation'], exp_metadata['offset'])
+        self.assertEqual(exp_metadata['rotation'], 'yzx') # optitrack
+        np.testing.assert_allclose(exp_metadata['offset'], [0,-70,-36]) # rig 1 right arm offset
+
+        original = exp_data['task']['manual_input']
+        input = get_bmi3d_mc_input(original, exp_metadata['rotation'], exp_metadata['offset'])
+        
+        go_cue = 32
+        trial_end = 239
+        print(exp_data['bmi3d_events']['code'], exp_data['bmi3d_events']['time'])
+        segments, times = aopy.preproc.get_trial_segments(exp_data['bmi3d_events']['code'], exp_data['bmi3d_events']['time'], 
+                                                  [go_cue], [trial_end])
+        segments_original = aopy.preproc.get_data_segments(original, times, 1)
+        segments_input = aopy.preproc.get_data_segments(input, times, 1)
 
         plt.figure()
-        plt.subplot(1,2,1, projection='3d')
-        aopy.visualization.plot_trajectories(exp_data['clean_hand_position'], title='Original')
+        plt.subplot(2,2,1)
+        aopy.visualization.plot_trajectories(segments_original)
+        plt.title('Original')
+        plt.subplot(2,2,2)
+        aopy.visualization.plot_trajectories(segments_input, bounds=[-10,10,-10,10])
+        plt.title('Transformed')
+        plt.subplot(2,2,3, projection='3d')
+        aopy.visualization.plot_trajectories(segments_original)
+        plt.subplot(2,2,4, projection='3d')
+        aopy.visualization.plot_trajectories(segments_input, bounds=[-10,10,-10,10,-10,10])
 
-        plt.subplot(1,2,2, projection='3d')
-        aopy.visualization.plot_trajectories(input, title='Transformed')
-
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         filename = 'test_get_bmi3d_mc_input.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
@@ -306,11 +335,24 @@ class TestMappingFuncs(unittest.TestCase):
 
     def test_get_bmi3d_mc_mapping(self):
 
-        get_bmi3d_mc_mapping()
+        # Test with fabricated data
+        coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
+        M = get_bmi3d_mc_mapping('about_x_90')
+        mapped = np.dot(coords, M)
+        expected = np.array([[0,0,0],[1,0,1],[2,0,1],[3,0,4],[5,0,4]])
+        np.testing.assert_allclose(mapped, expected)
 
-    def get_bmi3d_mc_incremental_mappings(self):
+    def test_get_bmi3d_mc_incremental_mappings(self):
 
-        get_bmi3d_mc_incremental_mappings()
+        # Test with fabricated data
+        coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
+        mappings = get_bmi3d_mc_incremental_mappings(0, 90, 90, 'x')
+        self.assertEqual(len(mappings), 2)
+        mapped_0 = np.dot(coords, mappings[0])
+        np.testing.assert_allclose(mapped_0, coords) # should be unchanged
+        mapped_1 = np.dot(coords, mappings[1])
+        expected = np.array([[0,0,0],[1,0,1],[2,0,1],[3,0,4],[5,0,4]])
+        np.testing.assert_allclose(np.round(mapped_1, 5), expected)
 
 
 class NeuropixelFuncs(unittest.TestCase):
