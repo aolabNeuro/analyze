@@ -1323,7 +1323,7 @@ class SignalPathTests(unittest.TestCase):
             aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_recoring_drives(neuropixel_drive, drive2, subject, drive2_offset=drive2_offset)
             [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
             [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=-drive2_offset, ax=ax[iax])
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=drive2_offset, ax=ax[iax])
             ax[iax].set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
         visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png')
 
@@ -1334,7 +1334,7 @@ class SignalPathTests(unittest.TestCase):
             aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_recoring_drives(neuropixel_drive, drive2, subject, drive2_offset=drive2_offset)
             [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
             [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=-drive2_offset, ax=ax[iax])
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=drive2_offset, ax=ax[iax])
             ax[iax].set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
         visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png')
 
@@ -1346,7 +1346,7 @@ class SignalPathTests(unittest.TestCase):
             fig, ax = plt.subplots(1,1)
             [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
             [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=-drive2_offset)
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=drive2_offset)
             ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
             visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
 
@@ -1355,7 +1355,7 @@ class SignalPathTests(unittest.TestCase):
             fig, ax = plt.subplots(1,1)
             [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
             [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=-drive2_offset)
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, offset=drive2_offset)
             ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
             visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
 
@@ -1368,7 +1368,7 @@ class SignalPathTests(unittest.TestCase):
             [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
             [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
             ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0, offset=-drive2_offset)
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0, offset=drive2_offset)
             ax.set_aspect('equal')
             visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
 
@@ -1377,7 +1377,7 @@ class SignalPathTests(unittest.TestCase):
             fig, ax = plt.subplots(1,1)
             [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
             [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0, offset=-drive2_offset)
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0, offset=drive2_offset)
             ax.set_aspect('equal')
             ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
             visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')

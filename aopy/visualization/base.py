@@ -2076,6 +2076,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, offset=(0,0), co
         filepath (str): path to the image file
         drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
         theta (int, optional): rotation of the image in degrees. Default is 0.
+        offset (tuple, list, or array): Define how much to translate the image with an X and Y coordinate. 
         color (str, optional): color to use for the image. Default is None.
         invert (bool, optional): whether to invert the image. Default is False.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
@@ -2097,8 +2098,8 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, offset=(0,0), co
     
     # Calculate the proper extents
     elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
-    x = elec_pos[:,0] - offset[0]
-    y = elec_pos[:,1] - offset[1]
+    x = elec_pos[:,0] + offset[0]
+    y = elec_pos[:,1] + offset[1]
     extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
     x_spacing = (extent[1] - extent[0]) / (len(x) - 1)
     y_spacing = (extent[3] - extent[2]) / (len(y) - 1)
