@@ -2066,7 +2066,7 @@ def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area
 
     return n, bins, patches
 
-def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, invert=False, ax=None, **kwargs):
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, offset=(0,0), color=None, invert=False, ax=None, **kwargs):
     '''
     Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
     placed at the same coordinates as electrode positions for the given electrode drive. The image
@@ -2097,8 +2097,8 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
     
     # Calculate the proper extents
     elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
-    x = elec_pos[:,0]
-    y = elec_pos[:,1]
+    x = elec_pos[:,0] - offset[0]
+    y = elec_pos[:,1] - offset[1]
     extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
     x_spacing = (extent[1] - extent[0]) / (len(x) - 1)
     y_spacing = (extent[3] - extent[2]) / (len(y) - 1)
