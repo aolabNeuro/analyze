@@ -384,29 +384,6 @@ def get_calibrated_eye_data(eye_data, coefficients):
     #caliberated_eye_data_segments = np.empty((num_time_points, num_dims))
     return eye_data * coefficients[:,0] + coefficients[:,1]
 
-def _correct_hand_traj(bmi3d_task_data):
-    '''
-    This function removes hand position data points when the cursor is simultaneously stationary in all directions.
-    These hand position data points are artifacts. 
-        
-    Args:
-        exp_data (dict): BMI3D task data
-    
-    Returns:
-        hand_position (nt, 3): Corrected hand position
-    '''
-
-    hand_position = bmi3d_task_data['manual_input']
-
-    # Set hand position to np.nan if the cursor position doesn't update. This indicates an optitrack error moved the hand outside the boundary.
-    bad_pt_mask = np.zeros(bmi3d_task_data['cursor'].shape, dtype=bool) 
-    bad_pt_mask[1:,0] = (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,0] & (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,1] & (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,2]
-    bad_pt_mask[1:,1] = (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,0] & (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,1] & (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,2]
-    bad_pt_mask[1:,2] = (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,0] & (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,1] & (np.diff(bmi3d_task_data['cursor'], axis=0)==0)[:,2]
-    hand_position[bad_pt_mask] = np.nan
-
-    return hand_position
-
 def get_bmi3d_mc_input(manual_input, rotation, offset, scale=1):
     '''
     Transforms manual input to centered world coordinates for BMI3D tasks. For example, for 
