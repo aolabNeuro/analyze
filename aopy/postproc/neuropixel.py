@@ -8,7 +8,7 @@ def calc_presence_ratio(data, min_trial_prop=0.9, return_details=False):
     Find which units are active on a high proportion of trials.
     
     Args:
-        data (ntime, ntrials, nunit): trial aligned binned spikes
+        data (ntime, nunit, ntrials): trial aligned binned spikes
         min_trial_prop (float): proportion of trials a unit must have a spike on 
         
     Returns:
@@ -16,9 +16,9 @@ def calc_presence_ratio(data, min_trial_prop=0.9, return_details=False):
         present_units (nunit): Binary mask if a unit is present or not
         presence_details (ntrials, nunit): Optional if 'return_details=True' Identifies which trials each unit is active on 
     '''        
-    _, ntrials, _ = data.shape
+    _, _, ntrials = data.shape
     
-    present_trials = np.sum(np.max(data>0, axis=0), axis=0) # Number of trials with a spike for each unit
+    present_trials = np.sum(np.max(data>0, axis=0), axis=1) # Number of trials with a spike for each unit
     
     presence_ratio = (present_trials/ntrials)
     if return_details:
@@ -69,7 +69,7 @@ def get_units_without_refractory_violations(spike_times, ref_perc_thresh=1, min_
     
     return good_unit_labels, ref_violations*100
 
-def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh=50, start_time=0, end_time=None):
+def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh=50, start_time=0, end_time=None, include_bad_unit_wfs=False):
     '''
     Identifies which units pass the waveform amplitude threshold.
     Calculates peak to peak amplitude for each unit across all channels the unit is recorded on, 
@@ -84,12 +84,13 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
         amp_thresh (float, optional): The amplitude threshold (in microvolts) used to filter out units with low peak-to-peak amplitudes. Defaults to 50.
         start_time (float, optional): Start time (in seconds) for the time window to consider spikes (default is 0).
         end_time (float, optional): End time (in seconds) for the time window to consider spikes (default is None, meaning all spikes after `start_time` are considered).
+        include_bad_unit_wfs (bool, optional): If the waveforms of bad units should be included in the output array/
 
     Returns:
         tuple: A tuple containing:
             - good_unit_labels (ngoodunit long list of str): List of unit labels for units with a peak-to-peak amplitude greater than the specified threshold.
             - amplitudes (ngoodunit): Computed amplitude of each unit.
-            - mean_wfs (ntime, ngoodunit): The mean waveform taken from the channel with the highest peak-to-peak amplitude for each unit that passes the amplitude threshold.
+            - mean_wfs (ntime, ngoodunit or nunit): The mean waveform taken from the channel with the highest peak-to-peak amplitude for each unit that passes the amplitude threshold.
     '''
     filename_mc = data.get_preprocessed_filename(subject, te_id, date, 'spike')
     spike_times = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
@@ -120,13 +121,15 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
         
         relevant_wfs = waveforms[str(unit_lbl)][relevant_spike_mask,:,:]
         cent_wfs = relevant_wfs - np.mean(relevant_wfs, axis=1)[:,None,:] # Center each spike on each channel
-        mean_wf = np.mean(cent_wfs, axis=0)*microvoltsperbit[0] # Mean across all spikes for each channel. becomes (ntime, nch) array
+        mean_wf = np.nanmean(cent_wfs, axis=0)*microvoltsperbit[0] # Mean across all spikes for each channel. becomes (ntime, nch) array
         
         p2p = np.abs(np.max(mean_wf, axis=0) - np.min(mean_wf, axis=0)) # Peak to peak amplitude for each channel
         
         if np.max(p2p) > amp_thresh:
             good_unit_labels.append(unit_lbl)
             amplitudes.append(np.max(p2p))
+            mean_wfs.append(mean_wf[:,np.argmax(p2p)])
+        elif include_bad_unit_wfs:
             mean_wfs.append(mean_wf[:,np.argmax(p2p)])
             
     return good_unit_labels, np.array(amplitudes), np.array(mean_wfs).T
