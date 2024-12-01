@@ -839,19 +839,23 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
     return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, 
                        rotation_offset=rotation_offset, **kwargs)
 
-def align_recoring_drives(neuropixel_drive, drive2, subject, neuropixel_drive_offset=(0,0), drive2_offset=(0,0)):
+def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, neuropixel_drive_offset='center', drive2_offset='center'):
     '''
     This function aligns one drive to another drive type. In the current iteration, this function only supports aligning neuropixels drives ('NP_Insert72'/'NP_Insert137'') 
-    to each other or to 'ECoG244'/'Opto32' drives. This function is not currently compatible with selecting subsets of channels. 
+    to each other or to 'ECoG244'/'Opto32' drives. This function assumes a fixed mapping between subject and alignment is not currently compatible with selecting subsets of channels. 
+    The mapping between subject and alignment is defined in aopy/config/neuropixel_insert_ch_mapping/NP_insert_angle_alignment.xlsx.
+    The following images depict the alignment between neuropixels insert grid hole locations and ECoG channel location for two subjects.
 
     .. image:: _images/NP_Insert137_ECoG244_alignment.png
+    
+    .. image:: _images/NP_Insert72_ECoG244_alignment.png
 
     Args:
         neuropixel_drive (str): Neuropixel drive to align. Currently supports 'NP_Insert72', and 'NP_Insert137'
         drive2 (str): Other drive to align. Currently supports 'ECoG244', 'Opto32', 'NP_Insert72', and 'NP_Insert137'
         subject (str): Subject recordings were performed on. Currently supports 'Affi' and 'Beignet'
-        neuropixel_drive_offset (tuple, list, or array): Define how much to translate the neuropixel drive with an X and Y coordinate. 
-        drive2_offset (tuple, list, or array): Define how much to translate the second drive with an X and Y coordinate. 
+        neuropixel_drive_offset (str, tuple, list, or array): Default automatically centers drive at (0,0). Otherwise define how much to translate the neuropixel drive with an X and Y coordinate. 
+        drive2_offset (str, tuple, list, or array): Default automatically centers drive at (0,0). Otherwise define how much to translate the second drive with an X and Y coordinate. 
 
     Returns:
         tuple: Tuple Containing:
@@ -886,6 +890,19 @@ def align_recoring_drives(neuropixel_drive, drive2, subject, neuropixel_drive_of
     # Load ch map for neuropixel drive and drive 2
     np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive, theta=-np.rad2deg(angle))    
     drive2_ch_pos, acq_elecs , _ = load_chmap(drive_type=drive2)
+
+    # Center offset if necessary
+    if isinstance(neuropixel_drive_offset, str):
+        if neuropixel_drive_offset == 'center':
+            neuropixel_drive_offset = -(np.max(np_drive_ch_pos, axis=0) + np.min(np_drive_ch_pos, axis=0))/2
+        else:
+            print('Invalid string entered for neuropixel_drive_offset')
+
+    if isinstance(drive2_offset, str):
+        if drive2_offset == 'center':
+            drive2_offset = -(np.max(drive2_ch_pos, axis=0) + np.min(drive2_ch_pos, axis=0))/2
+        else:
+            print('Invalid string entered for drive2_offset')
 
     return np_drive_ch_pos + neuropixel_drive_offset, drive2_ch_pos + drive2_offset, recording_sites, acq_elecs
 
