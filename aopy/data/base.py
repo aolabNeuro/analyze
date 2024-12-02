@@ -359,6 +359,32 @@ def get_hdf_dictionary(data_dir, hdf_filename, show_tree=False):
         print(hdf_filename)
     return _get_hdf_contents(hdf)
 
+def list_hdf_groups(data_dir, hdf_filename):
+    '''
+    List the name of groups in hdf files.
+
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+    
+    Returns:
+        list: Name of groups
+    '''    
+    
+    filepath = os.path.join(data_dir, hdf_filename)
+    
+    with h5py.File(filepath, 'r') as f:
+        
+        groups = []
+
+        def collect_groups(name, obj):
+            if isinstance(obj, h5py.Group):
+                groups.append(name)
+
+        f.visititems(collect_groups)
+
+    return groups
+
 def _load_hdf_dataset(dataset, name):
     '''
     Internal function for loading hdf datasets. Decodes json and unicode data automatically.

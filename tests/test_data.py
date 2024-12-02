@@ -381,6 +381,12 @@ class HDFTests(unittest.TestCase):
         self.assertIn('group_data', result['group1'])
         print(result)
 
+    def test_list_hdf_groups(self):
+        testfile = 'load_hdf_contents_test.hdf'
+        group_names = list_hdf_groups(write_dir, testfile)
+        print(group_names)
+        self.assertIn('group1', group_names)
+        
     def test_load_hdf_data(self):
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
