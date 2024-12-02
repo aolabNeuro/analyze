@@ -1935,7 +1935,7 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     return pcm
 
 def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_grid=None, 
-                     cmap='viridis', **kwargs):
+                     cmap='viridis', grid_size=(4,4), **kwargs):
     '''
     Plot a grid of different frequency bands and time points for a given time-frequency map across
     spatial locations.
@@ -1949,6 +1949,7 @@ def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_gr
         clim (tuple, optional): color limits for the plot, e.g. (0,1) for tfcoh maps. Default None
         interp_grid (tuple, optional): (x, y) grid to interpolate the data onto. Default None
         cmap (str, optional): colormap to use for plotting. Default 'viridis'
+        grid_size (tuple, optional): (width, height) in inches of each subplot grid. Default (4,4)
         kwargs (dict, optional): other keyword arguments to pass to calc_data_map
     
     Returns:
@@ -1978,7 +1979,8 @@ def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_gr
         
         .. image:: _images/tf_map_grid.png
     '''
-    fig, ax = plt.subplots(len(bands), len(time), figsize=(4*len(time),4*len(bands)), layout='constrained')
+    fig, ax = plt.subplots(len(bands), len(time), figsize=(grid_size[0]*len(time),grid_size[1]*len(bands)), 
+                           layout='constrained')
     for band_idx, band in enumerate(bands):
         for t_idx, t in enumerate(time):
             if ax.ndim == 2:
