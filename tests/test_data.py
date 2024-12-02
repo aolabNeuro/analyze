@@ -381,11 +381,13 @@ class HDFTests(unittest.TestCase):
         self.assertIn('group_data', result['group1'])
         print(result)
 
-    def test_list_hdf_groups(self):
+    def test_list_root_groups(self):
         testfile = 'load_hdf_contents_test.hdf'
-        group_names = list_hdf_groups(write_dir, testfile)
-        print(group_names)
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group2", append=True)
+        group_names = list_root_groups(write_dir, testfile)
         self.assertIn('group1', group_names)
+        self.assertIn('group2', group_names)
         
     def test_load_hdf_data(self):
         testfile = 'load_hdf_test.hdf'

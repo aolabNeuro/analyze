@@ -358,10 +358,10 @@ def get_hdf_dictionary(data_dir, hdf_filename, show_tree=False):
     if show_tree: 
         print(hdf_filename)
     return _get_hdf_contents(hdf)
-
-def list_hdf_groups(data_dir, hdf_filename):
+    
+def list_root_groups(data_dir, hdf_filename):
     '''
-    List the name of groups in hdf files.
+    List the name of groups directly under the root in HDF5 files.
 
     Args:
         data_dir (str): folder where data is located
@@ -369,19 +369,15 @@ def list_hdf_groups(data_dir, hdf_filename):
     
     Returns:
         list: Name of groups
-    '''    
-    
+    '''
+        
     filepath = os.path.join(data_dir, hdf_filename)
     
+    groups = []
     with h5py.File(filepath, 'r') as f:
-        
-        groups = []
-
-        def collect_groups(name, obj):
-            if isinstance(obj, h5py.Group):
+        for name in f.keys():
+            if isinstance(f[name], h5py.Group):
                 groups.append(name)
-
-        f.visititems(collect_groups)
 
     return groups
 
