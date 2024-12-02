@@ -1023,6 +1023,79 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         for i in range(len(ts_seg)):
             self.assertEqual(ts_seg[i].shape, ts_seg_single_file[i].shape)
 
+    def test_get_spike_data_segment(self):
+        # Check basic functionality
+        start_time = 0.1
+        end_time = 0.15
+        bin_width = 0.01
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
+        spike_segments_port2, _ = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 2, bin_width=bin_width)
+        
+        port1_keys = list(spike_segments_port1.keys())
+        port2_keys = list(spike_segments_port2.keys())
+        port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
+        port2_segment_lens = [len(spike_segments_port2[key]) for key in port2_keys]
+        self.assertEqual(port1_segment_lens[0], np.round((end_time-start_time)/bin_width).astype(int)) # Check that the data segment is the expected length
+        self.assertEqual(len(np.unique(port1_segment_lens)), 1) # Check that the data segments for all units are the same length
+        self.assertFalse(len(spike_segments_port1) == len(spike_segments_port2)) # Check that different data (units) is loaded for different ports
+
+        # Check a different bin width
+        bin_width=0.005
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
+        port1_keys = list(spike_segments_port1.keys())
+        port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
+        self.assertEqual(port1_segment_lens[0], np.round((end_time-start_time)/bin_width).astype(int)) # Check that the data segment is the expected length
+        self.assertEqual(len(np.unique(port1_segment_lens)), 1) # Check that the data segments for all units are the same length
+
+        # Check unbinned spike segments
+        end_time=1
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=None)
+        spike_times = spike_segments_port1['24']
+        self.assertTrue(np.logical_and(spike_times>=start_time, spike_times<=end_time).all()) # Check that all times are between the start and end
+        self.assertEqual(np.sum(np.diff(spike_times)>0), len(spike_times)-1) # Check that spike times are monotonic.
+
+    def test_get_spike_data_aligned(self):
+        time_before = 0.1
+        time_after = 0.4
+        bin_width = 0.01
+        flash_df = bmi3d.tabulate_behavior_data_flash(data_dir, ['affi'], [18378], [datetime.date(2024, 9, 23)])
+        trigger_times = np.array(flash_df['flash_start_time'])
+        spike_aligned, unit_labels, bins = get_spike_data_aligned(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before, time_after, 1, bin_width=bin_width)
+
+        self.assertEqual(spike_aligned.shape[1], len(unit_labels))  # Assert that the correct number of units are in the aligned data. Plot will check other axis.
+
+        # Plot for example figure 
+        spike_aligned1, unit_labels, bins1 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.01 )
+        spike_aligned2, unit_labels, bins2 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.001 )
+        iunit = 24
+        fig, ax = plt.subplots(1,2, figsize=(10,4))
+        ax[0].pcolor(bins1, np.arange(len(trigger_times)), spike_aligned1[:,iunit,:].T, cmap='Grays') #24
+        ax[1].pcolor(bins2, np.arange(len(trigger_times)), spike_aligned2[:,iunit,:].T, cmap='Grays') #24
+
+
+        ax[0].set(title=f"Unit label: {unit_labels[iunit]} - Bin width: 10ms", xlabel='Time [s]', ylabel='Trial')
+        ax[1].set(title=f"Unit label: {unit_labels[iunit]} - Bin width: 100ms", xlabel='Time [s]', ylabel='Trial')
+        ax[0].set_xticks(bins1[::10], np.round(bins1[::10],2))
+        ax[1].set_xticks(bins2[::100], np.round(bins2[::100],2))
+        fig.tight_layout()
+    
+        filename = 'spike_align_example.png'
+        visualization.savefig(docs_dir, filename)
+   
+    def test_tabulate_spike_data_segments(self):
+        subjects = ['affi', 'affi']
+        te_ids = [18378, 18378]
+        dates = [datetime.date(2024, 9, 23), datetime.date(2024, 9, 23)]
+        drives = [1,2]
+        start_times = [.1,.1]
+        end_times = [.15,.15]
+        bin_width = 0.01
+        segments, bins = tabulate_spike_data_segments(data_dir, subjects, te_ids, dates, start_times, end_times, drives, bin_width)
+
+        self.assertEqual(len(segments), len(subjects))
+        self.assertEqual(len(segments[0]['0']), 5)
+        self.assertEqual(len(segments[1]['0']), 5)
+
     def test_tabulate_behavior_data_flash(self):
         files = {}
         files['hdf'] = 'test20220311_07_te4298.hdf'

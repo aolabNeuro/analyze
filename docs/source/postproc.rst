@@ -20,3 +20,9 @@ Eye
 
 .. automodule:: aopy.postproc.eye
     :members:
+
+Neuropixel
+^^^^^^^^^^
+
+.. automodule:: aopy.postproc.neuropixel
+    :members:

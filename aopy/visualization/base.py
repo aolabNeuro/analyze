@@ -772,6 +772,50 @@ def plot_raster(data, cue_bin=None, ax=None):
     if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
+def plot_angles(angles, magnitudes=None, ax=None, **kwargs):
+    '''
+    Polar plot of angles and optional magnitudes. Useful for plotting ITPC or other phase data.
+
+    Args:
+        angles (nt): array of angles in radians
+        magnitudes (nt, optional): array of magnitudes to plot as line lengths
+        ax (plt.Axis, optional): axis to plot the targets on (should be a polar plot)
+        **kwargs: additional keyword arguments to pass to plt.plot
+
+    Examples:
+
+        .. code-block:: python
+
+            angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+            plot_angles(angles)
+
+        .. image:: _images/angles_simple.png
+
+        .. code-block:: python
+
+            angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+            magnitudes = np.arange(len(angles)) + 1
+
+            fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+            plot_angles(angles, magnitudes, ax)
+
+        .. image:: _images/angles_magnitudes.png
+    '''
+    
+    if ax is None and plt.gca().name != 'polar':
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+    elif ax is None:
+        ax = plt.gca()
+        
+    if magnitudes is None:
+        magnitudes = np.ones(len(angles))
+        
+    # Draw the lines
+    for a, m in zip(angles, magnitudes):
+        theta = [0, a]
+        r = [0, m]
+        ax.plot(theta, r, **kwargs)
+
 def set_bounds(bounds, ax=None):
     '''
     Sets the x, y, and z limits according to the given bounds
