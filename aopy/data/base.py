@@ -169,14 +169,15 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
     preproc_dir = os.path.join(preproc_dir, subject)
     
     group_names = list_root_groups(preproc_dir, filename)
-    num_drives = len(group_names)
         
     if drive_number:
         data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/lfp_data', cached=cached)
         metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/lfp_metadata', cached=cached)
     else:
-        if num_drives > 1:
+        if 'drive2' in group_names:
             raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
 
         data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
         metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
@@ -201,14 +202,16 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
     preproc_dir = os.path.join(preproc_dir, subject)
 
     group_names = list_root_groups(preproc_dir, filename)
-    num_drives = len(group_names)
         
     if drive_number:
         data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/ap_data', cached=cached)
         metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/ap_metadata', cached=cached)
     else:
-        if num_drives > 1:
-            raise ValueError('Multiple drives detected. Please set drive_number')      
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+                      
         data = load_hdf_data(preproc_dir, filename, 'ap_data', cached=cached)
         metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', cached=cached)
     return data, metadata
@@ -235,7 +238,7 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1,
     
     return spikes, metadata
 
-def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = None, cached=True):
+def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
     '''
     Loads spike waveforms from a preprocessed file.
 

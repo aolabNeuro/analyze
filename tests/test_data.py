@@ -59,7 +59,10 @@ class LoadPreprocTests(unittest.TestCase):
         lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
-
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
     def test_find_preproc_ids_from_day(self):
         ids = find_preproc_ids_from_day(write_dir, self.subject, self.date, 'exp')
         self.assertIn(self.id, ids)
@@ -79,6 +82,11 @@ class LoadPreprocTests_drive(unittest.TestCase):
         cls.date = '2024-11-12'   
         
     def test_load_preproc_lfp_data(self):
+        try:
+            lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject, self.id, self.date, drive_number=None)
+        except ValueError as e:
+            print(e)
+
         lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject, self.id, self.date, drive_number=1)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
@@ -87,6 +95,11 @@ class LoadPreprocTests_drive(unittest.TestCase):
         self.assertIsInstance(lfp_metadata, dict)
         
     def test_load_preproc_ap_data(self):
+        try:
+            ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject, self.id, self.date, drive_number=None)
+        except ValueError as e:
+            print(e)
+            
         ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject, self.id, self.date, drive_number=1)
         self.assertIsInstance(ap_data, np.ndarray)
         self.assertIsInstance(ap_metadata, dict)
@@ -383,6 +396,8 @@ class HDFTests(unittest.TestCase):
 
     def test_list_root_groups(self):
         testfile = 'load_hdf_contents_test.hdf'
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
         group_data_dict = {'group_data': np.arange(1000)}
         save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group2", append=True)
         group_names = list_root_groups(write_dir, testfile)
