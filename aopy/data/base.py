@@ -152,7 +152,8 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
 
 def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
     '''
-    Loads LFP data from a preprocessed file.
+    Loads LFP data from a preprocessed file. When drive_number is None, load lfp_data and lfp_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -161,9 +162,13 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
 
+    Raises:
+        ValueError: if drives are detected when drive number is None. 
+        
     Returns:
         ndarray: numpy array of lfp data from hdf
         dict: Dictionary of lfp metadata
+        
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
     preproc_dir = os.path.join(preproc_dir, subject)
@@ -185,7 +190,8 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
 
 def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
     '''
-    Loads spike band time series from a preprocessed file.
+    Loads spike band time series from a preprocessed file. When drive_number is None, load lfp_data and lfp_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -194,6 +200,9 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
 
+    Raises:
+        ValueError: if drives are detected when drive number is None.
+        
     Returns:
         ndarray: numpy array of ap data from hdf
         dict: Dictionary of ap metadata
