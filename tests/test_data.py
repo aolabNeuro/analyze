@@ -38,6 +38,10 @@ class LoadPreprocTests(unittest.TestCase):
         cls.id = 3498
         cls.subject = 'fake_subject'
         cls.date = '2021-12-13'
+        
+        cls.id2 = '0000'
+        cls.subject2 = 'test'
+        cls.date2 = '2024-11-12'
         preproc.proc_single(data_dir, files, write_dir, cls.subject, cls.id, cls.date, ['exp', 'eye', 'broadband', 'lfp'], overwrite=True) # without ecube data
 
     def test_load_preproc_exp_data(self):
@@ -73,53 +77,43 @@ class LoadPreprocTests(unittest.TestCase):
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
-
-class LoadPreprocTests_drive(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.id = '0000'
-        cls.subject = 'test'
-        cls.date = '2024-11-12'   
+    
+    # Test for loading functions when data has multiple drive data
+    def test_load_preproc_lfp_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
         
-    def test_load_preproc_lfp_data(self):
-        try:
-            lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject, self.id, self.date, drive_number=None)
-        except ValueError as e:
-            print(e)
-
-        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject, self.id, self.date, drive_number=1)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
-        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject, self.id, self.date, drive_number=2)        
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
         
-    def test_load_preproc_ap_data(self):
-        try:
-            ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject, self.id, self.date, drive_number=None)
-        except ValueError as e:
-            print(e)
+    def test_load_preproc_ap_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
             
-        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject, self.id, self.date, drive_number=1)
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
         self.assertIsInstance(ap_data, np.ndarray)
         self.assertIsInstance(ap_metadata, dict)
-        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject, self.id, self.date, drive_number=2)        
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
         self.assertIsInstance(ap_data, np.ndarray)
         self.assertIsInstance(ap_metadata, dict)
         
-    def test_load_preproc_spike_data(self):
-        spike, metadata = load_preproc_spike_data(data_dir, self.subject, self.id, self.date, drive_number=1)
+    def test_load_preproc_spike_data_multidrive(self):
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
         self.assertIsInstance(spike, dict)
         self.assertIsInstance(metadata, dict)
-        spike, metadata = load_preproc_spike_data(data_dir, self.subject, self.id, self.date, drive_number=2)        
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
         self.assertIsInstance(spike, dict)
         self.assertIsInstance(metadata, dict)
         
-    def test_load_spike_waveforms(self):
-        wfs = load_spike_waveforms(data_dir, self.subject, self.id, self.date, drive_number=1)
+    def test_load_spike_waveforms_multidrive(self):
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
         self.assertIsInstance(wfs, dict)
-        wfs = load_spike_waveforms(data_dir, self.subject, self.id, self.date, drive_number=2)        
-        self.assertIsInstance(wfs, dict)
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(wfs, dict)     
                 
 class OptitrackTests(unittest.TestCase):
         
