@@ -175,26 +175,122 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
     metadata = load_hdf_group(preproc_dir, filename, 'broadband_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_lfp_data(preproc_dir, subject, te_id, date, cached=True):
+def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
     '''
-    Loads LFP data from a preprocessed file.
+    Loads LFP data from a preprocessed file. When drive_number is None, load lfp_data and lfp_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
 
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
 
+    Raises:
+        ValueError: if drives are detected when drive number is None. 
+        
     Returns:
-        dict: lfp data
+        ndarray: numpy array of lfp data from hdf
         dict: Dictionary of lfp metadata
+        
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
     preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
-    metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
+    
+    group_names = list_root_groups(preproc_dir, filename)
+        
+    if drive_number:
+        data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/lfp_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/lfp_metadata', cached=cached)
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+
+        data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
     return data, metadata
 
+def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
+    '''
+    Loads spike band time series from a preprocessed file. When drive_number is None, load lfp_data and lfp_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
+
+    Raises:
+        ValueError: if drives are detected when drive number is None.
+        
+    Returns:
+        ndarray: numpy array of ap data from hdf
+        dict: Dictionary of ap metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'ap')
+    preproc_dir = os.path.join(preproc_dir, subject)
+
+    group_names = list_root_groups(preproc_dir, filename)
+        
+    if drive_number:
+        data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/ap_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/ap_metadata', cached=cached)
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+                      
+        data = load_hdf_data(preproc_dir, filename, 'ap_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', cached=cached)
+    return data, metadata
+
+def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+    '''
+    Loads spike data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
+
+    Returns:
+        dict: spike data
+        dict: Dictionary of spike metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date,'spike')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    spikes =load_hdf_group(preproc_dir, filename, f'drive{drive_number}/spikes', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/metadata', cached=cached)
+    
+    return spikes, metadata
+
+def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+    '''
+    Loads spike waveforms from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
+
+    Returns:
+        dict: spike waveforms
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'spike')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    waveforms = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/waveforms', cached=cached)
+
+    return waveforms
     
 ###############################################################################
 # Loading / saving data
@@ -310,6 +406,28 @@ def get_hdf_dictionary(data_dir, hdf_filename, show_tree=False):
     if show_tree: 
         print(hdf_filename)
     return _get_hdf_contents(hdf)
+    
+def list_root_groups(data_dir, hdf_filename):
+    '''
+    List the name of groups directly under the root in HDF5 files.
+
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+    
+    Returns:
+        list: Name of groups
+    '''
+        
+    filepath = os.path.join(data_dir, hdf_filename)
+    
+    groups = []
+    with h5py.File(filepath, 'r') as f:
+        for name in f.keys():
+            if isinstance(f[name], h5py.Group):
+                groups.append(name)
+
+    return groups
 
 def _load_hdf_dataset(dataset, name):
     '''

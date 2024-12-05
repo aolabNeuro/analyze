@@ -38,6 +38,10 @@ class LoadPreprocTests(unittest.TestCase):
         cls.id = 3498
         cls.subject = 'fake_subject'
         cls.date = '2021-12-13'
+        
+        cls.id2 = '0000'
+        cls.subject2 = 'test'
+        cls.date2 = '2024-11-12'
         preproc.proc_single(data_dir, files, write_dir, cls.subject, cls.id, cls.date, ['exp', 'eye', 'broadband', 'lfp'], overwrite=True) # without ecube data
 
     def test_load_preproc_exp_data(self):
@@ -59,7 +63,10 @@ class LoadPreprocTests(unittest.TestCase):
         lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
-
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
     def test_find_preproc_ids_from_day(self):
         ids = find_preproc_ids_from_day(write_dir, self.subject, self.date, 'exp')
         self.assertIn(self.id, ids)
@@ -70,7 +77,44 @@ class LoadPreprocTests(unittest.TestCase):
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
-
+    
+    # Test for loading functions when data has multiple drive data
+    def test_load_preproc_lfp_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+        
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
+    def test_load_preproc_ap_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+            
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        
+    def test_load_preproc_spike_data_multidrive(self):
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        
+    def test_load_spike_waveforms_multidrive(self):
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(wfs, dict)
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(wfs, dict)     
+                
 class OptitrackTests(unittest.TestCase):
         
     def test_load_mocap(self):
@@ -344,6 +388,16 @@ class HDFTests(unittest.TestCase):
         self.assertIn('group_data', result['group1'])
         print(result)
 
+    def test_list_root_groups(self):
+        testfile = 'load_hdf_contents_test.hdf'
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group2", append=True)
+        group_names = list_root_groups(write_dir, testfile)
+        self.assertIn('group1', group_names)
+        self.assertIn('group2', group_names)
+        
     def test_load_hdf_data(self):
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
