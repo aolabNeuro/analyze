@@ -217,6 +217,27 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plt.tight_layout()
         savefig(docs_dir,filename)
 
+    def test_plot_tf_map_grid(self):
+        np.random.seed(0)
+        
+        nfreq = 100
+        nt = 3
+        nch = 100
+        freqs = np.linspace(1,250,nfreq)
+        time = np.linspace(0, 1, nt)
+        tf_data = np.random.rand(nfreq,nt,nch)
+        tf_data[:,1,:] *= 2 # increase power at time 1
+        tf_data[freqs > 10, :, :] *= 0.5 # decrease power in high frequencies
+        bands = [(1, 10), (10, 250)]
+        x, y = np.meshgrid(np.arange(10), np.arange(10))
+        elec_pos = np.zeros((100,2))
+        elec_pos[:,0] = x.reshape(-1)
+        elec_pos[:,1] = y.reshape(-1)
+        plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=(0,1), interp_grid=None, 
+                     cmap='viridis')
+        filename = 'tf_map_grid.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_plot_corr_over_elec_distance(self):
 
         duration = 0.5
