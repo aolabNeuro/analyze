@@ -1667,7 +1667,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     trial_end_codes = [task_codes['TRIAL_END']]
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
-    penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['PERIPHERAL_TARGET_ON']
 
     # Concatenate base trial data
