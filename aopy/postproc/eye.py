@@ -93,7 +93,7 @@ def get_saccade_event(onset_times, duration, event_times, event_codes):
 
 def get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx):
     '''
-    Finds a relevant saccade index which is for looking at the peripheral target from the center target in a given trial
+    For a given set of saccades, finds the index of the saccade that starts at the center target and ends at the given peripheral target. 
     onset_target and offset_target can be obtained by get_saccade_target_index.
     If there are multiple relevant saccades, choose the saccade whose distance is the largest among other saccades
     If there is no relevant saccades, the saccade index becomes -1
