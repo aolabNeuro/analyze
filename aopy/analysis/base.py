@@ -517,13 +517,12 @@ def calc_rolling_average(data, window_size=11, mode='copy'):
         data_convolved = data_convolved[0]*np.ones(data.shape)
     return data_convolved
 
-def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
+def calc_corr_over_elec_distance(elec_data, elec_pos, bins=20, method='spearman', exclude_zero_dist=True):
     '''
     Calculates mean absolute correlation between acq_data across channels with the same distance between them.
     
     Args:
-        acq_data (nt, nch): acquisition data indexed by acq_ch
-        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
+        elec_data (nt, nelec): electrode data with nch corresponding to elec_pos
         elec_pos (nelec, 2): x, y position of each electrode
         bins (int or array): input into scipy.stats.binned_statistic, can be a number or a set of bins
         method (str, optional): correlation method to use ('pearson' or 'spearman')
@@ -534,23 +533,24 @@ def calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, bins=20, method='sp
             | **dist (nbins):** electrode distance at each bin
             | **corr (nbins):** correlation at each bin
 
+    Updated:
+        2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
     '''
+    assert elec_data.shape[1] == elec_pos.shape[0], "Number of electrodes don't match!"
     dist = utils.calc_euclid_dist_mat(elec_pos)
     if method == 'spearman':
-        c, _ = stats.spearmanr(acq_data, axis=0)
+        c, _ = stats.spearmanr(elec_data, axis=0)
     elif method == 'pearson':
-        c = np.corrcoef(acq_data.T)
+        c = np.corrcoef(elec_data.T)
     else:
         raise ValueError(f"Unknown correlation method {method}")
-    
-    c_ = c[np.ix_(acq_ch-1, acq_ch-1)] # note use of open mesh to get the right logical index
-    
+        
     if exclude_zero_dist:
         zero_dist = dist == 0
         dist = dist[~zero_dist]
-        c_ = c_[~zero_dist]
+        c = c[~zero_dist]
         
-    corr, edges, _ = stats.binned_statistic(dist.flatten(), np.abs(c_.flatten()), statistic='mean', bins=bins)
+    corr, edges, _ = stats.binned_statistic(dist.flatten(), np.abs(c.flatten()), statistic='mean', bins=bins)
     dist = (edges[:-1] + edges[1:]) / 2
 
     return dist, corr
@@ -1589,7 +1589,83 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         return f, t, coh, angle
     else:
         return f, t, coh
+    
+def calc_itpc(analytical_signals):
+    '''
+    Computes inter-trial phase clustering (ITPC) from analytical signals of evoked potentials.
+    ITPC is computed as the magnitude of the mean of the complex signal across trials at each timepoint
+    (think vector average). This captures the similarity of phases across trials. ITPC ranges from 0 to 1, 
+    where 0 indicates uniformly random phases and 1 indicates perfect phase alignment.
 
+    From Cohen, M. X. (2014). Analyzing neural time series data: theory and practice. MIT press.
+
+    .. math:: 
+
+        ITPC = \\frac{1}{N} |\\sum_{k=1}^{N} e^{i\\theta_k}|
+
+    Args:
+        analytical_signals (nt, nch, ntr): analytical signal of the evoked potential (np.complex128)
+
+    Returns:
+        (nt, nch): itpc values for each channel (ranges from 0 to 1)
+
+    Examples:
+
+        Generate two channels of data with different phase distributions across trials
+
+        .. code-block:: python
+
+            fs = 1000
+            nt = fs * 2
+            ntr = 100
+            t = np.arange(nt)/fs
+            data = np.zeros((t.shape[0],2,ntr)) # 2 channels
+
+            # 10 Hz sine with gaussian phase distribution across trials
+            for tr in range(ntr):
+                data[:,0,tr] = np.sin(2*np.pi*10*t + np.random.normal(np.pi/4, np.pi/8)) 
+
+            # 10 Hz sine with uniform random phase distribution across trials
+            for tr in range(ntr):
+                data[:,1,tr] = np.sin(2*np.pi*10*t + np.random.uniform(-np.pi, np.pi)) 
+
+        Calculate an analytical signal using hilbert transform, then apply ITPC
+        
+        .. code-block:: python
+        
+            im_data = signal.hilbert(data, axis=0)
+            itpc = aopy.analysis.calc_itpc(im_data)
+
+            plt.figure()
+
+            # Plot the data
+            plt.subplot(3,1,1)
+            aopy.visualization.plot_timeseries(np.mean(data, axis=2), fs)
+            plt.legend(['Channel 1', 'Channel 2'])
+            plt.ylabel('amplitude (a.u.)')
+            plt.title('Trial averaged data')
+
+            # Plot the angles at the first timepoint
+            angles = np.angle(im_data[0])
+            plt.subplot(3,2,3, projection= 'polar')
+            aopy.visualization.plot_angles(angles[0,:], color='tab:blue', alpha=0.5, linewidth=0.75)
+            plt.subplot(3,2,4, projection= 'polar')
+            aopy.visualization.plot_angles(angles[1,:], color='tab:orange', alpha=0.5, linewidth=0.75)
+
+            # Plot ITPC
+            plt.subplot(3,1,3)
+            aopy.visualization.plot_timeseries(itpc, fs)
+            plt.ylabel('ITPC')
+            plt.title('ITPC')
+
+        .. image:: _images/itpc.png
+    '''
+    return np.abs(np.mean(analytical_signals/np.abs(analytical_signals), axis=2))
+
+
+'''
+Statistics
+'''
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''
     This function creates a map showning the local correlation between two input datamaps. If specified, it also aligns the input
@@ -1667,3 +1743,71 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     NCC[nan_idx1] = np.nan
     
     return NCC, shifts
+
+def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
+    '''
+    Compute a confidence interval from samples, not the mean of samples
+    If you want to compute it for the mean of samples, use scipy.stats.t.interval.
+    
+    Args:
+        sample (nsamples): data samples
+        hist_bins (int or sequence of scalars): the number of bins or array of bin edges
+        alpha (float): significance level to define a confidece interval. Defaults to 0.025
+        ax (pyplot.Axes, optional): axis on which to plot data histogram and confidence interval. Defaults to None.
+        kwargs (dict): additional keyword arguments to pass to ax.hist()
+        
+    Returns:
+        (list): lower and upper bounds in the confidence interval
+    '''
+    
+    # Compute cdf from histogram in samples
+    count, bin_edges = np.histogram(sample, bins=hist_bins)
+    bin_edges = bin_edges[1:] - (bin_edges[1] - bin_edges[0])/2 # Use center of bins
+    pdf = count / sum(count)
+    cdf = np.cumsum(pdf)
+    
+    # Compute lower and upper bound
+    lower_bound = bin_edges[np.where(cdf>alpha)[0][0]]
+    upper_bound = bin_edges[np.where(cdf<1-alpha)[0][-1]]
+    
+    # Plot histogram and confidence interval
+    if ax is not None:
+        ax.hist(sample,**kwarg)
+        ax.axvline(lower_bound, color='r', linestyle='--')
+        ax.axvline(upper_bound, color='r', linestyle='--')
+        ax.set(ylabel='# count')
+        
+        ax2 = ax.twinx()
+        ax2.plot(bin_edges, cdf, 'k')
+        ax2.set(ylabel='cdf')
+        
+    return [lower_bound, upper_bound]
+
+def calc_confidence_interval_overlap(CI1, CI2):
+    '''
+    Calculate the overlap between two confidence intervals.
+
+    Parameters:
+        CI1 (tuple or list): Tuple containing the lower and upper bounds of the first confidence interval.
+        CI2 (tuple or list): Tuple containing the lower and upper bounds of the second confidence interval.
+
+    Returns:
+        (float): Overlap ratio (0 to 1) between the two confidence intervals.
+    '''
+    
+    lower1, upper1 = CI1
+    lower2, upper2 = CI2
+    
+    # Calculate overlap
+    overlap_lower = max(lower1, lower2)
+    overlap_upper = min(upper1, upper2)
+    overlap_width = max(0, overlap_upper - overlap_lower)
+
+    # Calculate widths of the intervals
+    width1 = upper1 - lower1
+    width2 = upper2 - lower2
+    
+    # Calculate overlap ratio
+    overlap = (overlap_width / min(width1, width2))
+    
+    return overlap

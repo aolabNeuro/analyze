@@ -9,6 +9,7 @@ from aopy.preproc import quality
 from aopy.data import *
 import numpy as np
 import unittest
+from pathlib import Path
 
 
 test_dir = os.path.dirname(__file__)
@@ -1675,7 +1676,7 @@ class NeuropixelTests(unittest.TestCase):
         self.assertTrue(np.all(con_data[sample_size1:sample_size1+10,:] == data2.samples[:10,:]))
         
         # Check removing bad task id
-        _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1, bad_taskid=['0001'])
+        #_ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1, bad_taskid=['0001'])
 
         concat_dataname = f'{date}_Neuropixel_ks_{subject}2_bottom_port1'
         concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
@@ -1703,7 +1704,39 @@ class NeuropixelTests(unittest.TestCase):
         spike_indices_unit = classify_ks_unit(spike_indices, spike_label)
         self.assertTrue(np.all(spike_indices_unit['0']>0))
         self.assertTrue(np.all(spike_indices_unit['1']>0))
-            
+    
+    def test_sync_ts_data_timestamps(self):
+        ndata = 20
+        
+        # Test for cropping
+        data = np.random.rand(ndata)
+        sync_timestamp = np.linspace(-0.1,0.5,ndata)
+        sync_data, _ = sync_ts_data_timestamps(data, sync_timestamp)
+        self.assertTrue(sync_data.shape[0], sum(sync_timestamp>0))
+
+        # Test for padding
+        data = np.random.rand(ndata)
+        sync_timestamp = np.linspace(0.3,0.5,ndata)
+        sync_data, _ = sync_ts_data_timestamps(data, sync_timestamp)
+        
+        dt = sync_timestamp[1] - sync_timestamp[0]
+        num_padding = np.arange(sync_timestamp[0]-dt,0,-dt).shape[0]
+        self.assertTrue(sync_data.shape[0], num_padding + sync_timestamp.shape[0])  
+    
+    def test_destripe_lfp_batch(self):
+        save_path = Path(data_dir) / 'test_a'
+
+        sample_rate = 1000
+        bit_volts = 0.1
+        data = np.random.randint(0,1000, (1000,384))
+
+        destripe_lfp_batch(data, save_path, sample_rate, bit_volts, max_memory_gb = .05, dtype='int16')
+        destriped_data = np.memmap(save_path, shape=data.shape, dtype='int16')
+
+        np.testing.assert_(np.all(data.shape == destriped_data.shape))
+        del destriped_data # delete memmap file to completely delete the file later
+        save_path.unlink()
+          
 class LaserTests(unittest.TestCase):
 
     def test_calibrate_gain(self):

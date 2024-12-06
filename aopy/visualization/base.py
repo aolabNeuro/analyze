@@ -1,15 +1,17 @@
 # visualization.py
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
 import string
-from typing import Tuple, Union
 import warnings
 import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib import colors
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
 
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
@@ -24,10 +26,17 @@ import pandas as pd
 from tqdm import tqdm
 import pandas as pd
 from datetime import timedelta
+import sys
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
 
+from .. import precondition
 from .. import analysis
-from ..data import load_chmap
+from .. import data as aodata
 from .. import utils
+from .. import preproc
 
 def plot_mean_fr_per_target_direction(means_d, neuron_id, ax, color, this_alpha, this_label):
     '''
@@ -184,7 +193,7 @@ def place_subplots(fig, positions, width, height, **kwargs):
         ax.append(fig.add_axes([left, bottom, width, height], **kwargs))
     return ax
 
-def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kwargs):
+def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), theta=0, **kwargs):
     '''
     Wrapper around place_subplots() for the Opto32 stimulation sites.
 
@@ -192,6 +201,7 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kw
         fig_size (float): width and height (in inches) of the figure
         subplot_size (float): width and height (in inches) of each subplot
         offset (tuple): x and y offset (in inches) from the bottom left corner of the figure
+        theta (float): rotation (in degrees) to apply to positions.
         kwargs (dict, optional): other keyword arguments to pass to fig.add_axes
 
     Returns:
@@ -203,7 +213,7 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), **kw
 
         .. image:: _images/place_Opto32_subplots.png
     '''
-    stim_pos, _, _ = load_chmap('Opto32')
+    stim_pos, _, _ = aodata.load_chmap('Opto32', theta=theta)
 
     # Normalize the positions to the width and height of the figure
     stim_pos = (stim_pos - np.mean(stim_pos, axis=0)) / (np.max(stim_pos) - np.min(stim_pos)) * fig_size + fig_size/2
@@ -359,6 +369,8 @@ def get_data_map(data, x_pos, y_pos):
         (m,n array): map of the data on the grid defined by x_pos and y_pos
     '''
     data = np.reshape(data, -1)
+    x_pos = np.round(x_pos, 9) # avoid floating point errors
+    y_pos = np.round(y_pos, 9)
 
     X = np.unique(x_pos)
     Y = np.unique(y_pos)
@@ -376,7 +388,7 @@ def get_data_map(data, x_pos, y_pos):
     return data_map
 
 
-def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', threshold_dist=None):
+def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', threshold_dist=None, extent=None):
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
@@ -404,6 +416,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
         grid_size (tuple): number of points along each axis
         interp_method (str): method used for interpolation
         threshold_dist (float): distance to neighbors before disregarding a point on the image
+        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
+            which will use the min and max of the x and y positions.
 
     Returns:
         tuple: tuple containing:
@@ -411,7 +425,8 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
             | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
-    extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
+    if extent is None:
+        extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
@@ -503,7 +518,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
         extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
 
     # Set the 'bad' color to something different
-    cmap = copy.copy(matplotlib.cm.get_cmap(cmap))
+    cmap = copy.copy(plt.get_cmap(cmap))
     if nan_color:
         cmap.set_bad(color=nan_color)
     
@@ -531,7 +546,53 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, ax=None, **kwargs):
+def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244', cmap='bwr', 
+                           theta=0, ax=None, **kwargs):
+    '''
+    Plot a 2D spatial map of data from a spatial electrode array.
+
+    Args:
+        data ((nch,) array): values from the spatial drive to plot in 2D
+        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        drive_type (str, optional): type of drive. Defaults to 'ECoG244'.
+        cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
+        theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
+            e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
+            by 90 degrees. Default 0.
+        ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
+        kwargs (dict): dictionary of additional keyword argument pairs to send to calc_data_map and plot_spatial_map.
+
+    Returns:
+        pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+    '''
+    
+    if ax is None:
+        ax = plt.gca()
+    
+    # Load the signal path files
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type, theta=theta)
+
+    # Remove bad electrodes
+    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
+    data[bad_ch] = np.nan
+        
+    # Interpolate or directly compute the map
+    if interp:
+        interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
+        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
+    else:
+        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
+        xy = [elec_pos[:,0], elec_pos[:,1]]
+
+    # Plot
+    plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
+    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
+    return im
+
+
+def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', 
+                          theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
@@ -569,29 +630,8 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', theta=0, a
             # Missing electrodes should be filled in with linear interp.
 
     '''
-    
-    if ax is None:
-        ax = plt.gca()
-    
-    # Load the signal path files
-    elec_pos, acq_ch, elecs = load_chmap(drive_type='ECoG244', theta=theta)
-
-    # Remove bad electrodes
-    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
-    data[bad_ch] = np.nan
-        
-    # Interpolate or directly compute the map
-    if interp:
-        interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
-        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
-    else:
-        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
-        xy = [elec_pos[:,0], elec_pos[:,1]]
-
-    # Plot
-    plot_kwargs = {k: v for k, v in kwargs.items() if k in ['alpha_map', 'nan_color', 'clim']}
-    im = plot_spatial_map(data_map, xy[0], xy[1], cmap=cmap, ax=ax, **plot_kwargs)
-    return im
+    return plot_spatial_drive_map(data, bad_elec=bad_elec, interp=interp, drive_type='ECoG244', 
+                                  cmap=cmap, theta=theta, ax=ax, **kwargs)
 
 def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
     '''
@@ -660,7 +700,7 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
         print("Annotating acquisition channel numbers")
 
     # Get channel map (overwrite acq_ch if it was supplied to get the correct shape acq_ch)
-    elec_pos, acq_ch, elecs = load_chmap(drive_type, acq_ch, theta)
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type, acq_ch, theta)
 
     # Annotate each channel
     if isinstance(color, str) or len(color) < len(elec_pos):
@@ -732,6 +772,50 @@ def plot_raster(data, cue_bin=None, ax=None):
     if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
+def plot_angles(angles, magnitudes=None, ax=None, **kwargs):
+    '''
+    Polar plot of angles and optional magnitudes. Useful for plotting ITPC or other phase data.
+
+    Args:
+        angles (nt): array of angles in radians
+        magnitudes (nt, optional): array of magnitudes to plot as line lengths
+        ax (plt.Axis, optional): axis to plot the targets on (should be a polar plot)
+        **kwargs: additional keyword arguments to pass to plt.plot
+
+    Examples:
+
+        .. code-block:: python
+
+            angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+            plot_angles(angles)
+
+        .. image:: _images/angles_simple.png
+
+        .. code-block:: python
+
+            angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+            magnitudes = np.arange(len(angles)) + 1
+
+            fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+            plot_angles(angles, magnitudes, ax)
+
+        .. image:: _images/angles_magnitudes.png
+    '''
+    
+    if ax is None and plt.gca().name != 'polar':
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+    elif ax is None:
+        ax = plt.gca()
+        
+    if magnitudes is None:
+        magnitudes = np.ones(len(angles))
+        
+    # Draw the lines
+    for a, m in zip(angles, magnitudes):
+        theta = [0, a]
+        r = [0, m]
+        ax.plot(theta, r, **kwargs)
+
 def set_bounds(bounds, ax=None):
     '''
     Sets the x, y, and z limits according to the given bounds
@@ -751,7 +835,62 @@ def set_bounds(bounds, ax=None):
         ax.set(xlim=(1.1 * bounds[0], 1.1 * bounds[1]),
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
+def color_targets(target_locations, target_idx, colors, target_radius, bounds=None, ax=None, **kwargs):
+    '''
+    Color targets according to their index. Useful for visualizing unique targets when trajectories
+    aren't obviously aligned to specific targets.
 
+    Args:
+        target_locations ((ntargets, 2) or (ntargets, 3) array): array of target (x, y[, z]) locations
+        target_idx ((ntargets,) array): array of indices for each target, used to determine color
+        colors (list): list of colors corresponding to each unique index in target_idx
+        target_radius (float): radius of the targets in cm
+        bounds (tuple, optional): 4- or 6-element tuple describing (-x, x, -y, y[, -z, z]) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on (2D or 3D)
+        **kwargs: additional keyword arguments to pass to plot_circles()
+
+    Examples:
+        Create and plot eight targets for a center-out task.
+        
+        .. code-block:: python
+
+            angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+            radius = 6.5
+            target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+            target_locations = np.vstack(([0, 0], target_locations))
+
+        Specify the colors per target index in case they are out of order.
+            
+        .. code-block:: python
+
+            target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, peripheral are index 1 through 9
+            colors = ['black'] + sns.color_palette("husl", 8)
+            target_radius = 0.5
+            bounds = (-8, 8, -8, 8)
+
+        Use :func:`~aopy.visualization.color_targets` to plot the targets
+        
+        .. code-block:: python
+
+            fig, ax = plt.subplots(figsize=(8, 8))
+            color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+            ax.set_aspect('equal')
+            filename = 'color_targets.png'
+
+        .. image:: _images/color_targets.png
+    '''
+    
+    assert len(target_locations) == len(target_idx), "Locations must be the same length as indices"
+    target_locations = np.array(np.array(target_locations).tolist())
+    target_idx = np.array(np.array(target_idx).tolist())
+    loc_idx = np.concatenate((np.expand_dims(target_idx, 1), target_locations), axis=1)
+    loc_idx = np.unique(loc_idx, axis=0)
+    assert len(colors) >= len(np.unique(target_idx)), "Not enough colors for unique indices"
+    for row in loc_idx:
+        idx = row[0].astype(int)
+        loc = row[1:]
+        plot_circles([loc], target_radius, colors[idx], bounds=bounds, ax=ax, **kwargs)
+        
 def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, 
                  origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
@@ -1448,6 +1587,96 @@ def reset_plot_color(ax):
     '''
     ax.set_prop_cycle(None)
 
+def plot_scalebar(ax, size, label, color='black', fontsize=12, vertical=False,
+                  bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Add a scalebar to a plot with the given size and label. The scalebar can be 
+    vertical or horizontal. The left edge (bottom edge if vertical) of the scalebar 
+    will be located at the given bbox_to_anchor position in Axis units (0 to 1).
+    
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        size (float): size of the scalebar in units of the plot
+        label (str): label for the scalebar, e.g. '1 s' or '10 um'
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        vertical (bool): If True, the scalebar will be vertical. Default is horizontal.
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    Examples:
+
+        Adding a scalebar to a plot with a size of 10 and a label of '10 ms'.
+
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.arange(10)/10)
+            aopy.visualization.plot_scalebar(plt.gca(), 1.5, '1 s', color='orange')
+            aopy.visualization.plot_scalebar(plt.gca(), 0.15, '0.1 V', vertical=True, color='green')
+            aopy.visualization.plot_xy_scalebar(plt.gca(), 1.5, '1 s', 0.15, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+            filename = 'scalebar_example.png'
+
+        .. image:: _images/scalebar_example.png
+    '''
+    if not vertical:
+        xsize = size
+        ysize = 0
+        label_top = False
+        loc = 'upper left'
+    else:
+        xsize = 0
+        ysize = size
+        label_top = True  
+        loc = 'lower center' 
+
+    # Draw the scalebar
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        xsize,
+        label,
+        loc=loc,
+        bbox_to_anchor=bbox_to_anchor,
+        bbox_transform=ax.transAxes,
+        pad=kwargs.pop('pad', 0),
+        borderpad=kwargs.pop('borderpad', 0),
+        sep=kwargs.pop('sep', 4),
+        color=color,
+        frameon=False,
+        label_top=label_top,
+        size_vertical=ysize,
+        fontproperties=fm.FontProperties(size=fontsize),
+        **kwargs
+    )
+    ax.add_artist(scalebar)
+
+
+def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=12, 
+                     bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Shortcut to add two scalebars to a plot with the given x and y sizes and labels. 
+
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        xsize (float): size of the x scalebar
+        xlabel (str): label for the x scalebar
+        ysize (float): size of the y scalebar
+        ylabel (str): label for the y scalebar
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    See also:
+        :func:`~aopy.visualization.plot_scalebar`
+    '''
+    plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, 
+                  bbox_to_anchor=bbox_to_anchor, **kwargs)
+    plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, 
+                  vertical=True, bbox_to_anchor=bbox_to_anchor, **kwargs)
+
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """
     Runs `plot_channel_summary` and `combine_channel_figures` on all channels in a data array
@@ -1578,14 +1807,14 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     
     return fig
 
-def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
+
+def plot_corr_over_elec_distance(elec_data, elec_pos, ax=None, **kwargs):
     '''
     Makes a plot of correlation vs electrode distance for the given data.
     
     Args:
-        acq_data (nt, nch): acquisition data indexed by acq_ch
-        acq_ch (nelec): 1-indexed list of acquisition channels that are connected to electrodes
-        elec_pos (nelec, 2): x, y position of each electrode in cm
+        elec_data (nt, nelec): electrode data with nch corresponding to elec_pos
+        elec_pos (nelec, 2): x, y position of each electrode
         ax (pyplot.Axes, optional): axis on which to plot
         kwargs (dict, optional): other arguments to supply to :func:`aopy.analysis.calc_corr_over_elec_distance`
 
@@ -1609,16 +1838,76 @@ def plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, ax=None, **kwargs):
 
         .. image:: _images/corr_over_dist.png
 
+    Updated:
+        2024-03-13 (LRS): Changed input from acq_data and acq_ch to elec_data.
+        2024-07-01 (LRS): Fixed default x-axis label units to mm.
     '''
     if ax is None:
         ax = plt.gca()
     label = kwargs.pop('label', None)
-    dist, corr = analysis.calc_corr_over_elec_distance(acq_data, acq_ch, elec_pos, **kwargs)
+    dist, corr = analysis.calc_corr_over_elec_distance(elec_data, elec_pos, **kwargs)
     ax.plot(dist, corr, label=label)
-    ax.set_xlabel('binned electrode distance (cm)')
+    ax.set_xlabel('binned electrode distance (mm)')
     ax.set_ylabel('correlation')
     ax.set_ylim(0,1)
 
+def plot_corr_across_entries(preproc_dir, subjects, ids, dates, band=(70,200), taper_len=0.1, num_seconds=60, 
+                             cmap='viridis', ax=None, remove_bad_ch=True, **bad_ch_kwargs):
+    '''
+    Plot the correlation vs electrode distance for each entry in the given list of subjects, ids, and dates.
+    
+    Args:
+        preproc_dir (str): path to the preprocessed data directory
+        subjects (list): list of subject names
+        ids (list): list of te_ids
+        dates (list): list of dates
+        band (tuple, optional): frequency band to filter the data. Default (70, 200)
+        taper_len (float, optional): length of taper to use in the filter. Default 0.1
+        num_seconds (int, optional): number of seconds to use in the correlation calculation. Default 60
+        cmap (str, optional): colormap to use for plotting. Default 'viridis'
+        ax (pyplot.Axes, optional): axis on which to plot. Default current axis
+        remove_bad_ch (bool, optional): whether to remove bad channels from the data. Default True
+        bad_ch_kwargs (dict, optional): keyword arguments to pass to :func:`a
+    
+    Example:
+        Plotting the correlation vs electrode distance for a few entries in the preprocessed data directory.
+
+        .. image:: _images/corr_over_entries.png
+    '''
+    assert len(subjects) == len(ids) == len(dates), "Subjects, ids, and dates must be equal length"
+    
+    if ax is None:
+        ax = plt.gca()    
+    ax.set_prop_cycle('color', sns.color_palette(cmap, len(subjects)))
+        
+    for subject, te_id, date in zip(subjects, ids, dates):
+
+        try:
+            lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+            exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        except:
+            print(f"Could not find data for entry {te_id} ({subject} on {date})")
+            continue
+        try:
+            elec_pos, acq_ch, _ = aodata.load_chmap(exp_metadata['drmap_drive_type'])
+        except:
+            elec_pos, acq_ch, _ = aodata.load_chmap('ECoG244')
+
+        samplerate = lfp_metadata['samplerate']
+        short_data = lfp_data[:num_seconds*samplerate,acq_ch-1]
+        filt_data = precondition.mt_bandpass_filter(short_data, band, taper_len, 
+                                                            samplerate, verbose=False)
+        
+        if remove_bad_ch:
+            bad_ch = preproc.quality.detect_bad_ch_outliers(filt_data, **bad_ch_kwargs)
+            filt_data = filt_data[:,~bad_ch]
+            elec_pos = elec_pos[~bad_ch]
+        
+        plot_corr_over_elec_distance(filt_data, elec_pos, label=date, ax=ax)
+
+    leg = ax.legend(bbox_to_anchor = (1,1))
+    for obj in leg.legend_handles:
+        obj.set_linewidth(4.0)
 
 def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwargs):
     '''
@@ -1749,3 +2038,153 @@ def plot_laser_sensor_alignment(sensor_volts, samplerate, stim_times, ax=None):
     plt.xlabel('time (ms)')
     plt.title('laser sensor aligned')
     return im
+
+def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area=False, gaps=False, normalize=False, ax=None, **kwargs):
+    '''
+    Plot a circular histogram of angles on a given ax. Adapted from: 
+        https://stackoverflow.com/questions/22562364/circular-polar-histogram-in-python. 
+
+    Args:            
+        data (arr): angles to plot, in radians.
+        bins (int, optional): defines the number of equal-width bins in the range. Default is 16.
+        density (bool, optional): whether to return the probability density function at each bin, instead of the number of samples 
+            (passed to np.histogram). Default is False.
+        offset (float, optional): the offset for the location of the 0 direction, in radians. 
+            Default is 0.
+        proportional_area (bool, optional): If True, plots bars proportional to area. If False, plots bars
+            proportional to radius. Default is False.
+        gaps (bool, optional): whether to allow gaps between bins. If True, the bins will only span the values
+            of the data. If False, the bins are forced to partition the entire [-pi, pi] range. Default is False.
+        normalize (bool, optional): whether to normalize the bin values such that the max value is 1. Default is False.
+        ax (pyplot.Axes, optional): axes on which to plot. Should be an axis instance created with 
+            subplot_kw=dict(projection='polar'). Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to ax.bar
+
+    Returns:
+        n (arr or list of arr): the number of values in each bin
+        bins (arr): the edges of the bins
+        patches (`.BarContainer` or list of a single `.Polygon`): container of individual artists used to create the histogram
+            or list of such containers if there are multiple input datasets
+
+    Examples:
+        .. image:: _images/circular_histograms.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    # Wrap angles to [-pi, pi)
+    data = (data+np.pi) % (2*np.pi) - np.pi
+
+    # Force bins to partition entire circle
+    if not gaps:
+        bins = np.linspace(-np.pi, np.pi, num=bins+1)
+
+    # Bin data and record counts
+    n, bins = np.histogram(data, bins=bins, density=density)
+
+    # Compute width of each bin
+    widths = np.diff(bins)
+
+    # If indicated, plot frequency proportional to area
+    if proportional_area:
+        # Area to assign each bin
+        area = n / data.size
+        # Calculate corresponding bin radius
+        radius = (area/np.pi) ** .5
+         # Remove ylabels for area plots (they are mostly obstructive)
+        ax.set_yticks([])
+
+    # Otherwise plot frequency proportional to radius
+    else:
+        radius = n
+
+    # If indicated, normalize the bar values so that the max is 1
+    if normalize:
+        radius = radius/np.max(radius)
+
+    # Plot data on ax
+    patches = ax.bar(bins[:-1], radius, width=widths, align='edge', **kwargs)
+
+    # Set the direction of the zero angle
+    ax.set_theta_offset(offset)  
+
+    return n, bins, patches
+
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, invert=False, ax=None, **kwargs):
+    '''
+    Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
+    placed at the same coordinates as electrode positions for the given electrode drive. The image
+    is also optionally inverted and recolored with a single input color.
+
+    Args:
+        filepath (str): path to the image file
+        drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        color (str, optional): color to use for the image. Default is None.
+        invert (bool, optional): whether to invert the image. Default is False.
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. alpha.
+    '''
+    if ax is None:
+        ax = plt.gca()
+    with Image.open(filepath) as im:
+        a = np.array(im.convert('L'))/255
+        if color is None:
+            c = np.array(im.convert('RGB'))/255
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = c
+        else:
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = colors.to_rgb(color)
+        img[:,:,3] = a if invert else 1 - a
+    img = np.rot90(img, np.ceil(theta/90), axes=(1,0))
+    
+    # Calculate the proper extents
+    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
+    x = elec_pos[:,0]
+    y = elec_pos[:,1]
+    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+    x_spacing = (extent[1] - extent[0]) / (len(x) - 1)
+    y_spacing = (extent[3] - extent[2]) / (len(y) - 1)
+    extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+
+    ax.imshow(img, origin='upper', extent=extent, **kwargs)
+
+def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.5, **kwargs):
+    '''
+    Overlay a precomputed image of chamber sucli on a spatial map of electrodes. 
+    Images are stored in the aopy.config directory. Currently available images are:
+        - Affi LM1 ECoG244
+        - Beignet LM1 ECoG244
+
+    Args:
+        subject (str): subject name
+        chamber (str): chamber type
+        drive_type (str): drive type
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        alpha (float, optional): transparency of the image. Default is 0.5.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. color.
+
+    Examples:
+
+        .. code-block:: python
+
+            elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
+
+        .. image:: _images/overlay_sulci_beignet.png
+
+        .. code-block:: python
+            
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
+
+        .. image:: _images/overlay_sulci_affi.png
+
+    '''
+    config_dir = files('aopy').joinpath('config')
+    filename = f'{subject.lower()}_{chamber.lower()}_{drive_type.lower()}_sulci.png'
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        overlay_image_on_spatial_map(f, drive_type, theta=theta, alpha=alpha, **kwargs)

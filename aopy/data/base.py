@@ -65,6 +65,31 @@ def get_preprocessed_filename(subject, te_id, date, data_source):
     '''  
     return f"preproc_{date}_{subject}_{te_id}_{data_source}.hdf"
 
+def get_kilosort_foldername(subject, te_id, date, data_source):
+    """
+    Generates a folder name string to access the Kilosort output.
+
+    Args:
+        subject (str): The subject name.
+        te_id (int or list of int): The experiment task entry(s) to use. 
+        date (str): The experiment date.
+        data_source (str): The data source (e.g., 'Neuropixel') 
+
+    Returns:
+        str: A formatted folder name string for the kilosort output in the format:
+            "{date}_{data_source}_{subject}_te{te_id1}_te{te_id2}...".
+
+    """
+    if not isinstance(te_id, list):
+        te_id = [te_id]
+    
+    folder_name = f"{date}_{data_source}_{subject}"
+    for entry in te_id:
+        print(entry)
+        folder_name += f"_te{entry}"
+
+    return folder_name
+
 def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     '''
     Returns the task entry ids that have preprocessed files in the given directory matching
@@ -150,26 +175,122 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
     metadata = load_hdf_group(preproc_dir, filename, 'broadband_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_lfp_data(preproc_dir, subject, te_id, date, cached=True):
+def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
     '''
-    Loads LFP data from a preprocessed file.
+    Loads LFP data from a preprocessed file. When drive_number is None, load lfp_data and lfp_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
 
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
 
+    Raises:
+        ValueError: if drives are detected when drive number is None. 
+        
     Returns:
-        dict: lfp data
+        ndarray: numpy array of lfp data from hdf
         dict: Dictionary of lfp metadata
+        
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
     preproc_dir = os.path.join(preproc_dir, subject)
-    data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
-    metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
+    
+    group_names = list_root_groups(preproc_dir, filename)
+        
+    if drive_number:
+        data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/lfp_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/lfp_metadata', cached=cached)
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+
+        data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
     return data, metadata
 
+def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
+    '''
+    Loads spike band time series from a preprocessed file. When drive_number is None, load lfp_data and lfp_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
+
+    Raises:
+        ValueError: if drives are detected when drive number is None.
+        
+    Returns:
+        ndarray: numpy array of ap data from hdf
+        dict: Dictionary of ap metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'ap')
+    preproc_dir = os.path.join(preproc_dir, subject)
+
+    group_names = list_root_groups(preproc_dir, filename)
+        
+    if drive_number:
+        data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/ap_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/ap_metadata', cached=cached)
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+                      
+        data = load_hdf_data(preproc_dir, filename, 'ap_data', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', cached=cached)
+    return data, metadata
+
+def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+    '''
+    Loads spike data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
+
+    Returns:
+        dict: spike data
+        dict: Dictionary of spike metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date,'spike')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    spikes =load_hdf_group(preproc_dir, filename, f'drive{drive_number}/spikes', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/metadata', cached=cached)
+    
+    return spikes, metadata
+
+def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+    '''
+    Loads spike waveforms from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
+
+    Returns:
+        dict: spike waveforms
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'spike')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    waveforms = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/waveforms', cached=cached)
+
+    return waveforms
     
 ###############################################################################
 # Loading / saving data
@@ -285,6 +406,28 @@ def get_hdf_dictionary(data_dir, hdf_filename, show_tree=False):
     if show_tree: 
         print(hdf_filename)
     return _get_hdf_contents(hdf)
+    
+def list_root_groups(data_dir, hdf_filename):
+    '''
+    List the name of groups directly under the root in HDF5 files.
+
+    Args:
+        data_dir (str): folder where data is located
+        hdf_filename (str): name of hdf file
+    
+    Returns:
+        list: Name of groups
+    '''
+        
+    filepath = os.path.join(data_dir, hdf_filename)
+    
+    groups = []
+    with h5py.File(filepath, 'r') as f:
+        for name in f.keys():
+            if isinstance(f[name], h5py.Group):
+                groups.append(name)
+
+    return groups
 
 def _load_hdf_dataset(dataset, name):
     '''
@@ -328,7 +471,7 @@ def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/", cached=Fals
         _load_hdf_data_cached.cache_clear()
     return _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group=data_group)
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group="/"):
     '''
     Cached version of load_hdf_data
@@ -369,7 +512,7 @@ def load_hdf_group(data_dir, hdf_filename, group="/", cached=False):
         _load_hdf_group_cached.cache_clear()
     return _load_hdf_group_cached(data_dir, hdf_filename, group=group)
 
-@lru_cache(maxsize=1)
+@lru_cache(maxsize=2)
 def _load_hdf_group_cached(data_dir, hdf_filename, group="/"):
     '''
     Loads any datasets from the given hdf group into a dictionary. Also will
@@ -405,7 +548,8 @@ def _load_hdf_group_cached(data_dir, hdf_filename, group="/"):
     return data
 
 def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
-                       samplerate, trigger_time, time_before, time_after):
+                       samplerate, trigger_time, time_before, time_after,
+                       channels=None):
     '''
     Load a segment of HDF timeseries data given start and end times and a sampling rate.
 
@@ -418,7 +562,8 @@ def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name,
         trigger_time (float): time (in seconds) in the recording at which the desired segment starts
         time_before (float): time (in seconds) to include before the trigger times
         time_after (float): time (in seconds) to include after the trigger times
-
+        channels (list, optional): list of channels to include in the segment (default all channels
+    
     Raises:
         ValueError: if the dataset cannot be found in the file
 
@@ -437,13 +582,13 @@ def load_hdf_ts_trial(preproc_dir, filename, data_group, data_name,
     
     # Get the ts segment
     ts_data = hdf[dataname]
-    segment = preproc.get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate)
-    
+    segment = preproc.get_trial_data(ts_data, trigger_time, time_before, time_after, samplerate, channels=channels)
+
     hdf.close()
     return segment
 
 def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
-                       samplerate, start_time, end_time):
+                       samplerate, start_time, end_time, channels=None):
     '''
     Load a segment of HDF timeseries data given a start and end time and a sampling rate.
 
@@ -455,6 +600,7 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
         samplerate (float): the sampling rate of the data in Hz
         start_time (float): time (in seconds) in the recording at which the desired segment starts
         end_time (float): time (in seconds) in the recording at which the desired segment ends
+        channels (list, optional): list of channels to include in the segment (default all channels)
 
     Raises:
         ValueError: if the dataset cannot be found in the file
@@ -474,7 +620,7 @@ def load_hdf_ts_segment(preproc_dir, filename, data_group, data_name,
     
     # Get the ts segment
     ts_data = hdf[dataname]
-    segment = preproc.get_data_segment(ts_data, start_time, end_time, samplerate)
+    segment = preproc.get_data_segment(ts_data, start_time, end_time, samplerate, channels=channels)
     
     hdf.close()
     return segment
@@ -647,7 +793,7 @@ def map_elec2acq(signalpath_table, elecs):
         return acq_chs[elec_idx]
 
 
-def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y'):
+def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, rotation_offset=(0,0), xpos_name='topdown_x', ypos_name='topdown_y'):
     '''
     Create index mapping from acquisition channel to electrode position by calling aopy.data.map_acq2elec 
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -659,6 +805,7 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0,
             electrodes will be return. If a requested acquisition channel isn't returned a warned will be displayed
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates 
             the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
+        rotation_offset (tuple): X and Y coordinates of the rotation center. Defaults to (0,0)
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
 
@@ -683,7 +830,7 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0,
     if theta != 0:
         theta = np.deg2rad(theta)
         rot_mat = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
-        acq_ch_position = acq_ch_position @ rot_mat
+        acq_ch_position = ((acq_ch_position - rotation_offset) @ rot_mat) + rotation_offset
 
     return acq_ch_position, acq_chs, connected_elecs
 
@@ -713,7 +860,9 @@ def map_data2elec(datain, signalpath_table, acq_ch_subset=None, zero_indexing=Fa
     
     return dataout, acq_chs, connected_elecs
 
-def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0, xpos_name='topdown_x', ypos_name='topdown_y', zero_indexing=False):
+def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subset=None, 
+                        theta=0, rotation_offset=(0,0), xpos_name='topdown_x', ypos_name='topdown_y', 
+                        zero_indexing=False):
     '''
     Map data from its acquisition channel to the electrodes recorded from and their position. Wrapper for aopy.data.map_acq2pos
     Excel files can be loaded as a pandas dataframe using pd.read_excel
@@ -726,6 +875,7 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
             will be return. If a requested acquisition channel isn't returned a warned will be displayed
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 rotates the map 
             clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
+        rotation_offset (tuple): X and Y coordinates of the rotation center. Defaults to (0,0)
         xpos_name (str): Column name for the electrode 'x' position. Defaults to 'topdown_x' used with the viventi ECoG array
         ypos_name (str): Column name for the electrode 'y' position. Defaults to 'topdown_y' used with the viventi ECoG array
         zero_indexing (bool): Set true if acquisition channel numbers start with 0. Defaults to False. 
@@ -739,7 +889,8 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
             | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array) 
     '''
     
-    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, theta=theta, xpos_name=xpos_name, ypos_name=ypos_name)
+    acq_ch_position, acq_chs, connected_elecs = map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=acq_ch_subset, theta=theta, 
+                                                            rotation_offset=rotation_offset, xpos_name=xpos_name, ypos_name=ypos_name)
     if zero_indexing:
         dataout = datain[:,acq_chs]
     else:
@@ -749,10 +900,10 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
 
 def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
     '''
-    Load the mapping between acquisition channel and electrode number for the viventi ECoG array.
+    Load the mapping between acquisition channel and electrode number for the viventi ECoG array or between a chamber grid and chamber location.
     
     Args:
-        drive_type (str, optional): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
+        drive_type (str, optional): Drive type of the method used to record neural activity. Currently supports `ECoG244`, 'Opto32', 'NP_Insert72', and 'NP_Insert137'
         acq_ch_subset (nacq, optional): Subset of acquisition channels to call. If not called, all acquisition 
             channels and connected electrodes will be returned.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
@@ -765,14 +916,35 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
                                         X position is in the first column and Y position is in the second column
             | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
             | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
+    
+    Examples:
+
+        .. code-block:: python
+
+            plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+            annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+            annotate_spatial_map_channels(drive_type='Opto32', color='b')
+            annotate_spatial_map_channels(drive_type='ECoG244', color='r', theta=90)
+            annotate_spatial_map_channels(drive_type='Opto32', color='g', theta=90)
+            
+        .. image:: _images/ecog244_opto32_theta90.png
+
+
     '''
     config_files = files('aopy').joinpath('config')
+    rotation_offset = (0,0)
     if drive_type == 'ECoG244':
         signal_path_filepath = as_file(config_files.joinpath('210910_ecog_signal_path.xlsx'))
         elec_to_pos_filepath = as_file(config_files.joinpath('244ch_viventi_ecog_elec_to_pos.xlsx'))
+        rotation_offset = (5.625, 5.625)
     elif drive_type == 'Opto32':
         signal_path_filepath = as_file(config_files.joinpath('221021_opto_signal_path.xlsx'))
         elec_to_pos_filepath = as_file(config_files.joinpath('32ch_fiber_optic_assy_elec_to_pos.xlsx'))
+        rotation_offset = (5.625, 5.625)
+    elif drive_type == 'NP_Insert72' or drive_type == 'NP_Insert137':
+        signal_path_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_signal_path.xlsx'))
+        print(signal_path_filepath)
+        elec_to_pos_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_ch_mapping.xlsx'))
     else:
         raise ValueError('Drive type not supported')
     
@@ -782,7 +954,69 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
         layout = pd.read_excel(f)
     if acq_ch_subset is not None:
         acq_ch_subset = np.array(acq_ch_subset, dtype='int')
-    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, **kwargs)
+    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, 
+                       rotation_offset=rotation_offset, **kwargs)
+
+def align_recoring_drives(neuropixel_drive, drive2, subject):
+    '''
+    This function aligns one drive to another drive type. In the current iteration, this function only supports aligning neuropixels drives ('NP_Insert72'/'NP_Insert137'') 
+    to each other or to 'ECoG244'/'Opto32' drives. This function is not currently compatible with selecting subsets of channels. 
+
+    .. image:: _images/NP_Insert137_ECoG244_alignment.png
+
+    Args:
+        neuropixel_drive (str): Neuropixel drive to align. Currently supports 'NP_Insert72', and 'NP_Insert137'
+        drive2 (str): Other drive to align. Currently supports 'ECoG244', 'Opto32', 'NP_Insert72', and 'NP_Insert137'
+        subject (str): Subject recordings were performed on. Currently supports 'Affi' and 'Beignet'
+
+    Returns:
+        tuple: Tuple Containing:
+            | **aligned_np_drive_coordinates (nelec, 2):** X and Y coordinates of each neuropixel insert recording site relative to drive2
+            | **recording_site (nelec):** Neuropixel insert recording site that matches the corresponding row in 'aligned_np_drive_coordinates'
+
+    '''
+    NP_drive_list = ['NP_Insert72', 'NP_Insert137'] # Drives this function is compatible with
+    drive2_list = ['NP_Insert72', 'NP_Insert137', 'ECoG244', 'Opto32']
+    subjects = ['affi', 'beignet']
+
+    if neuropixel_drive not in NP_drive_list and drive2 not in drive2_list:
+        raise ValueError('Neuropixel drive type and drive2 type not supported')
+    elif neuropixel_drive not in NP_drive_list:
+        raise ValueError('Neuropixel drive type not supported')
+    elif neuropixel_drive not in drive2_list:
+        raise ValueError('drive2 type not supported')
+
+    if subject not in subjects:
+        raise ValueError('Subject not supported')
+
+    # Load ch map for drives
+    np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive)
+    if drive2 == 'Opto32': 
+        drive2_ch_pos, _ , _ = load_chmap(drive_type='ECoG244') # For opto drive we still want to center the neuropixel insert relative to ECoG
+    else:
+        drive2_ch_pos, _ , _ = load_chmap(drive_type=drive2)
+    
+    # If drive2 is not a neuropixel drive, load alignment angle
+    config_files = files('aopy').joinpath('config')
+    if drive2 not in NP_drive_list:
+        angle_lookup_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/NP_Insert_angle_alignment.xlsx'))
+        with angle_lookup_filepath as f:
+            angle_df = pd.read_excel(f)
+            angle = angle_df.loc[angle_df['subject'] == subject, drive2].values[0]   
+    else:    
+        angle = 0
+
+    # Align neuropixel drive to drive2 based on trig - neuropixel insert coordinates are centered by default, but adjust if necessary
+    np_offset = (np.max(np_drive_ch_pos, axis=0) + np.min(np_drive_ch_pos, axis=0))/2 # Find center of drive 2
+    aligned_np_drive_coordinates_x = (np.cos(angle)*(np_drive_ch_pos[:,0] - np_offset[0])) - (np.sin(angle)*(np_drive_ch_pos[:,1] - np_offset[1]))
+    aligned_np_drive_coordinates_y = (np.sin(angle)*(np_drive_ch_pos[:,0] - np_offset[0])) + (np.cos(angle)*(np_drive_ch_pos[:,1] - np_offset[1]))
+    aligned_np_drive_coordinates = np.concatenate((aligned_np_drive_coordinates_x[:,None], aligned_np_drive_coordinates_y[:,None]), axis=1)
+
+    # Compute offset to align with drive 2
+    drive2_offset = (np.max(drive2_ch_pos, axis=0) + np.min(drive2_ch_pos, axis=0))/2 # Find center of drive 2
+    
+    return (aligned_np_drive_coordinates + drive2_offset), recording_sites
+
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''

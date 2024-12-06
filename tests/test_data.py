@@ -8,7 +8,7 @@ from aopy.data import optitrack
 from aopy.data import bmi3d
 from aopy.data import db
 from aopy.postproc.base import get_calibrated_eye_data
-from aopy.visualization import *
+from aopy import visualization
 from aopy import preproc
 import unittest
 import os
@@ -17,6 +17,7 @@ import pandas as pd
 from matplotlib.testing.compare import compare_images
 import datetime
 import json
+import pickle
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -37,6 +38,10 @@ class LoadPreprocTests(unittest.TestCase):
         cls.id = 3498
         cls.subject = 'fake_subject'
         cls.date = '2021-12-13'
+        
+        cls.id2 = '0000'
+        cls.subject2 = 'test'
+        cls.date2 = '2024-11-12'
         preproc.proc_single(data_dir, files, write_dir, cls.subject, cls.id, cls.date, ['exp', 'eye', 'broadband', 'lfp'], overwrite=True) # without ecube data
 
     def test_load_preproc_exp_data(self):
@@ -58,7 +63,10 @@ class LoadPreprocTests(unittest.TestCase):
         lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
-
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
     def test_find_preproc_ids_from_day(self):
         ids = find_preproc_ids_from_day(write_dir, self.subject, self.date, 'exp')
         self.assertIn(self.id, ids)
@@ -69,7 +77,44 @@ class LoadPreprocTests(unittest.TestCase):
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
-
+    
+    # Test for loading functions when data has multiple drive data
+    def test_load_preproc_lfp_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+        
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
+    def test_load_preproc_ap_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+            
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        
+    def test_load_preproc_spike_data_multidrive(self):
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        
+    def test_load_spike_waveforms_multidrive(self):
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(wfs, dict)
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(wfs, dict)     
+                
 class OptitrackTests(unittest.TestCase):
         
     def test_load_mocap(self):
@@ -145,16 +190,16 @@ class BMI3DTests(unittest.TestCase):
         self.assertEqual(data.shape[0], 25000)
         figname = 'load_ecube_data_groundtruth.png'
         plt.figure()
-        plot_timeseries(data, 25000)
-        savefig(write_dir, figname)
+        visualization.plot_timeseries(data, 25000)
+        visualization.savefig(write_dir, figname)
 
         # Compare to using the load_ecube_data() function
         data = bmi3d.load_ecube_data(sim_filepath, 'Headstages')
         self.assertEqual(data.shape[1], 8)
         self.assertEqual(data.shape[0], 25000)
         plt.figure()
-        plot_timeseries(data, 25000)
-        savefig(write_dir, 'load_ecube_data.png')
+        visualization.plot_timeseries(data, 25000)
+        visualization.savefig(write_dir, 'load_ecube_data.png')
 
         fig1 = os.path.join(write_dir, figname)
         fig2 = os.path.join(write_dir, 'load_ecube_data.png')
@@ -197,8 +242,8 @@ class BMI3DTests(unittest.TestCase):
             data = np.concatenate((data, chunk), axis=0)
         self.assertEqual(data.shape[0], 25000)
         plt.figure()
-        plot_timeseries(data, 25000)
-        savefig(write_dir, 'load_ecube_data_chunked.png') # should be the same as 'load_ecube_data.png'
+        visualization.plot_timeseries(data, 25000)
+        visualization.savefig(write_dir, 'load_ecube_data_chunked.png') # should be the same as 'load_ecube_data.png'
 
     def test_proc_ecube_data(self):
         import os
@@ -343,6 +388,16 @@ class HDFTests(unittest.TestCase):
         self.assertIn('group_data', result['group1'])
         print(result)
 
+    def test_list_root_groups(self):
+        testfile = 'load_hdf_contents_test.hdf'
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group2", append=True)
+        group_names = list_root_groups(write_dir, testfile)
+        self.assertIn('group1', group_names)
+        self.assertIn('group2', group_names)
+        
     def test_load_hdf_data(self):
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
@@ -414,12 +469,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         save_hdf(preproc_dir, preproc_file, eye_data, "/eye_data", append=True)
         save_hdf(preproc_dir, preproc_file, eye_metadata, "/eye_metadata", append=True)
 
-    def test_get_interp_kinematics(self):
+    def test_get_interp_task_data(self):
         # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
-        targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
+        targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(hand_interp.shape[1], 3)
@@ -453,11 +508,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         assert exp_metadata['trajectory_amplitude'] > 0
         assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
 
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
-        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
-        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(ref_interp.shape[1], 2)
@@ -496,11 +551,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         assert exp_metadata['trajectory_amplitude'] > 0
         assert not json.loads(exp_metadata['sequence_params'])['disturbance']
         
-        cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
-        ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
-        user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
-        hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
 
         self.assertEqual(cursor_interp.shape[1], 2)
         self.assertEqual(ref_interp.shape[1], 2)
@@ -530,6 +585,70 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.legend()
         filename = 'get_interp_user_tracking_tablet.png'
         visualization.savefig(docs_dir, filename)
+
+    def test_get_task_data(self):
+
+        # Plot cycle count
+        ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
+        self.assertEqual(len(ts_data), 7031)
+        self.assertEqual(samplerate, 120)
+        time = np.arange(len(ts_data))/samplerate
+        plt.figure()
+        plt.plot(time[1:], 1/np.diff(ts_data), 'ko')
+        plt.xlabel('time (s)')
+        plt.ylabel('cycle step')
+        plt.ylim(0, 2)
+        figname = 'get_cycle_data.png'
+        visualization.savefig(docs_dir, figname, transparent=False)
+        plt.close()
+
+    def test_extract_lfp_features(self):
+        with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file)
+
+        # Test with no LFP data
+        def test_fn():
+            extract_lfp_features(write_dir, self.subject, self.te_id, self.date, 
+                                             decoder)
+        self.assertRaises(ValueError, test_fn)
+
+        # Test with LFP data
+        subject = 'affi'
+        te_id = 17269
+        date = '2024-05-03'
+        preproc_dir = data_dir
+        start_time = 10
+        end_time = 30
+
+        # Reduce the size of the LFP data
+        # lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, subject, te_id, date)
+        # lfp_data = lfp_data[:1000*30] # only keep first 30 seconds
+        # os.remove(os.path.join(data_dir, 'affi/preproc_2024-05-03_affi_17269_lfp.hdf'))
+        # print('lfp data', lfp_data.nbytes)
+        # save_hdf(data_dir, 'affi/preproc_2024-05-03_affi_17269_lfp.hdf', {'lfp_data': lfp_data})
+        # save_hdf(data_dir, 'affi/preproc_2024-05-03_affi_17269_lfp.hdf', lfp_metadata, "/lfp_metadata", append=True)
+
+        features_offline, samplerate_offline = extract_lfp_features(
+            preproc_dir, subject, te_id, date, decoder, 
+            start_time=start_time, end_time=end_time)
+
+        features_online, samplerate_online = get_extracted_features(
+            preproc_dir, subject, te_id, date, decoder,
+            start_time=start_time, end_time=end_time)
+
+        time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+        time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+        plt.figure(figsize=(8,3))
+        plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+        plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+        plt.xlabel('time (s)')
+        plt.ylabel('power')
+        plt.legend()
+        plt.title('readout 1')
+        
+        filename = 'extract_decoder_features.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_get_kinematic_segments(self):
 
@@ -845,6 +964,60 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(write_dir, figname)
 
+    def test_tabulate_features(self):
+        preproc_dir = data_dir
+        subject = 'affi'
+        te_id = 17269
+        date = '2024-05-03'
+        subjects = [subject, subject, subject]
+        te_ids = [te_id, te_id, te_id]
+        dates = [date, date, date]
+        start_time = 10
+        end_time = 30
+        start_times = [10, 15, 20]
+        end_times = [14, 18, 28]
+        with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file)
+
+        # Load the full features and state data for comparison
+        features_offline, samplerate_offline = extract_lfp_features(
+            preproc_dir, subject, te_id, date, decoder, 
+            start_time=start_time, end_time=end_time)
+        features_online, samplerate_online = get_extracted_features(
+            preproc_dir, subject, te_id, date, decoder,
+            start_time=start_time, end_time=end_time)
+        time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+        time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+        plt.figure(figsize=(8,3))
+        plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+        plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+        plt.xlabel('time (s)')
+        plt.ylabel('power')
+        plt.title('readout 1')
+        
+        plt.tight_layout()
+
+        # Tabulate the segments
+        features_offline, samplerate_offline = tabulate_lfp_features(
+            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+        features_online, samplerate_online = tabulate_feature_data(
+            preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+
+        for idx in range(len(start_times)):
+            time_offline = np.arange(len(features_offline[idx]))/samplerate_offline + start_times[idx]
+            time_online = np.arange(len(features_online[idx]))/samplerate_online + start_times[idx]
+
+            plt.plot(time_offline, features_offline[idx][:,1], 'k--')
+            plt.plot(time_online, features_online[idx][:,1], 'k--')
+        
+        # Add legends
+        plt.plot([], [], 'k--', label='segments')
+        plt.legend()
+
+        filename = 'tabulate_decoder_features.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+
     def test_tabulate_ts_data(self):
 
         subjects = [self.subject]
@@ -873,6 +1046,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         self.assertEqual(ts_data_single_file.shape, ts_data.shape)
 
+        # Test getting a single channel
+        ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'],
+                                 trigger_times, time_before, time_after, datatype='lfp', channels=[0])
+
+        self.assertEqual(ts_data.shape[1], 1)
+
+
     def test_tabulate_ts_segments(self):
 
         subjects = [self.subject]
@@ -896,6 +1076,79 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(len(ts_seg_single_file), len(ts_seg))
         for i in range(len(ts_seg)):
             self.assertEqual(ts_seg[i].shape, ts_seg_single_file[i].shape)
+
+    def test_get_spike_data_segment(self):
+        # Check basic functionality
+        start_time = 0.1
+        end_time = 0.15
+        bin_width = 0.01
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
+        spike_segments_port2, _ = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 2, bin_width=bin_width)
+        
+        port1_keys = list(spike_segments_port1.keys())
+        port2_keys = list(spike_segments_port2.keys())
+        port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
+        port2_segment_lens = [len(spike_segments_port2[key]) for key in port2_keys]
+        self.assertEqual(port1_segment_lens[0], np.round((end_time-start_time)/bin_width).astype(int)) # Check that the data segment is the expected length
+        self.assertEqual(len(np.unique(port1_segment_lens)), 1) # Check that the data segments for all units are the same length
+        self.assertFalse(len(spike_segments_port1) == len(spike_segments_port2)) # Check that different data (units) is loaded for different ports
+
+        # Check a different bin width
+        bin_width=0.005
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
+        port1_keys = list(spike_segments_port1.keys())
+        port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
+        self.assertEqual(port1_segment_lens[0], np.round((end_time-start_time)/bin_width).astype(int)) # Check that the data segment is the expected length
+        self.assertEqual(len(np.unique(port1_segment_lens)), 1) # Check that the data segments for all units are the same length
+
+        # Check unbinned spike segments
+        end_time=1
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=None)
+        spike_times = spike_segments_port1['24']
+        self.assertTrue(np.logical_and(spike_times>=start_time, spike_times<=end_time).all()) # Check that all times are between the start and end
+        self.assertEqual(np.sum(np.diff(spike_times)>0), len(spike_times)-1) # Check that spike times are monotonic.
+
+    def test_get_spike_data_aligned(self):
+        time_before = 0.1
+        time_after = 0.4
+        bin_width = 0.01
+        flash_df = bmi3d.tabulate_behavior_data_flash(data_dir, ['affi'], [18378], [datetime.date(2024, 9, 23)])
+        trigger_times = np.array(flash_df['flash_start_time'])
+        spike_aligned, unit_labels, bins = get_spike_data_aligned(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before, time_after, 1, bin_width=bin_width)
+
+        self.assertEqual(spike_aligned.shape[1], len(unit_labels))  # Assert that the correct number of units are in the aligned data. Plot will check other axis.
+
+        # Plot for example figure 
+        spike_aligned1, unit_labels, bins1 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.01 )
+        spike_aligned2, unit_labels, bins2 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.001 )
+        iunit = 24
+        fig, ax = plt.subplots(1,2, figsize=(10,4))
+        ax[0].pcolor(bins1, np.arange(len(trigger_times)), spike_aligned1[:,iunit,:].T, cmap='Grays') #24
+        ax[1].pcolor(bins2, np.arange(len(trigger_times)), spike_aligned2[:,iunit,:].T, cmap='Grays') #24
+
+
+        ax[0].set(title=f"Unit label: {unit_labels[iunit]} - Bin width: 10ms", xlabel='Time [s]', ylabel='Trial')
+        ax[1].set(title=f"Unit label: {unit_labels[iunit]} - Bin width: 100ms", xlabel='Time [s]', ylabel='Trial')
+        ax[0].set_xticks(bins1[::10], np.round(bins1[::10],2))
+        ax[1].set_xticks(bins2[::100], np.round(bins2[::100],2))
+        fig.tight_layout()
+    
+        filename = 'spike_align_example.png'
+        visualization.savefig(docs_dir, filename)
+   
+    def test_tabulate_spike_data_segments(self):
+        subjects = ['affi', 'affi']
+        te_ids = [18378, 18378]
+        dates = [datetime.date(2024, 9, 23), datetime.date(2024, 9, 23)]
+        drives = [1,2]
+        start_times = [.1,.1]
+        end_times = [.15,.15]
+        bin_width = 0.01
+        segments, bins = tabulate_spike_data_segments(data_dir, subjects, te_ids, dates, start_times, end_times, drives, bin_width)
+
+        self.assertEqual(len(segments), len(subjects))
+        self.assertEqual(len(segments[0]['0']), 5)
+        self.assertEqual(len(segments[1]['0']), 5)
 
     def test_tabulate_behavior_data_flash(self):
         files = {}
@@ -940,7 +1193,20 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertLessEqual(df['trial_time'][trial], 100.)
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
-            
+
+    def test_get_kilosort_foldername(self):
+        subject='affi'
+        te_id = 1000
+        date = datetime.date(2024,9,23)
+        data_source = 'Neuropixel'
+        foldername = get_kilosort_foldername(subject, te_id, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000")
+
+        # Test multiple TEs
+        te_ids = [1000,1001]
+        foldername = get_kilosort_foldername(subject, te_ids, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000_te1001")
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
@@ -1098,6 +1364,67 @@ class SignalPathTests(unittest.TestCase):
         self.assertEqual(acq_ch_position.shape[0], 240)
         self.assertEqual(acq_ch_position.shape[1], 2)
 
+    def test_align_recording_drives(self):
+        # Create plot for documentation with affi and biegnet
+        fig, ax = plt.subplots(1,2)
+        subjects = ['affi', 'beignet']
+        neuropixel_drive='NP_Insert137'
+        drive2 = 'ECoG244'
+        for iax, subject in enumerate(subjects):
+            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax[iax])
+            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax[iax])
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=6) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, ax=ax[iax])
+            ax[iax].set(xlim=(-2,13.25), ylim=(-2,13.25), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png')
+
+        # Test the rest of the combinations
+        for subject in subjects:
+            neuropixel_drive = 'NP_Insert72'
+            drive2 = 'ECoG244'
+            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
+
+            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
+            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+
+            neuropixel_drive='NP_Insert137'
+            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
+            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
+            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+
+            ## Test with opto drive
+            drive2 = 'Opto32'
+            neuropixel_drive = 'NP_Insert72'
+            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
+            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
+            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+
+            neuropixel_drive='NP_Insert137'
+            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
+            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
+            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+
+
+
     def test_map_data2elec(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'
         test_signalpath_table = pd.read_excel(os.path.join(data_dir, test_signalpathfile))
@@ -1198,39 +1525,39 @@ class DatabaseTests(unittest.TestCase):
         from db.tracker import models
         
         # Clear the database
-        models.Decoder.objects.all().delete()
-        models.TaskEntry.objects.all().delete()
-        models.Subject.objects.all().delete()
-        models.Experimenter.objects.all().delete()
-        models.Sequence.objects.all().delete()
-        models.Task.objects.all().delete()
-        models.Feature.objects.all().delete()
-        models.Generator.objects.all().delete()
-        models.System.objects.all().delete()
+        models.Decoder.objects.using('test_aopy').all().delete()
+        models.TaskEntry.objects.using('test_aopy').all().delete()
+        models.Subject.objects.using('test_aopy').all().delete()
+        models.Experimenter.objects.using('test_aopy').all().delete()
+        models.Sequence.objects.using('test_aopy').all().delete()
+        models.Task.objects.using('test_aopy').all().delete()
+        models.Feature.objects.using('test_aopy').all().delete()
+        models.Generator.objects.using('test_aopy').all().delete()
+        models.System.objects.using('test_aopy').all().delete()
 
         # Make some test entries for subject, experimenter, and task 
         subj = models.Subject(name="test")
-        subj.save()
+        subj.save(using='test_aopy')
         expm = models.Experimenter(name="experimenter_1")
-        expm.save()
+        expm.save(using='test_aopy')
         task = models.Task(name="nothing")
-        task.save()
+        task.save(using='test_aopy')
         task = models.Task(name="manual control")
-        task.save()
+        task.save(using='test_aopy')
         task = models.Task(name="tracking")
-        task.save()
+        task.save(using='test_aopy')
         feat = models.Feature(name="feat_1")
-        feat.save()
+        feat.save(using='test_aopy')
         gen = models.Generator(name="test_gen", static=False)
-        gen.save()
+        gen.save(using='test_aopy')
         seq = models.Sequence(generator_id=gen.id, task_id=task.id, name="test_seq", params='{"seq_param_1": 1}')
-        seq.save()
+        seq.save(using='test_aopy')
 
         # Make a basic task entry
         subj = models.Subject.objects.get(name="test")
         task = models.Task.objects.get(name="tracking")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id)
-        te.save()
+        te.save(using='test_aopy')
 
         # Make a manual control task entry
         task = models.Task.objects.get(name="manual control")
@@ -1238,44 +1565,45 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
                             session="test session", project="test project", params='{"task_param_1": 1}', sequence_id=seq.id)
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 1}'
-        te.save()
+        te.save(using='test_aopy')
         te.feats.set([feat])
-        te.save()
+        te.save(using='test_aopy')
 
         # Add a decoder entry that was "trained" on a parent task entry
         task = models.Task.objects.get(name="nothing")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, entry_name="decoder parent")
-        te.save()
+        te.save(using='test_aopy')
         decoder = models.Decoder(name="test_decoder", entry_id=te.id)
-        decoder.save()
+        decoder.save(using='test_aopy')
 
         # And a flash task entry
         task = models.Task.objects.get(name="manual control")
         expm = models.Experimenter.objects.get(name="experimenter_1")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
-        te.save()
+        te.save(using='test_aopy')
 
         system = models.System(name="test_system", path="", archive="")
-        system.save()
+        system.save(using='test_aopy')
 
         # Add a bmi task entry
         task = models.Task(name="bmi control")
-        task.save()
+        task.save(using='test_aopy')
         subj = models.Subject.objects.get(name="test")
         expm = models.Experimenter.objects.get(name="experimenter_1")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, 
                               experimenter_id=expm.id, params='{"bmi": '+str(decoder.id)+'}')
-        te.save()
+        te.save(using='test_aopy')
 
         # Add a task entry from a different rig
         subj = models.Subject.objects.get(name="test")
         expm = models.Experimenter.objects.get(name="experimenter_1")
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, rig_name="siberut-bmi")
-        te.save()
+        te.save(using='test_aopy')
 
 
     def test_lookup_sessions(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Most basic lookup
         all_sessions = db.lookup_sessions()
@@ -1324,13 +1652,14 @@ class DatabaseTests(unittest.TestCase):
         db.DB_TYPE = 'bmi3d'
         db.BMI3D_DBNAME = 'rig2'
         self.assertRaises(Exception, db.lookup_sessions)
-        db.BMI3D_DBNAME = 'default'
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # And the rig name
         sessions = db.lookup_bmi_sessions(rig_name='siberut-bmi')
         self.assertEqual(len(sessions), 1)
 
     def test_lookup_decoders(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Most basic lookup
         all_decoders = db.lookup_decoders()
@@ -1351,7 +1680,8 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(decoders[0].name, "test_decoder")
 
     def test_filter_functions(self):
-        
+        db.BMI3D_DBNAME = 'test_aopy'
+
         # Filter by features
         filter_fn = db.filter_has_features("feat_1")
         sessions = db.lookup_sessions(filter_fn=filter_fn)
@@ -1365,7 +1695,15 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions(filter_fn=filter_fn)
         self.assertEqual(len(sessions), 0)
 
+        # Test filtering in lookup_mc_sessions and lookup_flash_sessions
+        filter_fn = db.filter_has_features("feat_1")
+        sessions = db.lookup_mc_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 1)
+        sessions = db.lookup_flash_sessions(filter_fn=filter_fn)
+        self.assertEqual(len(sessions), 0)
+
     def test_BMI3DTaskEntry(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         # Test that all the fields work as they should
         te = db.lookup_sessions(task_desc='task_desc')[0]
@@ -1379,7 +1717,8 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(te.task_desc, 'task_desc')
         self.assertEqual(te.notes, '')
         self.assertEqual(te.duration, 3.0)
-        self.assertEqual(te.n_trials, 1)
+        self.assertEqual(te.n_trials, 2)
+        self.assertEqual(te.n_rewards, 1)
         self.assertEqual(te.features[0], 'feat_1')
         decoder = te.get_decoder_record()
         self.assertEqual(decoder, None)
@@ -1398,13 +1737,20 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(decoder.name, "test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
+        # Test preprocess function
+        te = db.lookup_sessions(task_desc='task_desc')[0]
+        error = te.preprocess(data_dir, write_dir)
+        self.assertEqual(error, None)
+
     def test_list_entry_details(self):
+        db.BMI3D_DBNAME = 'test_aopy'
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
         self.assertCountEqual(subject, ['test'])
         self.assertCountEqual([str(d) for d in date], [str(datetime.datetime.today().date())])
         
     def test_group_entries(self):
+        db.BMI3D_DBNAME = 'test_aopy'
 
         sessions = db.lookup_sessions()
         grouped = db.group_entries(sessions) # by date
@@ -1416,6 +1762,31 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(grouped[0]), 4) # duration = 0.0
         self.assertEqual(len(grouped[1]), 2) # duration = 3.0
 
+    def test_summarize_entries(self):
+            
+        sessions = db.lookup_sessions()
+        summary = db.summarize_entries(sessions)
+        self.assertEqual(len(summary), 6)
+
+        summary = db.summarize_entries(sessions, sum_trials=True)
+        self.assertEqual(len(summary), 5) # one duplicate task
+
+    def test_encode_onehot_sequence_name(self):
+
+        sessions = db.lookup_mc_sessions()
+        df = db.encode_onehot_sequence_name(sessions, sequence_types=['centerout_2D'])
+        self.assertEqual(df.shape[1], 4) 
+
+    def test_add_metadata_columns(self):
+
+        sessions = db.lookup_sessions()
+        df = pd.DataFrame({
+            'te_id': [e.id for e in sessions],
+        })
+        db.add_metadata_columns(df, sessions, ['id_copy', 'test'], [lambda e: e.id, lambda e: 'test'])
+        self.assertEqual(len(df), len(sessions))
+        self.assertEqual(df['id_copy'].sum(), df['te_id'].sum())
+        self.assertTrue(all(df['test'] == 'test'))
 
 if __name__ == "__main__":
     unittest.main()

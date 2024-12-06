@@ -391,3 +391,66 @@ def calc_tracking_in_time(event_codes, event_times, proportion=False):
         tracking_in_time = tracking_in_time/(event_times[-1] - event_times[0])
         
     return tracking_in_time
+
+'''
+Hand behavior metrics
+'''
+def unit_vector(vector):
+    '''
+    Finds the unit vector of a given vector.
+
+    Args:
+        vector (list or array): D-dimensional vector
+
+    Returns:
+        unit_vector (list or array): D-dimensional vector with a magnitude of 1
+    '''
+    return vector/np.linalg.norm(vector)
+
+def angle_between(v1, v2, in_degrees=False):
+    '''
+    Computes the angle between two vectors. By default, the angle will be in radians and fall within the range [0,pi].
+
+    Args:
+        v1 (list or array): D-dimensional vector
+        v2 (list or array): D-dimensional vector
+        in_degrees (bool, optional): whether to return the angle in units of degrees. Default is False.
+
+    Returns:
+        float: angle (in radians or degrees)
+    '''
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    angle = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
+    if in_degrees:
+        angle = angle*180/np.pi
+
+    return angle
+
+def vector_angle(vector, in_degrees=False):
+    '''
+    Computes the angle of a vector on the unit circle.
+
+    Args:
+        vector (list or array): D-dimensional vector
+        in_degrees (bool, optional): whether to return the angle in units of degrees. Default is False.
+
+    Returns:
+        float: angle (in radians or degrees)
+    '''
+    D = len(vector)
+    assert D==2, "This function currently works best for 2-dimensional vectors"
+
+    ref_vector = np.zeros((D,))
+    ref_vector[0] = 1
+    angle = angle_between(ref_vector, vector)
+    
+    # take the explementary (conjugate) angle for vectors that lie in Q3 or Q4
+    if vector[1]<0: # negative y-coordinate
+        angle = 2*np.pi - angle
+
+    if in_degrees:
+        angle = angle*180/np.pi
+
+    return angle
