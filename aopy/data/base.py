@@ -900,10 +900,10 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
 
 def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
     '''
-    Load the mapping between acquisition channel and electrode number for the viventi ECoG array.
+    Load the mapping between acquisition channel and electrode number for the viventi ECoG array or between a chamber grid and chamber location.
     
     Args:
-        drive_type (str, optional): Drive type of the viventi ECoG array. Currently only supports `ECoG244`'
+        drive_type (str, optional): Drive type of the method used to record neural activity. Currently supports `ECoG244`, 'Opto32', 'NP_Insert72', and 'NP_Insert137'
         acq_ch_subset (nacq, optional): Subset of acquisition channels to call. If not called, all acquisition 
             channels and connected electrodes will be returned.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
@@ -941,6 +941,10 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
         signal_path_filepath = as_file(config_files.joinpath('221021_opto_signal_path.xlsx'))
         elec_to_pos_filepath = as_file(config_files.joinpath('32ch_fiber_optic_assy_elec_to_pos.xlsx'))
         rotation_offset = (5.625, 5.625)
+    elif drive_type == 'NP_Insert72' or drive_type == 'NP_Insert137':
+        signal_path_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_signal_path.xlsx'))
+        print(signal_path_filepath)
+        elec_to_pos_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_ch_mapping.xlsx'))
     else:
         raise ValueError('Drive type not supported')
     
@@ -952,6 +956,67 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
         acq_ch_subset = np.array(acq_ch_subset, dtype='int')
     return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, 
                        rotation_offset=rotation_offset, **kwargs)
+
+def align_recoring_drives(neuropixel_drive, drive2, subject):
+    '''
+    This function aligns one drive to another drive type. In the current iteration, this function only supports aligning neuropixels drives ('NP_Insert72'/'NP_Insert137'') 
+    to each other or to 'ECoG244'/'Opto32' drives. This function is not currently compatible with selecting subsets of channels. 
+
+    .. image:: _images/NP_Insert137_ECoG244_alignment.png
+
+    Args:
+        neuropixel_drive (str): Neuropixel drive to align. Currently supports 'NP_Insert72', and 'NP_Insert137'
+        drive2 (str): Other drive to align. Currently supports 'ECoG244', 'Opto32', 'NP_Insert72', and 'NP_Insert137'
+        subject (str): Subject recordings were performed on. Currently supports 'Affi' and 'Beignet'
+
+    Returns:
+        tuple: Tuple Containing:
+            | **aligned_np_drive_coordinates (nelec, 2):** X and Y coordinates of each neuropixel insert recording site relative to drive2
+            | **recording_site (nelec):** Neuropixel insert recording site that matches the corresponding row in 'aligned_np_drive_coordinates'
+
+    '''
+    NP_drive_list = ['NP_Insert72', 'NP_Insert137'] # Drives this function is compatible with
+    drive2_list = ['NP_Insert72', 'NP_Insert137', 'ECoG244', 'Opto32']
+    subjects = ['affi', 'beignet']
+
+    if neuropixel_drive not in NP_drive_list and drive2 not in drive2_list:
+        raise ValueError('Neuropixel drive type and drive2 type not supported')
+    elif neuropixel_drive not in NP_drive_list:
+        raise ValueError('Neuropixel drive type not supported')
+    elif neuropixel_drive not in drive2_list:
+        raise ValueError('drive2 type not supported')
+
+    if subject not in subjects:
+        raise ValueError('Subject not supported')
+
+    # Load ch map for drives
+    np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive)
+    if drive2 == 'Opto32': 
+        drive2_ch_pos, _ , _ = load_chmap(drive_type='ECoG244') # For opto drive we still want to center the neuropixel insert relative to ECoG
+    else:
+        drive2_ch_pos, _ , _ = load_chmap(drive_type=drive2)
+    
+    # If drive2 is not a neuropixel drive, load alignment angle
+    config_files = files('aopy').joinpath('config')
+    if drive2 not in NP_drive_list:
+        angle_lookup_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/NP_Insert_angle_alignment.xlsx'))
+        with angle_lookup_filepath as f:
+            angle_df = pd.read_excel(f)
+            angle = angle_df.loc[angle_df['subject'] == subject, drive2].values[0]   
+    else:    
+        angle = 0
+
+    # Align neuropixel drive to drive2 based on trig - neuropixel insert coordinates are centered by default, but adjust if necessary
+    np_offset = (np.max(np_drive_ch_pos, axis=0) + np.min(np_drive_ch_pos, axis=0))/2 # Find center of drive 2
+    aligned_np_drive_coordinates_x = (np.cos(angle)*(np_drive_ch_pos[:,0] - np_offset[0])) - (np.sin(angle)*(np_drive_ch_pos[:,1] - np_offset[1]))
+    aligned_np_drive_coordinates_y = (np.sin(angle)*(np_drive_ch_pos[:,0] - np_offset[0])) + (np.cos(angle)*(np_drive_ch_pos[:,1] - np_offset[1]))
+    aligned_np_drive_coordinates = np.concatenate((aligned_np_drive_coordinates_x[:,None], aligned_np_drive_coordinates_y[:,None]), axis=1)
+
+    # Compute offset to align with drive 2
+    drive2_offset = (np.max(drive2_ch_pos, axis=0) + np.min(drive2_ch_pos, axis=0))/2 # Find center of drive 2
+    
+    return (aligned_np_drive_coordinates + drive2_offset), recording_sites
+
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
     '''
