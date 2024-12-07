@@ -281,7 +281,14 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
-
+    def test_get_relevant_saccade_idx(self):
+        onset_target = np.array([0,2,0,0])
+        offset_target = np.array([0,1,1,1])
+        saccade_distance = np.array([1.0,2.0,2.0,3.0])
+        target_idx = 1
+        relevant_saccade_idx = get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx)
+        self.assertTrue(relevant_saccade_idx == 3)
+        
 class NeuropixelFuncs(unittest.TestCase):
 
     def test_calc_presence_ratio(self):
@@ -446,7 +453,6 @@ class NeuropixelFuncs(unittest.TestCase):
         self.assertTrue(len(good_unit_labels)==3)
         self.assertTrue(low_bin_perc[1] < low_bin_thresh or cutoff_metric[1] < uhq_std_thresh)
         self.assertTrue(low_bin_perc[2] < low_bin_thresh or cutoff_metric[2] < uhq_std_thresh)
-
 
 if __name__ == "__main__":
     unittest.main()
