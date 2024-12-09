@@ -281,7 +281,7 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(onset_event==[20,30]))
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
-        
+
     def test_get_relevant_saccade_idx(self):
         onset_target = np.array([0,2,0,0])
         offset_target = np.array([0,1,1,1])
@@ -298,7 +298,7 @@ class TestMappingFuncs(unittest.TestCase):
         offset = np.array([2,2,2])
         original = coords - offset
         rotation = 'yzx'
-        input = get_bmi3d_mc_input(original, rotation, offset)
+        input = bmi3d.get_manual_input(original, rotation, offset)
 
         expected = np.array([[0,0,0],[1,1,0],[2,2,0],[3,3,0],[4,4,0]])
         np.testing.assert_allclose(input, expected)
@@ -313,7 +313,7 @@ class TestMappingFuncs(unittest.TestCase):
         np.testing.assert_allclose(exp_metadata['offset'], [0,-70,-36]) # rig 1 right arm offset
 
         original = exp_data['task']['manual_input']
-        input = get_bmi3d_mc_input(original, exp_metadata['rotation'], exp_metadata['offset'])
+        input = bmi3d.get_manual_input(original, exp_metadata['rotation'], exp_metadata['offset'])
         
         go_cue = 32
         trial_end = 239
@@ -345,7 +345,7 @@ class TestMappingFuncs(unittest.TestCase):
 
         # Test with fabricated data
         coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
-        M = get_bmi3d_mc_mapping('about_x_90')
+        M = bmi3d.get_mapping('about_x_90')
         mapped = np.dot(coords, M)
         expected = np.array([[0,0,0],[1,0,1],[2,0,1],[3,0,4],[5,0,4]])
         np.testing.assert_allclose(mapped, expected)
@@ -354,7 +354,7 @@ class TestMappingFuncs(unittest.TestCase):
 
         # Test with fabricated data
         coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
-        mappings = get_bmi3d_mc_incremental_mappings(0, 90, 90, 'x')
+        mappings = bmi3d.get_incremental_mappings(0, 90, 90, 'x')
         self.assertEqual(len(mappings), 2)
         mapped_0 = np.dot(coords, mappings[0])
         np.testing.assert_allclose(mapped_0, coords) # should be unchanged
