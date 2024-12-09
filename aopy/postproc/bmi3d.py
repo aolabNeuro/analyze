@@ -36,7 +36,7 @@ def get_manual_input(manual_input, rotation, offset, scale=1):
             exp_data, exp_metadata = aopy.data.load_preproc_exp_data(data_dir, subject, id, date)
 
             original = exp_data['task']['manual_input']
-            input = get_bmi3d_mc_input(original, exp_metadata['rotation'], exp_metadata['offset'])
+            input = aopy.postproc.bmi3d.get_manual_input(original, exp_metadata['rotation'], exp_metadata['offset'])
             
             go_cue = 32
             trial_end = 239

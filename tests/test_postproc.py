@@ -292,7 +292,7 @@ class TestEyeFuncs(unittest.TestCase):
 
 class TestMappingFuncs(unittest.TestCase):
 
-    def test_get_bmi3d_mc_input(self):
+    def test_get_manual_input(self):
         # Test with fabricated data
         coords = np.array([[0,0,0],[0,1,1],[0,2,2],[0,3,3],[0,4,4]])
         offset = np.array([2,2,2])
@@ -341,7 +341,7 @@ class TestMappingFuncs(unittest.TestCase):
 
         self.assertTrue(np.all(input[:,[2,1,0]] == exp_data['clean_hand_position'] + exp_metadata['offset']))           
 
-    def test_get_bmi3d_mc_mapping(self):
+    def test_get_mapping(self):
 
         # Test with fabricated data
         coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
@@ -350,7 +350,7 @@ class TestMappingFuncs(unittest.TestCase):
         expected = np.array([[0,0,0],[1,0,1],[2,0,1],[3,0,4],[5,0,4]])
         np.testing.assert_allclose(mapped, expected)
 
-    def test_get_bmi3d_mc_incremental_mappings(self):
+    def test_get_incremental_mappings(self):
 
         # Test with fabricated data
         coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
