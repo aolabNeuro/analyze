@@ -1,3 +1,7 @@
+# eye.py
+#
+# Preconditioning eye movement data, e.g. filtering and saccade detection
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt

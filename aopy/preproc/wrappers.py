@@ -1,5 +1,9 @@
+# wrappers.py
+#
+# Wrappers for preprocessing functions. These functions are used to preprocess data in a single step,
+# calling the appropriate functions in the correct order.
+
 import os
-import h5py
 from importlib.metadata import version
 import datetime
 
@@ -10,8 +14,7 @@ from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
 from .. import data as aodata
-from ..precondition import eye
-from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
+from ..data import proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
 from ..data import load_preproc_lfp_data, load_preproc_broadband_data, load_preproc_eye_data
 
 '''

@@ -1,17 +1,18 @@
-# data.py
+# base.py
+#
 # Code for directly loading and saving data (and results)
+
 import sys
+import warnings
+import os
+import re
+
 from functools import lru_cache
 import h5py
 import tables
-import os
 import glob
-import re
-import warnings
 import pickle as pkl
 import numpy as np
-from pandas import read_excel
-import warnings
 import yaml
 import pandas as pd
 
@@ -664,7 +665,7 @@ def lookup_excel_value(data_dir, excel_file, from_column, to_column, lookup_valu
     if fullfile in _cached_dataframes:
         dataframe = _cached_dataframes[fullfile]
     else:
-        dataframe = read_excel(fullfile)
+        dataframe = pd.read_excel(fullfile)
         _cached_dataframes[fullfile] = dataframe
     
     row = dataframe.loc[dataframe[from_column] == lookup_value]
@@ -720,7 +721,7 @@ def load_electrode_pos(data_dir, pos_file):
             | **y_pos (nch):** y position of each electrode
     '''
     fullfile = os.path.join(data_dir, pos_file)
-    electrode_pos = read_excel(fullfile)
+    electrode_pos = pd.read_excel(fullfile)
     x_pos = electrode_pos['topdown_x'].to_numpy()
     y_pos = electrode_pos['topdown_y'].to_numpy()
     return x_pos, y_pos

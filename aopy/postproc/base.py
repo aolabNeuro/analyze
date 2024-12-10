@@ -1,10 +1,13 @@
-# postproc.py
+# base.py
+#
 # Code for post-processing neural data, including separating neural features such as 
 # LFP bands or spikes detection / binning
 
-import numpy as np
 import math
 import warnings
+
+import numpy as np
+
 from .. import precondition
 from ..preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
 from ..utils import derivative

@@ -2,12 +2,12 @@
 # Code for cleaning and preparing neural data for users to interact with,
 # for example: down-sampling, outlier detection, and initial filtering
 
-from os import fsdecode, fspath, fstat
 import warnings
-from scipy import signal
-from scipy.signal import butter, lfilter, filtfilt, decimate, windows
-import numpy as np
 import math
+
+from scipy import signal
+from scipy.signal import butter, filtfilt, windows
+import numpy as np
 
 from .. import analysis
 from .. import utils
