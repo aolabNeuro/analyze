@@ -23,4 +23,8 @@ Examples:
 .. toctree::
 
     examples/save_segments.ipynb
+
+.. toctree::
+
+    examples/neuropixel_example.ipynb
     

@@ -281,18 +281,25 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
-
+    def test_get_relevant_saccade_idx(self):
+        onset_target = np.array([0,2,0,0])
+        offset_target = np.array([0,1,1,1])
+        saccade_distance = np.array([1.0,2.0,2.0,3.0])
+        target_idx = 1
+        relevant_saccade_idx = get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx)
+        self.assertTrue(relevant_saccade_idx == 3)
+        
 class NeuropixelFuncs(unittest.TestCase):
 
     def test_calc_presence_ratio(self):
         # Test no trials
-        data = np.zeros((10, 0, 5))  # 10 time points, 0 trials, 5 units
+        data = np.zeros((10, 5, 0))  # 10 time points, 0 trials, 5 units
         presence_ratio, present_units = aopy.postproc.neuropixel.calc_presence_ratio(data)
         self.assertEqual(presence_ratio.shape[0], 5)
         self.assertTrue(np.all(present_units == False))
 
         # Test all units active
-        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data = np.random.randint(1, 10, (10, 3, 5))  # 10 time points, 5 trials, 3 units
         presence_ratio, present_units = neuropixel.calc_presence_ratio(data)
         self.assertTrue(np.all(present_units))  # All units should be present
         self.assertTrue(np.all(presence_ratio == 1.0))  # Presence ratio should be 1 for all units
@@ -305,25 +312,26 @@ class NeuropixelFuncs(unittest.TestCase):
         self.assertTrue(np.array_equal(presence_details, np.sum(data, axis=0) > 0))  # Should match trials and units shape
 
         # Test all units active
-        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data = np.random.randint(1, 10, (10, 3, 5))  # 10 time points, 5 trials, 3 units
         presence_ratio, present_units = neuropixel.calc_presence_ratio(data)
         self.assertTrue(np.all(present_units))  # All units should be present
         self.assertTrue(np.all(presence_ratio == 1.0))
 
         # Test some units inactive
-        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
-        data[1:3, :3, 0] = 1  # Only unit 0 is active in trials 1 and 2
-        data[0:5, :3, 1] = 1  # Only unit 1 is active in trials 0, 1, 3
+        data = np.zeros((10, 3, 5))  # 10 time points, 5 trials, 3 units
+        data[1:3,0, :3] = 1  # Only unit 0 is active in trials 1, 2, and 3
+        data[0:5,1, :3] = 1  # Only unit 1 is active in trials 1, 2, and 3
+                             # Unit 2 is not active on any trials.
         presence_ratio, present_units = neuropixel.calc_presence_ratio(data, min_trial_prop=0.5)
         self.assertEqual(presence_ratio.shape[0], 3)
         self.assertTrue(np.all(present_units[[0, 1]]))  # Units 0 and 1 should be present
         self.assertFalse(present_units[2])  # Unit 2 should not be present
 
         # Test different min_trial_prop
-        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
-        data[1:5, :4, 0] = 1  # Unit 0 is active in trials 0,1, 2,3,
-        data[1:3, :3, 1] = 1  # Unit 1 is active in trials 0,1
-        data[0:2, 1, 2] = 1  # Unit 2 is active in trial 1
+        data = np.zeros((10, 3, 5))  # 10 time points, 5 trials, 3 units
+        data[1:5,0, :4] = 1  # Unit 0 is active in trials 0,1, 2,3,
+        data[1:3,1, :3] = 1  # Unit 1 is active in trials 0,1,2
+        data[0:2,2,  1] = 1  # Unit 2 is active in trial 1
 
         # Test with a higher min_trial_prop
         presence_ratio, present_units = aopy.postproc.neuropixel.calc_presence_ratio(data, min_trial_prop=0.6)
@@ -445,7 +453,6 @@ class NeuropixelFuncs(unittest.TestCase):
         self.assertTrue(len(good_unit_labels)==3)
         self.assertTrue(low_bin_perc[1] < low_bin_thresh or cutoff_metric[1] < uhq_std_thresh)
         self.assertTrue(low_bin_perc[2] < low_bin_thresh or cutoff_metric[2] < uhq_std_thresh)
-
 
 if __name__ == "__main__":
     unittest.main()

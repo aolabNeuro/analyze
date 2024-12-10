@@ -1145,12 +1145,12 @@ def get_spike_data_segment(preproc_dir, subject, te_id, date, start_time, end_ti
     # Parse segment and bin spikes if necessary.
     spike_segment = {}
     for unit_label in list(spike_data.keys()):
-        temp_spike_segment = spike_data[unit_label][np.logical_and(spike_data[unit_label]>=start_time, spike_data[unit_label]<=end_time)]
+        temp_spike_segment = spike_data[unit_label][np.logical_and(spike_data[unit_label]>=start_time, spike_data[unit_label]<=end_time)] - start_time
         if bin_width is None:
-            spike_segment[unit_label] = temp_spike_segment
+            spike_segment[unit_label] = temp_spike_segment + start_time
             bins = None
         else:
-            spike_segment[unit_label], bins = precondition.bin_spike_times(temp_spike_segment, start_time, end_time, bin_width)
+            spike_segment[unit_label], bins = precondition.bin_spike_times(temp_spike_segment, 0, end_time-start_time, bin_width)
 
     return spike_segment, bins
 
@@ -1667,7 +1667,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     trial_end_codes = [task_codes['TRIAL_END']]
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
-    penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['PERIPHERAL_TARGET_ON']
 
     # Concatenate base trial data
