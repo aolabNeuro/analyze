@@ -24,8 +24,8 @@ def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=200, buttord=4)
 
     Returns:
         tuple: tuple containing:
-        | **eye_pos (nt, nch):** eye position after filtering and downsampling
-        | **samplerate (float):** sampling rate of the returned eye data
+            | **eye_pos (nt, nch):** eye position after filtering and downsampling
+            | **samplerate (float):** sampling rate of the returned eye data
     '''
     # Lowpass filter
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)

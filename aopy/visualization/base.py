@@ -207,8 +207,8 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), thet
 
     Returns:
         tuple: tuple containing:
-        | **fig (pyplot.Figure):** figure where the subplots were placed
-        | **ax (list):** pyplot.Axes handles for each stimulation site
+            | **fig (pyplot.Figure):** figure where the subplots were placed
+            | **ax (list):** pyplot.Axes handles for each stimulation site
 
     Examples:
 

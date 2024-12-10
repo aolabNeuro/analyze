@@ -210,8 +210,8 @@ def calc_crossover_freq(freqs, M, B):
     
     Returns:
         tuple: tuple containing:
-        | **xover_freq (float):** estimated crossover frequency
-        | **L ((nfreqs,) array):** gain of user's open-loop transfer function
+            | **xover_freq (float):** estimated crossover frequency
+            | **L ((nfreqs,) array):** gain of user's open-loop transfer function
     
     '''
     # estimate the user's open-loop transfer function

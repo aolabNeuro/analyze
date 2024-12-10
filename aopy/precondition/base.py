@@ -759,8 +759,8 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
 
     Returns:
         tuple: tuple containing:
-        | **lfp_data (nt', ...):** downsampled filtered lfp data
-        | **samplerate (float):** sampling rate of the lfp data
+            | **lfp_data (nt', ...):** downsampled filtered lfp data
+            | **samplerate (float):** sampling rate of the lfp data
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=broadband_samplerate)
     filtered_data = filtfilt(b, a, broadband_data, axis=0)
@@ -799,8 +799,8 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
 
     Returns:
         tuple: tuple containing:
-        | **filtere_data (nt, ...):** filtered kinematics data
-        | **samplerate (float):** sampling rate of the kinematics data
+            | **filtere_data (nt, ...):** filtered kinematics data
+            | **samplerate (float):** sampling rate of the kinematics data
 
     Examples:
 

@@ -2301,7 +2301,7 @@ def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end
         tuple: tuple containing:
             | **segments (ntrial,):** list of tensors of (nt, nfeat) feature data from each trial
             | **samplerate (float):** samplerate of the feature data
-        '''
+    '''
     try:
         if len(decoders) == len(subjects):
             steps = [int(decoder.call_rate*decoder.binlen) for decoder in decoders]

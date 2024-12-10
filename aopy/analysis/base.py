@@ -877,9 +877,9 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
 
     Returns:
         tuple: tuple containing:
-        | **freqs (nfreq):** frequency axis in Hz
-        | **time (nt):** time axis in seconds
-        | **spec (nfreq, nt, nch):** tfr representation for each channel
+            | **freqs (nfreq):** frequency axis in Hz
+            | **time (nt):** time axis in seconds
+            | **spec (nfreq, nt, nch):** tfr representation for each channel
 
     Examples:
         
