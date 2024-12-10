@@ -3,6 +3,7 @@
 # experimental files, trial sorting, and subsampling
 
 import warnings
+
 import numpy as np
 from scipy import interpolate
 

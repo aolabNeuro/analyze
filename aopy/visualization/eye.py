@@ -1,3 +1,7 @@
+# eye.py
+#
+# visuzalition specific to eye tracking data
+
 import numpy as np
 import matplotlib.pyplot as plt
 

@@ -2,14 +2,13 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
-import numpy as np
 import re
 from datetime import datetime
 import os
 import sys
 import math
-from scipy.ndimage.interpolation import shift
 
+import numpy as np
 
 '''
 Test signals

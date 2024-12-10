@@ -1,9 +1,14 @@
+# quality.py
+# 
+# Functions for assessing data quality
+
 import copy
+import traceback
+
 import numpy as np
 import numpy.linalg as npla
 import scipy.signal as sps
 import matplotlib.pyplot as plt
-import traceback
 from tqdm.auto import tqdm
 
 from .. import precondition

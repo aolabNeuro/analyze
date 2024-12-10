@@ -1,7 +1,7 @@
-from aopy import preproc
-from aopy import data
-import numpy as np
 import os
+import numpy as np
+
+from .. import data as aodata
 
 def calc_presence_ratio(data, min_trial_prop=0.9, return_details=False):
     '''
@@ -92,10 +92,10 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
             - amplitudes (ngoodunit): Computed amplitude of each unit.
             - mean_wfs (ntime, ngoodunit or nunit): The mean waveform taken from the channel with the highest peak-to-peak amplitude for each unit that passes the amplitude threshold.
     '''
-    filename_mc = data.get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_times = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
-    ap_metadata = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/metadata')
-    waveforms = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/waveforms')
+    filename_mc = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_times = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    ap_metadata = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/metadata')
+    waveforms = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/waveforms')
     unit_labels = list(waveforms.keys())
     
     # For historical purposes.
@@ -153,14 +153,14 @@ def extract_ks_template_amplitudes(preproc_dir, subject, te_id, date, port, data
     '''    
     # Define filepaths 
     kilosort_dir = os.path.join(preproc_dir, 'kilosort')
-    ks_folder_name = os.path.join(data.get_kilosort_foldername(subject, te_id, date, data_source), f"port{port}/kilosort4")
+    ks_folder_name = os.path.join(aodata.get_kilosort_foldername(subject, te_id, date, data_source), f"port{port}/kilosort4")
     merged_ks_path = os.path.join(kilosort_dir, ks_folder_name)
     
     if isinstance(te_id,int):
-        filename_mc = data.get_preprocessed_filename(subject, te_id, date, 'spike')
-        spike_times = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes') # Find relevant spikes based on the synchronized (preprocessed) spike times 
+        filename_mc = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+        spike_times = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes') # Find relevant spikes based on the synchronized (preprocessed) spike times 
     else:
-        filename_mc = data.get_preprocessed_filename(subject, te_id[0], date, 'spike')
+        filename_mc = aodata.get_preprocessed_filename(subject, te_id[0], date, 'spike')
         # for tid in te_id:
             
         # Concatenate spike times 
@@ -170,8 +170,8 @@ def extract_ks_template_amplitudes(preproc_dir, subject, te_id, date, port, data
     template_features = np.load(os.path.join(merged_ks_path, 'amplitudes.npy'))
     
     # Load preprocessed (and synchronized) spike times. 
-    filename_mc = data.get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_times = data.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
+    filename_mc = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_times = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
 
     # Separate into clusters
     template_amps = {}

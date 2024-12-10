@@ -14,6 +14,7 @@ import unittest
 import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from matplotlib.testing.compare import compare_images
 import datetime
 import json

@@ -10,7 +10,7 @@ from aopy.data import *
 import numpy as np
 import unittest
 from pathlib import Path
-
+import datetime
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')

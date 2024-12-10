@@ -1,3 +1,7 @@
+# memory.py
+# 
+# Memory management
+
 import platform
 
 def get_memory_available_gb():

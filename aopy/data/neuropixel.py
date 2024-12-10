@@ -1,12 +1,12 @@
+import os
+import glob
+
 import numpy as np
 from open_ephys.analysis import Session
-import glob
-import os
 import xml.etree.ElementTree as ETree
-from ..utils import convert_port_number
 import h5py
 
-def load_neuropixel_configuration(data_dir, data_folder, ex_idx = 0, port_number = 1):
+def load_neuropixel_configuration(data_dir, data_folder, ex_idx=0, port_number=1):
     '''
     get neuropixel probe information from xml condiguration files made by OpenEphys
     channel number and electrode x pos is sorded in the order of y pos when saved by openephys

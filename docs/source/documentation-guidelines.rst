@@ -64,8 +64,8 @@ Example
         
     Returns:
         tuple: Tuple containing:
-            | **list of arrays:** List where each index includes an array of trials containing the event_code corresponding to that index. 
-            | **1D Array:** Concatenated indices for which trials correspond to which event code.
+            - list of arrays: List where each index includes an array of trials containing the event_code corresponding to that index. 
+            - 1D Array: Concatenated indices for which trials correspond to which event code.
                         Can be used as indices to order 'trial_events' by the 'event_codes' input.
     Example:
     ::

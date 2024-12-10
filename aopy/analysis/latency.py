@@ -6,12 +6,13 @@
 # in spiking and local field potential activity. J Neurophysiol. 2010 Dec;104(6):3705-20. 
 # doi: 10.1152/jn.00036.2010. Epub 2010 Sep 8. https://pubmed.ncbi.nlm.nih.gov/20884767/
 
+import warnings
+
 import numpy as np
 from scipy.stats import norm
 from statsmodels.stats.multitest import fdrcorrection
 from tqdm.auto import tqdm
 import multiprocessing as mp
-import warnings
 from matplotlib import pyplot as plt
 
 from .. import visualization

@@ -1,11 +1,16 @@
-import numpy as np
+# laser.py
+#
+# preprocessing laser data
+
 import warnings
-import matplotlib.pyplot as plt
 import sys
 if sys.version_info >= (3,9):
     from importlib.resources import files, as_file
 else:
     from importlib_resources import files, as_file
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 from .. import data as aodata
 from .. import analysis

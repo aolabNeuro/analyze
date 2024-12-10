@@ -1,10 +1,15 @@
+# oculomatic.py
+# 
+# preprocessing eye data from oculomatic
+
+import os
+import numpy as np
+
 from ..data.bmi3d import load_ecube_data_chunked
 from ..precondition.eye import filter_eye
 from .. import precondition
 from .. import data as aodata
 from .. import utils
-import numpy as np
-import os
 
 def parse_oculomatic(data_dir, files, samplerate=1000, max_memory_gb=1.0, debug=True, **filter_kwargs):
     """

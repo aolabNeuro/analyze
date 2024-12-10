@@ -1,7 +1,12 @@
+# bmi3d.py
+#
+# visuzalition specific to BMI3D 
+
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
-import aopy.visualization
+
+from . import base
 
 def plot_decoder_weight_matrix(decoder, ax=None):
     """
@@ -46,9 +51,9 @@ def plot_readout_map(decoder, readouts, drive_type='ECoG244', cmap='YlGnBu', ax=
         fig, ax = plt.subplots()
     channels = np.nan * np.zeros(256)
     channels[decoder.channels - 1] = np.arange(len(decoder.channels))
-    aopy.visualization.plot_spatial_drive_map(channels, interp=False, drive_type=drive_type, cmap=cmap, ax=ax, nan_color='#FF000000')
-    aopy.visualization.annotate_spatial_map_channels(color='k', ax=ax)
-    aopy.visualization.annotate_spatial_map_channels(acq_ch=readouts, color='w', ax=ax)
+    base.plot_spatial_drive_map(channels, interp=False, drive_type=drive_type, cmap=cmap, ax=ax, nan_color='#FF000000')
+    base.annotate_spatial_map_channels(color='k', ax=ax)
+    base.annotate_spatial_map_channels(acq_ch=readouts, color='w', ax=ax)
 
 def plot_decoder_weight_vectors(decoder, x_idx, y_idx, colors, ax=None):
     """

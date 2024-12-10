@@ -1,7 +1,12 @@
+# optitrack.py
+#
+# parser for optitrack data
+
+import numpy as np
+
 from .. import utils
 from .. import data as aodata
 from ..data import optitrack as ot
-import numpy as np
 
 def parse_optitrack(data_dir, files):
     '''
