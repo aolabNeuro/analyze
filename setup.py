@@ -22,13 +22,13 @@ install_requires = [
     'scipy',
     'PyWavelets',
     'Pillow',
-    'seaborn',
     'pyyaml',
     'tqdm',
     'open-ephys-python-tools',
     'aolab-bmi3d>=1.0',
     'sympy',
-    'ibllib'
+    'ibllib',
+    'seaborn>=0.13.2'
 ]
 
 setuptools.setup(
