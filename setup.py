@@ -22,7 +22,6 @@ install_requires = [
     'scipy',
     'PyWavelets',
     'Pillow',
-    'seaborn',
     'pyyaml',
     'tqdm',
     'open-ephys-python-tools',
