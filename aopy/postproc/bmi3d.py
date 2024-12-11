@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-def get_manual_input(manual_input, rotation, offset, scale=1):
+def covert_input_to_world_coords(manual_input, rotation, offset, scale=1):
     '''
     Transforms manual input to centered world coordinates for BMI3D tasks. For example, for 
     optitrack input, raw coordinates are in the form (x: forward/backward, y: up/down, z: right/left).
@@ -36,7 +36,7 @@ def get_manual_input(manual_input, rotation, offset, scale=1):
             exp_data, exp_metadata = aopy.data.load_preproc_exp_data(data_dir, subject, id, date)
 
             original = exp_data['task']['manual_input']
-            input = aopy.postproc.bmi3d.get_manual_input(original, exp_metadata['rotation'], exp_metadata['offset'])
+            input = aopy.postproc.bmi3d.covert_input_to_world_coords(original, exp_metadata['rotation'], exp_metadata['offset'])
             
             go_cue = 32
             trial_end = 239
@@ -65,10 +65,12 @@ def get_manual_input(manual_input, rotation, offset, scale=1):
 
     return bmi3d_space_input[:,[0,2,1]] # return (right-handed) world coordinates
 
-def get_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, scale=1):
+def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, exp_scale=1):
     '''
-    Returns the mapping $M$ that transforms centered hand coordinates to cursor coordinates.
-    Uses world coordinates (x: right/left, y: forward/backward, z: up/down).
+    Returns the mapping $M$ that transforms centered user input from world to screen coordinates.
+    World coordinates (x: right/left, y: up/down, z: forward/backward) and screen coordinates
+    (x: right/left, y: up/down, z: into/out of the screen) differ only in that the screen may be
+    placed arbitrarily in the world. 
     The mapping $M$ is related to the `exp_rotation` mapping $M_{q}$ used by bmi3d, but with 
     axes swapped through multiplication with $T_{q\rightarrow w} = T_{w\rightarrow q}$,
     the transformation that converts bmi3d coordinates to world coordinates
@@ -80,7 +82,7 @@ def get_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, scale=1):
         x_rot (float, optional): rotation about x-axis in degrees from exp_metadata['x_perturbation_rotation']. Default 0.
         y_rot (float, optional): rotation about y-axis in degrees from exp_metadata['pertubation_rotation']. Default 0.
         z_rot (float, optional): rotation about z-axis in degrees from exp_metadata['z_perturbation_rotation']. Default 0.
-        scale (float, optional): scaling factor of the mapping from exp_metadata['scale']. Default 1.
+        exp_scale (float, optional): gain scaling factor of the mapping from exp_metadata['exp_scale']. Default 1.
 
     Returns:
         (3, 3): mapping from centered world coordinates to screen coordinates    
@@ -111,13 +113,13 @@ def get_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, scale=1):
     '''
     from built_in_tasks.manualcontrolmultitasks import exp_rotations
     perturbation_rotation = R.from_euler('xyz', [x_rot, y_rot, z_rot], degrees=True).as_matrix()
-    bmi3d_mapping = scale * np.dot(exp_rotations[exp_rotation][:3,:3], perturbation_rotation)
+    bmi3d_mapping = exp_scale * np.dot(exp_rotations[exp_rotation][:3,:3], perturbation_rotation)
     
     return bmi3d_mapping[[0, 2, 1], :][:, [0, 2, 1]] # return mapping in right-handed coordinates
 
-def get_incremental_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='none'):
+def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='none', exp_scale=1):
     '''
-    Get the mappings from *centered* hand coords (in world coordinates) to screen space coordinates
+    Get the mappings from *centered* user input (in world coordinates) to screen space coordinates
     for an incremental rotation experiment. 
 
     Args:
@@ -126,6 +128,7 @@ def get_incremental_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='no
         step (float): step size in degrees
         bmi3d_axis (str, optional): axis about which to rotate the hand. Default 'y'.
         exp_rotation (str, optional): desired experimental rotation from exp_metadata['rotation']. Default 'none'.
+        exp_scale (float, optional): gain scaling factor of the mapping from exp_metadata['exp_scale']. Default 1.
 
     Returns:
         list: list of mapping matrices from centered world coordinates to screen coordinates
@@ -134,7 +137,7 @@ def get_incremental_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='no
     mappings = []
     for perturbation in np.arange(start, stop+step, step):
         perturbation_rotation = R.from_euler(bmi3d_axis, perturbation, degrees=True).as_matrix()
-        mapping = np.dot(exp_rotations[exp_rotation][:3,:3], perturbation_rotation)
+        mapping = exp_scale * np.dot(exp_rotations[exp_rotation][:3,:3], perturbation_rotation)
         mappings.append(mapping[[0, 2, 1], :][:, [0, 2, 1]]) # return mappings in right-handed coordinates
 
     return mappings

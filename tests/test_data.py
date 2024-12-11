@@ -473,12 +473,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test with center out data
         exp_data, exp_metadata = load_preproc_exp_data(write_dir, self.subject, self.te_id, self.date)
         cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=100)
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
         targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user_world', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(targets_interp.shape[1], 9) # 9 targets including center
+        self.assertEqual(user_interp.shape[1], 3)
 
         self.assertEqual(len(cursor_interp), len(hand_interp))
 
@@ -491,6 +493,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([hand_interp]) #, [-10, 10, -10, 10, -10, 10])
         filename = 'get_interp_hand_centerout.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        visualization.plot_trajectories([user_interp]) #, [-10, 10, -10, 10, -10, 10])
+        filename = 'get_user_world.png'
         visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()

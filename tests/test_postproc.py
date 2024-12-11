@@ -292,13 +292,13 @@ class TestEyeFuncs(unittest.TestCase):
 
 class TestMappingFuncs(unittest.TestCase):
 
-    def test_get_manual_input(self):
+    def test_covert_input_to_world_coords(self):
         # Test with fabricated data
         coords = np.array([[0,0,0],[0,1,1],[0,2,2],[0,3,3],[0,4,4]])
         offset = np.array([2,2,2])
         original = coords - offset
         rotation = 'yzx'
-        input = bmi3d.get_manual_input(original, rotation, offset)
+        input = bmi3d.covert_input_to_world_coords(original, rotation, offset)
 
         expected = np.array([[0,0,0],[1,1,0],[2,2,0],[3,3,0],[4,4,0]])
         np.testing.assert_allclose(input, expected)
@@ -313,7 +313,7 @@ class TestMappingFuncs(unittest.TestCase):
         np.testing.assert_allclose(exp_metadata['offset'], [0,-70,-36]) # rig 1 right arm offset
 
         original = exp_data['task']['manual_input']
-        input = bmi3d.get_manual_input(original, exp_metadata['rotation'], exp_metadata['offset'])
+        input = bmi3d.covert_input_to_world_coords(original, exp_metadata['rotation'], exp_metadata['offset'])
         
         go_cue = 32
         trial_end = 239
@@ -345,7 +345,7 @@ class TestMappingFuncs(unittest.TestCase):
 
         # Test with fabricated data
         coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
-        M = bmi3d.get_mapping('about_x_90')
+        M = bmi3d.get_world_to_screen_mapping('about_x_90')
         mapped = np.dot(coords, M)
         expected = np.array([[0,0,0],[1,0,1],[2,0,1],[3,0,4],[5,0,4]])
         np.testing.assert_allclose(mapped, expected)
@@ -354,7 +354,7 @@ class TestMappingFuncs(unittest.TestCase):
 
         # Test with fabricated data
         coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
-        mappings = bmi3d.get_incremental_mappings(0, 90, 90, 'x')
+        mappings = bmi3d.get_incremental_world_to_screen_mappings(0, 90, 90, 'x')
         self.assertEqual(len(mappings), 2)
         mapped_0 = np.dot(coords, mappings[0])
         np.testing.assert_allclose(mapped_0, coords) # should be unchanged
