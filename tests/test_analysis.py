@@ -1751,8 +1751,15 @@ class BehaviorMetricsTests(unittest.TestCase):
         fs = 1
         cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
             np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
-        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
+        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8, 0)
         self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
+
+        fs = 1
+        cursor_test = np.array([np.array([[0,0,0.5,0,0.5,0,1,1,1,1],[0,0.5,0,0,0.5,1,0,1,1,1]]).T,\
+            np.array([[0,-0.1,-0.2,-0.3,-0.4,-0.5,-0.6,-0.7,-0.8,-1],[0,0,0,0,0,0,0,0,0,0]]).T,\
+            np.array([[0,-0.1,-0.2,-0.3,-0.4,-0.5,-0.4,-0.3,-0.2,-0.1],[0,0.1,0.2,0.3,0.4,0.4,0.4,0.5,0.6,0.7]]).T])
+        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8, 0.1)
+        self.assertTrue(np.all(cursor_leave_time == np.array([4,8,9])))        
 
     def test_calc_tracking_error(self):
         samplerate = 100
