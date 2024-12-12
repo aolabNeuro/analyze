@@ -322,15 +322,15 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
         
     return np.array(movement_onset)
 
-def get_cursor_leave_time(cursor_traj, samplerate, target_radius, cursor_radius):
+def get_cursor_leave_time(cursor_traj, samplerate, target_radius, cursor_radius=0):
     '''
     Compute the times when the cursor leaves the center target radius
     
     Args:
         cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
         fs (float) : sampling rate in Hz
-        target_radius (float) : the radius of the center target
-        cursor_radius (float) : the radius of the cursor
+        target_radius (float) : the radius of the center target in cm
+        cursor_radius (float) : the radius of the cursor in cm. Default is 0
         
     Returns:
         cursor_leave_time (ntr): cursor leave times relative to the time when the cursor enters the center target

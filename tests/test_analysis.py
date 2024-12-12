@@ -1751,7 +1751,7 @@ class BehaviorMetricsTests(unittest.TestCase):
         fs = 1
         cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
             np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
-        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8, 0)
+        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
         self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
 
         fs = 1
