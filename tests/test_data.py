@@ -476,6 +476,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
         targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user_world', samplerate=100)
+        screen_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user_screen', samplerate=100)
 
         self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
@@ -499,6 +500,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ax = plt.axes(projection='3d')
         visualization.plot_trajectories([user_interp]) #, [-10, 10, -10, 10, -10, 10])
         filename = 'get_user_world.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        visualization.plot_trajectories([user_interp]) #, [-10, 10, -10, 10, -10, 10])
+        filename = 'get_user_screen.png'
         visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()

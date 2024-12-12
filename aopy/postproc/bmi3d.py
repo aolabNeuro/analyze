@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
-def covert_input_to_world_coords(manual_input, rotation, offset, scale=1):
+def convert_input_to_world_coords(manual_input, rotation, offset, scale=1):
     '''
     Transforms manual input to centered world coordinates for BMI3D tasks. For example, for 
     optitrack input, raw coordinates are in the form (x: forward/backward, y: up/down, z: right/left).
