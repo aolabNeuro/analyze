@@ -19,6 +19,7 @@ else:
 
 from .. import precondition
 from .. import preproc
+from .. import postproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
@@ -538,18 +539,25 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1000, step=1, **kwargs):
     '''
-    Gets interpolated kinematic data from preprocessed experiment data to the desired 
-    sampling rate. Cursor kinematics are returned in screen coordinates, while other 
-    kinematics are returned in their original coordinate system (e.g. hand kinematics 
-    in optitrack coordinates).
+    Gets interpolated data from preprocessed experiment task cycles to the desired 
+    sampling rate. Cursor kinematics are returned in screen coordinates, while user input 
+    kinematics are returned either in their original raw coordinate system with datatype='user_raw' (e.g. 
+    optitrack coordinates), in world coordinates with datatype='user_world', or in screen coordinates 
+    with datatype='user_screen' (similar to cursor kinematics but without any bounding under position
+    control).
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
         exp_metadata (dict): A dictionary containing the experiment metadata.
         datatype (str, optional): The type of kinematic data to interpolate. 
-            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
-            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
-            For other kinematics, try to interp exp_data['task'][datatype]
+            - 'cursor' for cursor kinematics
+            - 'user_raw' for raw input coordinates
+            - 'user_world' for user input in world coordinates
+            - 'user_screen' for user input in screen coordinates
+            - 'reference' for reference kinematics
+            - 'disturbance' for disturbance kinematics
+            - 'targets' for target positions
+            - other datatypes if they exist as exp_data['task'][<datatype>]
         samplerate (float, optional): The desired output sampling rate in Hz. 
             Defaults to 1000.
         step (int, optional): task data will be decimated with steps this big. Default 1.
@@ -561,7 +569,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
     Examples:
         
-        Cursor kinematics
+        Cursor kinematics in screen coordinates (datatype 'cursor')
 
         .. code-block:: python
         
@@ -573,7 +581,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         
         .. image:: _images/get_interp_cursor_centerout.png
 
-        Hand kinematics
+        Raw input kinematics (datatype 'user_raw', 'hand', or 'manual_input')
        
         .. code-block:: python
 
@@ -583,7 +591,27 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
         .. image:: _images/get_interp_hand_centerout.png
 
-        Target positions
+        User input kinematics in world coordinates (datatype 'user_world')
+       
+        .. code-block:: python
+
+            user_world = get_interp_task_data(exp_data, exp_metadata, datatype='user_world', samplerate=100)
+            ax = plt.axes(projection='3d')
+            visualization.plot_trajectories([user_world], [-10, 10, -10, 10, -10, 10])
+
+        .. image:: _images/get_user_world.png
+
+        User input kinematics in screen coordinates (datatype 'user_screen')
+       
+        .. code-block:: python
+
+            user_screen = get_interp_task_data(exp_data, exp_metadata, datatype='user_screen', samplerate=100)
+            ax = plt.axes(projection='3d')
+            visualization.plot_trajectories([user_screen], [-10, 10, -10, 10, -10, 10])
+
+        .. image:: _images/get_user_screen.png
+
+        Target positions (datatype 'target')
 
         .. code-block:: python
             
@@ -596,7 +624,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
         .. image:: _images/get_interp_targets_centerout.png
 
-        Cursor and target (reference) kinematics
+        Cursor and target (datatype 'reference') kinematics
 
         .. code-block:: python
             
@@ -641,18 +669,57 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         clock = exp_data['clock']['timestamp_bmi3d']
 
     # Fetch the relevant BMI3D data
-    if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position'] # 3d hand position (optitrack coords: x,y,z) on each bmi3d cycle
+    if datatype in ['hand', 'user_raw', 'manual_input']:
+        warnings.warn("Raw hand position is not recommended for analysis. Use 'user_world' instead for 3D world coordinate inputs.")
+        data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
+    elif datatype == 'user_world':
+        # 3d user input converted to world coordinates
+        if 'exp_scale' in exp_metadata:
+            scale = exp_metadata['scale']
+        else:
+            scale = np.sign(exp_metadata['scale'])
+        data_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                  exp_metadata['offset'], scale)
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
-    elif datatype == 'user':
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
+    elif datatype == 'user_screen':
+        # 3d user input converted to screen coordinates. Only works for singular mappings, not incremental mappings.
+        if 'incremental_rotation' in exp_metadata['features']:
+            warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
+        if 'exp_scale' in exp_metadata:
+            scale = exp_metadata['scale']
+            exp_scale = exp_metadata['exp_scale']
+        else:
+            scale = np.sign(exp_metadata['scale'])
+            exp_scale = np.abs(exp_metadata['scale'])
+        user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                  exp_metadata['offset'], scale)
+        if 'exp_rotation' in exp_metadata:
+            exp_rotation = exp_metadata['exp_rotation']
+        else:
+            exp_rotation = 'none'
+        if 'perturbation_rotation_x' in exp_metadata:
+            x_rot = exp_metadata['perturbation_rotation_x']
+            z_rot = exp_metadata['perturbation_rotation_z']
+        else:
+            x_rot = 0
+            z_rot = 0
+        if 'pertubation_rotation' in exp_metadata:
+            y_rot = exp_metadata['pertubation_rotation']
+        else:
+            y_rot = 0
+        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_scale)
+        data_cycles = np.dot(user_world_cycles, exp_mapping)
+    elif datatype in ['user', 'intended_cursor']:
+        if datatype == 'user':
+            warnings.warn("User input is not recommended. Use 'intended_cursor' instead for clarity.")
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d cursor position before disturbance added (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] - exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # cursor position before disturbance added (bmi3d coords: x,z,y)
     elif datatype == 'reference':
-        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 2d target position (bmi3d coords: x,z)
+        data_cycles =  exp_data['task']['current_target'][:,[0,2,1]] # target position (bmi3d coords: x,z,y)
     elif datatype == 'disturbance':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d disturbance value (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # disturbance value (bmi3d coords: x,z,y)
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']

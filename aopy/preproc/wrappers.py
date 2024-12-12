@@ -252,7 +252,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     try:
         # Calibrate the eye data
         cursor_samplerate = exp_metadata['cursor_interp_samplerate']
-        cursor_data = exp_data['cursor_interp']
+        cursor_data = exp_data['cursor_interp'][:,:2]
         events = exp_data['events']
         event_codes = events['code']
         event_times = events['timestamp'] # time points in the ecube time frame
