@@ -6,7 +6,7 @@ from scipy.spatial.transform import Rotation as R
 
 def convert_raw_to_world_coords(manual_input, rotation, offset, scale=1):
     '''
-    Transforms manual input to centered world coordinates for BMI3D tasks. For example, for 
+    Transforms 3D manual input to 3D centered world coordinates for BMI3D tasks. For example, for 
     optitrack input, raw coordinates are in the form (x: forward/backward, y: up/down, z: right/left).
     This function applies the BMI3D offset and scale to the coordinates, then transforms the coordinates 
     to world coordinates (x: right/left, y: forward/backward, z: up/down). For joystick input, the
@@ -67,10 +67,11 @@ def convert_raw_to_world_coords(manual_input, rotation, offset, scale=1):
 
 def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, exp_scale=1):
     '''
-    Returns the mapping $M$ that transforms centered user input from world to screen coordinates.
+    Returns the mapping $M$ that transforms 3D centered user input from world to screen coordinates.
     World coordinates (x: right/left, y: up/down, z: forward/backward) and screen coordinates
     (x: right/left, y: up/down, z: into/out of the screen) differ only in that the screen may be
-    placed arbitrarily in the world. 
+    placed arbitrarily in the world. However the mapping $M$ can arbitrarily rotate and scale the
+    user input before projecting it to the screen.
     The mapping $M$ is related to the `exp_rotation` mapping $M_{q}$ used by bmi3d, but with 
     axes swapped through multiplication with $T_{q\rightarrow w} = T_{w\rightarrow q}$,
     the transformation that converts bmi3d coordinates to world coordinates
