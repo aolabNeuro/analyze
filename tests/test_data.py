@@ -38,6 +38,10 @@ class LoadPreprocTests(unittest.TestCase):
         cls.id = 3498
         cls.subject = 'fake_subject'
         cls.date = '2021-12-13'
+        
+        cls.id2 = '0000'
+        cls.subject2 = 'test'
+        cls.date2 = '2024-11-12'
         preproc.proc_single(data_dir, files, write_dir, cls.subject, cls.id, cls.date, ['exp', 'eye', 'broadband', 'lfp'], overwrite=True) # without ecube data
 
     def test_load_preproc_exp_data(self):
@@ -59,7 +63,10 @@ class LoadPreprocTests(unittest.TestCase):
         lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
-
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
     def test_find_preproc_ids_from_day(self):
         ids = find_preproc_ids_from_day(write_dir, self.subject, self.date, 'exp')
         self.assertIn(self.id, ids)
@@ -70,7 +77,44 @@ class LoadPreprocTests(unittest.TestCase):
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
-
+    
+    # Test for loading functions when data has multiple drive data
+    def test_load_preproc_lfp_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+        
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
+    def test_load_preproc_ap_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+            
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        
+    def test_load_preproc_spike_data_multidrive(self):
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        
+    def test_load_spike_waveforms_multidrive(self):
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(wfs, dict)
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(wfs, dict)     
+                
 class OptitrackTests(unittest.TestCase):
         
     def test_load_mocap(self):
@@ -344,6 +388,16 @@ class HDFTests(unittest.TestCase):
         self.assertIn('group_data', result['group1'])
         print(result)
 
+    def test_list_root_groups(self):
+        testfile = 'load_hdf_contents_test.hdf'
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group2", append=True)
+        group_names = list_root_groups(write_dir, testfile)
+        self.assertIn('group1', group_names)
+        self.assertIn('group2', group_names)
+        
     def test_load_hdf_data(self):
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
@@ -421,23 +475,38 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
         hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
         targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user_world', samplerate=100)
+        screen_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user_screen', samplerate=100)
 
-        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(targets_interp.shape[1], 9) # 9 targets including center
+        self.assertEqual(user_interp.shape[1], 3)
 
         self.assertEqual(len(cursor_interp), len(hand_interp))
 
         plt.figure()
         visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         filename = 'get_interp_cursor_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         ax = plt.axes(projection='3d')
-        visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
+        visualization.plot_trajectories([hand_interp]) #, [-10, 10, -10, 10, -10, 10])
         filename = 'get_interp_hand_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        visualization.plot_trajectories([user_interp]) #, [-10, 10, -10, 10, -10, 10])
+        filename = 'get_user_world.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        visualization.plot_trajectories([user_interp]) #, [-10, 10, -10, 10, -10, 10])
+        filename = 'get_user_screen.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         time = np.arange(len(targets_interp))/100
@@ -446,7 +515,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlabel('time (s)')
         plt.ylabel('x position (cm)')
         filename = 'get_interp_targets_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         # Test with tracking task data (rig1)
         exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
@@ -458,12 +527,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
         dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps'])
 
-        self.assertEqual(cursor_interp.shape[1], 2)
-        self.assertEqual(ref_interp.shape[1], 2)
-        self.assertEqual(dis_interp.shape[1], 2)
-        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
+        self.assertEqual(ref_interp.shape[1], 3)
+        self.assertEqual(dis_interp.shape[1], 3)
+        self.assertEqual(user_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
@@ -479,7 +548,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_cursor_tracking.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
@@ -489,7 +558,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_user_tracking.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
         
         # Test with tracking task data (tablet rig)
         exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'churro', 375, '2023-10-02')
@@ -501,12 +570,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
         dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
 
-        self.assertEqual(cursor_interp.shape[1], 2)
-        self.assertEqual(ref_interp.shape[1], 2)
-        self.assertEqual(dis_interp.shape[1], 2)
-        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
+        self.assertEqual(ref_interp.shape[1], 3)
+        self.assertEqual(dis_interp.shape[1], 3)
+        self.assertEqual(user_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
@@ -520,7 +589,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_cursor_tracking_tablet.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
@@ -530,7 +599,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_user_tracking_tablet.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_get_task_data(self):
 
@@ -603,7 +672,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_end_codes = [REWARD, TRIAL_END]
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape[1], 2) # x z
+        self.assertEqual(trajs[1].shape[1], 3)
         bounds = [-10, 10, -10, 10]
         plt.figure()
         visualization.plot_trajectories(trajs, bounds=bounds)
@@ -622,7 +691,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.close()
 
         # Plot hand trajectories - expect same 9 trials but hand kinematics.
-        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand')
+        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='manual_input')
         self.assertEqual(len(hand_trajs), 9)
         self.assertEqual(hand_trajs[1].shape[1], 3)
         plt.figure()
@@ -645,7 +714,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test component wise velocity output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape[1], 2)
+        self.assertEqual(vel[1].shape[1], 3)
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t

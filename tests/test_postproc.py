@@ -10,6 +10,7 @@ import datetime
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -281,18 +282,97 @@ class TestEyeFuncs(unittest.TestCase):
         self.assertTrue(np.all(offset_targ==[1,-1]))
         self.assertTrue(np.all(offset_event==[20,30]))
 
+    def test_get_relevant_saccade_idx(self):
+        onset_target = np.array([0,2,0,0])
+        offset_target = np.array([0,1,1,1])
+        saccade_distance = np.array([1.0,2.0,2.0,3.0])
+        target_idx = 1
+        relevant_saccade_idx = get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx)
+        self.assertTrue(relevant_saccade_idx == 3)
 
+class TestMappingFuncs(unittest.TestCase):
+
+    def test_convert_raw_to_world_coords(self):
+        # Test with fabricated data
+        coords = np.array([[0,0,0],[0,1,1],[0,2,2],[0,3,3],[0,4,4]])
+        offset = np.array([2,2,2])
+        original = coords - offset
+        rotation = 'yzx'
+        input = bmi3d.convert_raw_to_world_coords(original, rotation, offset)
+
+        expected = np.array([[0,0,0],[1,1,0],[2,2,0],[3,3,0],[4,4,0]])
+        np.testing.assert_allclose(input, expected)
+
+        # Test on some real optitrack data
+        subject = 'beignet'
+        id = 5974
+        date = datetime.date(2022, 7, 1)
+        exp_data, exp_metadata = aopy.data.load_preproc_exp_data(data_dir, subject, id, date)
+
+        self.assertEqual(exp_metadata['rotation'], 'yzx') # optitrack
+        np.testing.assert_allclose(exp_metadata['offset'], [0,-70,-36]) # rig 1 right arm offset
+
+        original = exp_data['task']['manual_input']
+        input = bmi3d.convert_raw_to_world_coords(original, exp_metadata['rotation'], exp_metadata['offset'])
+        
+        go_cue = 32
+        trial_end = 239
+        print(exp_data['bmi3d_events']['code'], exp_data['bmi3d_events']['time'])
+        segments, times = aopy.preproc.get_trial_segments(exp_data['bmi3d_events']['code'], exp_data['bmi3d_events']['time'], 
+                                                  [go_cue], [trial_end])
+        segments_original = aopy.preproc.get_data_segments(original, times, 1)
+        segments_input = aopy.preproc.get_data_segments(input, times, 1)
+
+        plt.figure()
+        plt.subplot(2,2,1)
+        aopy.visualization.plot_trajectories(segments_original)
+        plt.title('Original')
+        plt.subplot(2,2,2)
+        aopy.visualization.plot_trajectories(segments_input, bounds=[-10,10,-10,10])
+        plt.title('Transformed')
+        plt.subplot(2,2,3, projection='3d')
+        aopy.visualization.plot_trajectories(segments_original)
+        plt.subplot(2,2,4, projection='3d')
+        aopy.visualization.plot_trajectories(segments_input, bounds=[-10,10,-10,10,-10,10])
+
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+        filename = 'test_get_bmi3d_mc_input.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
+        self.assertTrue(np.all(input[:,[2,1,0]] == exp_data['clean_hand_position'] + exp_metadata['offset']))           
+
+    def test_get_mapping(self):
+
+        # Test with fabricated data
+        coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
+        M = bmi3d.get_world_to_screen_mapping('about_x_90')
+        mapped = np.dot(coords, M)
+        expected = np.array([[0,0,0],[1,0,1],[2,0,1],[3,0,4],[5,0,4]])
+        np.testing.assert_allclose(mapped, expected)
+
+    def test_get_incremental_mappings(self):
+
+        # Test with fabricated data
+        coords = np.array([[0,0,0],[1,1,0],[2,1,0],[3,4,0],[5,4,0]])
+        mappings = bmi3d.get_incremental_world_to_screen_mappings(0, 90, 90, 'x')
+        self.assertEqual(len(mappings), 2)
+        mapped_0 = np.dot(coords, mappings[0])
+        np.testing.assert_allclose(mapped_0, coords) # should be unchanged
+        mapped_1 = np.dot(coords, mappings[1])
+        expected = np.array([[0,0,0],[1,0,1],[2,0,1],[3,0,4],[5,0,4]])
+        np.testing.assert_allclose(np.round(mapped_1, 5), expected)
+        
 class NeuropixelFuncs(unittest.TestCase):
 
     def test_calc_presence_ratio(self):
         # Test no trials
-        data = np.zeros((10, 0, 5))  # 10 time points, 0 trials, 5 units
+        data = np.zeros((10, 5, 0))  # 10 time points, 0 trials, 5 units
         presence_ratio, present_units = aopy.postproc.neuropixel.calc_presence_ratio(data)
         self.assertEqual(presence_ratio.shape[0], 5)
         self.assertTrue(np.all(present_units == False))
 
         # Test all units active
-        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data = np.random.randint(1, 10, (10, 3, 5))  # 10 time points, 5 trials, 3 units
         presence_ratio, present_units = neuropixel.calc_presence_ratio(data)
         self.assertTrue(np.all(present_units))  # All units should be present
         self.assertTrue(np.all(presence_ratio == 1.0))  # Presence ratio should be 1 for all units
@@ -305,25 +385,26 @@ class NeuropixelFuncs(unittest.TestCase):
         self.assertTrue(np.array_equal(presence_details, np.sum(data, axis=0) > 0))  # Should match trials and units shape
 
         # Test all units active
-        data = np.random.randint(1, 10, (10, 5, 3))  # 10 time points, 5 trials, 3 units
+        data = np.random.randint(1, 10, (10, 3, 5))  # 10 time points, 5 trials, 3 units
         presence_ratio, present_units = neuropixel.calc_presence_ratio(data)
         self.assertTrue(np.all(present_units))  # All units should be present
         self.assertTrue(np.all(presence_ratio == 1.0))
 
         # Test some units inactive
-        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
-        data[1:3, :3, 0] = 1  # Only unit 0 is active in trials 1 and 2
-        data[0:5, :3, 1] = 1  # Only unit 1 is active in trials 0, 1, 3
+        data = np.zeros((10, 3, 5))  # 10 time points, 5 trials, 3 units
+        data[1:3,0, :3] = 1  # Only unit 0 is active in trials 1, 2, and 3
+        data[0:5,1, :3] = 1  # Only unit 1 is active in trials 1, 2, and 3
+                             # Unit 2 is not active on any trials.
         presence_ratio, present_units = neuropixel.calc_presence_ratio(data, min_trial_prop=0.5)
         self.assertEqual(presence_ratio.shape[0], 3)
         self.assertTrue(np.all(present_units[[0, 1]]))  # Units 0 and 1 should be present
         self.assertFalse(present_units[2])  # Unit 2 should not be present
 
         # Test different min_trial_prop
-        data = np.zeros((10, 5, 3))  # 10 time points, 5 trials, 3 units
-        data[1:5, :4, 0] = 1  # Unit 0 is active in trials 0,1, 2,3,
-        data[1:3, :3, 1] = 1  # Unit 1 is active in trials 0,1
-        data[0:2, 1, 2] = 1  # Unit 2 is active in trial 1
+        data = np.zeros((10, 3, 5))  # 10 time points, 5 trials, 3 units
+        data[1:5,0, :4] = 1  # Unit 0 is active in trials 0,1, 2,3,
+        data[1:3,1, :3] = 1  # Unit 1 is active in trials 0,1,2
+        data[0:2,2,  1] = 1  # Unit 2 is active in trial 1
 
         # Test with a higher min_trial_prop
         presence_ratio, present_units = aopy.postproc.neuropixel.calc_presence_ratio(data, min_trial_prop=0.6)
@@ -445,7 +526,6 @@ class NeuropixelFuncs(unittest.TestCase):
         self.assertTrue(len(good_unit_labels)==3)
         self.assertTrue(low_bin_perc[1] < low_bin_thresh or cutoff_metric[1] < uhq_std_thresh)
         self.assertTrue(low_bin_perc[2] < low_bin_thresh or cutoff_metric[2] < uhq_std_thresh)
-
 
 if __name__ == "__main__":
     unittest.main()
