@@ -52,16 +52,18 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertTrue(np.isnan(data_map[0,0]))
         plt.figure()
         plot_spatial_map(data_map, x_missing, y_missing)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Fill in the missing values by using calc_data_map instead of get_data_map
         filename = 'posmap_calcmap.png'
         interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
+        np.testing.assert_allclose(x_pos.reshape(-1), xy[0])
+        np.testing.assert_allclose(y_pos.reshape(-1), xy[1])
         self.assertEqual(interp_map.shape, (10, 10))
         self.assertFalse(np.isnan(interp_map[0,0]))
         plt.figure()
         plot_spatial_map(interp_map, xy[0], xy[1])
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Use cubic interpolation to generate a high resolution map
         filename = 'posmap_calcmap_interp.png'
@@ -69,7 +71,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(interp_map.shape, (100, 100))
         plt.figure()
         plot_spatial_map(interp_map, xy[0], xy[1])
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Test using an alpha map on top of the spatial map
         filename = 'posmap_alphamap.png'
@@ -77,7 +79,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(data_map.shape, (10, 10))
         plt.figure()
         plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
     def test_single_spatial_map(self):
         data = 2.0
@@ -791,13 +793,13 @@ class TestPlotUtils(unittest.TestCase):
         plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
         overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
         filename = 'overlay_sulci_beignet.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
         overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
         filename = 'overlay_sulci_affi.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
 class TestEyePlots(unittest.TestCase):
 
