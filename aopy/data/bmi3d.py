@@ -678,7 +678,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             scale = exp_metadata['scale']
         else:
             scale = np.sign(exp_metadata['scale'])
-        data_cycles = postproc.bmi3d.convert_input_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+        data_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
     elif datatype == 'cursor':
         data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
@@ -692,7 +692,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         else:
             scale = np.sign(exp_metadata['scale'])
             exp_scale = np.abs(exp_metadata['scale'])
-        user_world_cycles = postproc.bmi3d.convert_input_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+        user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
         if 'exp_rotation' in exp_metadata:
             exp_rotation = exp_metadata['exp_rotation']

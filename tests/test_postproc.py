@@ -292,13 +292,13 @@ class TestEyeFuncs(unittest.TestCase):
 
 class TestMappingFuncs(unittest.TestCase):
 
-    def test_convert_input_to_world_coords(self):
+    def test_convert_raw_to_world_coords(self):
         # Test with fabricated data
         coords = np.array([[0,0,0],[0,1,1],[0,2,2],[0,3,3],[0,4,4]])
         offset = np.array([2,2,2])
         original = coords - offset
         rotation = 'yzx'
-        input = bmi3d.convert_input_to_world_coords(original, rotation, offset)
+        input = bmi3d.convert_raw_to_world_coords(original, rotation, offset)
 
         expected = np.array([[0,0,0],[1,1,0],[2,2,0],[3,3,0],[4,4,0]])
         np.testing.assert_allclose(input, expected)
@@ -313,7 +313,7 @@ class TestMappingFuncs(unittest.TestCase):
         np.testing.assert_allclose(exp_metadata['offset'], [0,-70,-36]) # rig 1 right arm offset
 
         original = exp_data['task']['manual_input']
-        input = bmi3d.convert_input_to_world_coords(original, exp_metadata['rotation'], exp_metadata['offset'])
+        input = bmi3d.convert_raw_to_world_coords(original, exp_metadata['rotation'], exp_metadata['offset'])
         
         go_cue = 32
         trial_end = 239
