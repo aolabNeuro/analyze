@@ -670,7 +670,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
     # Fetch the relevant BMI3D data
     if datatype in ['hand', 'user_raw', 'manual_input']:
-        warnings.warn("Raw hand position is not recommended for analysis. Use 'manual_input' instead for 3D world coordinate inputs.")
+        warnings.warn("Raw hand position is not recommended for analysis. Use 'user_world' instead for 3D world coordinate inputs.")
         data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
     elif datatype == 'user_world':
         # 3d user input converted to world coordinates
