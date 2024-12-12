@@ -9,10 +9,11 @@ def convert_raw_to_world_coords(manual_input, rotation, offset, scale=1):
     Transforms 3D manual input to 3D centered world coordinates for BMI3D tasks. For example, for 
     optitrack input, raw coordinates are in the form (x: forward/backward, y: up/down, z: right/left).
     This function applies the BMI3D offset and scale to the coordinates, then transforms the coordinates 
-    to world coordinates (x: right/left, y: forward/backward, z: up/down). For joystick input, the
-    coordinates are in the form (x: left/right, y: backward/forward, z: nothing) and the scale is -1. 
-    Thus the output is always in the form (x: right/left, y: forward/backward, z: up/down) if the
-    inputs are copied directly from exp_metadata.
+    to world coordinates (x: right/left, y: forward/backward, z: up/down) and reorders them to 
+    be more intuitive (x: right/left, y: up/down, z: forward/backward). 
+    For joystick input, the coordinates are in the form (x: left/right, y: backward/forward, z: nothing) 
+    and the scale is -1. Thus the output is always in the form (x: right/left, y: up/down, z: forward/backward) 
+    if the inputs are copied directly from exp_metadata.
 
     Args:
         manual_input (nt, 3): manual input coordinates from bmi3d, e.g. exp_data['task']['manual_input']
@@ -21,7 +22,7 @@ def convert_raw_to_world_coords(manual_input, rotation, offset, scale=1):
         scale (float, optional): scaling factor for cursor movement from exp_metadata['scale']. Default 1.
 
     Returns:
-        (nt, 3): manual input in world coordinates
+        (nt, 3): manual input in world coordinates (x: right/left, y: up/down, z: forward/backward)
 
     Examples:
         Load manual input data from an experiment and transform it to world coordinates using the 
@@ -120,8 +121,11 @@ def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, 
 
 def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='none', exp_scale=1):
     '''
-    Get the mappings from *centered* user input (in world coordinates) to screen space coordinates
-    for an incremental rotation experiment. 
+    Returns the mappings $M$ that transform 3D centered user input from world to screen coordinates 
+    for an incremental rotation experiment. World coordinates (x: right/left, y: up/down, z: forward/backward) 
+    and screen coordinates (x: right/left, y: up/down, z: into/out of the screen) differ only in that 
+    the screen may be placed arbitrarily in the world. However the mapping $M$ can arbitrarily rotate 
+    and scale the user input before projecting it to the screen.
 
     Args:
         start (float): starting angle in degrees
@@ -132,7 +136,7 @@ def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', 
         exp_scale (float, optional): gain scaling factor of the mapping from exp_metadata['exp_scale']. Default 1.
 
     Returns:
-        list: list of mapping matrices from centered world coordinates to screen coordinates
+        list: list of mappings from centered world coordinates to screen coordinates   
     '''
     from built_in_tasks.manualcontrolmultitasks import exp_rotations
     mappings = []
