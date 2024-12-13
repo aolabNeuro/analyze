@@ -3,8 +3,9 @@
 # Cell-type specific computations, e.g. classification by spike width
 
 import numpy as np
-from .base import find_outliers, get_pca_dimensions, interpolate_extremum_poly2
 from sklearn.mixture import GaussianMixture
+
+from .base import find_outliers, get_pca_dimensions, interpolate_extremum_poly2
 
 '''
 Cell type classification analysis

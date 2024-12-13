@@ -1,9 +1,15 @@
-import numpy as np
-from ..utils import extract_barcodes_from_times, get_first_last_times, sync_timestamp_offline, convert_port_number
-from ..data import load_neuropixel_data, load_ks_output, get_channel_bank_name
+# neuropixel.py
+# 
+# Preprocessing neuropixel data
+
 import os
 import glob
+
+import numpy as np
 from ibldsp.voltage import destripe_lfp
+
+from ..utils import extract_barcodes_from_times, get_first_last_times, sync_timestamp_offline, convert_port_number
+from ..data import load_neuropixel_data, load_ks_output, get_channel_bank_name
 
 def sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,off_times_ecube,inter_barcode_interval=20,bar_duration=0.02,verbose=False):
     '''

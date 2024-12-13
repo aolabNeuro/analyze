@@ -2,12 +2,12 @@
 # Code for cleaning and preparing neural data for users to interact with,
 # for example: down-sampling, outlier detection, and initial filtering
 
-from os import fsdecode, fspath, fstat
 import warnings
-from scipy import signal
-from scipy.signal import butter, lfilter, filtfilt, decimate, windows
-import numpy as np
 import math
+
+from scipy import signal
+from scipy.signal import butter, filtfilt, windows
+import numpy as np
 
 from .. import analysis
 from .. import utils
@@ -759,8 +759,8 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
 
     Returns:
         tuple: tuple containing:
-        | **lfp_data (nt', ...):** downsampled filtered lfp data
-        | **samplerate (float):** sampling rate of the lfp data
+            | **lfp_data (nt', ...):** downsampled filtered lfp data
+            | **samplerate (float):** sampling rate of the lfp data
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=broadband_samplerate)
     filtered_data = filtfilt(b, a, broadband_data, axis=0)
@@ -799,8 +799,8 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
 
     Returns:
         tuple: tuple containing:
-        | **filtere_data (nt, ...):** filtered kinematics data
-        | **samplerate (float):** sampling rate of the kinematics data
+            | **filtere_data (nt, ...):** filtered kinematics data
+            | **samplerate (float):** sampling rate of the kinematics data
 
     Examples:
 

@@ -1,8 +1,18 @@
 # visualization.py
+# 
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
+
 import string
 import warnings
-import seaborn as sns
+from datetime import timedelta
+import os
+import copy
+import sys
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
+
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -12,25 +22,16 @@ from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
-
+import seaborn as sns
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 from scipy import signal
 from scipy.stats import zscore
 import numpy as np
-import os
 from PIL import Image
-import copy
 import pandas as pd
 from tqdm import tqdm
-import pandas as pd
-from datetime import timedelta
-import sys
-if sys.version_info >= (3,9):
-    from importlib.resources import files, as_file
-else:
-    from importlib_resources import files, as_file
 
 from .. import precondition
 from .. import analysis
@@ -206,8 +207,8 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), thet
 
     Returns:
         tuple: tuple containing:
-        | **fig (pyplot.Figure):** figure where the subplots were placed
-        | **ax (list):** pyplot.Axes handles for each stimulation site
+            | **fig (pyplot.Figure):** figure where the subplots were placed
+            | **ax (list):** pyplot.Axes handles for each stimulation site
 
     Examples:
 
