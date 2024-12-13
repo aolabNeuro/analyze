@@ -839,7 +839,7 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
     return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, 
                        rotation_offset=rotation_offset, **kwargs)
 
-def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, neuropixel_drive_offset='center', drive2_offset='center'):
+def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, neuropixel_drive_offset='center', drive2_offset='center', theta=0):
     '''
     This function aligns one drive to another drive type. In the current iteration, this function only supports aligning neuropixels drives ('NP_Insert72'/'NP_Insert137'') 
     to each other or to 'ECoG244'/'Opto32' drives. This function assumes a fixed mapping between subject and alignment is not currently compatible with selecting subsets of channels. 
@@ -856,6 +856,7 @@ def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, neuropixe
         subject (str): Subject recordings were performed on. Currently supports 'Affi' and 'Beignet'
         neuropixel_drive_offset (str, tuple, list, or array): Default automatically centers drive at (0,0). Otherwise define how much to translate the neuropixel drive with an X and Y coordinate. 
         drive2_offset (str, tuple, list, or array): Default automatically centers drive at (0,0). Otherwise define how much to translate the second drive with an X and Y coordinate. 
+        theta (float): Additional rotation to apply after alignment [deg]. Positive values rotate clockwise. 
 
     Returns:
         tuple: Tuple Containing:
@@ -888,8 +889,8 @@ def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, neuropixe
         angle = 0
 
     # Load ch map for neuropixel drive and drive 2
-    np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive, theta=-np.rad2deg(angle))    
-    drive2_ch_pos, acq_elecs , _ = load_chmap(drive_type=drive2)
+    np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive, theta=-np.rad2deg(angle)+theta)    
+    drive2_ch_pos, acq_elecs , _ = load_chmap(drive_type=drive2, theta=theta)
 
     # Center offset if necessary
     if isinstance(neuropixel_drive_offset, str):
