@@ -58,3 +58,9 @@ Main function: :func:`~aopy.analysis.accllr.calc_accllr_st`
 
 .. automodule:: aopy.analysis.latency
     :members:
+
+Connectivity
+^^^^^^^^^^^^
+
+.. automodule:: aopy.analysis.connectivity
+    :members:
