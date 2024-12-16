@@ -178,6 +178,7 @@ It is also recommended to include :ref:`Examples:` of common workflows, for inst
 trial-aligning kinematics and neural data. 
 
 To add an example page, follow these instructions:
+
 #. Create and run a notebook that demonstrates the use of some aopy functions. Be sure that your notebook 
    has a title at the beginning, otherwise it won't show up in the table of contents. See the source code
    of the existing example notebooks for guidance. `Examples<https://github.com/aolabNeuro/analyze/tree/master/docs/source/examples>`_
