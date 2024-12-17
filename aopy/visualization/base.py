@@ -2188,7 +2188,7 @@ def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area
 
     return n, bins, patches
 
-def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, invert=False, ax=None, **kwargs):
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, center=(0,0), color=None, invert=False, ax=None, **kwargs):
     '''
     Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
     placed at the same coordinates as electrode positions for the given electrode drive. The image
@@ -2198,6 +2198,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
         filepath (str): path to the image file
         drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
         theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         color (str, optional): color to use for the image. Default is None.
         invert (bool, optional): whether to invert the image. Default is False.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
@@ -2218,7 +2219,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
     img = np.rot90(img, np.ceil(theta/90), axes=(1,0))
     
     # Calculate the proper extents
-    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
+    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta, center=center)
     x = elec_pos[:,0]
     y = elec_pos[:,1]
     extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
@@ -2228,7 +2229,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
 
     ax.imshow(img, origin='upper', extent=extent, **kwargs)
 
-def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.5, **kwargs):
+def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(0,0), alpha=0.5, **kwargs):
     '''
     Overlay a precomputed image of chamber sucli on a spatial map of electrodes. 
     Images are stored in the aopy.config directory. Currently available images are:
@@ -2240,6 +2241,7 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.
         chamber (str): chamber type
         drive_type (str): drive type
         theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         alpha (float, optional): transparency of the image. Default is 0.5.
         kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. color.
 
@@ -2265,4 +2267,4 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.
     filename = f'{subject.lower()}_{chamber.lower()}_{drive_type.lower()}_sulci.png'
     params_file = as_file(config_dir.joinpath(filename))
     with params_file as f:
-        overlay_image_on_spatial_map(f, drive_type, theta=theta, alpha=alpha, **kwargs)
+        overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)
