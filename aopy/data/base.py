@@ -914,7 +914,7 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, center=(0,0), 
             channels and connected electrodes will be returned.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
             rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
-        center (2-tuple): brain coordinates of the center of the drive in mm. Defaults to (0,0).
+        center (2-tuple): chamber coordinates of the center of the drive in mm. Defaults to (0,0).
         kwargs (dict): Additional keyword arguments to pass to :func:`~aopy.data.map_acq2pos`
 
     Returns:
