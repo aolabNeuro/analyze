@@ -456,7 +456,7 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
-    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    where :math:`\\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
     this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
     calculated across the entire input array.
 
