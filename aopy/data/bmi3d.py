@@ -1711,7 +1711,8 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **target_idx (ntrial):** index of the target that was presented
             | **target_location (ntrial):** location of the target that was presented
-            | **trial_start_time (ntrial):** time at which the trial started
+            | **center_target_on_time (ntrial):** time at which the trial started
+            | **prev_trial_end_time (ntrial):** time at which the previous trial ended
             | **trial_end_time (ntrial):** time at which the trial ended
             | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated
             | **hold_start_time (ntrial):** time at which the hold period started
