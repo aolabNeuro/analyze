@@ -23,4 +23,8 @@ Examples:
 .. toctree::
 
     examples/save_segments.ipynb
+
+.. toctree::
+
+    examples/example_tabulate_behavior.ipynb
     
