@@ -68,16 +68,16 @@ def convert_raw_to_world_coords(manual_input, rotation, offset, scale=1):
 
 def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, exp_scale=1):
     '''
-    Returns the mapping $M$ that transforms 3D centered user input from world to screen coordinates.
+    Returns the mapping :math:`M` that transforms 3D centered user input from world to screen coordinates.
     World coordinates (x: right/left, y: up/down, z: forward/backward) and screen coordinates
     (x: right/left, y: up/down, z: into/out of the screen) differ only in that the screen may be
-    placed arbitrarily in the world. However the mapping $M$ can arbitrarily rotate and scale the
+    placed arbitrarily in the world. However the mapping :math:`M` can arbitrarily rotate and scale the
     user input before projecting it to the screen.
-    The mapping $M$ is related to the `exp_rotation` mapping $M_{q}$ used by bmi3d, but with 
-    axes swapped through multiplication with $T_{q\rightarrow w} = T_{w\rightarrow q}$,
+    The mapping :math:`M` is related to the `exp_rotation` mapping :math:`M_{q}` used by bmi3d, but with 
+    axes swapped through multiplication with :math:`T_{q\rightarrow w} = T_{w\rightarrow q}`,
     the transformation that converts bmi3d coordinates to world coordinates
-    (it happens to be its own inverse). The full mapping $M$ returned by this function is:
-    $M = T_{w\rightarrow q} M_q T_{q\rightarrow w}$
+    (it happens to be its own inverse). The full mapping :math:`M` returned by this function is:
+    :math:`M = T_{w\rightarrow q} M_q T_{q\rightarrow w}`
 
     Args:
         exp_rotation (str, optional): desired experimental rotation from exp_metadata['rotation']. Default 'none'.
@@ -90,24 +90,20 @@ def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, 
         (3, 3): mapping from centered world coordinates to screen coordinates    
 
     Examples:
-        To reproduce how the mapping was used online, multiply position data in world coordinates ($r_w$)
-        by the mapping $M$ to get coordinates in screen space ($r_s$; x is up on the screen, y is right 
+        To reproduce how the mapping was used online, multiply position data in world coordinates (:math:`r_w`)
+        by the mapping :math:`M` to get coordinates in screen space (:math:`r_s`; x is up on the screen, y is right 
         on the screen, z is into the screen). 
 
-        $$
-        r_{s} = r_{w} M
-        $$
+        .. math::
 
-        .. code-block:: python
-
-        .. image:: _images/bmi3d_mc_mapping.png
+            r_{s} = r_{w} M
 
         Alternatively, to transform screen space coordinates to world coordinates, multiply by the 
-        inverse mapping $M^{-1}$:
+        inverse mapping :math:`M^{-1}`:
 
-        $$
-        r_{w} = r_{s} M^{-1}
-        $$
+        .. math::
+
+            r_{w} = r_{s} M^{-1}
 
         This can be useful for example to find the plane on which the user data should have been moving if the
         mapping was correctly learned.
