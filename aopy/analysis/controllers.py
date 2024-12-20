@@ -6,8 +6,8 @@
 # and Sensorimotor Noise During Trajectory-Tracking. IEEE Trans Cybern. 2023 Apr;53(4):2039-2050. 
 # doi: 10.1109/TCYB.2021.3110187. Epub 2023 Mar 16. https://pubmed.ncbi.nlm.nih.gov/34587106/
 
-import numpy as np
 import math as m
+import numpy as np
 from .base import calc_freq_domain_values
 
 def get_machine_dynamics(freqs, order, exp_freqs=None):
@@ -210,8 +210,8 @@ def calc_crossover_freq(freqs, M, B):
     
     Returns:
         tuple: tuple containing:
-        | **xover_freq (float):** estimated crossover frequency
-        | **L ((nfreqs,) array):** gain of user's open-loop transfer function
+            | **xover_freq (float):** estimated crossover frequency
+            | **L ((nfreqs,) array):** gain of user's open-loop transfer function
     
     '''
     # estimate the user's open-loop transfer function

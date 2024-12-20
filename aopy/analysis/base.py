@@ -1,23 +1,23 @@
+# base.py
+#
 # Code for neural data analysis; functions here should return interpretable results such as
 # firing rates, success rates, direction tuning, etc.
 
+import math
+import warnings
+
 import numpy as np
 from matplotlib import pyplot as plt
-
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
 from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
-
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
-
-import warnings
 import nitime.algorithms as tsa
 import pywt
-import math
 
 from .. import utils
 from .. import preproc
@@ -456,7 +456,7 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
-    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    where :math:`\\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
     this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
     calculated across the entire input array.
 
@@ -877,9 +877,9 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
 
     Returns:
         tuple: tuple containing:
-        | **freqs (nfreq):** frequency axis in Hz
-        | **time (nt):** time axis in seconds
-        | **spec (nfreq, nt, nch):** tfr representation for each channel
+            | **freqs (nfreq):** frequency axis in Hz
+            | **time (nt):** time axis in seconds
+            | **spec (nfreq, nt, nch):** tfr representation for each channel
 
     Examples:
         

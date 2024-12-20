@@ -1,5 +1,10 @@
-from matplotlib.animation import FuncAnimation
+# animation.py
+#
+# Create animations from data
+
 import os
+
+from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
 import numpy as np
 

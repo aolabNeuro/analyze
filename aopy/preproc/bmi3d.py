@@ -1,14 +1,16 @@
 # bmi3d.py
+#
 # Code for parsing and preparing data from BMI3D
 
 import warnings
-from matplotlib import pyplot as plt
-import numpy as np
 import os
 from datetime import datetime
 from importlib.metadata import version
-import pandas as pd
 import json
+
+from matplotlib import pyplot as plt
+import numpy as np
+import pandas as pd
 import sympy
 
 from .. import precondition
