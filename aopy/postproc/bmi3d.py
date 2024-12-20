@@ -74,10 +74,10 @@ def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, 
     placed arbitrarily in the world. However the mapping :math:`M` can arbitrarily rotate and scale the
     user input before projecting it to the screen.
     The mapping :math:`M` is related to the `exp_rotation` mapping :math:`M_{q}` used by bmi3d, but with 
-    axes swapped through multiplication with :math:`T_{q\rightarrow w} = T_{w\rightarrow q}`,
+    axes swapped through multiplication with :math:`T_{q\\rightarrow w} = T_{w\\rightarrow q}`,
     the transformation that converts bmi3d coordinates to world coordinates
     (it happens to be its own inverse). The full mapping :math:`M` returned by this function is:
-    :math:`M = T_{w\rightarrow q} M_q T_{q\rightarrow w}`
+    :math:`M = T_{w\\rightarrow q} M_q T_{q\\rightarrow w}`
 
     Args:
         exp_rotation (str, optional): desired experimental rotation from exp_metadata['rotation']. Default 'none'.
@@ -117,10 +117,10 @@ def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, 
 
 def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='none', exp_scale=1):
     '''
-    Returns the mappings $M$ that transform 3D centered user input from world to screen coordinates 
+    Returns the mappings :math:`M` that transform 3D centered user input from world to screen coordinates 
     for an incremental rotation experiment. World coordinates (x: right/left, y: up/down, z: forward/backward) 
     and screen coordinates (x: right/left, y: up/down, z: into/out of the screen) differ only in that 
-    the screen may be placed arbitrarily in the world. However the mapping $M$ can arbitrarily rotate 
+    the screen may be placed arbitrarily in the world. However the mapping :math:`M` can arbitrarily rotate 
     and scale the user input before projecting it to the screen.
 
     Args:
