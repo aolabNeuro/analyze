@@ -915,7 +915,8 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, center=(0,0), 
             channels and connected electrodes will be returned.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
             rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
-        center (2-tuple): chamber coordinates of the center of the drive in mm. Defaults to (0,0).
+        center (2-tuple): chamber coordinates of the center of the drive in mm. This function translates the 
+            coordinates of the drive to be centered on this value. Defaults to (0,0).
         kwargs (dict): Additional keyword arguments to pass to :func:`~aopy.data.map_acq2pos`
 
     Returns:
@@ -982,14 +983,15 @@ def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=0, 
         neuropixel_drive (str): Neuropixel drive to align. Currently supports 'NP_Insert72', and 'NP_Insert137'
         drive2 (str): Other drive to align. Currently supports 'ECoG244', 'Opto32', 'NP_Insert72', and 'NP_Insert137'
         subject (str): Subject recordings were performed on. Currently supports 'Affi' and 'Beignet'
-        neuropixel_drive_offset (str, tuple, list, or array): Default automatically centers drive at (0,0). Otherwise define how much to translate the neuropixel drive with an X and Y coordinate. 
-        drive2_offset (str, tuple, list, or array): Default automatically centers drive at (0,0). Otherwise define how much to translate the second drive with an X and Y coordinate. 
+        theta (float): rotation (in degrees) to apply to positions. Rotations are applied clockwise. Default 0.
+        center (2-tuple): chamber coordinates of the center of the drive in mm. Defaults to (0,0).
 
     Returns:
         tuple: Tuple Containing:
             | **aligned_np_drive_coordinates (nelec, 2):** X and Y coordinates of each neuropixel insert recording site relative to drive2
-            | **recording_site (nelec):** Neuropixel insert recording site that matches the corresponding row in 'aligned_np_drive_coordinates'
-
+            | **aligned_drive2_coordinates (nelec, 2):** X and Y coordinates of each drive2 recording site
+            | **recording_sites (nelec):** Neuropixel insert recording site numbers
+            | **acq_ch (nelec):** Acquisition channels (0-indexed) for each drive2 recording site
     '''
     NP_drive_list = ['NP_Insert72', 'NP_Insert137'] # Drives this function is compatible with
     drive2_list = ['NP_Insert72', 'NP_Insert137', 'ECoG244', 'Opto32']
@@ -1017,9 +1019,9 @@ def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=0, 
 
     # Load ch map for neuropixel drive and drive 2
     np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive, theta=theta - relative_angle, center=center)    
-    drive2_ch_pos, acq_elecs , _ = load_chmap(drive_type=drive2, theta=theta, center=center)
+    drive2_ch_pos, acq_ch , _ = load_chmap(drive_type=drive2, theta=theta, center=center)
 
-    return np_drive_ch_pos, drive2_ch_pos, recording_sites, acq_elecs
+    return np_drive_ch_pos, drive2_ch_pos, recording_sites, acq_ch
 
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
