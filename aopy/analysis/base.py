@@ -1,23 +1,23 @@
+# base.py
+#
 # Code for neural data analysis; functions here should return interpretable results such as
 # firing rates, success rates, direction tuning, etc.
 
+import math
+import warnings
+
 import numpy as np
 from matplotlib import pyplot as plt
-
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
 from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
-
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
-
-import warnings
 import nitime.algorithms as tsa
 import pywt
-import math
 
 from .. import utils
 from .. import preproc
@@ -456,7 +456,7 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
-    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    where :math:`\\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
     this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
     calculated across the entire input array.
 
@@ -877,9 +877,9 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
 
     Returns:
         tuple: tuple containing:
-        | **freqs (nfreq):** frequency axis in Hz
-        | **time (nt):** time axis in seconds
-        | **spec (nfreq, nt, nch):** tfr representation for each channel
+            | **freqs (nfreq):** frequency axis in Hz
+            | **time (nt):** time axis in seconds
+            | **spec (nfreq, nt, nch):** tfr representation for each channel
 
     Examples:
         
@@ -1589,7 +1589,83 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         return f, t, coh, angle
     else:
         return f, t, coh
+    
+def calc_itpc(analytical_signals):
+    '''
+    Computes inter-trial phase clustering (ITPC) from analytical signals of evoked potentials.
+    ITPC is computed as the magnitude of the mean of the complex signal across trials at each timepoint
+    (think vector average). This captures the similarity of phases across trials. ITPC ranges from 0 to 1, 
+    where 0 indicates uniformly random phases and 1 indicates perfect phase alignment.
 
+    From Cohen, M. X. (2014). Analyzing neural time series data: theory and practice. MIT press.
+
+    .. math:: 
+
+        ITPC = \\frac{1}{N} |\\sum_{k=1}^{N} e^{i\\theta_k}|
+
+    Args:
+        analytical_signals (nt, nch, ntr): analytical signal of the evoked potential (np.complex128)
+
+    Returns:
+        (nt, nch): itpc values for each channel (ranges from 0 to 1)
+
+    Examples:
+
+        Generate two channels of data with different phase distributions across trials
+
+        .. code-block:: python
+
+            fs = 1000
+            nt = fs * 2
+            ntr = 100
+            t = np.arange(nt)/fs
+            data = np.zeros((t.shape[0],2,ntr)) # 2 channels
+
+            # 10 Hz sine with gaussian phase distribution across trials
+            for tr in range(ntr):
+                data[:,0,tr] = np.sin(2*np.pi*10*t + np.random.normal(np.pi/4, np.pi/8)) 
+
+            # 10 Hz sine with uniform random phase distribution across trials
+            for tr in range(ntr):
+                data[:,1,tr] = np.sin(2*np.pi*10*t + np.random.uniform(-np.pi, np.pi)) 
+
+        Calculate an analytical signal using hilbert transform, then apply ITPC
+        
+        .. code-block:: python
+        
+            im_data = signal.hilbert(data, axis=0)
+            itpc = aopy.analysis.calc_itpc(im_data)
+
+            plt.figure()
+
+            # Plot the data
+            plt.subplot(3,1,1)
+            aopy.visualization.plot_timeseries(np.mean(data, axis=2), fs)
+            plt.legend(['Channel 1', 'Channel 2'])
+            plt.ylabel('amplitude (a.u.)')
+            plt.title('Trial averaged data')
+
+            # Plot the angles at the first timepoint
+            angles = np.angle(im_data[0])
+            plt.subplot(3,2,3, projection= 'polar')
+            aopy.visualization.plot_angles(angles[0,:], color='tab:blue', alpha=0.5, linewidth=0.75)
+            plt.subplot(3,2,4, projection= 'polar')
+            aopy.visualization.plot_angles(angles[1,:], color='tab:orange', alpha=0.5, linewidth=0.75)
+
+            # Plot ITPC
+            plt.subplot(3,1,3)
+            aopy.visualization.plot_timeseries(itpc, fs)
+            plt.ylabel('ITPC')
+            plt.title('ITPC')
+
+        .. image:: _images/itpc.png
+    '''
+    return np.abs(np.mean(analytical_signals/np.abs(analytical_signals), axis=2))
+
+
+'''
+Statistics
+'''
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''
     This function creates a map showning the local correlation between two input datamaps. If specified, it also aligns the input

@@ -8,6 +8,7 @@ import sys
 from collections import defaultdict
 import warnings
 import traceback
+
 import pandas as pd
 import numpy as np
 try:
@@ -16,6 +17,9 @@ try:
 except:
     warnings.warn("Database not configured")
     traceback.print_exc()
+
+from .. import data as aodata
+from .. import preproc
 
 '''
 Lookup
@@ -77,7 +81,7 @@ def lookup_sessions(id=None, subject=None, date=None, task_name=None, task_desc=
         # Initial lookup, wrapped into BMI3DTaskEntry objects
         dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
         entries = bmi3d.get_task_entries(dbname=dbname, **kwargs)
-        entries = [BMI3DTaskEntry(e) for e in entries]
+        entries = [BMI3DTaskEntry(e, dbname=dbname) for e in entries]
 
         # Additional filtering
         if len(entries) == 0:
@@ -93,16 +97,15 @@ def lookup_flash_sessions(mc_task_name='manual control', **kwargs):
     Returns list of entries for all flash sessions on the given date.
     See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' in te.task_desc)
-    return lookup_sessions(task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+    return lookup_sessions(task_name=mc_task_name, entry_name__contains='flash', **kwargs)
 
 def lookup_mc_sessions(mc_task_name='manual control', **kwargs):
     '''
     Returns list of entries for all manual control sessions on the given date
     See :func:`~aopy.data.db.lookup_sessions` for details.
     '''
-    filter_fn = kwargs.pop('filter_fn', lambda x:True) and (lambda te: 'flash' not in te.task_desc)
-    return lookup_sessions(task_name=mc_task_name, filter_fn=filter_fn, **kwargs)
+    sessions = lookup_sessions(task_name=mc_task_name, **kwargs)
+    return [s for s in sessions if s.task_desc != 'flash']
 
 def lookup_tracking_sessions(tracking_task_name='tracking', **kwargs):
     '''
@@ -271,6 +274,16 @@ class BMI3DTaskEntry():
             dict: task params
         '''
         return self.record.task_params
+
+    @property
+    def sequence_name(self):
+        '''
+        Sequence name, e.g. `centerout_2D`
+
+        Returns:
+            str: sequence name
+        '''
+        return self.record.sequence.generator.name
 
     @property
     def sequence_params(self):
@@ -448,6 +461,51 @@ class BMI3DTaskEntry():
         sources.append('eye')
         
         return sources
+    
+    def preprocess(self, data_dir, preproc_dir, overwrite=False, exclude_sources=[], system_subfolders=None, **kwargs):
+        '''
+        Preprocess the data associated with this task entry
+
+        Args:
+            data_dir (str): directory where the raw data is stored
+            preproc_dir (str): directory where the preprocessed data will be written
+            overwrite (bool, optional): whether or not to overwrite existing preprocessed data. Defaults to False.
+            exclude_sources (list, optional): list of sources to exclude from preprocessing. Defaults to [].
+            system_subfolders (dict, optional): dictionary of system subfolders where the
+                data for that system is located. If None, defaults to the system name
+            kwargs (dict, optional): additional keyword arguments to pass to the preprocessing function
+
+        Returns:
+            str: error message if there was an error during preprocessing
+        '''
+
+        # Get the raw data files
+        files = self.get_raw_files(system_subfolders=system_subfolders)
+        if len(files) == 0:
+            print("No files for entry!")
+            return
+        if 'hdf' in files.keys():
+            self.record.make_hdf_self_contained(data_dir=data_dir, dbname=self.dbname) # update the hdf metadata from the database
+        
+        # Choose which sources to preprocess
+        sources = self.get_preprocessed_sources()
+        for src in exclude_sources:
+            sources.remove(src)
+
+        # Prepare the preproc directory
+        preproc_dir = os.path.join(preproc_dir, self.subject)
+        if not os.path.exists(preproc_dir):
+            os.mkdir(preproc_dir)
+        
+        # Preprocess the data, keeping track of any errors and returning them
+        error = None
+        try:
+            preproc.proc_single(data_dir, files, preproc_dir, self.subject, self.id, self.date, 
+                                sources, overwrite=overwrite, **kwargs)
+        except Exception as exc:
+            traceback.print_exc()
+            error = traceback.format_exc()
+        return error
     
     def get_db_object(self):
         '''
@@ -653,3 +711,102 @@ def summarize_entries(entries, sum_trials=False):
     unique_sessions = all_sessions.drop('te_id', axis=1).groupby(
         ['subject', 'date', 'task_name', 'task_desc']).sum(numeric_only=True)
     return unique_sessions
+
+def encode_onehot_sequence_name(sessions, sequence_types):
+    '''
+    Generates a dataframe summarizing the id, subject, date and by onehot 
+    encoding the sequences of interest of each entry in the input session list.
+
+    Args:
+        sessions (list): list of bmi3d task entries
+        sequence_types (list): Array of sequence_name strings. Can only be a list of strings
+
+    Returns:
+        pd.Dataframe: Dataframe of entry summaries containing sequence name occurance
+            
+    Examples:
+
+        .. code-block:: python
+            
+            sessions = db.lookup_mc_sessions()
+            sequence_types = ['rand_target_chain_2D', 'centerout_2D', 'out_2D', 
+                            'rand_target_chain_3D', 'corners_2D', 'centerout_2D_different_center', 
+                            'sequence_2D', 'centerout_2D_select', 'single_laser_pulse']
+                            
+            df = db.encode_onehot_sequence_name(entries, sequence_types)
+            display(df)
+
+        .. image:: _images/db_encode_onehot_sequence_name.png  
+    '''
+    
+    # sets row and col count
+    row_count = len(sessions)
+    col_count = ['id','subject','date'] + sequence_types
+
+    # creates correct size matrix with all 0s as inputs
+    df_matrix = [[0 for _ in range(len(col_count))] for _ in range(row_count)]
+
+    for row_id, entry in enumerate(sessions):
+        df_matrix[row_id][0] = entry.id
+        df_matrix[row_id][1] = entry.subject
+        df_matrix[row_id][2] = entry.date
+        try:
+            for col_id, sequence in enumerate(sequence_types):
+                if entry.sequence_name == sequence:
+                    df_matrix[row_id][col_id + 3] = 1
+        except:
+            pass
+
+    df = pd.DataFrame(df_matrix, columns = col_count)
+    return df
+
+def add_metadata_columns(df, sessions, column_names, apply_fns):
+    '''
+    Adds metadata columns (in-place) to a dataframe keyed on session id (e.g. from 
+    :func:`~aopy.data.tabulate_behavior_data`). Specify the same number of column names
+    as functions. Each function should take a single session as input and return a
+    single value of any type. The return value will be appended to the dataframe in all
+    rows where the task entry id (te_id) matches the input session. 
+
+    Args:
+        df (pd.DataFrame): dataframe of session summaries
+        sessions (list): list of bmi3d task entry objects
+        column_names (list of str): list of column names to append to the dataframe
+        apply_fns (list of functions): functions to apply to each session to generate metadata columns
+
+    Examples:
+
+        Addding a metadata column to a dataframe of session summaries
+
+        .. code-block:: python
+
+            date_obj = date.fromisoformat('2023-02-06')
+            entries = db.lookup_sessions(date=date_obj)
+            df = db.summarize_entries(entries)
+            db.append_metadata_columns(df, entries, 'hs_data', lambda x: x.get_task_param('record_headstage'))
+            display(df)
+
+        Adding session and experimenter info after tabulating behavior data
+        
+        .. code-block:: python
+
+            date_obj = date.fromisoformat('2023-02-06')
+            entries = db.lookup_sessions(date=date_obj)
+            df = aopy.data.tabulate_behavior_data(entries)
+            db.append_metadata_columns(df, entries, ['session', 'experimenter'], 
+                                                    [lambda x: x.session, lambda x: x.experimenter])
+            display(df)
+
+        More information about `entries` can be found in :class:`~aopy.data.db.BMI3DTaskEntry`
+    '''
+    try:
+        len(column_names) == len(apply_fns)
+    except TypeError:
+        column_names = [column_names]
+        apply_fns = [apply_fns]
+    if len(column_names) != len(apply_fns):
+        raise ValueError("column_names and apply_fns must be the same length")
+    
+    for col, fn in zip(column_names, apply_fns):
+        for entry in (sessions):
+            df.loc[df['te_id'] == entry.id, col] = fn(entry)

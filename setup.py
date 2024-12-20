@@ -22,17 +22,18 @@ install_requires = [
     'scipy',
     'PyWavelets',
     'Pillow',
-    'seaborn',
     'pyyaml',
     'tqdm',
     'open-ephys-python-tools',
     'aolab-bmi3d>=1.0',
-    'sympy'
+    'sympy',
+    'ibllib',
+    'seaborn>=0.13.2'
 ]
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.7.3",
+    version="0.8.1",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

@@ -1,3 +1,7 @@
+# eye.py
+#
+# Post-processing eye movement data
+
 import numpy as np
 
 def get_saccade_pos(eye_pos, onset_times, duration, samplerate):
@@ -90,3 +94,29 @@ def get_saccade_event(onset_times, duration, event_times, event_codes):
     offset_event = event_codes[offset_indices]
     
     return onset_event, offset_event
+
+def get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx):
+    '''
+    For a given set of saccades, finds the index of the saccade that starts at the center target and ends at the given peripheral target. 
+    onset_target and offset_target can be obtained by get_saccade_target_index.
+    If there are multiple relevant saccades, choose the saccade whose distance is the largest among other saccades
+    If there is no relevant saccades, the saccade index becomes -1
+    
+    Args:
+        onset_target (nsaccade): target index at saccade start in a given trial
+        offset_target (nsaccade): target index at saccade end in a given trial  
+        saccade_distance (nsaccade): eye movement distance in a given trial
+        target_idx (int): target index in a given trial
+        
+    Returns:
+        (int): relevant saccade index with the largest distance among saccades. index becomes -1 if there is no relevant saccades.
+    '''
+    
+    # Identify relevant saccades
+    relevant_saccades = (onset_target == 0) & (offset_target == target_idx)
+    
+    if not np.any(relevant_saccades):
+        return -1
+    
+    # Get the index of the relevant saccade with the largest distance
+    return np.argmax(saccade_distance * relevant_saccades)

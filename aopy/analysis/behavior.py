@@ -322,14 +322,15 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
         
     return np.array(movement_onset)
 
-def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
+def get_cursor_leave_time(cursor_traj, samplerate, target_radius, cursor_radius=0):
     '''
     Compute the times when the cursor leaves the center target radius
     
     Args:
         cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
         fs (float) : sampling rate in Hz
-        target_radius (float) : the radius of the center target
+        target_radius (float) : the radius of the center target in cm
+        cursor_radius (float) : the radius of the cursor in cm. Default is 0
         
     Returns:
         cursor_leave_time (ntr): cursor leave times relative to the time when the cursor enters the center target
@@ -342,7 +343,7 @@ def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
         t_axis = np.arange(cursor_traj[itr].shape[0])/samplerate
         
         dist = np.linalg.norm(cursor_traj[itr],axis=1)
-        leave_idx = np.where(dist>target_radius)[0][0]
+        leave_idx = np.where(dist > target_radius-cursor_radius)[0][0]
         cursor_leave_time.append(t_axis[leave_idx])
     
     return np.array(cursor_leave_time)
@@ -391,3 +392,66 @@ def calc_tracking_in_time(event_codes, event_times, proportion=False):
         tracking_in_time = tracking_in_time/(event_times[-1] - event_times[0])
         
     return tracking_in_time
+
+'''
+Hand behavior metrics
+'''
+def unit_vector(vector):
+    '''
+    Finds the unit vector of a given vector.
+
+    Args:
+        vector (list or array): D-dimensional vector
+
+    Returns:
+        unit_vector (list or array): D-dimensional vector with a magnitude of 1
+    '''
+    return vector/np.linalg.norm(vector)
+
+def angle_between(v1, v2, in_degrees=False):
+    '''
+    Computes the angle between two vectors. By default, the angle will be in radians and fall within the range [0,pi].
+
+    Args:
+        v1 (list or array): D-dimensional vector
+        v2 (list or array): D-dimensional vector
+        in_degrees (bool, optional): whether to return the angle in units of degrees. Default is False.
+
+    Returns:
+        float: angle (in radians or degrees)
+    '''
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    angle = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
+    if in_degrees:
+        angle = angle*180/np.pi
+
+    return angle
+
+def vector_angle(vector, in_degrees=False):
+    '''
+    Computes the angle of a vector on the unit circle.
+
+    Args:
+        vector (list or array): D-dimensional vector
+        in_degrees (bool, optional): whether to return the angle in units of degrees. Default is False.
+
+    Returns:
+        float: angle (in radians or degrees)
+    '''
+    D = len(vector)
+    assert D==2, "This function currently works best for 2-dimensional vectors"
+
+    ref_vector = np.zeros((D,))
+    ref_vector[0] = 1
+    angle = angle_between(ref_vector, vector)
+    
+    # take the explementary (conjugate) angle for vectors that lie in Q3 or Q4
+    if vector[1]<0: # negative y-coordinate
+        angle = 2*np.pi - angle
+
+    if in_degrees:
+        angle = angle*180/np.pi
+
+    return angle

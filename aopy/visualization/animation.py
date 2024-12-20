@@ -1,5 +1,10 @@
-from matplotlib.animation import FuncAnimation
+# animation.py
+#
+# Create animations from data
+
 import os
+
+from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -113,7 +118,7 @@ def animate_trajectory_3d(trajectory, samplerate, history=1000, color='b',
     return FuncAnimation(fig, draw, frames=trajectory.shape[0],
                          init_func=lambda: None, interval=1000. / samplerate)
 
-def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
+def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr', clim=None):
     '''
     Animates a 2d heatmap. Use :func:`aopy.visualization.get_data_map` to get a 2d array
     for each timepoint you want to animate, then put them into a list and feed them to this
@@ -145,6 +150,7 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
         y (list): list of y positions
         samplerate (float): rate of the data_map samples
         cmap (str, optional): name of the colormap to use. Defaults to 'bwr'.
+        clim ((cmin, cmax) tuple, optional): color limits for the colormap. Defaults to None.
     
     Returns:
         matplotlib.animation.FuncAnimation: animation object
@@ -160,8 +166,11 @@ def animate_spatial_map(data_map, x, y, samplerate, cmap='bwr'):
     im = plot_spatial_map(data_map[0], x, y, ax=ax, cmap=cmap)
 
     # Change the color limits
-    min_c = np.min(np.array(data_map))
-    max_c = np.max(np.array(data_map))
+    if clim is None:
+        min_c = np.nanmin(np.array(data_map))
+        max_c = np.nanmax(np.array(data_map))
+    else:
+        min_c, max_c = clim
     im.set_clim(min_c, max_c)
         
     # Create animation

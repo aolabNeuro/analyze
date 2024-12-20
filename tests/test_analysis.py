@@ -1,6 +1,6 @@
 import time
 from aopy.visualization import savefig
-from aopy.analysis import accllr, controllers
+from aopy.analysis import controllers, latency
 import aopy
 import os
 import numpy as np
@@ -209,7 +209,7 @@ class misc_tests(unittest.TestCase):
                                      np.round(np.vstack([M,M]) @ task_subspace.T, 10))
         np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
 
-class tuningcurve_fitting_tests(unittest.TestCase):
+class TestTuning(unittest.TestCase):
 
     def test_get_target_tuning(self):
         erp = np.zeros((100, 2, 16))
@@ -285,6 +285,42 @@ class tuningcurve_fitting_tests(unittest.TestCase):
         np.testing.assert_equal(pvalue[0]>0.05, True)
         np.testing.assert_equal(pvalue[1]<0.05, True)
         np.testing.assert_equal(pvalue[2]>0.05, True)
+
+    def test_calc_dprime(self):
+
+        # Single channel test
+        np.random.seed(0)
+        noise_dist = np.random.normal(0, 1, 1000)
+        signal_dist = np.random.normal(1, 1, 1000)
+        
+        dprime = aopy.analysis.calc_dprime(noise_dist, signal_dist)
+
+        # Recalculate by hand
+        m1 = np.mean(noise_dist, axis=0)
+        m2 = np.mean(signal_dist, axis=0)
+        s1 = np.std(noise_dist, axis=0)
+        s2 = np.std(signal_dist, axis=0)
+        mean_diff = m2 - m1
+        sd_sum = (len(noise_dist) * s1 + (len(signal_dist) * s2))
+        sd_pooled = sd_sum/(len(noise_dist) + len(signal_dist))
+        dprime_hand = mean_diff / sd_pooled
+
+        np.testing.assert_allclose(dprime, dprime_hand)
+
+        # Simple multi-channel test
+        noise_dist = np.array([[0, 1], [0, 1], [0, 1]]).T
+        signal_dist = np.array([[0.5, 1.5], [1, 2], [1.5, 2.5]]).T
+        dprime = aopy.analysis.calc_dprime(noise_dist, signal_dist)
+
+        np.testing.assert_allclose(dprime, np.array([1, 2, 3]))
+
+        # Multi-class test
+        dist_1 = np.array([0, 1])
+        dist_2 = np.array([1, 2])
+        dist_3 = np.array([2, 3])
+        dprime = aopy.analysis.calc_dprime(dist_1, dist_2, dist_3)
+
+        np.testing.assert_allclose(dprime, 4)
 
 class CalcTests(unittest.TestCase):
 
@@ -676,7 +712,47 @@ class ModelFitTests(unittest.TestCase):
         pvalue = aopy.analysis.base.get_empirical_pvalue(data_distribution, data_sample, 'upper', assume_gaussian=True)
         self.assertAlmostEqual(1, 0.6827+(2*pvalue), 2) # Data should be one standard dev away but pvalue ismultiplied by 2 b/c single bound test
 
-class AccLLRTests(unittest.TestCase):
+class LatencyTests(unittest.TestCase):
+
+    def test_detect_erp_response(self):
+        np.random.seed(0)
+
+        # Make a null baseline and an alternate condition response
+        fs = 100
+        nt = fs * 2
+        nch = 2
+        ntr = 10
+        null_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+        alt_data = np.random.uniform(-1, 1, (nt, nch, ntr)) 
+        alt_data[:,1,:] += np.tile(np.expand_dims(np.arange(nt)/10, 1), (1,ntr))
+
+        latency = aopy.analysis.latency.detect_erp_response(null_data, alt_data, fs, 3, debug=True)
+        self.assertEqual(latency.shape, (nch, ntr))
+
+        filename = 'detect_erp_response.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
+    def test_detect_itpc_response(self):
+        np.random.seed(0)
+
+        # Make a null baseline and an alternate condition response
+        fs = 100
+        nt = fs * 2
+        nch = 2
+        ntr = 10
+        null_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+        alt_data = np.random.uniform(-1, 1, (nt, nch, ntr))
+        alt_data[:,0,:] += np.tile(np.expand_dims(np.sin(np.arange(nt)*np.pi/10), 1), (1,ntr))
+        alt_data[:,1,:] += np.tile(np.expand_dims(10*np.sin(np.arange(nt)*np.pi/10), 1), (1,ntr))
+
+        im_nullcond = signal.hilbert(null_data, axis=0)
+        im_altcond = signal.hilbert(alt_data, axis=0)
+
+        latency = aopy.analysis.latency.detect_itpc_response(im_nullcond, im_altcond, fs, 5, debug=True)
+        self.assertEqual(latency.shape, (nch,))
+
+        filename = 'detect_itpc_response.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_detect_accLLR(self, upper=10, lower=-10):
       
@@ -688,9 +764,9 @@ class AccLLRTests(unittest.TestCase):
         accllr_data = np.tile(accllr_data.T, (1, 20)) # simulate 40 trials
         self.assertEqual(accllr_data.shape, (12, 40))
 
-        p, st = accllr.detect_accllr(accllr_data, upper, lower)
+        p, st = latency.detect_accllr(accllr_data, upper, lower)
 
-        p_fast, st_fast = accllr.detect_accllr_fast(accllr_data, upper, lower)
+        p_fast, st_fast = latency.detect_accllr_fast(accllr_data, upper, lower)
         
         np.testing.assert_allclose(p, p_fast)
         np.testing.assert_allclose(st, st_fast)
@@ -701,12 +777,12 @@ class AccLLRTests(unittest.TestCase):
         import time
         t0 = time.perf_counter()
         for i in range(1000):
-            accllr.detect_accllr(accllr_data, upper, lower)
+            latency.detect_accllr(accllr_data, upper, lower)
         t1 = time.perf_counter() - t0
 
         t0 = time.perf_counter()
         for i in range(1000):
-            accllr.detect_accllr_fast(accllr_data, upper, lower)
+            latency.detect_accllr_fast(accllr_data, upper, lower)
         t2 = time.perf_counter() - t0
 
         print(f"detect_accllr() took {t1:.2f} s")
@@ -717,7 +793,7 @@ class AccLLRTests(unittest.TestCase):
         y_pred = np.array([0.21, 0.32, 0.63, 0.35, 0.92, 0.79, 0.82, 0.99, 0.04])
         y_true = np.array([0,    1,    0,    0,    1,    1,    0,    1,    0   ])
 
-        auc, auc_cov = accllr.calc_delong_roc_variance(
+        auc, auc_cov = latency.calc_delong_roc_variance(
             y_true,
             y_pred)
 
@@ -728,7 +804,7 @@ class AccLLRTests(unittest.TestCase):
     def test_calc_accllr_roc(self):
         test_data1 = [0, 1, 2, 4, 6, 7, 3, 4, 5, 16, 7]
         test_data2 = [0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 0]
-        auc, se = accllr.calc_accllr_roc(test_data1, test_data2)
+        auc, se = latency.calc_accllr_roc(test_data1, test_data2)
 
         matlab_auc = 0.921487603
         matlab_se = 0.06396
@@ -741,7 +817,7 @@ class AccLLRTests(unittest.TestCase):
         test_data1 = np.array([0, 1, 2, 4, 6, 2, 3, 4, 5, 16, 7])
         test_data2 = np.array([0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 0])
 
-        llr = accllr.calc_llr_gauss(test_lfp, test_data1, test_data2, np.std(test_data1), np.std(test_data2))
+        llr = latency.calc_llr_gauss(test_lfp, test_data1, test_data2, np.std(test_data1), np.std(test_data2))
 
         matlab_llr = np.array(
             [-1.863, -1.09,  -0.682, 17.468, 17.38,  -1.892,  5.692,  8.998,  2.948, 13.3, 17.235]
@@ -763,7 +839,7 @@ class AccLLRTests(unittest.TestCase):
 
         ]).T
 
-        accllr_altcond, accllr_nullcond = accllr.calc_accllr_lfp(lfp_altcond, lfp_nullcond,
+        accllr_altcond, accllr_nullcond = latency.calc_accllr_lfp(lfp_altcond, lfp_nullcond,
                                                         lfp_altcond, lfp_nullcond, 
                                                         common_variance=True)
         '''
@@ -812,13 +888,13 @@ class AccLLRTests(unittest.TestCase):
             [0, 0, 0, 0., 0, 2, 0, 0, 2, 0, 0],
 
         ]).T
-        accllr_altcond, accllr_nullcond = accllr.calc_accllr_lfp(lfp_altcond, lfp_nullcond,
+        accllr_altcond, accllr_nullcond = latency.calc_accllr_lfp(lfp_altcond, lfp_nullcond,
                                                         lfp_altcond, lfp_nullcond, 
                                                         common_variance=True)
 
         nlevels = 200
-        p_altcond, p_nullcond, _, levels = accllr.calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels)
-        level = accllr.choose_best_level(p_altcond, p_nullcond, levels)
+        p_altcond, p_nullcond, _, levels = latency.calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels)
+        level = latency.choose_best_level(p_altcond, p_nullcond, levels)
         print(level)
         
         # From running the matlab version we expect
@@ -850,10 +926,10 @@ class AccLLRTests(unittest.TestCase):
         
         ch = 0
         wrapper_accllr_altcond, wrapper_accllr_nullcond, p_altcond, p_nullcond, selection_t, roc_auc, roc_se = \
-            accllr.calc_accllr_st_single_ch(data_altcond[:,ch,:], data_nullcond[:,ch,:], lowpass_altcond[:,ch,:],
+            latency.calc_accllr_st_single_ch(data_altcond[:,ch,:], data_nullcond[:,ch,:], lowpass_altcond[:,ch,:],
                                  lowpass_nullcond[:,ch,:], 'lfp', 1./samplerate, nlevels=200, verbose_out=True) # try parallel True and False
         
-        single_accllr_altcond, single_accllr_nullcond = accllr.calc_accllr_lfp(data_altcond[:,ch,:], data_nullcond[:,ch,:],
+        single_accllr_altcond, single_accllr_nullcond = latency.calc_accllr_lfp(data_altcond[:,ch,:], data_nullcond[:,ch,:],
                                                         lowpass_altcond[:,ch,:], lowpass_nullcond[:,ch,:], 
                                                         common_variance=True)
 
@@ -874,10 +950,10 @@ class AccLLRTests(unittest.TestCase):
         nullcond = np.random.normal(0,noise_sd,size=altcond.shape)
         altcond += np.random.normal(0,noise_sd,size=altcond.shape)
         
-        accllr_altcond, accllr_nullcond = accllr.calc_accllr_lfp(altcond, nullcond,
+        accllr_altcond, accllr_nullcond = latency.calc_accllr_lfp(altcond, nullcond,
                                                         altcond, nullcond)
 
-        p_altcond, p_nullcond, _, _ = accllr.calc_accllr_performance(accllr_altcond, accllr_nullcond, 200)
+        p_altcond, p_nullcond, _, _ = latency.calc_accllr_performance(accllr_altcond, accllr_nullcond, 200)
         p_correct_detect = (p_altcond[:,0]+p_nullcond[:,1])/2
         p_incorrect_detect = (p_nullcond[:,0]+p_altcond[:,1])/2
 
@@ -909,13 +985,13 @@ class AccLLRTests(unittest.TestCase):
         test_data_nullcond = nullcond.copy()
 
         # First test without matching selectivity
-        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
+        sTime_alt, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
         print("Matching selectivities:")
         print(roc_auc)
         self.assertTrue(roc_auc[1] > roc_auc[0])
 
         # Test wrapper with LFP data and no selectivity matching and trial_average=True
-        sTime_alt, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1, 
+        sTime_alt, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1, 
                                                                        match_selectivity=True, noise_sd_step=noise_sd)
         print("Matched selectivities:")
         print(roc_auc)
@@ -947,7 +1023,7 @@ class AccLLRTests(unittest.TestCase):
         nullcond = np.random.normal(0,5,size=altcond.shape)
 
         # Test wrapper with LFP data and no selectivity matching and trial_average=True
-        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
+        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'lfp', 1)
     
         self.assertEqual(st.shape, (nch, ntrials))
         mask = np.logical_and(st > 50, st < 70)
@@ -963,7 +1039,7 @@ class AccLLRTests(unittest.TestCase):
         samplerate = 1000
         time_before = 0.05
 
-        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate)
+        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate)
         accllr_mean = np.nanmean(st, axis=1)
 
         plt.figure()
@@ -980,7 +1056,7 @@ class AccLLRTests(unittest.TestCase):
 
         # Test again with selectivity matching
         np.random.seed(0)
-        st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate, 
+        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate, 
                                                                 match_selectivity=True, noise_sd_step=8)
         accllr_mean = np.nanmean(st, axis=1)
 
@@ -1011,7 +1087,7 @@ class AccLLRTests(unittest.TestCase):
         data[onset_idx:] = 10 + np.arange(npts-onset_idx)
         data = np.repeat(np.tile(data, (nch,1)).T[:,:,None], ntrials, axis=2)
 
-        data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond = accllr.prepare_erp(
+        data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond = latency.prepare_erp(
             data, data, samplerate, time_before, time_after, window_nullcond, window_altcond,
         )
 
@@ -1047,6 +1123,124 @@ class AccLLRTests(unittest.TestCase):
         filename = 'prepare_erp_for_accllr.png'
         aopy.visualization.savefig(docs_dir, filename)
         
+class ConnectivityTests(unittest.TestCase):
+
+    def test_get_acq_ch_near_stimulation_site(self):
+
+        # Some sanity checks
+        fn = lambda: aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(0) # no such stim site
+        self.assertRaises(ValueError, fn)
+
+        chs, idx = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(1, dist_thr=0, return_idx=True) # no sites within small dist
+        self.assertEqual(chs.size, 0)
+        self.assertEqual(idx.size, 0)
+
+        # Test known channels near stimulation site 14
+        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14)
+        np.testing.assert_allclose(chs, [57, 69, 70, 84])
+
+        # Test with distance range
+        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14, dist_thr=[0., 1.])
+        np.testing.assert_allclose(chs, [57, 69, 70, 84])
+
+        chs = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14, dist_thr=[1., 2.])
+        self.assertTrue(set([57, 69, 70, 84]).isdisjoint(set(chs)))
+
+        # Test that return_idx yields the correct indices
+        chs, idx = aopy.analysis.connectivity.get_acq_ch_near_stimulation_site(14, return_idx=True)
+        np.testing.assert_allclose(chs, [57, 69, 70, 84])
+        np.testing.assert_allclose(idx, [52, 63, 64, 77])
+
+
+    def test_calc_connectivity_coh(self):
+        np.random.seed(0)
+
+        # Two channels with 50 Hz sine waves
+        T = 1
+        fs = 1000
+        nt = int(T*fs)
+        time = np.linspace(0,T,nt)
+        data = np.zeros((nt,2))
+        data[:,0] = np.sin(2*np.pi*50*time) # 50 Hz sine
+        data[:,1] = np.cos(2*np.pi*50*time) # 50 Hz cosine
+        data = np.expand_dims(data, axis=2) # 1 trial
+        data += np.random.normal(0, 0.1, data.shape) # add noise
+
+        n = 1.0
+        w = 10
+        n, p, k = aopy.precondition.convert_taper_parameters(n, w)
+        step = 0.5
+        f, t, coh, angle = aopy.analysis.connectivity.calc_connectivity_coh(data[:,[0]], data[:,[1]], 
+                                                                            n, p, k, fs, step, imaginary=False)
+
+        # Sanity checks
+        self.assertEqual(t.size, 1)
+        self.assertEqual(coh.shape, (f.size, t.size))
+        self.assertEqual(angle.shape, (f.size, t.size))
+        idx = np.searchsorted(f, 50)
+        self.assertGreater(coh[idx,0], 0.0) # coherence is nonzero at 50 Hz
+        idx2 = np.searchsorted(f, 100)
+        self.assertLess(coh[idx2,0], coh[idx,0]) # coherence at 100 Hz is less than coh at 50 Hz
+
+        # Test with multiple channels in each group
+        data = np.tile(data, (1,2,1))
+        f2, t2, coh2, angle2 = aopy.analysis.connectivity.calc_connectivity_coh(data[:,[0,2]], data[:,[1,3]], 
+                                                                            n, p, k, fs, step, imaginary=False)
+        np.testing.assert_allclose(f, f2)
+        np.testing.assert_allclose(t, t2)
+        np.testing.assert_allclose(coh, coh2)
+        np.testing.assert_allclose(angle, angle2)
+
+        # Without average
+        f2, t2, coh2, angle2, pairs = aopy.analysis.connectivity.calc_connectivity_coh(data[:,[0,2]], data[:,[1,3]], 
+                                                            n, p, k, fs, step, imaginary=False, average=False)
+        self.assertEqual(len(pairs), 4)
+        self.assertSetEqual(set(pairs), {(0,1), (0,0), (1,0), (1,1)})
+
+    def test_calc_connectivity_map_coh(self):
+        np.random.seed(0)
+
+        # Grid of channels with mostly noise but two channels have 50 Hz sine waves 
+        grid_size = 3
+        nch = grid_size**2
+        T = 1
+        fs = 1000
+        nt = int(T*fs)
+        ntr = 2
+        time = np.linspace(0,T,nt)
+        data = np.random.normal(0, 0.1, (nt,nch,ntr)) # start with noise
+        stim_ch_idx = 0
+        data[:,stim_ch_idx,0] += np.sin(2*np.pi*50*time) # 50 Hz sine
+        data[:,stim_ch_idx,1] += np.sin(2*np.pi*50*time) 
+        data[500:,4,0] += np.cos(2*np.pi*50*time[500:]) # 50 Hz cosine in second half of trial
+        data[500:,4,1] += np.cos(2*np.pi*50*time[500:]) 
+
+        n = 0.25
+        w = 10
+        step = 0.25
+        f, t, coh_all, angle_all = aopy.analysis.connectivity.calc_connectivity_map_coh(data, fs, 0.5, 0.5, [stim_ch_idx], 
+                                                                                n=n, bw=w, step=step, ref=False)
+
+        self.assertEqual(coh_all.shape, angle_all.shape)
+        
+        bands = [(40, 60), (100, 250)]
+        x, y = np.meshgrid(np.arange(grid_size), np.arange(grid_size))
+        elec_pos = np.zeros((nch,2))
+        elec_pos[:,0] = x.reshape(-1)
+        elec_pos[:,1] = y.reshape(-1)
+        aopy.visualization.plot_tf_map_grid(f, t, coh_all, bands, elec_pos, clim=(0,1), interp_grid=None, 
+                     cmap='viridis')
+        filename = 'connectivity_map_coh.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        # Test parallel pool
+        f2, t2, coh_all2, angle_all2 = aopy.analysis.connectivity.calc_connectivity_map_coh(data, fs, 0.5, 0.5, [stim_ch_idx], 
+                                                                                n=n, bw=w, step=step, ref=False, parallel=True)
+        np.testing.assert_allclose(f, f2, rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(t, t2, rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(coh_all, coh_all2, rtol=1e-10, atol=1e-10)
+        np.testing.assert_allclose(angle_all, angle_all2, rtol=1e-10, atol=1e-10)
+
 class HelperFunctions:
 
     @staticmethod
@@ -1425,6 +1619,54 @@ class SpectrumTests(unittest.TestCase):
         f, t, coh = aopy.analysis.calc_mt_tfcoh(signal_combined, [0,1], n, p, k, fs, step, fk=fk,
                                                         ref=True, workers=2, dtype='int16')
 
+    def test_calc_itpc(self):
+        np.random.seed(0)
+
+        # Generate some test data with varying phase consistency
+        fs = 1000
+        nt = fs * 2
+        ntr = 100
+        t = np.arange(nt)/fs
+        data = np.zeros((t.shape[0],2,ntr)) # 2 channels
+
+        # 10 Hz sine with gaussian phase distribution across trials
+        for tr in range(ntr):
+            data[:,0,tr] = np.sin(2*np.pi*10*t + np.random.normal(np.pi/4, np.pi/8)) 
+
+        # 10 Hz sine with uniform random phase distribution across trials
+        for tr in range(ntr):
+            data[:,1,tr] = np.sin(2*np.pi*10*t + np.random.uniform(-np.pi, np.pi)) 
+
+        # Calculate an analytical signal using hilbert transform
+        im_data = signal.hilbert(data, axis=0)
+        itpc = aopy.analysis.calc_itpc(im_data)
+
+        plt.figure()
+
+        # Plot the data
+        plt.subplot(3,1,1)
+        aopy.visualization.plot_timeseries(np.mean(data, axis=2), fs)
+        plt.legend(['Channel 1', 'Channel 2'])
+        plt.ylabel('amplitude (a.u.)')
+        plt.title('Trial averaged data')
+
+        # Plot the angles at the first timepoint
+        angles = np.angle(im_data[0])
+        plt.subplot(3,2,3, projection= 'polar')
+        aopy.visualization.plot_angles(angles[0,:], color='tab:blue', alpha=0.5, linewidth=0.75)
+        plt.subplot(3,2,4, projection= 'polar')
+        aopy.visualization.plot_angles(angles[1,:], color='tab:orange', alpha=0.5, linewidth=0.75)
+
+        # Plot ITPC
+        plt.subplot(3,1,3)
+        aopy.visualization.plot_timeseries(itpc, fs)
+        plt.ylabel('ITPC')
+        plt.title('ITPC')
+
+        plt.tight_layout()
+        filename = 'itpc.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
 
 class BehaviorMetricsTests(unittest.TestCase):
 
@@ -1649,6 +1891,13 @@ class BehaviorMetricsTests(unittest.TestCase):
         cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8)
         self.assertTrue(np.all(cursor_leave_time == np.array([5,7])))
 
+        fs = 1
+        cursor_test = np.array([np.array([[0,0,0.5,0,0.5,0,1,1,1,1],[0,0.5,0,0,0.5,1,0,1,1,1]]).T,\
+            np.array([[0,-0.1,-0.2,-0.3,-0.4,-0.5,-0.6,-0.7,-0.8,-1],[0,0,0,0,0,0,0,0,0,0]]).T,\
+            np.array([[0,-0.1,-0.2,-0.3,-0.4,-0.5,-0.4,-0.3,-0.2,-0.1],[0,0.1,0.2,0.3,0.4,0.4,0.4,0.5,0.6,0.7]]).T])
+        cursor_leave_time = aopy.analysis.get_cursor_leave_time(cursor_test, fs, 0.8, 0.1)
+        self.assertTrue(np.all(cursor_leave_time == np.array([4,8,9])))        
+
     def test_calc_tracking_error(self):
         samplerate = 100
         t = np.arange(samplerate*20) # 20sec signal
@@ -1741,6 +1990,14 @@ class BehaviorMetricsTests(unittest.TestCase):
         event_times = np.arange(0, len(event_codes), step=inter_event_int) # events are all 1 sec apart
         self.assertEqual(5*inter_event_int, aopy.analysis.calc_tracking_in_time(event_codes, event_times))
         self.assertEqual(5*inter_event_int/event_times[-1], aopy.analysis.calc_tracking_in_time(event_codes, event_times, proportion=True))
+
+    def test_vector_angle(self):
+        # test with vectors in Q1, Q2, Q3, Q4
+        for i in range(9):
+            theta = i/4*np.pi
+            v = [np.cos(theta), np.sin(theta)]
+            self.assertAlmostEqual(aopy.analysis.vector_angle(v), theta)
+            self.assertAlmostEqual(aopy.analysis.vector_angle(v, in_degrees=True), theta*180/np.pi)
 
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):

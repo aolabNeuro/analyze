@@ -1,17 +1,15 @@
 import sys
-from functools import lru_cache
 import traceback
 import warnings
-from matplotlib import pyplot as plt
 import os
-import datetime
+import json
+
+from functools import lru_cache
 import numpy as np
 import h5py
 import tables
 import pandas as pd
-import json
 from tqdm.auto import tqdm
-from scipy import interpolate
 if sys.version_info >= (3,9):
     from importlib.resources import files, as_file
 else:
@@ -19,6 +17,7 @@ else:
 
 from .. import precondition
 from .. import preproc
+from .. import postproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
@@ -536,22 +535,30 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 # Preprocessed data #
 #####################
-def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=1000, **kwargs):
+def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1000, step=1, **kwargs):
     '''
-    Gets interpolated kinematic data from preprocessed experiment data to the desired 
-    sampling rate. Cursor kinematics are returned in screen coordinates, while other 
-    kinematics are returned in their original coordinate system (e.g. hand kinematics 
-    in optitrack coordinates).
+    Gets interpolated data from preprocessed experiment task cycles to the desired 
+    sampling rate. Cursor kinematics are returned in screen coordinates, while user input 
+    kinematics are returned either in their original raw coordinate system with datatype='user_raw' (e.g. 
+    optitrack coordinates), in world coordinates with datatype='user_world', or in screen coordinates 
+    with datatype='user_screen' (similar to cursor kinematics but without any bounding under position
+    control).
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
         exp_metadata (dict): A dictionary containing the experiment metadata.
         datatype (str, optional): The type of kinematic data to interpolate. 
-            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
-            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
-            For other kinematics, try to interp exp_data['task'][datatype]
+            - 'cursor' for cursor kinematics
+            - 'user_raw' for raw input coordinates
+            - 'user_world' for user input in world coordinates
+            - 'user_screen' for user input in screen coordinates
+            - 'reference' for reference kinematics
+            - 'disturbance' for disturbance kinematics
+            - 'targets' for target positions
+            - other datatypes if they exist as exp_data['task'][<datatype>]
         samplerate (float, optional): The desired output sampling rate in Hz. 
             Defaults to 1000.
+        step (int, optional): task data will be decimated with steps this big. Default 1.
         **kwargs: Additional keyword arguments to pass to sample_timestamped_data()
 
     Returns:
@@ -560,33 +567,53 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
     Examples:
         
-        Cursor kinematics
+        Cursor kinematics in screen coordinates (datatype 'cursor')
 
         .. code-block:: python
         
             exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, 'test',  3498, '2021-12-13')
-            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=100)
+            cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
 
             plt.figure()
             visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         
         .. image:: _images/get_interp_cursor_centerout.png
 
-        Hand kinematics
+        Raw input kinematics (datatype 'user_raw', 'hand', or 'manual_input')
        
         .. code-block:: python
 
-            hand_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='hand', samplerate=100)
+            hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
             ax = plt.axes(projection='3d')
             visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
 
         .. image:: _images/get_interp_hand_centerout.png
 
-        Target positions
+        User input kinematics in world coordinates (datatype 'user_world')
+       
+        .. code-block:: python
+
+            user_world = get_interp_task_data(exp_data, exp_metadata, datatype='user_world', samplerate=100)
+            ax = plt.axes(projection='3d')
+            visualization.plot_trajectories([user_world], [-10, 10, -10, 10, -10, 10])
+
+        .. image:: _images/get_user_world.png
+
+        User input kinematics in screen coordinates (datatype 'user_screen')
+       
+        .. code-block:: python
+
+            user_screen = get_interp_task_data(exp_data, exp_metadata, datatype='user_screen', samplerate=100)
+            ax = plt.axes(projection='3d')
+            visualization.plot_trajectories([user_screen], [-10, 10, -10, 10, -10, 10])
+
+        .. image:: _images/get_user_screen.png
+
+        Target positions (datatype 'target')
 
         .. code-block:: python
             
-            targets_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='targets', samplerate=100)
+            targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
             time = np.arange(len(targets_interp))/100
             plt.plot(time, targets_interp[:,:,0]) # plot just the x coordinate
             plt.xlim(10, 20)
@@ -595,13 +622,13 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
         .. image:: _images/get_interp_targets_centerout.png
 
-        Cursor and target (reference) kinematics
+        Cursor and target (datatype 'reference') kinematics
 
         .. code-block:: python
             
             exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
-            cursor_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps'])
-            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
             time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
             plt.plot(time, cursor_interp[:int(exp_metadata['fps']*120),1], color='blueviolet', label='cursor') # plot just the y coordinate
             plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
@@ -615,9 +642,9 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
 
         .. code-block:: python
             
-            user_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps'])
-            ref_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-            dis_interp = get_interp_kinematics(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps'])
+            user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps'])
+            ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
+            dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps'])
             time = np.arange(exp_metadata['fps']*120)/exp_metadata['fps']
             plt.plot(time, user_interp[:int(exp_metadata['fps']*120),1], color='darkturquoise', label='user')
             plt.plot(time, ref_interp[:int(exp_metadata['fps']*120),1], color='darkorange', label='ref')
@@ -640,29 +667,70 @@ def get_interp_kinematics(exp_data, exp_metadata, datatype='cursor', samplerate=
         clock = exp_data['clock']['timestamp_bmi3d']
 
     # Fetch the relevant BMI3D data
-    if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position'] # 3d hand position (optitrack coords: x,y,z) on each bmi3d cycle
+    if datatype in ['hand', 'user_raw', 'manual_input']:
+        warnings.warn("Raw hand position is not recommended for analysis. Use 'user_world' instead for 3D world coordinate inputs.")
+        data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
+    elif datatype == 'user_world':
+        # 3d user input converted to world coordinates
+        if 'exp_scale' in exp_metadata:
+            scale = exp_metadata['scale']
+        else:
+            scale = np.sign(exp_metadata['scale'])
+        data_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                  exp_metadata['offset'], scale)
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
-    elif datatype == 'user':
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
+    elif datatype == 'user_screen':
+        # 3d user input converted to screen coordinates. Only works for singular mappings, not incremental mappings.
+        if 'incremental_rotation' in exp_metadata['features']:
+            warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
+        if 'exp_scale' in exp_metadata:
+            scale = exp_metadata['scale']
+            exp_scale = exp_metadata['exp_scale']
+        else:
+            scale = np.sign(exp_metadata['scale'])
+            exp_scale = np.abs(exp_metadata['scale'])
+        user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                  exp_metadata['offset'], scale)
+        if 'exp_rotation' in exp_metadata:
+            exp_rotation = exp_metadata['exp_rotation']
+        else:
+            exp_rotation = 'none'
+        if 'perturbation_rotation_x' in exp_metadata:
+            x_rot = exp_metadata['perturbation_rotation_x']
+            z_rot = exp_metadata['perturbation_rotation_z']
+        else:
+            x_rot = 0
+            z_rot = 0
+        if 'pertubation_rotation' in exp_metadata:
+            y_rot = exp_metadata['pertubation_rotation']
+        else:
+            y_rot = 0
+        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_scale)
+        data_cycles = np.dot(user_world_cycles, exp_mapping)
+    elif datatype in ['user', 'intended_cursor']:
+        if datatype == 'user':
+            warnings.warn("User input is not recommended. Use 'intended_cursor' instead for clarity.")
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d cursor position before disturbance added (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] - exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # cursor position before disturbance added (bmi3d coords: x,z,y)
     elif datatype == 'reference':
-        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 2d target position (bmi3d coords: x,z)
+        data_cycles =  exp_data['task']['current_target'][:,[0,2,1]] # target position (bmi3d coords: x,z,y)
     elif datatype == 'disturbance':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d disturbance value (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # disturbance value (bmi3d coords: x,z,y)
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
         kwargs['remove_nan'] = False # In this case we need to keep NaN values.
+    elif datatype == 'cycle':
+        data_cycles = np.arange(len(exp_data['task'])) # cycle number
     elif datatype in exp_data['task'].dtype.names:
         data_cycles = exp_data['task'][datatype]
     else:
         raise ValueError(f"Unknown datatype {datatype}")
     
     # Interpolate
-    data_time = sample_timestamped_data(data_cycles, clock, samplerate, append_time=10, **kwargs)
+    data_time = sample_timestamped_data(data_cycles[::step], clock[::step], samplerate, append_time=10, **kwargs)
 
     return data_time
 
@@ -687,12 +755,73 @@ def get_velocity_segments(*args, norm=True, **kwargs):
     return get_kinematic_segments(*args, **kwargs, preproc=preproc)
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
+def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, step=1, preproc=None, **kwargs):
     '''
-    Return all kinds of kinematics from preprocessed data. Caches the data for faster loading.
+    Return interpolated task data. Wraps :func:`~aopy.data.bmi3d.get_interp_task_data` but 
+    caches the data for faster loading.
 
     Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_kinematics by setting 
+        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
+        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
+        same samplerate.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        datatype (str): column of task data to load. 
+        samplerate (float): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        step (int, optional): task data will be decimated with steps this big. Default 1.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+
+    Raises:
+        ValueError: if the datatype is invalid
+
+    Returns:
+        tuple: tuple containing:
+            | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
+            | **samplerate (float):** the sampling rate of the kinematics after preprocessing
+
+    Examples:
+
+        .. code-block:: python
+
+            subject = 'beignet'
+            te_id = 4301
+            date = '2021-01-01'
+            ts_data, samplerate = get_task_data(preproc_dir, subject, te_id, date, 'cycle')
+            time = np.arange(len(ts_data))/samplerate
+            plt.figure()
+            plt.plot(time[1:], 1/np.diff(ts_data), 'ko')
+            plt.xlabel('time (s)')
+            plt.ylabel('cycle step')
+            plt.ylim(0, 2)
+            
+        .. image:: _images/get_cycle_data.png
+    '''
+    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    if samplerate is None:
+        samplerate = exp_metadata['fps']
+
+    raw_data = get_interp_task_data(exp_data, exp_metadata, datatype, samplerate, step=step, **kwargs)
+    if preproc is not None:
+        data, samplerate = preproc(raw_data, samplerate)
+    else:
+        data = raw_data
+
+    return data, samplerate
+
+@lru_cache(maxsize=1)
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
+    '''
+    Return all kinds of kinematics from preprocessed data. Caches the data for faster loading. 
+
+    Note: 
+        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
         upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
         same samplerate.
 
@@ -705,7 +834,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.   
-        kwargs: additional keyword arguments to pass to get_interp_kinematics 
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
 
     Raises:
         ValueError: if the datatype is invalid
@@ -715,8 +844,6 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-
     if 'eye' in datatype:
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
@@ -730,46 +857,97 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         
         time = np.arange(len(eye_data))/eye_metadata['samplerate']
         raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
-    else:
-        raw_kinematics = get_interp_kinematics(
-            data, metadata, datatype, samplerate=samplerate, **kwargs
-        )
 
-    time = np.arange(len(raw_kinematics))/samplerate
-    if preproc is not None:
-        kinematics, samplerate = preproc(raw_kinematics, samplerate)
+        time = np.arange(len(raw_kinematics))/samplerate
+        if preproc is not None:
+            kinematics, samplerate = preproc(raw_kinematics, samplerate)
+        else:
+            kinematics = raw_kinematics
     else:
-        kinematics = raw_kinematics
+        kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
+                                               samplerate, preproc=preproc, **kwargs)
 
     return kinematics, samplerate
 
-def get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
+def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
                           preproc=None, datatype='cursor', **kwargs):
     '''
-    Return one segment of kinematics
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-        start_time (float): time in the recording at which the desired segment starts
-        end_time (float): time in the recording at which the desired segment ends
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
-        datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
-        kwargs: additional keyword arguments to pass to get_kinematics
-
-    Returns:
-        tuple: tuple containing:
-            | **segment (nt, nch):** single kinematic segment from the given experiment after preprocessing
-            | **samplerate (float):** the sampling rate of the kinematics after preprocessing
+    Helper function to return one segment of kinematics
     '''
     kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
     assert kinematics is not None
 
     return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
+
+def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None, 
+                           end_time=None, datatype='lfp_power', preproc=None, **kwargs):
+    '''
+    Fetches online extracted features from readouts of a BCI experiment. Wrapper around get_task_data.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        start_time (float, optional): start time of the segment to load (in seconds). Default None,
+            which loads from the beginning of the data.
+        end_time (float, optional): end time of the segment to load (in seconds). Default None,
+            which loads until the end of the data.
+        datatype (str, optional): type of features to load. Defaults to 'lfp_power'.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **state (nt, nfeats):** decoded states from the given experiment after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+
+    '''
+    step = int(decoder.call_rate*decoder.binlen)
+    state, samplerate = get_task_data(
+        preproc_dir, subject, te_id, date, datatype, samplerate=samplerate,
+        step=step, preproc=preproc, **kwargs)
+    
+    if start_time is not None or end_time is not None:
+        if start_time is None:
+            start_time = 0
+        if end_time is None:
+            end_time = len(state)/samplerate
+        state = get_data_segment(state, start_time, end_time, samplerate)
+    return state, samplerate
+
+def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None,
+                       end_time=None, preproc=None, **kwargs):
+    '''
+    Fetches online decoded states from readouts in a BCI experiment. Wrapper around get_task_data.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        start_time (float, optional): start time of the segment to load (in seconds). Default None,
+            which loads from the beginning of the data.
+        end_time (float, optional): end time of the segment to load (in seconds). Default None,
+            which loads until the end of the data.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **state (nt, nstate):** decoded states from the given experiment after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+    '''
+    return get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=samplerate, start_time=start_time, 
+                           end_time=end_time, datatype='decoder_state', preproc=preproc, **kwargs)
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
                            trial_filter=lambda x:True, preproc=None, datatype='cursor',
@@ -827,7 +1005,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
                                                                   trial_start_codes, trial_end_codes)
     segments = [
-        get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, **kwargs)[0] 
+        _get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, **kwargs)[0] 
         for t in trial_times
     ]
     trajectories = np.array(segments, dtype='object')
@@ -1004,7 +1182,284 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
 
     return data, samplerate
 
+def get_spike_data_segment(preproc_dir, subject, te_id, date, start_time, end_time, drive=1, bin_width=.01):
+    '''
+    Loads and extracts a segment of spiking data for a given subject and experiment, optionally binning the spike times.
+
+    Args:
+        preproc_dir (str): Path to the preprocessed data directory.
+        subject (str): Subject name.
+        te_id (str): Task entry number.
+        date (str): The date of the experiment.
+        start_time (float): The start time [s] of the segment to extract.
+        end_time (float): The end time [s] of the segment to extract.
+        drive (int, optional): Which drive (port) to load data from.
+        bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. If set to `None`, no binning is applied and spike times are returned.
+        
+    Returns:
+        tuple: A tuple containing:
+            - spike_segment (dict): A dictionary where keys are unit labels and values are arrays of spike times (or binned spike counts) for that unit.
+            - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
     
+    '''
+
+    # Load data
+    filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
+    
+    # Parse segment and bin spikes if necessary.
+    spike_segment = {}
+    for unit_label in list(spike_data.keys()):
+        temp_spike_segment = spike_data[unit_label][np.logical_and(spike_data[unit_label]>=start_time, spike_data[unit_label]<=end_time)] - start_time
+        if bin_width is None:
+            spike_segment[unit_label] = temp_spike_segment + start_time
+            bins = None
+        else:
+            spike_segment[unit_label], bins = precondition.bin_spike_times(temp_spike_segment, 0, end_time-start_time, bin_width)
+
+    return spike_segment, bins
+
+def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, time_before, time_after, drive=1, bin_width=0.01):
+    """
+    Loads spike data for a given subject and experiment, then aligns binned spike to trigger times.
+
+    .. image:: _images/spike_align_example.png
+
+    Args:
+        preproc_dir (str): Path to the preprocessed data directory.
+        subject (str): Subject name.
+        te_id (str): Task entry number.
+        date (str): The date of the experiment.
+        trigger_times (numpy.ndarray): 1D Array of trigger times (in seconds) for each trial to which spike data should be aligned.
+        time_before (float): The amount of time (in seconds) before each trigger time to include in the aligned spike data.
+        time_after (float): The amount of time (in seconds) after each trigger time to include in the aligned spike data.
+        drive (int): The drive number corresponding to the spike data.
+        bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. 
+
+    Returns:
+        tuple: A tuple containing:
+            - spike_aligned (numpy.ndarray): A 3D array of aligned spike data with shape (ntime, nunits, ntrials), where:
+                - ntime is the number of time bins between `time_before` and `time_after` around each trigger.
+                - nch is the number of units.
+                - ntrials is the number of trials (trigger events).
+            - unit_labels (list of str): A list of unit labels corresponding to the 'nunits' dimension in the aligned spike data.
+            - bins (numpy.ndarray): The time bin centers relative to the trigger times.
+    """
+    # Load data
+    filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
+    
+    # Define relevant variables
+    samplerate = int(np.round(1/bin_width))
+    bins = np.arange(-time_before, time_after, bin_width) + bin_width/2
+    ntime = int(np.round((time_after+time_before)/bin_width))
+    nch = len(spike_data)
+    ntrials = len(trigger_times)
+    
+    # Parse segment and bin spikes if necessary.
+    unit_labels = list(spike_data.keys())
+    spike_aligned = np.zeros((ntime, nch, ntrials))*np.nan #(ntime, nch, ntrials)
+    for iunit, unit_label in enumerate(unit_labels):
+        binned_spikes, _ = precondition.bin_spike_times(spike_data[unit_label], 0, trigger_times[-1]+time_after, bin_width)
+        spike_aligned[:,iunit,:] = np.squeeze(preproc.base.trial_align_data(binned_spikes, trigger_times-(bin_width/2), time_before, time_after, samplerate)) # Squeeze to remove singleton dimension from only doing one unit at a time. Adjust trigger times to center on the previously binned spikes. 
+        
+    return spike_aligned, unit_labels, bins
+
+
+
+@lru_cache(maxsize=1)
+def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
+                         start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
+                         decode=False, **kwargs):
+    '''
+    Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
+    Using this function, you can replicate closely the features that would have been extracted from 
+    a real-time BMI3D experiment, even if the experiment did not include a decoder.
+
+    This private function has an optional paramter `decode` which allows you to run the features through
+    the decoder before resampling. This is useful only for verifying that the features extracted offline
+    are similar to those extracted online. Not to be used for any other purpose.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        channels (int array, optional): which channel indices to load. If None (the default), 
+            uses the channels specified in the decoder.
+        start_time (float, optional): time (in seconds) in the recording at which the desired segment starts
+        end_time (float, optional): time (in seconds) in the recording at which the desired segment ends
+        latency (float, optional): time (in seconds) to include before the trigger times
+        datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'. If
+            the sampling rate of the data is different from the decoder, the data will be downsampled
+            by decimation.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        decode (bool, optional): whether to run the features through the decoder before resampling. Only
+            works if `channels` is None or `len(channels) == len(decoder.channels)`. Default False.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **feats (nt, nfeats):** lfp features for the given channels after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+
+    '''
+    if start_time is None:
+        start_time = 0.
+    if end_time is None:
+        ts_filename = get_preprocessed_filename(subject, te_id, date, datatype)
+        preproc_dir_subject = os.path.join(preproc_dir, subject)
+        ts_metadata = load_hdf_group(preproc_dir_subject, ts_filename, 
+                                               f'{datatype}_metadata', cached=True)
+        end_time = ts_metadata['n_samples']/ts_metadata['samplerate']
+
+    # Set up extractor
+    f_extractor = decoder.extractor_cls(None, **decoder.extractor_kwargs)
+    if channels is None:
+        channels = [c-1 for c in f_extractor.channels]
+    lfp_samplerate = f_extractor.fs
+
+    # Find times to extract
+    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)    
+    step = int(decoder.call_rate * decoder.binlen)
+    ts = exp_data['clock']['timestamp_sync'][::step]
+    ts = ts[ts > start_time]
+    if end_time is not None:
+        ts = ts[ts < end_time]
+    if len(ts) == 0:
+        raise ValueError("No timestamps found in the specified time range")
+
+    # Load ts data
+    ts_start_time = start_time - f_extractor.win_len - latency
+    ts_data, ts_samplerate = get_ts_data_segment(
+        preproc_dir, subject, te_id, date, ts_start_time, 
+        end_time, channels=channels, datatype=datatype
+    )
+    if ts_samplerate != lfp_samplerate:
+        downsample_factor = ts_samplerate // lfp_samplerate
+        print(f"Downsampling by a factor of {downsample_factor}")
+        ts_data = ts_data[::downsample_factor]
+        ts_samplerate = lfp_samplerate
+    
+    # Extract
+    n_pts = int(f_extractor.win_len * ts_samplerate)
+    n_ch = len(channels)
+    n_freq = len(f_extractor.bands)
+    cycle_data = np.zeros((len(ts), n_freq, n_ch))
+    for i, t in enumerate(ts):
+        sample_num = int((t-ts_start_time-latency) * ts_samplerate)
+        cont_samples = ts_data[max(0,sample_num-n_pts):min(ts_data.shape[0], sample_num)]
+        if cont_samples.shape[0] < n_pts:
+            cycle_data[i] *= np.nan
+        else:
+            cycle_data[i] = f_extractor.extract_features(cont_samples.T).T.reshape(n_freq, n_ch)
+    cycle_data = np.reshape(cycle_data, (len(ts), -1)) # (nt, nfeats)
+
+    # Run the features through the decoder before resampling if necessary
+    if decode and len(channels) == len(decoder.channels):
+        cycle_data = decoder.decode(cycle_data.T)
+    
+    # Interpolate and preprocess
+    if samplerate is None:
+        samplerate = exp_metadata['fps']
+    raw_data = sample_timestamped_data(cycle_data, ts, samplerate, append_time=10, **kwargs)
+    if preproc is not None:
+        data, samplerate = preproc(raw_data, samplerate)
+    else:
+        data = raw_data
+    data = get_data_segment(data, start_time, end_time, samplerate) # cut off any extra data
+    return data, samplerate
+
+def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
+                         start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
+                         **kwargs):
+    '''
+    Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
+    Using this function, you can replicate closely the features that would have been extracted from 
+    a real-time BMI3D experiment, even if the experiment did not include a decoder.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        decoder (riglib.bmi.Decoder): decoder object with binlen and call_rate attributes
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default None,
+            uses the sampling rate of the experiment.
+        channels (int array, optional): which channel indices to load. If None (the default), 
+            uses the channels specified in the decoder.
+        start_time (float, optional): time (in seconds) in the recording at which the desired segment starts
+        end_time (float, optional): time (in seconds) in the recording at which the desired segment ends
+        latency (float, optional): time (in seconds) to include before the trigger times
+        datatype (str, optional): choice of 'lfp' or 'broadband' data to load. Defaults to 'lfp'. If
+            the sampling rate of the data is different from the decoder, the data will be downsampled
+            by decimation.
+        preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
+            a smoothing function.
+        kwargs: additional keyword arguments to pass to sample_timestamped_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **feats (nt, nfeats):** lfp features for the given channels after preprocessing
+            | **samplerate (float):** the sampling rate of the states after preprocessing
+
+    Note:
+        For best accuracy, use 'broadband' or other datatype without any filtering. Using filtered 'lfp'
+        results in DC shifted features.
+
+    Examples:
+
+        .. code-block:: python
+
+            subject = 'affi'
+            te_id = 17269
+            date = '2024-05-03'
+            preproc_dir = data_dir
+            start_time = 10
+            end_time = 30
+
+        Extract features using :func:`~aopy.data.bmi3d.extract_lfp_features` and states using 
+        :func:`~aopy.data.bmi3d.extract_lfp_features` with `decode=True`:
+        
+        .. code-block:: python
+            features_offline, samplerate_offline = extract_lfp_features(
+                preproc_dir, subject, te_id, date, decoder, 
+                start_time=start_time, end_time=end_time)
+             
+        Get online extracted features from :func:`~aopy.data.bmi3d.get_extracted_features` and
+        states from :func:`~aopy.data.bmi3d.get_decoded_states` for comparison:
+
+        .. code-block:: python
+
+            features_online, samplerate_online = get_extracted_features(
+                preproc_dir, subject, te_id, date, decoder,
+                start_time=start_time, end_time=end_time)
+
+        Plot the online and offline features:
+
+        .. code-block:: python
+
+            time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+            time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+            plt.figure(figsize=(8,3))
+            plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+            plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+            plt.xlabel('time (s)')
+            plt.ylabel('power')
+            plt.legend()
+            plt.title('readout 1')
+                        
+        .. image:: _images/extract_decoder_features.png
+    '''
+    return _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=samplerate, 
+                                 channels=channels, start_time=start_time, end_time=end_time, latency=latency, 
+                                 datatype=datatype, preproc=preproc, **kwargs)
+
 def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     '''
     Loads the x,y,z location of targets in a preprocessed HDF file given by their index. Requires
@@ -1277,7 +1732,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     trial_end_codes = [task_codes['TRIAL_END']]
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
-    penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['PERIPHERAL_TARGET_ON']
 
     # Concatenate base trial data
@@ -1599,35 +2054,6 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
-def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
-                            samplerate=1000, preproc=None, datatype='cursor', **kwargs):
-    '''
-    Grab kinematics data from trials across arbitrary preprocessed files.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subjects (list of str): Subject name for each recording
-        ids (list of int): Block number of Task entry object for each recording
-        dates (list of str): Date for each recording
-        start_times (list of float): times in the recording at which the desired segments starts
-        end_times (list of float): times in the recording at which the desired segments ends
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
-        datatype (str, optional): type of kinematics to tabulate. Defaults to 'cursor'.  
-        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.get_kinematic_segment`  
-
-    Returns:
-        (ntrial,): list of tensors of (nt, nch) kinematics from each trial
-    '''
-
-    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
-
-    segments = [get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
-                for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
-    trajectories = np.array(segments, dtype='object')
-    return trajectories
-
 def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
                        debug=True, df=None, **kwargs):
     '''
@@ -1716,6 +2142,276 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
     
     return df
 
+def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
+                            samplerate=1000, preproc=None, datatype='cursor', **kwargs):
+    '''
+    Grab kinematics data from trials across arbitrary preprocessed files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        datatype (str, optional): type of kinematics to tabulate. Defaults to 'cursor'.  
+        kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.get_kinematic_segment`  
+
+    Returns:
+        (ntrial,): list of tensors of (nt, nch) kinematics from each trial
+    '''
+
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
+
+    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
+                for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
+    trajectories = np.array(segments, dtype='object')
+    return trajectories
+
+def tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
+                       datatype, samplerate=None, steps=1, preproc=None, **kwargs):
+    '''
+    Grab task data from trials across arbitrary preprocessed files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        datatype (str): column of task data to load. 
+        samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        steps (list of int, optional): task data will be decimated with steps this big. If a single
+            integer is given, it will be applied to all trials. Default 1.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+    Returns:
+        tuple: tuple containing:
+            | **segments (ntrial,):** list of tensors of (nt, nch) task data from each trial
+            | **samplerate (float):** samplerate of the task data
+    '''
+
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
+    try:
+        if len(steps) == len(subjects):
+            pass
+    except:
+        if steps is None:
+            steps = 1
+        steps = [steps for _ in range(len(subjects))]
+
+    segments = []
+    for s, t, d, ts, te, step in zip(subjects, te_ids, dates, start_times, end_times, steps):
+        task_data, samplerate = get_task_data(
+            preproc_dir, s, t, d, datatype, samplerate=samplerate, step=step,
+            preproc=preproc, **kwargs) # cached for each unique recording
+        segments.append(get_data_segment(task_data, ts, te, samplerate))
+
+    segments = np.array(segments, dtype='object')
+    return segments, samplerate
+
+def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end_times,
+                          decoders, samplerate=None, channels=None, datatype='lfp', 
+                          preproc=None, **kwargs):
+    '''
+    Extract (new, offline) lfp feature segments across arbitrary preprocessed files. Uses
+    a decoder object to extract features from either lfp or broadband timeseries data. Can
+    be applied offline to arbitrary channels. If used on broadband data from a BCI experiment,
+    the features extracted will be (nearly) the same as the online features if the same decoder
+    is used.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        datatype (str, optional): column of task data to load. Default 'lfp_power'.
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        decoders (list of riglib.bmi.Decoder): decoder objects for each recording. If only one decoder
+            is supplied, it will be applied to all recordings.
+        samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        channels (list of int, optional): list of channel indices to extract. Default None, which
+            extracts all channels.
+        datatype (str, optional): type of data to load. Default 'lfp'.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        decode (bool, optional): whether to decode the lfp features. Default False.
+        kwargs: additional keyword arguments 
+
+    Returns:
+        tuple: tuple containing:
+            | **segments (ntrial,):** list of tensors of (nt, nfeat) feature data from each trial
+            | **samplerate (float):** samplerate of the feature data
+    
+    Examples:
+
+        Plot online extracted lfp features and overlay offline extracted feature segments
+
+        .. code-block:: python  
+
+            subject = 'affi'
+            te_id = 17269
+            date = '2024-05-03'
+            subjects = [subject, subject, subject]
+            te_ids = [te_id, te_id, te_id]
+            dates = [date, date, date]
+            start_time = 10
+            end_time = 30
+            start_times = [10, 15, 20]
+            end_times = [14, 18, 28]
+
+        Load the decoder that was used in the experiment
+
+        .. code-block:: python
+
+            with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file)
+
+        Load the full features for comparison
+
+        .. code-block:: python
+
+            features_offline, samplerate_offline = extract_lfp_features(
+                preproc_dir, subject, te_id, date, decoder, 
+                start_time=start_time, end_time=end_time)
+            features_online, samplerate_online = get_extracted_features(
+                preproc_dir, subject, te_id, date, decoder,
+                start_time=start_time, end_time=end_time)
+
+            time_offline = np.arange(len(features_offline))/samplerate_offline + start_time
+            time_online = np.arange(len(features_online))/samplerate_online + start_time
+
+            plt.figure(figsize=(8,3))
+            plt.plot(time_offline, features_offline[:,1], alpha=0.8, label='offline')
+            plt.plot(time_online, features_online[:,1], alpha=0.8, label='online')
+            plt.xlabel('time (s)')
+            plt.ylabel('power')
+            plt.title('readout 1')
+
+        Tabulate the segments
+
+        .. code-block:: python
+
+            features_offline, samplerate_offline = tabulate_lfp_features(
+                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+            features_online, samplerate_online = tabulate_feature_data(
+                preproc_dir, subjects, te_ids, dates, start_times, end_times, decoder)
+
+            for idx in range(len(start_times)):
+                time_offline = np.arange(len(features_offline[idx]))/samplerate_offline + start_times[idx]
+                time_online = np.arange(len(features_online[idx]))/samplerate_online + start_times[idx]
+                plt.plot(time_offline, features_offline[idx][:,1], 'k--')
+                plt.plot(time_online, features_online[idx][:,1], 'k--')
+            
+        Add legend
+
+        .. code-block:: python
+
+            plt.plot([], [], 'k--', label='segments')
+            plt.legend()
+
+        .. image:: _images/tabulate_lfp_features.png
+            
+    See also:
+        :func:`~aopy.data.bmi3d.tabulate_feature_data`
+        :func:`~aopy.data.bmi3d.tabulet_state_data`
+    '''
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
+    try:
+        if len(decoders) == len(subjects):
+            pass
+    except:
+        decoders = [decoders for _ in range(len(subjects))]
+
+    segments = []
+    for s, t, d, ts, te, dec in zip(subjects, te_ids, dates, start_times, end_times, decoders):
+        lfp_features, samplerate = extract_lfp_features(
+            preproc_dir, s, t, d, dec, samplerate=samplerate, channels=channels,
+            start_time=ts, end_time=te, datatype=datatype, preproc=preproc, 
+            **kwargs
+        )
+        segments.append(lfp_features)
+
+    return segments, samplerate
+
+def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoders,
+                          datatype='lfp_power', samplerate=None, preproc=None, **kwargs):
+    '''
+    Grab (online extracted) decoder feature segments across arbitrary preprocessed files. Wrapper 
+    around tabulate_task_data.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        datatype (str, optional): column of task data to load. Default 'lfp_power'.
+        samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        decoders (list of riglib.bmi.Decoder): decoder object with binlen and call_rate attributes. If
+            only one decoder is supplied, it will be applied to all recordings.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+    
+    Returns:
+        tuple: tuple containing:
+            | **segments (ntrial,):** list of tensors of (nt, nfeat) feature data from each trial
+            | **samplerate (float):** samplerate of the feature data
+    '''
+    try:
+        if len(decoders) == len(subjects):
+            steps = [int(decoder.call_rate*decoder.binlen) for decoder in decoders]
+    except:
+        steps = int(decoders.call_rate*decoders.binlen)
+    return tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
+                              datatype, samplerate=samplerate, steps=steps, preproc=preproc, **kwargs)
+    
+def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, decoders,
+                        datatype='decoder_state', samplerate=None, preproc=None, **kwargs):
+    '''
+    Grab (online decoded) state segments across arbitrary preprocessed files. Wrapper around 
+    tabulate_task_data.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        datatype (str, optional): column of task data to load. Default 'decoder_state'.
+        samplerate (float, optional): choose the samplerate of the data in Hz. Default None,
+            which uses the sampling rate of the experiment.
+        start_times (list of float): times in the recording at which the desired segments starts
+        end_times (list of float): times in the recording at which the desired segments ends
+        decoders (list of riglib.bmi.Decoder): decoder object with binlen and call_rate attributes. If
+            only one decoder is supplied, it will be applied to all recordings.
+        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
+            a smoothing function or an estimate of velocity from position
+        kwargs: additional keyword arguments to pass to get_interp_task_data 
+
+    Returns:
+        tuple: tuple containing:
+            | **segments (ntrial,):** list of tensors of (nt, nfeat) state data from each trial
+            | **samplerate (float):** samplerate of the state data
+    '''
+    try:
+        if len(decoders) == len(subjects):
+            steps = [int(decoder.call_rate*decoder.binlen) for decoder in decoders]
+    except:
+        steps = int(decoders.call_rate*decoders.binlen)
+    return tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
+                              datatype, samplerate=samplerate, steps=steps, preproc=preproc, **kwargs)
+
 def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_before, time_after, 
                      channels=None, datatype='lfp'):
     '''
@@ -1795,7 +2491,36 @@ def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_
         segments.append(segment)
         
     return segments, samplerate
+
+def tabulate_spike_data_segments(preproc_dir, subjects, te_ids, dates, start_times, end_times, drives, bin_width=0.01):
+    '''
+    Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        start_times (list of float): times in the recording at which the desired segments start
+        end_times (list of float): times in the recording at which the desired segments end
+        drives (list): Defines which drive to load data from. For neuropixel data this is usually '1' or '2'
+        bin_width (int): Bin width to bin spike times at. If None, the segments of spike times will be returned. 
+
+    Returns:
+            tuple: A tuple containing:
+                - segments (list of dicts): A list where each element is a dictionary of spike data for a unit in a specific experiment.
+                - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
+    '''
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times) == len(drives)
+    
+    # Fetch the segments
+    segments = []
+    for s, t, d, dr, st, et in list(zip(subjects, te_ids, dates, drives, start_times, end_times)):
+        segment, bins = get_spike_data_segment(preproc_dir, s, t, d, st, et, dr, bin_width=bin_width)
+        segments.append(segment)
         
+    return segments, bins
+
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''
     Load the default BMI3D task codes. File-specific codes can be found in exp_metadata['event_sync_dict']

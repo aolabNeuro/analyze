@@ -3,6 +3,7 @@
 # experimental files, trial sorting, and subsampling
 
 import warnings
+
 import numpy as np
 from scipy import interpolate
 
@@ -578,8 +579,8 @@ def get_data_segment(data, start_time, end_time, samplerate, channels=None):
     Returns:
         (nt', ndim): short segment of data from the given times
     '''
-    idx_data_start = int(start_time*samplerate)
-    idx_data_end = int(end_time*samplerate)
+    idx_data_start = max(0, int(start_time*samplerate))
+    idx_data_end = min(len(data), int(end_time*samplerate))
     if channels is not None:
         return data[idx_data_start:idx_data_end,channels]
     else:
