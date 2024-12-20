@@ -27,4 +27,8 @@ Examples:
 .. toctree::
 
     examples/neuropixel_example.ipynb
+
+.. toctree::
+
+    examples/movement_onset_example.ipynb
     
