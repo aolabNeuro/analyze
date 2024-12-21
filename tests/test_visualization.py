@@ -620,7 +620,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         plt.close()
 
         # Hand data plotted in 3d
-        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='manual_input')
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='user_world')
         plt.figure()
         ax = plt.axes(projection='3d')
         gradient_trajectories(traj[:3], bounds=[-10,10,-10,10,-10,0], ax=ax)
