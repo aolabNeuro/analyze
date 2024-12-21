@@ -405,10 +405,31 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
             x_missing = np.reshape(np.delete(x_pos, missing),-1)
             y_missing = np.reshape(np.delete(y_pos, missing),-1)
 
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plt.figure()
+            plot_spatial_map(data_map, x_missing, y_missing)
+
+        .. image:: _images/posmap.png
+
+        Use `calc_data_map` to interpolate the missing data
+
+        .. code-block:: python
+
             interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
             plot_spatial_map(interp_map, xy[0], xy[1])
 
         .. image:: _images/posmap_calcmap.png
+
+        Use cubic interpolation to generate a high resolution map
+
+        .. code-block:: python
+
+            interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [100, 100], threshold_dist=1.5, 
+                interp_method='cubic')
+            plt.figure()
+            plot_spatial_map(interp_map, xy[0], xy[1])
+
+        .. image:: _images/posmap_calcmap_interp.png
 
     Args:
         data (nch): list of values
@@ -2223,8 +2244,8 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, center=(0,0), co
     x = elec_pos[:,0]
     y = elec_pos[:,1]
     extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
-    x_spacing = (extent[1] - extent[0]) / (len(x) - 1)
-    y_spacing = (extent[3] - extent[2]) / (len(y) - 1)
+    x_spacing = (extent[1] - extent[0]) / (len(np.unique(x)) - 1)
+    y_spacing = (extent[3] - extent[2]) / (len(np.unique(y)) - 1)
     extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
 
     ax.imshow(img, origin='upper', extent=extent, **kwargs)
