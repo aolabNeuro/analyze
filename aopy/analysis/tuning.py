@@ -95,28 +95,69 @@ def get_mean_fr_per_condition(data, condition_labels, return_significance=False)
     else:
         return np.array(means_d).T, np.array(stds_d).T
     
-def get_target_tuning(data, target_idx, target_locations, return_significance=False):
+def convert_target_to_direction(target_locations):
     '''
-    Computes the mean and standard deviation of per-target data and organizes by direction.
+    Converts target index to target direction in radians.
+
+    Args:
+        target_locations (ntargets, 2): array of unique target (x, y) locations
+
+    Returns:
+        (ntarget,) array: target direction in radians for each trial
+    '''
+    target_locations = np.array(target_locations)
+    assert target_locations.shape[1] == 2, "Target locations must be 2D"
+    return np.array([np.arctan2(*t) for t in target_locations])
+
+def get_per_target_response(data, target_idx):
+    '''
+    Organizes trial response per target. Pads with nans if there are unequal number of trials per target.
 
     Args:
         data (nt, nch, ntrials): trial aligned neural data
         target_idx (ntrials): target index for each trial
-        target_locations (ntargets, 2): array of target (x, y) locations
-        return_significance (bool): Uses the one-way ANOVA test to compute a p-value for each channel/unit
 
     Returns:
         tuple: Tuple containing:
-            | **target_angles (ntargets):** angles of target locations in radians
-            | **means_d (ntargets, nch):** mean firing rate per neuron per target direction
-            | **stds_d (ntargets, nch):** standard deviation from mean firing rate per neuron
-            | **pvalue (ntargets, nch):** significance of modulation
-    '''
-    target_locations = np.array(target_locations)
-    assert target_locations.shape[1] == 2, "Target locations must be 2D"
+            | **per_target_response (ntargets, nt, nch, ntrials/ntargets):** trial aligned neural data per target
+            | **unique_targets (ntargets):** unique target indices corresponding to the 3rd dimension of per_target_response
+    
+    Examples:
 
-    target_angles = np.array([np.arctan2(*t) for t in target_locations])
-    return target_angles, *(v.T for v in get_mean_fr_per_condition(data, target_idx, return_significance=return_significance))
+        .. code-block:: python
+            erp = np.zeros((100, 2, 16))
+            erp[:,0,:4] = 3
+            erp[:,0,4:8] = 1
+            erp[:,0,8:12] = 2
+            erp[:,0,12:] = 4
+            target_idx = [2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3]
+            target_locations = np.array([[0, 1], [1, 1], [1, 0], [-1, 0]])
+
+            per_target_resp, unique_targets = aopy.analysis.get_per_target_response(erp, target_idx)
+            target_angles = aopy.analysis.convert_target_to_direction(target_locations[unique_targets])
+
+            self.assertEqual(target_angles.size, 4)
+            self.assertEqual(per_target_resp.shape, (4, 100, 2, 4))
+
+            per_target_resp = np.mean(per_target_resp, axis=1)
+
+            plt.figure()
+            aopy.visualization.plot_direction_tuning(per_target_resp, target_angles)
+
+        .. image:: _images/get_target_tuning.png
+    '''
+    unique_targets = np.unique(target_idx)
+    ntargets = len(unique_targets)
+    max_trials = np.max([np.sum(target_idx == t) for t in unique_targets])
+
+    nt, nch, _ = data.shape
+    per_target_response = np.full((ntargets, nt, nch, max_trials), np.nan)
+
+    for i, target in enumerate(unique_targets):
+        target_trials = data[:, :, target_idx == target]
+        per_target_response[i, :, :, :target_trials.shape[2]] = target_trials
+
+    return per_target_response, unique_targets
 
 def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''

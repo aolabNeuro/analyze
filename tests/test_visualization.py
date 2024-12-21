@@ -306,48 +306,51 @@ class CurveFittingTests(unittest.TestCase):
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
 
     def test_plot_direction_tuning(self):
+        np.random.seed(0)
         direction = [-np.pi, -np.pi/2, 0, np.pi/2]
-        mean = [1, 2, 3, 2]
+        data = np.random.normal(0, 1, (4, 2))
         
         plt.figure()
-        plot_direction_tuning(direction, mean)
+        plot_direction_tuning(data, direction, show_var=False)
         savefig(write_dir, 'direction_tuning_simple.png', transparent=False)
 
         # Again with polar plot
         fig = plt.figure()
         ax = fig.add_subplot(projection='polar')
 
-        plot_direction_tuning(direction, mean, wrap=False)
+        plot_direction_tuning(data, direction, wrap=False, show_var=False)
         savefig(write_dir, 'direction_tuning_simple_polar.png', transparent=False)
 
         # Try multichannel
         direction = [-np.pi, -np.pi/2, 0, np.pi/2]
-        mean = np.array([[1, 2, 3, 2], [2, 3, 4, 3]]).T
-        var = np.array([[0.2, 0.3, 0.1, 0.], [0.4, 0.6, 0.2, 0]]).T
+        data = np.random.normal(0, 1, (4, 2, 4))
         
         plt.figure()
-        plot_direction_tuning(direction, mean, var)
+        plot_direction_tuning(data, direction)
         savefig(docs_dir, 'direction_tuning.png', transparent=False)
 
         plt.figure()
-        plot_direction_tuning(np.degrees(direction), mean, var)
+        plot_direction_tuning(data, np.degrees(direction))
         savefig(write_dir, 'direction_tuning_degrees.png', transparent=False)
 
         # Again with polar plot
         fig = plt.figure()
         ax = fig.add_subplot(projection='polar')
 
-        plot_direction_tuning(direction, mean, var)
+        plot_direction_tuning(data, direction)
         savefig(docs_dir, 'direction_tuning_polar.png', transparent=False)
 
-        # Make sure it works with a 180 degree range
+        # Test the categorical plot
+        fig = plt.figure()
+        plot_condition_tuning(data, np.degrees(direction))
+        savefig(docs_dir, 'condition_tuning.png', transparent=False)
+
+        # Make sure both work with a 180 degree range
         direction = [0, np.pi/4, np.pi/2, 3*np.pi/4]
-        mean = [1, 2, 3, 2]
 
         plt.figure()
-        plot_direction_tuning(direction, mean)
+        plot_direction_tuning(data, direction)
         savefig(write_dir, 'direction_tuning_modulo.png', transparent=False)
-
 
     def test_plot_boxplots(self):
         # Rectangular array

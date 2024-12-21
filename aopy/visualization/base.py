@@ -1427,72 +1427,132 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
 
     ax.set_xlabel(r'Time ($\mu$s)')    
     
-def plot_direction_tuning(direction, mean, var=None, wrap=True, ylabel='success rate', ax=None):
+def plot_condition_tuning(per_condition_data, conditions, ylabel='success rate', ax=None, **kwargs):
+    '''
+    Plot tuning curves for categorical data. Essentially a scatter plot with the mean of each condition
+    plotted as a solid line.
+
+    Args:
+        per_condition_data (nconditions, ...): data for each condition
+        conditions (nconditions): condition for each data point
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
+
+    Examples:
+
+        Plot the success rate for 4 different conditions
+
+        .. code-block:: python
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            data = np.random.normal(0, 1, (4, 2, 4))
+            
+            fig = plt.figure()
+            plot_condition_tuning(data, np.degrees(direction))
+            
+        .. image:: _images/condition_tuning.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    per_condition_data = np.array(per_condition_data).reshape(len(per_condition_data), -1)
+    ntr = per_condition_data.shape[1]
+    print(per_condition_data.shape)
+    print(conditions.shape)
+
+    # Scatter plot
+    plt.scatter(np.tile(conditions, (1,ntr)), per_condition_data, **kwargs)
+
+    # Add means
+    dist = (np.max(conditions) - np.min(conditions)) / len(conditions)
+    for idx, cond in enumerate(per_condition_data):
+        mean = np.mean(cond)
+        ax.plot([conditions[idx]-dist/2, conditions[idx]+dist/2], [mean, mean], 'r-')
+
+    ax.set_xlabel('condition')
+    ax.set_ylabel(ylabel)
+
+def plot_direction_tuning(per_direction_data, directions, show_var=True, wrap=True, ylabel='success rate', ax=None):
     '''
     Plot tuning curves for directional data. The mean is plotted as a solid line and the variance as 
     a shaded region around the mean. Works with both cartesian and polar axes.
     
     Args:
-        direction (ndir): direction of each tuning curve in radians
-        mean (ndir, nch): mean of the tuning curve for each channel. If only one channel, can be (ndir,)
-        var (ndir, nch): variance of the tuning curve for each channel. If only one channel, can be (ndir,)
-            Can also be left blank if there is no variance to plot.
+        mean (ndir, nch, ntrial): direction responses for each channel. If only one channel, can be (ndir, ntrial).
+        directions (ndir): unique directions in radians
+        show_var (bool, optional): if True, shows the variance around the mean. Default True.
         wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
         ylabel (str, optional): label for the y-axis. Default "success rate"
-        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Can be cartesian or polar. Default the current axis.
     
     Example:
         Polar plot of tuning curves for 4 targets
 
         .. code-block:: python
+
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            data = np.random.normal(0, 1, (4, 2, 4))
+            
+            plt.figure()
+            plot_direction_tuning(data, direction)
+        
+        .. image:: _images/direction_tuning.png
+
+        Again but with polar plot
+        
+        .. code-block:: python
+        
             fig = plt.figure()
             ax = fig.add_subplot(projection='polar')
-            
-            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
-            mean = np.array([[1, 2, 3, 2], [2, 3, 4, 3]]).T
-            var = np.array([[0.2, 0.3, 0.1, 0.], [0.4, 0.6, 0.2, 0]]).T
 
+            plot_direction_tuning(data, direction)
+        
         .. image:: _images/direction_tuning_polar.png
     '''
-    if var is None:
-        var = np.zeros_like(mean)
-    assert np.shape(mean) == np.shape(var), "Mean and variance must have the same shape"
-    if np.ndim(mean) == 1:
-        mean = np.expand_dims(mean, 1)
-        var = np.expand_dims(var, 1)
-
     if ax is None:
         ax = plt.gca()
+
+    if np.ndim(per_direction_data) == 1:
+        per_direction_data = np.expand_dims(per_direction_data, 1)
+    if np.ndim(per_direction_data) == 2:
+        per_direction_data = np.expand_dims(per_direction_data, 1)
             
-    if len(direction) != len(mean):
-        direction = np.unique(direction)
-    assert len(direction) == len(mean), "Direction and mean must have the same length"
+    if len(directions) != len(per_direction_data):
+        directions = np.unique(directions)
+    assert len(directions) == len(per_direction_data), "Direction and mean must have the same length"
+
+    # Calculate mean and variance
+    mean = np.nanmean(per_direction_data, axis=2)
+    if show_var:
+        var = np.nanstd(per_direction_data, axis=2)
+    else:
+        var = np.zeros_like(mean)
 
     # Sort the data and decide if the data fills a full circle or half circle
-    if np.max(np.abs(direction)) > 2*np.pi:
-        direction = np.radians(direction) # probably in degrees by mistake
+    if np.max(np.abs(directions)) > 2*np.pi:
+        directions = np.radians(directions) # probably in degrees by mistake
     modulo = np.pi
-    if np.max(direction) - np.min(direction) >= (np.pi):
+    if np.max(directions) - np.min(directions) >= (np.pi):
         modulo = np.pi * 2
-    direction = np.array(direction) % modulo
-    idx = np.argsort(direction)
+    directions = np.array(directions) % modulo
+    idx = np.argsort(directions)
 
     # Wrap around the circle
     if wrap:
-        direction = np.hstack((direction[idx], [direction[idx[0]] + modulo]))
+        directions = np.hstack((directions[idx], [directions[idx[0]] + modulo]))
         mean = np.vstack((mean[idx], [mean[idx[0]]]))
         var = np.vstack((var[idx], [var[idx[0]]]))
     else:
-        direction = direction[idx]
+        directions = directions[idx]
         mean = mean[idx]
         var = var[idx]
 
+    # Plot
     if ax.name != 'polar':
-        direction = np.degrees(direction)
+        directions = np.degrees(directions)
 
     for ch in range(mean.shape[1]):
-        ax.plot(direction, mean[:,ch])
-        ax.fill_between(direction, mean[:,ch]-var[:,ch], mean[:,ch]+var[:,ch], alpha=0.5)
+        ax.plot(directions, mean[:,ch])
+        ax.fill_between(directions, mean[:,ch]-var[:,ch], mean[:,ch]+var[:,ch], alpha=0.5)
 
     try:
         label_position=ax.get_rlabel_position()

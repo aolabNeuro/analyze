@@ -211,23 +211,25 @@ class misc_tests(unittest.TestCase):
 
 class TestTuning(unittest.TestCase):
 
-    def test_get_target_tuning(self):
+    def test_get_per_target_response(self):
         erp = np.zeros((100, 2, 16))
-        erp[:,0,:4] = 1
-        erp[:,0,4:8] = 2
-        erp[:,0,8:12] = 3
+        erp[:,0,:4] = 3
+        erp[:,0,4:8] = 1
+        erp[:,0,8:12] = 2
         erp[:,0,12:] = 4
-        target_idx = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3]
+        target_idx = [2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3]
         target_locations = np.array([[0, 1], [1, 1], [1, 0], [-1, 0]])
 
-        directions, mean, var = aopy.analysis.get_target_tuning(erp, target_idx, target_locations)
-        print(directions)
-        self.assertEqual(directions.size, 4)
-        self.assertEqual(mean.size, 8)
-        self.assertEqual(var.size, 8)
-        print(mean.shape)
+        per_target_resp, unique_targets = aopy.analysis.get_per_target_response(erp, target_idx)
+        target_angles = aopy.analysis.convert_target_to_direction(target_locations[unique_targets])
+
+        self.assertEqual(target_angles.size, 4)
+        self.assertEqual(per_target_resp.shape, (4, 100, 2, 4))
+
+        per_target_resp = np.mean(per_target_resp, axis=1)
+
         plt.figure()
-        aopy.visualization.plot_direction_tuning(directions, mean, var)
+        aopy.visualization.plot_direction_tuning(per_target_resp, target_angles)
         aopy.visualization.savefig(docs_dir, 'get_target_tuning.png', transparent=False)
 
     def test_run_tuningcurve_fit(self):
