@@ -1,3 +1,7 @@
+# eye.py
+#
+# Post-processing eye movement data
+
 import numpy as np
 
 def get_saccade_pos(eye_pos, onset_times, duration, samplerate):

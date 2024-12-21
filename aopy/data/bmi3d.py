@@ -1,17 +1,15 @@
 import sys
-from functools import lru_cache
 import traceback
 import warnings
-from matplotlib import pyplot as plt
 import os
-import datetime
+import json
+
+from functools import lru_cache
 import numpy as np
 import h5py
 import tables
 import pandas as pd
-import json
 from tqdm.auto import tqdm
-from scipy import interpolate
 if sys.version_info >= (3,9):
     from importlib.resources import files, as_file
 else:
@@ -2370,7 +2368,7 @@ def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end
         tuple: tuple containing:
             | **segments (ntrial,):** list of tensors of (nt, nfeat) feature data from each trial
             | **samplerate (float):** samplerate of the feature data
-        '''
+    '''
     try:
         if len(decoders) == len(subjects):
             steps = [int(decoder.call_rate*decoder.binlen) for decoder in decoders]

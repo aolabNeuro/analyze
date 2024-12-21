@@ -14,6 +14,7 @@ import unittest
 import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from matplotlib.testing.compare import compare_images
 import datetime
 import json
@@ -1379,66 +1380,84 @@ class SignalPathTests(unittest.TestCase):
         self.assertEqual(acq_ch_position.shape[0], 240)
         self.assertEqual(acq_ch_position.shape[1], 2)
 
-    def test_align_recording_drives(self):
-        # Create plot for documentation with affi and biegnet
+        acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='NP_Insert137')
+
+    def test_align_neuropixel_recoring_drive(self):
+        # Create plots for documentation with affi and biegnet
         fig, ax = plt.subplots(1,2)
         subjects = ['affi', 'beignet']
         neuropixel_drive='NP_Insert137'
         drive2 = 'ECoG244'
         for iax, subject in enumerate(subjects):
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax[iax])
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax[iax])
-            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=6) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, ax=ax[iax])
-            ax[iax].set(xlim=(-2,13.25), ylim=(-2,13.25), title=f'{subject}')
-        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png')
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, ax=ax[iax])
+            ax[iax].set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
+
+        fig, ax = plt.subplots(1,2)
+        neuropixel_drive='NP_Insert72'
+        for iax, subject in enumerate(subjects):
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            center = (5,5)
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta, center=center)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, center=center, ax=ax[iax])
+            ax[iax].set(xlim=(-3,13), ylim=(-3,13), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
 
         # Test the rest of the combinations
         for subject in subjects:
             neuropixel_drive = 'NP_Insert72'
             drive2 = 'ECoG244'
-            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
-
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates ,  recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             neuropixel_drive='NP_Insert137'
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
             visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
-            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             ## Test with opto drive
             drive2 = 'Opto32'
             neuropixel_drive = 'NP_Insert72'
-            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            # acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
+            ax.set_aspect('equal')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             neuropixel_drive='NP_Insert137'
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
             visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
-            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
-
-
+            ax.set_aspect('equal')
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
     def test_map_data2elec(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'

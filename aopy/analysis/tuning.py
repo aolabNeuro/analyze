@@ -156,8 +156,8 @@ def calc_dprime(*dist):
 
         d' = \\frac{µ_{max} - µ_{min}}{\sqrt{\sum_{i=0}^{n-1} (p_i)\sigma_i^2}}
 
-    where $µ_{max} - µ_{min}$ is the peak-to-peak distance across category means, $p_i$ is the proportion 
-    of trials in the i-th category, and $\sigma_i^2$ is the standard deviation of the i-th category.
+    where :math:`µ_{max} - µ_{min}` is the peak-to-peak distance across category means, :math:`p_i` is the proportion 
+    of trials in the i-th category, and :math:`\sigma_i^2` is the standard deviation of the i-th category.
 
     Args:
         *dist (ntr, nch): distribution of the data for each category. d-prime is calculated along the first axis.
@@ -167,9 +167,9 @@ def calc_dprime(*dist):
     
     Examples:
     
-        $d'$ is essentially a signal-to-noise ratio. In the simple case of two distributions, the numerator 
+        :math:`d'` is essentially a signal-to-noise ratio. In the simple case of two distributions, the numerator 
         is the distance between the two means while the denominator is the average noise within each distribution. 
-        If the distributions are normal and of equal variance then the $d'$ value becomes the z-score of the 
+        If the distributions are normal and of equal variance then the :math:`d'` value becomes the z-score of the 
         difference between the two means.
 
         .. code-block:: python

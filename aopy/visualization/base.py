@@ -1,8 +1,18 @@
 # visualization.py
+# 
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
+
 import string
 import warnings
-import seaborn as sns
+from datetime import timedelta
+import os
+import copy
+import sys
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
+
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -12,25 +22,16 @@ from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
-
+import seaborn as sns
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 from scipy import signal
 from scipy.stats import zscore
 import numpy as np
-import os
 from PIL import Image
-import copy
 import pandas as pd
 from tqdm import tqdm
-import pandas as pd
-from datetime import timedelta
-import sys
-if sys.version_info >= (3,9):
-    from importlib.resources import files, as_file
-else:
-    from importlib_resources import files, as_file
 
 from .. import precondition
 from .. import analysis
@@ -206,8 +207,8 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), thet
 
     Returns:
         tuple: tuple containing:
-        | **fig (pyplot.Figure):** figure where the subplots were placed
-        | **ax (list):** pyplot.Axes handles for each stimulation site
+            | **fig (pyplot.Figure):** figure where the subplots were placed
+            | **ax (list):** pyplot.Axes handles for each stimulation site
 
     Examples:
 
@@ -1999,6 +2000,83 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
 
     return pcm
 
+def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_grid=None, 
+                     cmap='viridis', grid_size=(4,4), **kwargs):
+    '''
+    Plot a grid of different frequency bands and time points for a given time-frequency map across
+    spatial locations.
+
+    Args:
+        freqs (nfreq,): frequency values
+        time (nt,): time values
+        tf_data (nfreq, nt, nch): time-frequency data across spatial channels
+        bands (list): list of tuples of frequency bands to plot
+        elec_pos (nch, 2): x, y position of each electrode
+        clim (tuple, optional): color limits for the plot, e.g. (0,1) for tfcoh maps. Default None
+        interp_grid (tuple, optional): (x, y) grid to interpolate the data onto. Default None
+        cmap (str, optional): colormap to use for plotting. Default 'viridis'
+        grid_size (tuple, optional): (width, height) in inches of each subplot grid. Default (4,4)
+        kwargs (dict, optional): other keyword arguments to pass to calc_data_map
+    
+    Returns:
+        list of pyplot.Axes: axes objects for each subplot in the grid
+
+    Examples:
+
+        Random power across space with increased power at time 1 and decreased power in high frequencies.
+
+        .. code-block:: python
+
+            nfreq = 100
+            nt = 3
+            nch = 100
+            freqs = np.linspace(1,250,nfreq)
+            time = np.linspace(0, 1, nt)
+            tf_data = np.random.rand(nfreq,nt,nch)
+            tf_data[:,1,:] *= 2 # increase power at time 1
+            tf_data[freqs > 10, :, :] *= 0.5 # decrease power in high frequencies
+            bands = [(1, 10), (10, 250)]
+            x, y = np.meshgrid(np.arange(10), np.arange(10))
+            elec_pos = np.zeros((100,2))
+            elec_pos[:,0] = x.reshape(-1)
+            elec_pos[:,1] = y.reshape(-1)
+            plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=(0,1), interp_grid=None, 
+                        cmap='viridis')
+        
+        .. image:: _images/tf_map_grid.png
+    '''
+    fig, ax = plt.subplots(len(bands), len(time), figsize=(grid_size[0]*len(time),grid_size[1]*len(bands)), 
+                           layout='constrained')
+    for band_idx, band in enumerate(bands):
+        for t_idx, t in enumerate(time):
+            if ax.ndim == 2:
+                this_ax = ax[band_idx, t_idx]
+            else:
+                this_ax = ax[max(band_idx, t_idx)]
+            this_tf_data = tf_data[(freqs > band[0]) & (freqs < band[1]),t_idx,:]
+            if interp_grid is None:
+                data_map = get_data_map(
+                    np.squeeze(np.mean(this_tf_data, axis=0)),
+                    elec_pos[:,0],
+                    elec_pos[:,1]
+                )
+            else:
+                data_map = calc_data_map(
+                    np.squeeze(np.mean(this_tf_data, axis=0)),
+                    elec_pos[:,0],
+                    elec_pos[:,1],
+                    interp_grid,
+                    **kwargs
+                )  
+            im = plot_spatial_map(
+                data_map, elec_pos[:,0], elec_pos[:,1], 
+                cmap=cmap, ax=this_ax)
+            if clim is not None:
+                im.set_clim(clim)
+            plt.colorbar(im, ax=this_ax, shrink=0.7)
+            this_ax.set_title(f't={t:.2f}, {band[0]}-{band[1]} Hz')
+    return ax
+
 def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
     '''
     This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color. See also sns.color_palette for a gradient of RGB values within a Seaborn color palette.
@@ -2131,7 +2209,7 @@ def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area
 
     return n, bins, patches
 
-def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, invert=False, ax=None, **kwargs):
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, center=(0,0), color=None, invert=False, ax=None, **kwargs):
     '''
     Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
     placed at the same coordinates as electrode positions for the given electrode drive. The image
@@ -2141,6 +2219,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
         filepath (str): path to the image file
         drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
         theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         color (str, optional): color to use for the image. Default is None.
         invert (bool, optional): whether to invert the image. Default is False.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
@@ -2161,7 +2240,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
     img = np.rot90(img, np.ceil(theta/90), axes=(1,0))
     
     # Calculate the proper extents
-    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
+    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta, center=center)
     x = elec_pos[:,0]
     y = elec_pos[:,1]
     extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
@@ -2171,7 +2250,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
 
     ax.imshow(img, origin='upper', extent=extent, **kwargs)
 
-def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.5, **kwargs):
+def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(0,0), alpha=0.5, **kwargs):
     '''
     Overlay a precomputed image of chamber sucli on a spatial map of electrodes. 
     Images are stored in the aopy.config directory. Currently available images are:
@@ -2183,6 +2262,7 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.
         chamber (str): chamber type
         drive_type (str): drive type
         theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         alpha (float, optional): transparency of the image. Default is 0.5.
         kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. color.
 
@@ -2208,4 +2288,4 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.
     filename = f'{subject.lower()}_{chamber.lower()}_{drive_type.lower()}_sulci.png'
     params_file = as_file(config_dir.joinpath(filename))
     with params_file as f:
-        overlay_image_on_spatial_map(f, drive_type, theta=theta, alpha=alpha, **kwargs)
+        overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)
