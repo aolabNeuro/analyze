@@ -235,6 +235,45 @@ class TestCalcFuncs(unittest.TestCase):
         np.testing.assert_array_equal(expected_result, frame_events)
         np.testing.assert_array_equal(["penalty", "reward"], event_names)
 
+    def test_smooth_timeseries_gaus(self):
+        # Test basics
+        npts = 1001
+        data = np.ones(npts)
+        samplerate = 1000
+        sd = 50
+        smoothed_data = smooth_timeseries_gaus(data, sd, samplerate)
+        self.assertTrue(len(smoothed_data)==npts)
+
+        smoothed_data = smooth_timeseries_gaus(data, sd, samplerate, conv_mode='valid')
+        self.assertTrue(np.sum(np.diff(smoothed_data))==0)
+
+        # Test that kernel is acting gaussian as expected
+        data = np.zeros(npts)
+        center_pt = 500
+        data[center_pt] = 1
+        nstd = 3
+        output, kernel = smooth_timeseries_gaus(data, sd, samplerate,nstd=nstd, return_kernel=True)
+        self.assertEqual(np.round(np.sum(output[int(center_pt-(sd)):int(center_pt+(sd))]), 4), 0.6827) # From 68/95/99.7 rule of standard deviations
+        self.assertEqual(np.round(np.sum(output[int(center_pt-(2*sd)):int(center_pt+(2*sd))]), 4), 0.9545) # From 68/95/99.7 rule of standard deviations
+
+        # Test return kenrnel
+        self.assertEqual(len(kernel), (2*sd*nstd)+1) # Multiply by 2 to account for SD on both sites of the center, and +1 to account for center point.
+                
+
+        # Plot example
+        np.random.seed(0)
+        npts = 250
+        sd = 20
+        unsmoothed_data = np.random.rand(npts)
+        smoothed_data = smooth_timeseries_gaus(unsmoothed_data, sd, samplerate)
+        time_axis = (np.arange(npts)/samplerate) * 1000 # Convert from [s] to [ms]
+
+        fig, ax = plt.subplots(1,1)
+        ax.plot(time_axis, unsmoothed_data, label='Unsmoothed')
+        ax.plot(time_axis, smoothed_data, label='Smoothed')
+        ax.legend()
+        aopy.visualization.savefig(docs_dir, 'gaus_smoothing_example.png')
+
 class TestGetFuncs(unittest.TestCase):
 
     def test_get_trial_targets(self):
@@ -288,7 +327,7 @@ class TestEyeFuncs(unittest.TestCase):
         saccade_distance = np.array([1.0,2.0,2.0,3.0])
         target_idx = 1
         relevant_saccade_idx = get_relevant_saccade_idx(onset_target, offset_target, saccade_distance, target_idx)
-        self.assertTrue(relevant_saccade_idx == 3)
+        self.assertTrue(relevant_saccade_idx == 3)        
 
 class TestMappingFuncs(unittest.TestCase):
 
