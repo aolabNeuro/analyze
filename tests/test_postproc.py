@@ -251,9 +251,14 @@ class TestCalcFuncs(unittest.TestCase):
         data = np.zeros(npts)
         center_pt = 500
         data[center_pt] = 1
-        output = smooth_timeseries_gaus(data, sd, samplerate)
+        nstd = 3
+        output, kernel = smooth_timeseries_gaus(data, sd, samplerate,nstd=nstd, return_kernel=True)
         self.assertEqual(np.round(np.sum(output[int(center_pt-(sd)):int(center_pt+(sd))]), 4), 0.6827) # From 68/95/99.7 rule of standard deviations
         self.assertEqual(np.round(np.sum(output[int(center_pt-(2*sd)):int(center_pt+(2*sd))]), 4), 0.9545) # From 68/95/99.7 rule of standard deviations
+
+        # Test return kenrnel
+        self.assertEqual(len(kernel), (2*sd*nstd)+1) # Multiply by 2 to account for SD on both sites of the center, and +1 to account for center point.
+                
 
         # Plot example
         np.random.seed(0)

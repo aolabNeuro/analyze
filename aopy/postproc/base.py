@@ -386,14 +386,23 @@ def get_calibrated_eye_data(eye_data, coefficients):
     #caliberated_eye_data_segments = np.empty((num_time_points, num_dims))
     return eye_data * coefficients[:,0] + coefficients[:,1]
 
-def smooth_timeseries_gaus(timeseries_data, sd, samplerate, nstd=3, conv_mode='same'):
+def smooth_timeseries_gaus(timeseries_data, sd, samplerate, nstd=3, conv_mode='same', return_kernel=False):
     """
-    Smooths a time series by convolving it with a user-defined Gaussian kernel. The Gaussian kernel is defined by the following equation:
+    Smooths a time series by convolving it with a user-defined Gaussian kernel. 
+    The length of the kernel is computed using integers in the following range:
+
+    .. math::
+
+        x = [\\frac{-nstd*sd*samplerate}{1000}, \\frac{nstd*sd*samplerate}{1000}]
+
+
+    The Gaussian kernel is then defined by the following equation:
 
     .. math::
 
         g(x) = \\frac{1}{\sigma\sqrt{2\pi}}e^{\\frac{-x^{2}}{2\sigma^{2}}}
 
+    
     Args:
         timeseries_data (ndarray): The input time series data to be smoothed (i.e. binned firing rates). This can be an array with any number of dimensions, 
                                     but the smoothing is applied along the first axis (time).
@@ -401,9 +410,10 @@ def smooth_timeseries_gaus(timeseries_data, sd, samplerate, nstd=3, conv_mode='s
         samplerate (int): The sample rate of the time series data [Hz].
         nstd (float or int, optional): The number of standard deviations to be used in the filter calculation. 
                                        Default is 3.
-        conv_mode (str, optional): The convolution mode, which defines the size of the output. f the default input of 'same' is used, the edges will be computed with zero padding.
+        conv_mode (str, optional): The convolution mode, which defines the size of the output. If the default input of 'same' is used, the edges will be computed with zero padding.
                                    Accepts 'full', 'valid', or 'same'. Default is 'same'.
                                    See `scipy.signal.convolve` for full documentation on the modes.
+        return_kernel (bool, optional): If True, this function returns the kernel used in convolution. Otherwise, only the smoothed data is returned. 
 
     Returns:
         ndarray: The smoothed time series data. The shape of the output matches the input data, except in 
@@ -417,6 +427,9 @@ def smooth_timeseries_gaus(timeseries_data, sd, samplerate, nstd=3, conv_mode='s
         .. image:: _images/gaus_smoothing_example.png.png
     """
     sample_std = sd * samplerate / 1000  # Convert from ms to samples
-    x = np.arange(-sample_std * nstd, nstd * sample_std + 1)
+    x = np.arange(-sample_std * nstd, (nstd * sample_std) + 1)
     gaus_filter = (1 / (sample_std * np.sqrt(2 * np.pi))) * np.exp(-(x ** 2) / (2 * sample_std ** 2))
-    return np.apply_along_axis(convolve, 0, timeseries_data, gaus_filter, mode=conv_mode, method='direct')
+    if return_kernel:
+        return np.apply_along_axis(convolve, 0, timeseries_data, gaus_filter, mode=conv_mode, method='direct'), gaus_filter
+    else:
+        return np.apply_along_axis(convolve, 0, timeseries_data, gaus_filter, mode=conv_mode, method='direct')
