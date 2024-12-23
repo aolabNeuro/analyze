@@ -424,7 +424,7 @@ def smooth_timeseries_gaus(timeseries_data, sd, samplerate, nstd=3, conv_mode='s
         timeseries_data = np.random.randn(1000)  # Example time series data
         smoothed_data = smooth_timeseries_gaus(timeseries_data, 1000, 50)
 
-        .. image:: _images/gaus_smoothing_example.png.png
+        .. image:: _images/gaus_smoothing_example.png
     """
     sample_std = sd * samplerate / 1000  # Convert from ms to samples
     x = np.arange(-sample_std * nstd, (nstd * sample_std) + 1)
