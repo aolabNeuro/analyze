@@ -211,6 +211,17 @@ class misc_tests(unittest.TestCase):
 
 class TestTuning(unittest.TestCase):
 
+    def test_convert_target_to_direction(self):
+        target_locations = np.array([[0, 1], [1, 1], [1, 0], [-1, 0]])
+        target_angles = aopy.analysis.convert_target_to_direction(target_locations)
+        expected_angles = np.deg2rad([0, 45, 90, 270])
+        np.testing.assert_allclose(target_angles, expected_angles)
+
+        # Test zero axis and counterclockwise rotation
+        target_angles = aopy.analysis.convert_target_to_direction(target_locations, zero_axis=[1,0], clockwise=False)
+        expected_angles = np.deg2rad([90, 45, 0, 180])
+        np.testing.assert_allclose(target_angles, expected_angles)
+
     def test_get_per_target_response(self):
         erp = np.zeros((100, 2, 16))
         erp[:,0,:4] = 3

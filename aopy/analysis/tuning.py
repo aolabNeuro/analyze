@@ -95,19 +95,24 @@ def get_mean_fr_per_condition(data, condition_labels, return_significance=False)
     else:
         return np.array(means_d).T, np.array(stds_d).T
     
-def convert_target_to_direction(target_locations):
+def convert_target_to_direction(target_locations, zero_axis=[0,1], clockwise=True):
     '''
     Converts target index to target direction in radians.
 
     Args:
         target_locations (ntargets, 2): array of unique target (x, y) locations
+        zero_axis (2-tuple): (x,y) coordinate of the axis representing zero degrees. Default is [0,1] (up).
+        clockwise (bool): direction of rotation. Default True.
 
     Returns:
         (ntarget,) array: target direction in radians for each trial
     '''
     target_locations = np.array(target_locations)
     assert target_locations.shape[1] == 2, "Target locations must be 2D"
-    return np.array([np.arctan2(*t) for t in target_locations])
+    directions = np.array([np.arctan2(*t) for t in target_locations])
+    directions -= np.arctan2(*zero_axis)
+    directions *= -1 if not clockwise else 1
+    return directions % (2 * np.pi)
 
 def get_per_target_response(data, target_idx):
     '''
