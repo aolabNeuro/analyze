@@ -211,6 +211,43 @@ class misc_tests(unittest.TestCase):
 
 class TestTuning(unittest.TestCase):
 
+    def test_convert_target_to_direction(self):
+        target_locations = np.array([[0, 0], [0, 1], [1, 1], [1, 0], [-1, 0]])
+        target_angles = aopy.analysis.convert_target_to_direction(target_locations)
+        expected_angles = np.deg2rad([np.nan, 0, 45, 90, 270])
+        np.testing.assert_allclose(target_angles, expected_angles)
+
+        # Test origin
+        target_angles = aopy.analysis.convert_target_to_direction(target_locations, origin=[1,1])
+        expected_angles = np.deg2rad([225, 270, np.nan, 180])
+        np.testing.assert_allclose(target_angles[:-1], expected_angles)
+
+        # Test zero axis and counterclockwise rotation
+        target_angles = aopy.analysis.convert_target_to_direction(target_locations, zero_axis=[1,0], clockwise=False)
+        expected_angles = np.deg2rad([np.nan, 90, 45, 0, 180])
+        np.testing.assert_allclose(target_angles, expected_angles)
+
+    def test_get_per_target_response(self):
+        erp = np.zeros((100, 2, 16))
+        erp[:,0,:4] = 3
+        erp[:,0,4:8] = 1
+        erp[:,0,8:12] = 2
+        erp[:,0,12:] = 4
+        target_idx = [2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3]
+        target_locations = np.array([[0, 1], [1, 1], [1, 0], [-1, 0]])
+
+        per_target_resp, unique_targets = aopy.analysis.get_per_target_response(erp, target_idx)
+        target_angles = aopy.analysis.convert_target_to_direction(target_locations[unique_targets])
+
+        self.assertEqual(target_angles.size, 4)
+        self.assertEqual(per_target_resp.shape, (4, 100, 2, 4))
+
+        per_target_resp = np.mean(per_target_resp, axis=1)
+
+        plt.figure()
+        aopy.visualization.plot_direction_tuning(per_target_resp, target_angles)
+        aopy.visualization.savefig(docs_dir, 'get_target_tuning.png', transparent=False)
+
     def test_run_tuningcurve_fit(self):
         nunits = 7
         targets = np.arange(0, 360, 45)
