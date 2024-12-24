@@ -1473,13 +1473,13 @@ def plot_condition_tuning(per_condition_data, conditions, ylabel='success rate',
 
 def plot_direction_tuning(per_direction_data, directions, show_var=True, wrap=True, ylabel='success rate', ax=None):
     '''
-    Plot tuning curves for directional data. The mean is plotted as a solid line and the variance as 
+    Plot tuning curves for directional data. The mean across trials is plotted as a solid line and the variance as 
     a shaded region around the mean. Works with both cartesian and polar axes.
     
     Args:
-        mean (ndir, nch, ntrial): direction responses for each channel. If only one channel, can be (ndir, ntrial).
+        per_direction_data (ndir, nch, ntrial): direction responses for each channel. If only one channel, can be (ndir, ntrial).
         directions (ndir): unique directions in radians
-        show_var (bool, optional): if True, shows the variance around the mean. Default True.
+        show_var (bool, optional): if True, plots the standard deviation around the mean. Default True.
         wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
         ylabel (str, optional): label for the y-axis. Default "success rate"
         ax (pyplot.Axes, optional): axis to plot the tuning curves on. Can be cartesian or polar. Default the current axis.

@@ -2,6 +2,7 @@
 #
 # Code related to tuning analysis, e.g. modulation depth, specificity, curve fitting, etc.
 
+import warnings
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.stats import f_oneway
@@ -95,12 +96,13 @@ def get_mean_fr_per_condition(data, condition_labels, return_significance=False)
     else:
         return np.array(means_d).T, np.array(stds_d).T
     
-def convert_target_to_direction(target_locations, zero_axis=[0,1], clockwise=True):
+def convert_target_to_direction(target_locations, origin=[0,0], zero_axis=[0,1], clockwise=True):
     '''
-    Converts target index to target direction in radians.
+    Converts target index to target direction in radians. NaNs are returned for targets at the origin.
 
     Args:
         target_locations (ntargets, 2): array of unique target (x, y) locations
+        origin (2-tuple): (x,y) coordinate of the center of all targets defining the polar plane. Default is [0,0].
         zero_axis (2-tuple): (x,y) coordinate of the axis representing zero degrees. Default is [0,1] (up).
         clockwise (bool): direction of rotation. Default True.
 
@@ -109,9 +111,13 @@ def convert_target_to_direction(target_locations, zero_axis=[0,1], clockwise=Tru
     '''
     target_locations = np.array(target_locations)
     assert target_locations.shape[1] == 2, "Target locations must be 2D"
-    directions = np.array([np.arctan2(*t) for t in target_locations])
+    directions = np.array([np.arctan2(*t) for t in target_locations - origin])
     directions -= np.arctan2(*zero_axis)
     directions *= -1 if not clockwise else 1
+    centered_targets = np.linalg.norm(target_locations - origin, axis=1) == 0
+    if any(centered_targets):
+        warnings.warn("Targets detected at the origin. Setting direction to np.nan.")
+        directions[centered_targets] = np.nan
     return directions % (2 * np.pi)
 
 def get_per_target_response(data, target_idx):
