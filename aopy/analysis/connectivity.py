@@ -119,7 +119,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
         return freqs, time, stim_coh, stim_angle, pair
 
 def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_idx, n=0.06, 
-                              step=0.03, bw=25, ref=True, parallel=False, imaginary=True):
+                              step=0.03, bw=25, ref=True, parallel=False, imaginary=True, **kwargs):
     '''
     Map of coherence at every channel to the given stimulation channels. Input ERP data must include
     at least `n` seconds before and after events. Coherence is averaged across stimulation channels 
@@ -226,7 +226,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
         # call apply_async() without callback
         result_objects = [pool.apply_async(calc_connectivity_coh, 
                           args=(data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step),
-                          kwds={'imaginary': imaginary})
+                          kwds=kwargs.update({'imaginary': imaginary}))
                           for ch in range(erp.shape[1])]
 
         # result_objects is a list of pool.ApplyResult objects
@@ -242,7 +242,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
 
             freqs, time, coh_avg, angle_avg = calc_connectivity_coh(
                 data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step,
-                imaginary=imaginary
+                imaginary=imaginary, **kwargs
             )
             coh_all.append(coh_avg)
             angle_all.append(angle_avg)

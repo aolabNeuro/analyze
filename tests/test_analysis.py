@@ -1312,7 +1312,7 @@ class HelperFunctions:
 
         fig, ax = plt.subplots(2,1, layout='compressed')
         aopy.visualization.plot_timeseries(data, samplerate, ax=ax[0])
-        pcm = aopy.visualization.plot_tfr(spec[:,:,0], t_spec, f_spec, 'plasma', ax=ax[1])
+        pcm = aopy.visualization.plot_tfr(spec, t_spec, f_spec, 'plasma', ax=ax[1])
         fig.colorbar(pcm, label='power (V)', orientation = 'horizontal', ax=ax[1])
 
     def test_tfr_lfp(tfr_fun):
@@ -1489,14 +1489,20 @@ class SpectrumTests(unittest.TestCase):
         print(f"{repr(tfr_fun)} took {dur:.3f} seconds")
 
         # Plot spectrogram
-        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before, freqs, 'plasma', ax=ax[1])
+        pcm = aopy.visualization.plot_tfr(abs(coef), times - time_before, freqs, 'plasma', ax=ax[1])
         ax[1].set_title('Align center (default)')
 
-        pcm = aopy.visualization.plot_tfr(abs(coef[:,:,0]), times - time_before + n/2, freqs, 'plasma', ax=ax[2])
+        pcm = aopy.visualization.plot_tfr(abs(coef), times - time_before + n/2, freqs, 'plasma', ax=ax[2])
         fig.colorbar(pcm, label='power (a.u.)', orientation='horizontal', ax=ax[2])
         ax[2].set_title('Align right (time += n/2)')
         filename = 'tfr_mt_alignment.png'
         savefig(docs_dir,filename)
+
+        # Test negative frequency output
+        fk = 100
+        freqs, times, coef = aopy.analysis.calc_mt_tfr(erp, n, p, k, fs, step=step, fk=fk, pad=2, ref=False, nonnegative_freqs=False)
+        self.assertTrue(np.all(freqs[int(len(freqs)/2):] < 0))
+        self.assertTrue(np.all(freqs[:int(len(freqs)/2)] >= 0))
 
     def test_tfr_mt_tsa(self):
         win_t = 0.3
@@ -1599,12 +1605,12 @@ class SpectrumTests(unittest.TestCase):
         # Plot the coherence over time
         plt.figure(figsize=(10, 15))
         plt.subplot(5, 1, 1)
-        im = aopy.visualization.plot_tfr(spec1[:,:,0], t, f)
+        im = aopy.visualization.plot_tfr(spec1, t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Signal 1')
         im.set_clim(0,3)
 
         plt.subplot(5, 1, 2)
-        im = aopy.visualization.plot_tfr(spec2[:,:,0], t, f)
+        im = aopy.visualization.plot_tfr(spec2, t, f)
         plt.colorbar(im, orientation='horizontal', location='top', label='Signal 2')
         im.set_clim(0,3)
 
