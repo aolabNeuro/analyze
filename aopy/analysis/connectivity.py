@@ -217,6 +217,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
         pool = parallel
 
     # Calculate coherence for each channel
+    kwargs['imaginary'] = imaginary
     coh_all = []
     angle_all = []
     freqs = None
@@ -226,7 +227,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
         # call apply_async() without callback
         result_objects = [pool.apply_async(calc_connectivity_coh, 
                           args=(data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step),
-                          kwds=kwargs.update({'imaginary': imaginary}))
+                          kwds=kwargs)
                           for ch in range(erp.shape[1])]
 
         # result_objects is a list of pool.ApplyResult objects
@@ -242,7 +243,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
 
             freqs, time, coh_avg, angle_avg = calc_connectivity_coh(
                 data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step,
-                imaginary=imaginary, **kwargs
+                **kwargs
             )
             coh_all.append(coh_avg)
             angle_all.append(angle_avg)
