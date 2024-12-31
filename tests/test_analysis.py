@@ -694,6 +694,7 @@ class ModelFitTests(unittest.TestCase):
         self.assertEqual(np.round(np.mean(da),3), 1)
 
 
+
     def test_get_random_timestamps(self):
         nshuffled_points = 5
         

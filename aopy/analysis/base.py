@@ -1881,8 +1881,7 @@ def windowed_xval_lda_wrapper(data, labels, lags=3, nfolds=5, regularization='au
                 decoding_accuracy[iwind] = lda.score(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0), labels)
                 predicted_labels = lda.predict(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0))
                 cm[iwind,:,:,0] = confusion_matrix(labels, predicted_labels)
-                                    
-                                    
+                                                        
             # if cross validated: 
             else:
                 kf = model_selection.KFold(n_splits=nfolds,shuffle=True,random_state=None)
