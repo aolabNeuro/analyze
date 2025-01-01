@@ -1029,7 +1029,9 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     This code is adapted from the Pesaran lab `tfspec`.    
     
     Args:
-        ts_data (nt, nch, ntr): time series array
+        ts_data (nt, [nch, ntr]): time series array. If nch=1, the second dimension can be omitted.
+            If ntr=1, the third dimension can be omitted. Output spectrogram dimensions
+            (n_freq, n_time, [nch, ntr]) will also be reduced accordingly.
         n (float): window length in seconds
         p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
