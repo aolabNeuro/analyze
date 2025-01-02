@@ -1814,7 +1814,7 @@ def calc_confidence_interval_overlap(CI1, CI2):
     return overlap
 
 
-def windowed_xval_lda_wrapper(data, labels, lags=3, nfolds=5, regularization='auto', return_weights=False, return_confusion_matrix=False):
+def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regularization='auto', lda_model=None, return_weights=False, return_confusion_matrix=False):
     """
     Perform cross-validation with Linear Discriminant Analysis (LDA) to estimate decoding accuracy at each time point.
 
@@ -1826,25 +1826,25 @@ def windowed_xval_lda_wrapper(data, labels, lags=3, nfolds=5, regularization='au
         data (numpy.ndarray): The input data array with shape (ntime, nch, ntrials), where `ntime` is the number of time points,
                                `nch` is the number of channels, and `ntrials` is the number of trials.
         labels (numpy.ndarray): Array of shape (ntrials,) containing the labels for each trial.
-        lags (int, optional): The number of time lags to include in the analysis (default is 3).
+        samplerate (float or int): Samplerate of data. Used to compute the timeaxis.
+        lags (int, optional): The number of time lags to include in the analysis (default is 3). To only use a single timepoint set lags=0
         nfolds (int, optional): The number of folds for cross-validation (default is 5).
         regularization (str or float, optional): If regularization should be included when building the LDA model. Input into the shrinkage parameter of the sklearn 
                                 LDA function. Can either be None, 'auto', or a float between 0 and 1. 
+        lda_model (sklearn LDA class, optional): User-defined LDA model from sklearn.discriminant_analysis.LinearDiscriminantAnalysis. If None, this function will initialize the model.
         return_weights (bool, optional): Whether to return the LDA weights (default is False).
         return_confusion_matrix (bool, optional): Whether to return the confusion matrix for each fold (default is False).
 
     Returns:
         numpy.ndarray: The decoding accuracy for each time point (and fold if cross-validation is used). Shape (ntime-nlags, nfolds)
+        time_axis: The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
         (Optional) numpy.ndarray: The LDA weights for each time point, channel, and fold if `return_weights=True`. Shape (ntime-lags, nlabels, nfeatures, nfolds). Note: nfeatures will include lagged features if lags are used.
         (Optional) numpy.ndarray: The confusion matrix for each fold if `return_confusion_matrix=True`. Shape: (ntime-lags, nlabels, nlabels, nfolds)
 
     Raises:
         ValueError: If the input data or labels are not valid, or if there is a mismatch between the data and labels.
 
-    Notes:
-        The function applies a Gaussian smoothing filter to the data if `smooth_timeseries=True`. The smoothing width is 
-        provided in milliseconds and will be converted to samples based on the sample rate.
-        
+    Notes:      
         If `nfolds < 2`, no cross-validation is performed, and the function will calculate the accuracy based on the entire dataset.
         If `nfolds >= 2`, k-fold cross-validation is performed, and decoding accuracy is calculated for each fold.
     """
@@ -1857,8 +1857,13 @@ def windowed_xval_lda_wrapper(data, labels, lags=3, nfolds=5, regularization='au
     weights = np.zeros((ntime-lags, nlabels, (1+lags)*nch, nfolds))*np.nan # (ntime, ntargets, nfeatures, nfolds)
     cm = np.zeros((ntime-lags, nlabels, nlabels, nfolds))*np.nan
     nwind = data.shape[0] - lags
+    time_axis = (np.arange(nwind)+lags)/samplerate
     for iwind in range(nwind):
-        lda = LinearDiscriminantAnalysis(solver='eigen', shrinkage=regularization)
+        if lda_model is None:
+            lda = LinearDiscriminantAnalysis(solver='eigen', shrinkage=regularization)
+        else:
+            lda = lda_model
+
         end_wind = iwind+lags+1
 
         # If there are nans at this timestep, return nan in all places
@@ -1888,18 +1893,18 @@ def windowed_xval_lda_wrapper(data, labels, lags=3, nfolds=5, regularization='au
                 for ifold, (train_idx, test_idx) in enumerate(kf.split(np.vstack(data[iwind:end_wind,:,:]).T)):
                     # print(ifold, train_idx, test_idx, iwind, end_wind)
                     lda.fit(np.vstack(data[iwind:end_wind,:,train_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0), labels[train_idx])
-                    decoding_accuracy[iwind, ifold] = lda.score(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,test_idx]).T, axis=0), labels[test_idx])
-                    predicted_labels = lda.predict(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,test_idx]).T, axis=0))
+                    decoding_accuracy[iwind, ifold] = lda.score(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0), labels[test_idx])
+                    predicted_labels = lda.predict(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0))
                     if return_weights:
                         weights[iwind,:,:,ifold] = lda.coef_
                     if return_confusion_matrix:
                         cm[iwind,:,:,ifold] = confusion_matrix(labels[test_idx], predicted_labels, normalize='true')
             
     if return_weights & return_confusion_matrix:
-        return decoding_accuracy, weights, cm
+        return decoding_accuracy, time_axis, weights, cm
     elif return_weights: 
-        return decoding_accuracy, weights
+        return decoding_accuracy, time_axis, weights
     elif return_confusion_matrix:
-        return decoding_accuracy, cm
+        return decoding_accuracy, time_axis, cm
     else:
-        return decoding_accuracy
+        return decoding_accuracy, time_axis
