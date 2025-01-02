@@ -303,5 +303,5 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
     coh_all = np.array(coh_all).transpose(1,2,0)
     angle_all = np.array(angle_all).transpose(1,2,0)
     
-    return freqs, time-n, coh_all, angle_all
+    return freqs, time+window[0], coh_all, angle_all
 
