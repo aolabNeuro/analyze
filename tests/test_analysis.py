@@ -662,6 +662,52 @@ class ModelFitTests(unittest.TestCase):
         self.assertAlmostEqual(accuracy, 1.0)
         self.assertAlmostEqual(std, 0.0 )
 
+    def test_windowed_xval_lda_wrapper(self):
+        # Use same test as for the other LDA function (above), except add a time component. 
+        nt = 50
+        ntrials=100
+        nlags = 3
+        nfolds = 2
+        samplerate = 1
+        X_train_lda = np.tile(np.array([[-1, -1], [-2, -1], [-3, -2], [-5, -7], [-3, -5], [-6,  -4],
+                    [1, 1],   [2, 1],   [3, 2],   [3,1], [3,9], [2,3]]).T, [nt,1,ntrials]) # (ntime, nch, ntrials)
+        y_class_train = np.tile(np.array([1,1,1,1,1,1, -1, -1, -1, -1,-1,-1]), [ntrials])
+        np.random.seed(0)
+        da, time_axis, weights, cm = aopy.analysis.windowed_xval_lda_wrapper(X_train_lda, y_class_train, 1, lags=nlags, nfolds=nfolds, regularization='auto', return_weights=True, return_confusion_matrix=True)
+        
+        self.assertEqual(da.shape[0], nt-nlags)
+        self.assertEqual(da.shape[1], nfolds)
+        self.assertEqual(np.round(np.mean(da),3), 1)
+
+        self.assertEqual(len(time_axis), nt-nlags)
+        self.assertEqual(time_axis[-1], nt-1) # -1 because of 0 indexing
+        self.assertEqual(time_axis[0], nlags)
+
+        self.assertEqual(weights.shape[0], nt-nlags)
+        self.assertEqual(weights.shape[1], 2)
+        self.assertEqual(weights.shape[2], X_train_lda.shape[1]*(nlags+1)) # Include lagged features and currect features
+        self.assertEqual(weights.shape[3], nfolds)
+
+        self.assertEqual(cm.shape[0], nt-nlags)
+        self.assertEqual(cm.shape[1], 2)
+        self.assertEqual(cm.shape[2], 2) # Include lagged features and currect features
+        self.assertEqual(cm.shape[3], nfolds)
+
+        # Test w/o xval 
+        da, time_axis, weights, cm = aopy.analysis.windowed_xval_lda_wrapper(X_train_lda, y_class_train,samplerate, lags=nlags, nfolds=1, regularization='auto', return_weights=True, return_confusion_matrix=True)
+        self.assertEqual(len(da), nt-nlags)
+        self.assertEqual(np.round(np.mean(da),3), 1)
+
+        # Test with no lags (lags=0)
+        da, time_axis, _, _ = aopy.analysis.windowed_xval_lda_wrapper(X_train_lda, y_class_train, samplerate, lags=0, nfolds=nfolds, regularization='auto', return_weights=True, return_confusion_matrix=True)
+        self.assertEqual(da.shape[0], nt)
+        self.assertEqual(da.shape[1], nfolds)
+        self.assertEqual(np.round(np.mean(da),3), 1)
+
+        self.assertEqual(len(time_axis), nt)
+        self.assertEqual(time_axis[-1], nt-1) # -1 because of 0 indexing
+        self.assertEqual(time_axis[0], 0)
+
     def test_get_random_timestamps(self):
         nshuffled_points = 5
         
