@@ -52,6 +52,55 @@ def get_acq_ch_near_stimulation_site(stim_site, stim_layout='Opto32', electrode_
     else:
         return acq_ch[idx]
 
+def prepare_erp(erp, samplerate, time_before, time_after, 
+                window_nullcond, window_altcond, zscore=False, ref=False):
+    '''
+    Prepare data for connectivity analysis. Given event-related potentials, extracts a sub-window
+    and normalizes to a baseline null condition. Optionally re-references the data.
+
+    Args:
+        erp ((nt, nch, ntr) array): trial-aligned data
+        samplerate (float): sampling rate of the erps
+        time_before (float): time before event in the erp (in seconds)
+        time_after (float): time after event in the erp (in seconds)
+        window_nullcond ((2,) tuple of float): desired (start, end) of nullcond (in seconds)
+        window_altcond ((2,) tuple of float): desired (start, end) of altcond (in seconds)
+        zscore (bool, optional): if True, z-score the data. Default is False.
+        ref (bool, optional): if True, re-reference the data. Default is False.
+
+    Returns:
+        ((nt_before_new, nch, ntr) array): alternative condition sub-window of the prepared erp
+    '''
+    assert len(window_nullcond) == 2 and window_nullcond[1] > window_nullcond[0]
+    assert len(window_altcond) == 2 and window_altcond[1] > window_altcond[0]
+    assert window_nullcond[0] >= -time_before
+    assert window_altcond[1] <= time_after
+    
+    # Find start and end indices
+    altcond_start = int((time_before+window_altcond[0])*samplerate)-1
+    altcond_dur = window_altcond[1] - window_altcond[0]
+    altcond_end = altcond_start + int(altcond_dur*samplerate)
+    nullcond_start = int((time_before+window_nullcond[0])*samplerate)
+    nullcond_dur = window_nullcond[1] - window_nullcond[0]
+    nullcond_end = nullcond_start+int(nullcond_dur*samplerate)
+    
+    # Extract data
+    data_altcond = erp[altcond_start:altcond_end,:,:].copy()
+    data_nullcond = erp[nullcond_start:nullcond_end,:,:].copy()
+    
+    # Make each trial zero-mean for both stim and baseline
+    baseline = np.mean(data_nullcond, axis=0)
+    data_altcond -= baseline
+
+    # Z-score the data
+    if zscore:
+        data_altcond /= np.std(data_nullcond, axis=0)
+
+    # Re-reference the data
+    if ref:
+        data_altcond = data_altcond - np.mean(data_altcond, axis=1, keepdims=True) # mean across channels
+
+    return data_altcond
 
 def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k, 
                           samplerate, step, fk=250, pad=2,
@@ -118,8 +167,8 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
         pair = [(tuple(p)[0], tuple(p)[1]-n_source) for p in pair]
         return freqs, time, stim_coh, stim_angle, pair
 
-def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_idx, n=0.06, 
-                              step=0.03, bw=25, ref=True, parallel=False, imaginary=True):
+def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_idx, window=None,
+                              n=0.06, step=0.03, bw=25, zscore=False, ref=True, parallel=False, imaginary=True, **kwargs):
     '''
     Map of coherence at every channel to the given stimulation channels. Input ERP data must include
     at least `n` seconds before and after events. Coherence is averaged across stimulation channels 
@@ -131,9 +180,12 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
         time_before (float): time included before events in the erp (in seconds)
         time_after (float): time included after events in the erp (in seconds)
         stim_ch_idx (list of 0-indexed int): stimulation channel indices (where you want coherence to be calculated from)
+        window (2-tuple, optional): time window for the coherence calculation in seconds. If None, a single (0, n) window
+            timestep will be used and the step parameter will be ignored. Default None.
         n (float): window length in seconds for the coherence calculation (default 0.06 s).
         step (float): window step size in seconds for the coherence calculation (default 0.03 s).
         bw (float): bandwidth for multitaper filter (default 25).
+        zscore (bool): z-score flag (default False).
         ref (bool): re-referencing flag (default True).
         parallel (bool or mp.pool.Pool): whether to use parallel processing. Can optionally be a pool object
             to use an existing pool. If True, a new pool is created with the number of CPUs available. If False,
@@ -179,7 +231,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
             w = 10
             step = 0.25
             f, t, coh_all, angle_all = aopy.analysis.connectivity.calc_connectivity_map_coh(data, fs, 0.5, 0.5, [stim_ch_idx], 
-                                                                                    n=n, bw=w, step=step, ref=False)
+                                                                                    window=(-n, n), n=n, bw=w, step=step, ref=False)
 
             self.assertEqual(coh_all.shape, angle_all.shape)
             
@@ -200,15 +252,14 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
     n, p, k = precondition.convert_taper_parameters(n, bw)
     print(f"using {k} tapers for tfcoh")
     
-    altcond_window = (-n, n)
-    nullcond_window = (0, n)
-    data_altcond, _, _, _ = accllr.prepare_erp(
-        erp, erp, samplerate, time_before, time_after, nullcond_window, altcond_window)
+    if window is None:
+        window = (0, n)
+    nullcond_window = (-n, 0)
+    data_altcond = prepare_erp(
+        erp, samplerate, time_before, time_after, nullcond_window, window, 
+        zscore=zscore, ref=ref
+    )
     
-    # Re-reference the data once
-    if ref:
-        data_altcond = data_altcond - np.mean(data_altcond, axis=1, keepdims=True) # mean across channels
-
     # Create a parallel pool if requested
     pool = None
     if parallel is True: # create a parallel pool
@@ -217,6 +268,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
         pool = parallel
 
     # Calculate coherence for each channel
+    kwargs['imaginary'] = imaginary
     coh_all = []
     angle_all = []
     freqs = None
@@ -226,7 +278,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
         # call apply_async() without callback
         result_objects = [pool.apply_async(calc_connectivity_coh, 
                           args=(data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step),
-                          kwds={'imaginary': imaginary})
+                          kwds=kwargs)
                           for ch in range(erp.shape[1])]
 
         # result_objects is a list of pool.ApplyResult objects
@@ -242,7 +294,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
 
             freqs, time, coh_avg, angle_avg = calc_connectivity_coh(
                 data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step,
-                imaginary=imaginary
+                **kwargs
             )
             coh_all.append(coh_avg)
             angle_all.append(angle_avg)
@@ -251,5 +303,5 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
     coh_all = np.array(coh_all).transpose(1,2,0)
     angle_all = np.array(angle_all).transpose(1,2,0)
     
-    return freqs, time-n, coh_all, angle_all
+    return freqs, time+window[0], coh_all, angle_all
 

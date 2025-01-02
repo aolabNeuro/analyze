@@ -925,6 +925,11 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
         print(f"Scale ({scale[0]}, {scale[-1]})")
         print(f"Freqs ({freqs_ud[0]}, {freqs_ud[-1]})")
     
+    shape = coef.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    coef = coef.reshape(shape)
+
     if not complex_output:
         coef = np.abs(coef)
     return freqs, time, np.flip(coef, axis=0)
@@ -1006,19 +1011,27 @@ def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None,
         data, fs=samplerate, window=window, nperseg=win_size, noverlap=overlap_size, nfft=nfft, 
         detrend=detrend, scaling='spectrum', axis=0, mode='complex')
     
+    spec = spec.transpose(0,2,1)
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
+
     if complex_output:
-        return freqs[:nfk], time, spec[:nfk].transpose(0,2,1)
+        return freqs[:nfk], time, spec[:nfk]
     else:
-        return freqs[:nfk], time, np.abs(spec[:nfk]).transpose(0,2,1)
+        return freqs[:nfk], time, np.abs(spec[:nfk])
 
 
-def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
+def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64', nonnegative_freqs=True):
     '''
     Compute multitaper time-frequency estimate from multichannel signal input. 
     This code is adapted from the Pesaran lab `tfspec`.    
     
     Args:
-        ts_data (nt, nch): time series array
+        ts_data (nt, [nch, ntr]): time series array. If nch=1, the second dimension can be omitted.
+            If ntr=1, the third dimension can be omitted. Output spectrogram dimensions
+            (n_freq, n_time, [nch, ntr]) will also be reduced accordingly.
         n (float): window length in seconds
         p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
@@ -1038,12 +1051,14 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         complex_output (bool): if True, return the complex signal instead of magnitude.
                                Default False.
         dtype (str): dtype of the output. Default 'float64'
+        nonnegative_freqs (bool): if True, only include non-negative frequencies in the output.
+                                       Default True.
                        
     Returns:
         tuple: Tuple containing:
             | **f (n_freq):** frequency axis for spectrogram
             | **t (n_time):** time axis for spectrogram
-            | **spec (n_freq,n_time,nch):** multitaper spectrogram estimate
+            | **spec (n_freq,n_time,nch,ntr):** multitaper spectrogram estimate
         
     Examples:
         
@@ -1093,6 +1108,8 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         ts_data = np.array(ts_data)
     if ts_data.ndim == 1:
         ts_data = ts_data[:, np.newaxis]
+    if ts_data.ndim == 2:
+        ts_data = ts_data[:, :, np.newaxis]
     if ts_data.shape[1] == 1:
         ref = False
     if step == None:
@@ -1100,37 +1117,54 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     if fk == None:
         fk = fs/2
         
-    ts_data = ts_data.T
-    nch,nt = ts_data.shape
-    fk = np.array([0,fk])
-    tapers, _ = precondition.dpsschk(n*fs, p, k)
+    ts_data = ts_data.transpose(1, 0, 2)  # (nch, nt, ntr)
+    nch, nt, ntr = ts_data.shape
+    fk = np.array([0, fk])
+    tapers, _ = precondition.dpsschk(n * fs, p, k)
     
-    win_size = tapers.shape[0] # window size (data points of tapers)
-    step_size = int(np.floor(step*fs)) # step size
-    nf = np.max([256,pad*2**utils.nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
-    nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
-    nwin = 1 + int(np.floor((nt-win_size)/step_size)) # number of windows
-    f = np.linspace(fk[0],fk[1],int(nfk[1] - nfk[0])) # frequency axis for spectrogram
+    win_size = tapers.shape[0]  # window size (data points of tapers)
+    step_size = int(np.floor(step * fs))  # step size
+    nf = np.max([256, pad * 2 ** utils.nextpow2(win_size + 1)])  # 0 padding for efficient computation in FFT
+    nwin = 1 + int(np.floor((nt - win_size) / step_size))  # number of windows
+    nfk = np.floor(fk / fs * nf)  # number of data points in frequency axis
+    if nonnegative_freqs:
+        f = np.linspace(fk[0], fk[1], int(nfk[1] - nfk[0]))  # frequency axis for spectrogram
+    else:
+        f = np.fft.fftfreq(nf, d=1/fs)
+        f = np.fft.fftshift(f)
+        nfk = [int(nf/2)-int(nfk[1]), int(nf/2)+int(nfk[1])]
+        f = f[nfk[0]:nfk[1]]
 
-    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch), dtype=dtype)
+    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch, ntr), dtype=dtype)
     for iwin in range(nwin):
         if ref:
-            m_data = np.sum(ts_data[:,step_size*iwin:step_size*iwin+win_size],axis=0)/nch # Mean across channels for that window
-            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]-m_data).T # Subtract mean from data           
+            m_data = np.sum(ts_data[:, step_size * iwin:step_size * iwin + win_size, :], axis=0) / nch  # Mean across channels for that window
+            win_data = (ts_data[:, step_size * iwin:step_size * iwin + win_size, :] - m_data).transpose(1, 0, 2)  # Subtract mean from data           
         else:
-            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]).T
+            win_data = (ts_data[:, step_size * iwin:step_size * iwin + win_size, :]).transpose(1, 0, 2)
         
         # Compute power for each taper
-        tapers_ik = tapers[:, :, np.newaxis]  # Shape: (win_size, k, 1)
-        win_data_reshaped = win_data[:, np.newaxis, :]  # Shape: (win_size, 1, nch)
-        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch)
+        tapers_ik = tapers[:, :, np.newaxis, np.newaxis]  # Shape: (win_size, k, 1, 1)
+        win_data_reshaped = win_data[:, np.newaxis, :, :]  # Shape: (win_size, 1, nch, ntr)
+        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch, ntr)
+        if not nonnegative_freqs:
+            fk_data = np.fft.fftshift(fk_data, axes=0)
         if complex_output:
-            spec[:,iwin,:] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :], axis=1)
+            spec[:, iwin, :, :] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :, :], axis=1)
         else:
-            spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
+            spec[:, iwin, :, :] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :, :]), axis=1).real
 
-    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
-    
+    if not nonnegative_freqs:
+        f = np.fft.ifftshift(f)
+        spec = np.fft.ifftshift(spec, axes=0)
+
+    t = np.arange(nwin) * step + n / 2  # Center of each window is time axis
+
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
+
     return f, t, spec
 
 def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackknife=False, adaptive=False, sides='onesided'):
@@ -1213,6 +1247,11 @@ def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackkni
         win_data = data[window_sample_range,:]
         freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, nfft, adaptive, jackknife, sides)
         spec[:,idx_window,...] = _win_psd
+
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
 
     return freqs[:nfk], time, spec[:nfk]
 
