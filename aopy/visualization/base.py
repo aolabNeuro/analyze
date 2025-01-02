@@ -2136,7 +2136,7 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     return pcm
 
 def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_grid=None, 
-                     cmap='viridis', grid_size=(4,4), **kwargs):
+                     cmap='viridis', grid_size=(4,4), colorbar=True, **kwargs):
     '''
     Plot a grid of different frequency bands and time points for a given time-frequency map across
     spatial locations.
@@ -2208,8 +2208,10 @@ def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_gr
                 cmap=cmap, ax=this_ax)
             if clim is not None:
                 im.set_clim(clim)
-            plt.colorbar(im, ax=this_ax, shrink=0.7)
+            if colorbar:
+                plt.colorbar(im, ax=this_ax, shrink=0.7)
             this_ax.set_title(f't={t:.2f}, {band[0]}-{band[1]} Hz')
+            this_ax.set(xticks=[], yticks=[], xlabel='', ylabel='')
     return ax
 
 def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
