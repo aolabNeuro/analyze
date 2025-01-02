@@ -1237,7 +1237,7 @@ class ConnectivityTests(unittest.TestCase):
         w = 10
         step = 0.25
         f, t, coh_all, angle_all = aopy.analysis.connectivity.calc_connectivity_map_coh(data, fs, 0.5, 0.5, [stim_ch_idx], 
-                                                                                n=n, bw=w, step=step, ref=False)
+                                                                                window=(-n, n), n=n, bw=w, step=step, ref=False)
 
         self.assertEqual(coh_all.shape, angle_all.shape)
         
@@ -1253,7 +1253,7 @@ class ConnectivityTests(unittest.TestCase):
 
         # Test parallel pool
         f2, t2, coh_all2, angle_all2 = aopy.analysis.connectivity.calc_connectivity_map_coh(data, fs, 0.5, 0.5, [stim_ch_idx], 
-                                                                                n=n, bw=w, step=step, ref=False, parallel=True)
+                                                                                window=(-n, n), n=n, bw=w, step=step, ref=False, parallel=True)
         np.testing.assert_allclose(f, f2, rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(t, t2, rtol=1e-10, atol=1e-10)
         np.testing.assert_allclose(coh_all, coh_all2, rtol=1e-10, atol=1e-10)
