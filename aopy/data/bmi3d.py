@@ -672,7 +672,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
     elif datatype == 'user_world':
         # 3d user input converted to world coordinates
-        if 'exp_scale' in exp_metadata:
+        if 'exp_gain' in exp_metadata:
             scale = exp_metadata['scale']
         else:
             scale = np.sign(exp_metadata['scale'])
@@ -684,12 +684,12 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         # 3d user input converted to screen coordinates. Only works for singular mappings, not incremental mappings.
         if 'incremental_rotation' in exp_metadata['features']:
             warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
-        if 'exp_scale' in exp_metadata:
+        if 'exp_gain' in exp_metadata:
             scale = exp_metadata['scale']
-            exp_scale = exp_metadata['exp_scale']
+            exp_gain = exp_metadata['exp_gain']
         else:
             scale = np.sign(exp_metadata['scale'])
-            exp_scale = np.abs(exp_metadata['scale'])
+            exp_gain = np.abs(exp_metadata['scale'])
         user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
         if 'exp_rotation' in exp_metadata:
@@ -706,7 +706,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             y_rot = exp_metadata['pertubation_rotation']
         else:
             y_rot = 0
-        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_scale)
+        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain)
         data_cycles = np.dot(user_world_cycles, exp_mapping)
     elif datatype in ['user', 'intended_cursor']:
         if datatype == 'user':
