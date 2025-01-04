@@ -755,8 +755,9 @@ def classify_by_lda(X_train_lda, y_class_train,
         random_state (int, optional): random state for data spliting Defaults to 1.
 
     Returns:
-        accuracy (float): mean accuracy of the repeated lda runs.
-        std (float): standard deviation of the repeated lda runs.
+        tuple: Tuple containing:
+            **accuracy (float):** mean accuracy of the repeated lda runs.
+            **std (float):** standard deviation of the repeated lda runs.
     """
 
     assert X_train_lda.shape[0] == len(y_class_train)
@@ -1875,10 +1876,11 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
         return_confusion_matrix (bool, optional): Whether to return the confusion matrix for each fold (default is False).
 
     Returns:
-        numpy.ndarray: The decoding accuracy for each time point (and fold if cross-validation is used). Shape (ntime-nlags, nfolds)
-        time_axis: The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
-        (Optional) numpy.ndarray: The LDA weights for each time point, channel, and fold if `return_weights=True`. Shape (ntime-lags, nlabels, nfeatures, nfolds). Note: nfeatures will include lagged features if lags are used.
-        (Optional) numpy.ndarray: The confusion matrix for each fold if `return_confusion_matrix=True`. Shape: (ntime-lags, nlabels, nlabels, nfolds)
+        tuple: Tuple containing:
+            **accuracy (ntime-nlags, nfolds):** The decoding accuracy for each time point (and fold if cross-validation is used). 
+            **time_axis (nt-nlags):** The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
+            **(Optional) LDA Weights (ntime-lags, nlabels, nfeatures, nfolds):** The LDA weights for each time point, channel, and fold if `return_weights=True`. Note: nfeatures will include lagged features if lags are used.
+            **(Optional) Confusion Matrix (ntime-lags, nlabels, nlabels, nfolds):** The confusion matrix for each fold if `return_confusion_matrix=True`. 
 
     Raises:
         ValueError: If the input data or labels are not valid, or if there is a mismatch between the data and labels.
