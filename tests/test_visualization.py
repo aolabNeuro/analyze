@@ -138,6 +138,12 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'ecog244_opto32_index_subset.png'
         savefig(write_dir, filename)
 
+        plt.figure()
+        plot_spatial_drive_map(np.zeros(64,), drive_type='EMG_GR08MM1305', cmap='Greys', theta=0)
+        annotate_spatial_map_channels(drive_type='EMG_GR08MM1305', color='k', theta=0)
+        filename = 'emg64_gr08mm1305.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_plot_image_by_time(self):
         time = np.array([-2, -1, 0, 1, 2, 3])
         data = np.array([[0, 0, 1, 1, 0, 0],
