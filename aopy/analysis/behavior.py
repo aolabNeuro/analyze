@@ -488,7 +488,7 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
             temp_corrs = np.zeros((ntrials,ndims))*np.nan
             for idim in range(ndims):
                 weight = trial_variance[itrial,idim]
-                temp_corrs[:,idim] = r_regression(trajectories[:,:,idim], trajectories[:,itrial,idim]) * weight
+                temp_corrs[:,idim] = r_regression(trajectories[:,:,idim], trajectories[:,itrial,idim], center=center) * weight
 
             traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[itrial,:])
    
@@ -497,7 +497,7 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
             temp_corrs = np.zeros((ntrials,ndims))*np.nan
             for idim in range(ndims):
                 weight = trial_variance[itrial,idim]
-                temp_corrs[:,idim] = r_regression(trajectories[:,:,idim], trajectories[:,itrial,idim]) * weight
+                temp_corrs[:,idim] = r_regression(trajectories[:,:,idim], trajectories[:,itrial,idim], center=center) * weight
 
             traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[itrial,:])
     
