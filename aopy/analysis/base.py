@@ -1,23 +1,24 @@
+# base.py
+#
 # Code for neural data analysis; functions here should return interpretable results such as
 # firing rates, success rates, direction tuning, etc.
 
+import math
+import warnings
+
 import numpy as np
 from matplotlib import pyplot as plt
-
 from sklearn.decomposition import PCA, FactorAnalysis
 from sklearn.cluster import KMeans
 from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
-
+from sklearn.metrics import confusion_matrix
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
-
-import warnings
 import nitime.algorithms as tsa
 import pywt
-import math
 
 from .. import utils
 from .. import preproc
@@ -456,7 +457,7 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
-    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    where :math:`\\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
     this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
     calculated across the entire input array.
 
@@ -754,8 +755,9 @@ def classify_by_lda(X_train_lda, y_class_train,
         random_state (int, optional): random state for data spliting Defaults to 1.
 
     Returns:
-        accuracy (float): mean accuracy of the repeated lda runs.
-        std (float): standard deviation of the repeated lda runs.
+        tuple: Tuple containing:
+            **accuracy (float):** mean accuracy of the repeated lda runs.
+            **std (float):** standard deviation of the repeated lda runs.
     """
 
     assert X_train_lda.shape[0] == len(y_class_train)
@@ -877,9 +879,9 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
 
     Returns:
         tuple: tuple containing:
-        | **freqs (nfreq):** frequency axis in Hz
-        | **time (nt):** time axis in seconds
-        | **spec (nfreq, nt, nch):** tfr representation for each channel
+            | **freqs (nfreq):** frequency axis in Hz
+            | **time (nt):** time axis in seconds
+            | **spec (nfreq, nt, nch):** tfr representation for each channel
 
     Examples:
         
@@ -925,6 +927,11 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
         print(f"Scale ({scale[0]}, {scale[-1]})")
         print(f"Freqs ({freqs_ud[0]}, {freqs_ud[-1]})")
     
+    shape = coef.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    coef = coef.reshape(shape)
+
     if not complex_output:
         coef = np.abs(coef)
     return freqs, time, np.flip(coef, axis=0)
@@ -1006,19 +1013,27 @@ def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None,
         data, fs=samplerate, window=window, nperseg=win_size, noverlap=overlap_size, nfft=nfft, 
         detrend=detrend, scaling='spectrum', axis=0, mode='complex')
     
+    spec = spec.transpose(0,2,1)
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
+
     if complex_output:
-        return freqs[:nfk], time, spec[:nfk].transpose(0,2,1)
+        return freqs[:nfk], time, spec[:nfk]
     else:
-        return freqs[:nfk], time, np.abs(spec[:nfk]).transpose(0,2,1)
+        return freqs[:nfk], time, np.abs(spec[:nfk])
 
 
-def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
+def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64', nonnegative_freqs=True):
     '''
     Compute multitaper time-frequency estimate from multichannel signal input. 
     This code is adapted from the Pesaran lab `tfspec`.    
     
     Args:
-        ts_data (nt, nch): time series array
+        ts_data (nt, [nch, ntr]): time series array. If nch=1, the second dimension can be omitted.
+            If ntr=1, the third dimension can be omitted. Output spectrogram dimensions
+            (n_freq, n_time, [nch, ntr]) will also be reduced accordingly.
         n (float): window length in seconds
         p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
@@ -1038,12 +1053,14 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         complex_output (bool): if True, return the complex signal instead of magnitude.
                                Default False.
         dtype (str): dtype of the output. Default 'float64'
+        nonnegative_freqs (bool): if True, only include non-negative frequencies in the output.
+                                       Default True.
                        
     Returns:
         tuple: Tuple containing:
             | **f (n_freq):** frequency axis for spectrogram
             | **t (n_time):** time axis for spectrogram
-            | **spec (n_freq,n_time,nch):** multitaper spectrogram estimate
+            | **spec (n_freq,n_time,nch,ntr):** multitaper spectrogram estimate
         
     Examples:
         
@@ -1093,6 +1110,8 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         ts_data = np.array(ts_data)
     if ts_data.ndim == 1:
         ts_data = ts_data[:, np.newaxis]
+    if ts_data.ndim == 2:
+        ts_data = ts_data[:, :, np.newaxis]
     if ts_data.shape[1] == 1:
         ref = False
     if step == None:
@@ -1100,37 +1119,54 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     if fk == None:
         fk = fs/2
         
-    ts_data = ts_data.T
-    nch,nt = ts_data.shape
-    fk = np.array([0,fk])
-    tapers, _ = precondition.dpsschk(n*fs, p, k)
+    ts_data = ts_data.transpose(1, 0, 2)  # (nch, nt, ntr)
+    nch, nt, ntr = ts_data.shape
+    fk = np.array([0, fk])
+    tapers, _ = precondition.dpsschk(n * fs, p, k)
     
-    win_size = tapers.shape[0] # window size (data points of tapers)
-    step_size = int(np.floor(step*fs)) # step size
-    nf = np.max([256,pad*2**utils.nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
-    nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
-    nwin = 1 + int(np.floor((nt-win_size)/step_size)) # number of windows
-    f = np.linspace(fk[0],fk[1],int(nfk[1] - nfk[0])) # frequency axis for spectrogram
+    win_size = tapers.shape[0]  # window size (data points of tapers)
+    step_size = int(np.floor(step * fs))  # step size
+    nf = np.max([256, pad * 2 ** utils.nextpow2(win_size + 1)])  # 0 padding for efficient computation in FFT
+    nwin = 1 + int(np.floor((nt - win_size) / step_size))  # number of windows
+    nfk = np.floor(fk / fs * nf)  # number of data points in frequency axis
+    if nonnegative_freqs:
+        f = np.linspace(fk[0], fk[1], int(nfk[1] - nfk[0]))  # frequency axis for spectrogram
+    else:
+        f = np.fft.fftfreq(nf, d=1/fs)
+        f = np.fft.fftshift(f)
+        nfk = [int(nf/2)-int(nfk[1]), int(nf/2)+int(nfk[1])]
+        f = f[nfk[0]:nfk[1]]
 
-    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch), dtype=dtype)
+    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch, ntr), dtype=dtype)
     for iwin in range(nwin):
         if ref:
-            m_data = np.sum(ts_data[:,step_size*iwin:step_size*iwin+win_size],axis=0)/nch # Mean across channels for that window
-            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]-m_data).T # Subtract mean from data           
+            m_data = np.sum(ts_data[:, step_size * iwin:step_size * iwin + win_size, :], axis=0) / nch  # Mean across channels for that window
+            win_data = (ts_data[:, step_size * iwin:step_size * iwin + win_size, :] - m_data).transpose(1, 0, 2)  # Subtract mean from data           
         else:
-            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]).T
+            win_data = (ts_data[:, step_size * iwin:step_size * iwin + win_size, :]).transpose(1, 0, 2)
         
         # Compute power for each taper
-        tapers_ik = tapers[:, :, np.newaxis]  # Shape: (win_size, k, 1)
-        win_data_reshaped = win_data[:, np.newaxis, :]  # Shape: (win_size, 1, nch)
-        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch)
+        tapers_ik = tapers[:, :, np.newaxis, np.newaxis]  # Shape: (win_size, k, 1, 1)
+        win_data_reshaped = win_data[:, np.newaxis, :, :]  # Shape: (win_size, 1, nch, ntr)
+        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch, ntr)
+        if not nonnegative_freqs:
+            fk_data = np.fft.fftshift(fk_data, axes=0)
         if complex_output:
-            spec[:,iwin,:] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :], axis=1)
+            spec[:, iwin, :, :] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :, :], axis=1)
         else:
-            spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
+            spec[:, iwin, :, :] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :, :]), axis=1).real
 
-    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
-    
+    if not nonnegative_freqs:
+        f = np.fft.ifftshift(f)
+        spec = np.fft.ifftshift(spec, axes=0)
+
+    t = np.arange(nwin) * step + n / 2  # Center of each window is time axis
+
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
+
     return f, t, spec
 
 def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackknife=False, adaptive=False, sides='onesided'):
@@ -1213,6 +1249,11 @@ def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackkni
         win_data = data[window_sample_range,:]
         freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, nfft, adaptive, jackknife, sides)
         spec[:,idx_window,...] = _win_psd
+
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
 
     return freqs[:nfk], time, spec[:nfk]
 
@@ -1589,7 +1630,83 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
         return f, t, coh, angle
     else:
         return f, t, coh
+    
+def calc_itpc(analytical_signals):
+    '''
+    Computes inter-trial phase clustering (ITPC) from analytical signals of evoked potentials.
+    ITPC is computed as the magnitude of the mean of the complex signal across trials at each timepoint
+    (think vector average). This captures the similarity of phases across trials. ITPC ranges from 0 to 1, 
+    where 0 indicates uniformly random phases and 1 indicates perfect phase alignment.
 
+    From Cohen, M. X. (2014). Analyzing neural time series data: theory and practice. MIT press.
+
+    .. math:: 
+
+        ITPC = \\frac{1}{N} |\\sum_{k=1}^{N} e^{i\\theta_k}|
+
+    Args:
+        analytical_signals (nt, nch, ntr): analytical signal of the evoked potential (np.complex128)
+
+    Returns:
+        (nt, nch): itpc values for each channel (ranges from 0 to 1)
+
+    Examples:
+
+        Generate two channels of data with different phase distributions across trials
+
+        .. code-block:: python
+
+            fs = 1000
+            nt = fs * 2
+            ntr = 100
+            t = np.arange(nt)/fs
+            data = np.zeros((t.shape[0],2,ntr)) # 2 channels
+
+            # 10 Hz sine with gaussian phase distribution across trials
+            for tr in range(ntr):
+                data[:,0,tr] = np.sin(2*np.pi*10*t + np.random.normal(np.pi/4, np.pi/8)) 
+
+            # 10 Hz sine with uniform random phase distribution across trials
+            for tr in range(ntr):
+                data[:,1,tr] = np.sin(2*np.pi*10*t + np.random.uniform(-np.pi, np.pi)) 
+
+        Calculate an analytical signal using hilbert transform, then apply ITPC
+        
+        .. code-block:: python
+        
+            im_data = signal.hilbert(data, axis=0)
+            itpc = aopy.analysis.calc_itpc(im_data)
+
+            plt.figure()
+
+            # Plot the data
+            plt.subplot(3,1,1)
+            aopy.visualization.plot_timeseries(np.mean(data, axis=2), fs)
+            plt.legend(['Channel 1', 'Channel 2'])
+            plt.ylabel('amplitude (a.u.)')
+            plt.title('Trial averaged data')
+
+            # Plot the angles at the first timepoint
+            angles = np.angle(im_data[0])
+            plt.subplot(3,2,3, projection= 'polar')
+            aopy.visualization.plot_angles(angles[0,:], color='tab:blue', alpha=0.5, linewidth=0.75)
+            plt.subplot(3,2,4, projection= 'polar')
+            aopy.visualization.plot_angles(angles[1,:], color='tab:orange', alpha=0.5, linewidth=0.75)
+
+            # Plot ITPC
+            plt.subplot(3,1,3)
+            aopy.visualization.plot_timeseries(itpc, fs)
+            plt.ylabel('ITPC')
+            plt.title('ITPC')
+
+        .. image:: _images/itpc.png
+    '''
+    return np.abs(np.mean(analytical_signals/np.abs(analytical_signals), axis=2))
+
+
+'''
+Statistics
+'''
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''
     This function creates a map showning the local correlation between two input datamaps. If specified, it also aligns the input
@@ -1735,3 +1852,100 @@ def calc_confidence_interval_overlap(CI1, CI2):
     overlap = (overlap_width / min(width1, width2))
     
     return overlap
+
+
+def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regularization='auto', lda_model=None, return_weights=False, return_confusion_matrix=False):
+    """
+    Perform cross-validation with Linear Discriminant Analysis (LDA) to estimate decoding accuracy at each time point.
+
+    This function performs an n-fold cross-validation LDA analysis on time-series data to compute the decoding accuracy 
+    across time windows defined by `lags`. Optionally, it can return the weights of the LDA classifier and/or confusion matrices 
+    for each fold.
+
+    Args:
+        data (numpy.ndarray): The input data array with shape (ntime, nch, ntrials), where `ntime` is the number of time points,
+                               `nch` is the number of channels, and `ntrials` is the number of trials.
+        labels (numpy.ndarray): Array of shape (ntrials,) containing the labels for each trial.
+        samplerate (float or int): Samplerate of data. Used to compute the timeaxis.
+        lags (int, optional): The number of time lags to include in the analysis (default is 3). To only use a single timepoint set lags=0
+        nfolds (int, optional): The number of folds for cross-validation (default is 5).
+        regularization (str or float, optional): If regularization should be included when building the LDA model. Input into the shrinkage parameter of the sklearn 
+                                LDA function. Can either be None, 'auto', or a float between 0 and 1. 
+        lda_model (sklearn LDA class, optional): User-defined LDA model from sklearn.discriminant_analysis.LinearDiscriminantAnalysis. If None, this function will initialize the model.
+        return_weights (bool, optional): Whether to return the LDA weights (default is False).
+        return_confusion_matrix (bool, optional): Whether to return the confusion matrix for each fold (default is False).
+
+    Returns:
+        tuple: Tuple containing:
+            **accuracy (ntime-nlags, nfolds):** The decoding accuracy for each time point (and fold if cross-validation is used). 
+            **time_axis (nt-nlags):** The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
+            **(Optional) LDA Weights (ntime-lags, nlabels, nfeatures, nfolds):** The LDA weights for each time point, channel, and fold if `return_weights=True`. Note: nfeatures will include lagged features if lags are used.
+            **(Optional) Confusion Matrix (ntime-lags, nlabels, nlabels, nfolds):** The confusion matrix for each fold if `return_confusion_matrix=True`. 
+
+    Raises:
+        ValueError: If the input data or labels are not valid, or if there is a mismatch between the data and labels.
+
+    Notes:      
+        If `nfolds < 2`, no cross-validation is performed, and the function will calculate the accuracy based on the entire dataset.
+        If `nfolds >= 2`, k-fold cross-validation is performed, and decoding accuracy is calculated for each fold.
+    """
+
+    ntime, nch, ntrials = data.shape 
+    nlabels = len(np.unique(labels))
+
+    # Perform n-fold xval LDA at each time point 
+    decoding_accuracy = np.zeros((ntime-lags, nfolds))*np.nan
+    weights = np.zeros((ntime-lags, nlabels, (1+lags)*nch, nfolds))*np.nan # (ntime, ntargets, nfeatures, nfolds)
+    cm = np.zeros((ntime-lags, nlabels, nlabels, nfolds))*np.nan
+    nwind = data.shape[0] - lags
+    time_axis = (np.arange(nwind)+lags)/samplerate
+    for iwind in range(nwind):
+        if lda_model is None:
+            lda = LinearDiscriminantAnalysis(solver='eigen', shrinkage=regularization)
+        else:
+            lda = lda_model
+
+        end_wind = iwind+lags+1
+
+        # If there are nans at this timestep, return nan in all places
+        if np.sum(np.isnan(data[iwind:end_wind,:,:])):
+            if nfolds < 2:
+                decoding_accuracy[iwind] = np.nan
+                weights[iwind,:,:] = np.nan
+                cm[iwind,:,:] = np.nan
+            else:
+                decoding_accuracy[iwind,:] = np.nan
+                if return_weights:
+                    weights[iwind,:,:,:] = np.nan
+                if return_confusion_matrix:
+                    cm[iwind,:,:,:] = np.nan
+
+        else:
+            # If not cross validated
+            if nfolds < 2:
+                lda.fit(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0), labels)
+                decoding_accuracy[iwind] = lda.score(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0), labels)
+                predicted_labels = lda.predict(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0))
+                cm[iwind,:,:,0] = confusion_matrix(labels, predicted_labels)
+                                                        
+            # if cross validated: 
+            else:
+                kf = model_selection.KFold(n_splits=nfolds,shuffle=True,random_state=None)
+                for ifold, (train_idx, test_idx) in enumerate(kf.split(np.vstack(data[iwind:end_wind,:,:]).T)):
+                    # print(ifold, train_idx, test_idx, iwind, end_wind)
+                    lda.fit(np.vstack(data[iwind:end_wind,:,train_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0), labels[train_idx])
+                    decoding_accuracy[iwind, ifold] = lda.score(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0), labels[test_idx])
+                    predicted_labels = lda.predict(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0))
+                    if return_weights:
+                        weights[iwind,:,:,ifold] = lda.coef_
+                    if return_confusion_matrix:
+                        cm[iwind,:,:,ifold] = confusion_matrix(labels[test_idx], predicted_labels, normalize='true')
+            
+    if return_weights & return_confusion_matrix:
+        return decoding_accuracy, time_axis, weights, cm
+    elif return_weights: 
+        return decoding_accuracy, time_axis, weights
+    elif return_confusion_matrix:
+        return decoding_accuracy, time_axis, cm
+    else:
+        return decoding_accuracy, time_axis

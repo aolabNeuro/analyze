@@ -64,8 +64,8 @@ Example
         
     Returns:
         tuple: Tuple containing:
-            | **list of arrays:** List where each index includes an array of trials containing the event_code corresponding to that index. 
-            | **1D Array:** Concatenated indices for which trials correspond to which event code.
+            - list of arrays: List where each index includes an array of trials containing the event_code corresponding to that index. 
+            - 1D Array: Concatenated indices for which trials correspond to which event code.
                         Can be used as indices to order 'trial_events' by the 'event_codes' input.
     Example:
     ::
@@ -175,7 +175,33 @@ top of the file before the block that looks like:
         :members:
 
 It is also recommended to include :ref:`Examples:` of common workflows, for instance
-trial-aligning kinematics and neural data. To add an example page, upload your notebook
-to `docs/source/examples/`, then add its filename into the `examples.rst` document.
-Be sure that your notebook has a title at the beginning, otherwise it won't show up in
-the table of contents.
+trial-aligning kinematics and neural data. 
+
+To add an example page, follow these instructions:
+
+#. Create and run a notebook that demonstrates the use of some aopy functions. Be sure that your notebook 
+   has a title at the beginning, otherwise it won't show up in the table of contents. See the source code
+   of the existing example notebooks for guidance. `Examples<https://github.com/aolabNeuro/analyze/tree/master/docs/source/examples>`_
+#. Download the notebook to your computer as a `.ipynb` file
+#. Create a new branch in the analyze repository and include the `.ipynb` file in the `docs/source/examples/` directory.
+#. Add its filename into the `examples.rst` document.
+
+   .. code-block:: rst
+
+        Examples:
+        ===============
+
+        .. contents:: :local:
+
+        .. toctree::
+
+            examples/database_example.ipynb
+
+        ...
+
+        .. toctree::
+
+            examples/your_example.ipynb
+            
+#. Push the branch to the repository and create a pull request on github. See the `Github SOP <https://docs.google.com/document/d/1JnOoaIXGPXUTmZs_vxThIUNwUKulNUd7_pVAEuDVr_Y/edit?usp=sharing>`_ 
+   for more detailed instructions.
