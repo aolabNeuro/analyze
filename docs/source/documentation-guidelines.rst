@@ -181,7 +181,7 @@ To add an example page, follow these instructions:
 
 #. Create and run a notebook that demonstrates the use of some aopy functions. Be sure that your notebook 
    has a title at the beginning, otherwise it won't show up in the table of contents. See the source code
-   of the existing example notebooks for guidance. `Examples<https://github.com/aolabNeuro/analyze/tree/master/docs/source/examples>`_
+   of the existing example notebooks for guidance. `Examples <https://github.com/aolabNeuro/analyze/tree/master/docs/source/examples>`_
 #. Download the notebook to your computer as a `.ipynb` file
 #. Create a new branch in the analyze repository and include the `.ipynb` file in the `docs/source/examples/` directory.
 #. Add its filename into the `examples.rst` document.
