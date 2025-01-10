@@ -2071,7 +2071,7 @@ class BehaviorMetricsTests(unittest.TestCase):
 
     def test_correlate_trajectories(self):
         ntrials = 5
-        traj = np.tile(np.arange(10)[:,None,None], (1,ntrials,2))
+        traj = np.tile(np.arange(10)[:,None,None], (1,2,ntrials))
         corr = aopy.analysis.behavior.correlate_trajectories(traj, verbose=False)
         self.assertTrue(corr.shape[0]==corr.shape[0]==ntrials)
         self.assertEqual(np.mean(corr), 1)
@@ -2081,7 +2081,7 @@ class BehaviorMetricsTests(unittest.TestCase):
 
         # Test trials that aren't correlated
         ntrials = 2
-        traj = np.tile(np.arange(10)[:,None,None], (1,ntrials,2))
+        traj = np.tile(np.arange(10)[:,None,None], (1,2,ntrials))
         traj[:,1,:] = -traj[:,1,:]/2
         corr = aopy.analysis.behavior.correlate_trajectories(traj, verbose=False)
         self.assertTrue(corr[0,0]==corr[1,1]==1)
