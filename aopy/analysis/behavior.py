@@ -473,7 +473,7 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
         verbose (bool): If `True`, prints a progress bar during computation via the tqdm module. 
 
     Returns:
-        ndarray: A 2D numpy array of R^2 scores between each pair of trials. 
+        ndarray: A 2D numpy array of Pearson correlation (R) scores between each pair of trials. 
                  The shape of the output will be (ntrials, ntrials).
     '''
 
