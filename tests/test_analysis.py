@@ -2078,7 +2078,6 @@ class BehaviorMetricsTests(unittest.TestCase):
 
         # Test verbososityness
         corr = aopy.analysis.behavior.correlate_trajectories(traj, verbose=True)
-        corr = aopy.analysis.behavior.correlate_trajectories(traj, verbose=True)
 
         # Test trials that aren't correlated
         ntrials = 2

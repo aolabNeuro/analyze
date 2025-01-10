@@ -465,7 +465,7 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
     Pearson correlation coefficient (R) between all pairs of trials. This function computs R for each trajectory dimension, then returns a weighted average based on the variance. 
 
     Args:
-        trajectories (nt, ntrials, ndim): Trajectories to correlate, 
+        trajectories (nt, ndim, ntrials): Trajectories to correlate, 
                                  where `nt` is the number of timepoints, 
                                  `ntrials` is the number of trials, and 
                                  `ndims` is the number of dimensions for each trajectory (i.e. x, y, z).
@@ -477,29 +477,20 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
                  The shape of the output will be (ntrials, ntrials).
     '''
 
-    nt, ntrials, ndims = trajectories.shape
+    nt, ndims, ntrials = trajectories.shape
     
     traj_correlation = np.zeros((ntrials, ntrials))*np.nan
 
-    trial_variance = np.var(trajectories, axis=0) # (ntrials, ndim)
+    trial_variance = np.var(trajectories, axis=0) # (ndim, ntrials)
 
-    if verbose:
-        for itrial in tqdm(range(ntrials)):
-            temp_corrs = np.zeros((ntrials,ndims))*np.nan
-            for idim in range(ndims):
-                weight = trial_variance[itrial,idim]
-                temp_corrs[:,idim] = r_regression(trajectories[:,:,idim], trajectories[:,itrial,idim], center=center) * weight
+    iterator = tqdm(range(ntrials)) if verbose else range(ntrials)
+    for itrial in iterator:
+        temp_corrs = np.zeros((ntrials,ndims))*np.nan
+        for idim in range(ndims):
+            weight = trial_variance[itrial,idim]
+            temp_corrs[:,idim] = r_regression(trajectories[:,idim,:], trajectories[:,idim,itrial], center=center) * weight
 
-            traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[itrial,:])
-   
-    else:
-        for itrial in range(ntrials):
-            temp_corrs = np.zeros((ntrials,ndims))*np.nan
-            for idim in range(ndims):
-                weight = trial_variance[itrial,idim]
-                temp_corrs[:,idim] = r_regression(trajectories[:,:,idim], trajectories[:,itrial,idim], center=center) * weight
-
-            traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[itrial,:])
+        traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[itrial,:])
     
     return traj_correlation
 
