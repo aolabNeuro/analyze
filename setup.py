@@ -13,7 +13,7 @@ install_requires = [
     'psutil',
     'h5py',
     'tables',
-    'scikit-learn >= 1.0',
+    'scikit-learn>=1.0',
     'statsmodels',
     'nitime',
     'xlrd',
