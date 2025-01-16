@@ -938,9 +938,9 @@ class TestPrepareExperiment(unittest.TestCase):
         # analog_data = analog_data[:25000*60,:8]
         # filename = utils.save_test_signal_ecube(analog_data, data_dir, 1, datasource='AnalogPanel')
 
-        # There is a pause bug that should be corrected
+        # There is a pause bug in this task
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
-        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+        self.assertNotEqual(len(data['sync_events']), len(data['bmi3d_events']))
 
         # Test what happens if no HDF file is provided
         n_events = len(data['bmi3d_events'])

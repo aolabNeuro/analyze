@@ -265,7 +265,7 @@ def _parse_bmi3d_v1(data_dir, files):
             if len(sync_events) > 0:
                 data_dict['sync_events'] = sync_events
             measure_clock_online = base.get_dch_data(digital_data, digital_samplerate, metadata_dict['screen_measure_dch'])
-            if len(measure_clock_offline) > 0:
+            if len(measure_clock_online) > 0:
                 data_dict['measure_clock_online'] = measure_clock_online
 
         # Laser trigger
