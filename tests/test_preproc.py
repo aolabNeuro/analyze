@@ -943,7 +943,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertNotEqual(len(data['sync_events']), len(data['bmi3d_events']))
 
         # Test what happens if no HDF file is provided
-        n_events = len(data['bmi3d_events'])
+        n_events = len(data['sync_events'])
         files = {}
         files['ecube'] = '2023-01-09_BMI3D_te7977'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
