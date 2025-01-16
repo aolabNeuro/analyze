@@ -216,105 +216,56 @@ def _parse_bmi3d_v1(data_dir, files):
     # Start by loading bmi3d data using the v0 parser
     data_dict, metadata_dict = _parse_bmi3d_v0(data_dir, files)
 
-    if 'ecube' in files: # if not, there will be no sync_events or sync_clock in preproc data
-        ecube_filename = files['ecube']
-    
-        # Load ecube digital data to find the strobe and events from bmi3d
-        digital_data, metadata = aodata.load_ecube_digital(data_dir, ecube_filename)
-        digital_samplerate = metadata['samplerate']
+    # Parse digital data
+    digital_data = None
+    if 'digital' in files:
+        digital_data, digital_metadata = aodata.load_preproc_digital_data(data_dir, files['digital'])
+    elif 'ecube' in files:
+        digital_data, digital_metadata = aodata.load_ecube_digital(data_dir, files['ecube'])
+    # elif 'emg' in files:
+    #     digital_data, digital_metadata = aodata.load_emg_digital(data_dir, files['emg'])
 
-        # Load ecube analog data
-        ecube_analog, metadata = aodata.load_ecube_analog(data_dir, ecube_filename)
-        analog_samplerate = metadata['samplerate']
+    if digital_data is not None: # sync_events and sync_clock
+        digital_samplerate = digital_metadata['samplerate']        
+        analog_samplerate = analog_metadata['samplerate']
 
         # Sync clock
+        clock_sync_bit_mask = None
         if metadata_dict['sync_protocol_version'] < 3:
             clock_sync_bit_mask = 0x1000000 # wrong in 1 and 2
-        else:
+        elif 'screen_sync_dch' in metadata_dict:
             clock_sync_bit_mask = utils.convert_channels_to_mask(metadata_dict['screen_sync_dch']) 
-        clock_sync_data = utils.extract_bits(digital_data, clock_sync_bit_mask)
-        clock_sync_timestamps, _ = utils.detect_edges(clock_sync_data, digital_samplerate, rising=True, falling=False)
-        sync_clock = np.zeros((len(clock_sync_timestamps),), dtype=[('timestamp', 'f8')])
-        sync_clock['timestamp'] = clock_sync_timestamps
-        if len(sync_clock) > 0:
-            data_dict['sync_clock'] = sync_clock
+        if clock_sync_bit_mask is not None:
+            clock_sync_data = utils.extract_bits(digital_data, clock_sync_bit_mask)
+            clock_sync_timestamps, _ = utils.detect_edges(clock_sync_data, digital_samplerate, rising=True, falling=False)
+            sync_clock = np.zeros((len(clock_sync_timestamps),), dtype=[('timestamp', 'f8')])
+            sync_clock['timestamp'] = clock_sync_timestamps
+            if len(sync_clock) > 0:
+                data_dict['sync_clock'] = sync_clock
 
         # Mask and detect BMI3D computer events from ecube
-        event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
-        ecube_sync_data = utils.extract_bits(digital_data, event_bit_mask)
-        ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
-            rising=True, falling=False)
-        if len(ecube_sync_timestamps) > 2 and np.min(np.diff(ecube_sync_timestamps)) < metadata_dict['sync_pulse_width']:
-            print(f"Correcting sync pulse width in {ecube_filename}")
-            metadata_dict['corrected_sync_pulse_width'] = True
-            # There can occasionally be a compression of the pause event that smears it across multiple 
-            # digital lines _-‾ and it shows up as multiple events very close together.
+        if 'event_sync_dch' in metadata_dict:
+            event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
+            ecube_sync_data = utils.extract_bits(digital_data, event_bit_mask)
             ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
-                rising=True, falling=False, min_pulse_width=metadata_dict['sync_pulse_width'])
-        sync_event_names, sync_event_data = decode_events(metadata_dict['event_sync_dict'], ecube_sync_events)
-        sync_events = np.zeros((len(ecube_sync_timestamps),), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
-        search_radius = 1.5/metadata_dict['fps']
-        sync_timestamps, ecube_sync_cycles = base.find_measured_event_times(ecube_sync_timestamps, clock_sync_timestamps, search_radius, return_idx=True)
-        ecube_sync_cycles[0] = 0 # first event is always TIME_ZERO
-        data_dict['sync_events_timestamp_error'] = ecube_sync_timestamps - sync_timestamps
-        sync_events['time'] = ecube_sync_cycles
-        sync_events['timestamp'] = ecube_sync_timestamps
-        sync_events['code'] = ecube_sync_events
-        sync_events['event'] = sync_event_names
-        sync_events['data'] = sync_event_data
-        if len(sync_events) > 0:
-            data_dict['sync_events'] = sync_events
+                rising=True, falling=False)
+            sync_event_names, sync_event_data = decode_events(metadata_dict['event_sync_dict'], ecube_sync_events)
+            sync_events = np.zeros((len(ecube_sync_timestamps),), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
+            search_radius = 1.5/metadata_dict['fps']
+            sync_timestamps, ecube_sync_cycles = base.find_measured_event_times(ecube_sync_timestamps, clock_sync_timestamps, search_radius, return_idx=True)
+            ecube_sync_cycles[0] = 0 # first event is always TIME_ZERO
+            data_dict['sync_events_timestamp_error'] = ecube_sync_timestamps - sync_timestamps
+            sync_events['time'] = ecube_sync_cycles
+            sync_events['timestamp'] = ecube_sync_timestamps
+            sync_events['code'] = ecube_sync_events
+            sync_events['event'] = sync_event_names
+            sync_events['data'] = sync_event_data
+            if len(sync_events) > 0:
+                data_dict['sync_events'] = sync_events
 
-        # Mask and detect screen sensor events (A5 and D5)
-        measure_clock_online = base.get_dch_data(digital_data, digital_samplerate, metadata_dict['screen_measure_dch'])
-        clock_measure_analog = ecube_analog[:, metadata_dict['screen_measure_ach']] # 5
-        clock_measure_digitized = utils.convert_analog_to_digital(clock_measure_analog, thresh=0.5)
-        measure_clock_offline = base.get_dch_data(clock_measure_digitized, analog_samplerate, 0)
-        if len(measure_clock_offline) > 0:
-            data_dict['measure_clock_online'] = measure_clock_online
-        if len(measure_clock_offline) > 0:
-            data_dict['measure_clock_offline'] = measure_clock_offline  
-
-        # And reward system (A0)
-        reward_system_analog = ecube_analog[:, metadata_dict['reward_measure_ach']] # 0
-        reward_system_digitized = utils.convert_analog_to_digital(reward_system_analog)
-        reward_system_timestamps, reward_system_values = utils.detect_edges(reward_system_digitized, analog_samplerate, rising=True, falling=True)
-        reward_system = np.zeros((len(reward_system_timestamps),), dtype=[('timestamp', 'f8'), ('state', '?')])
-        reward_system['timestamp'] = reward_system_timestamps
-        reward_system['state'] = reward_system_values
-        if len(reward_system) > 0:
-            data_dict['reward_system'] = reward_system
-
-        # Analog cursor out (A3, A4) since version 11
-        if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
-            cursor_analog = ecube_analog[:, [metadata_dict['cursor_x_ach'], metadata_dict['cursor_z_ach']]]
-            cursor_analog, _ = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
-            cursor_analog_samplerate = 1000
-            cursor_analog = precondition.downsample(cursor_analog, analog_samplerate, cursor_analog_samplerate)
-            max_voltage = 3.34 # using teensy 3.6
-            cursor_analog_cm = ((cursor_analog * metadata['voltsperbit']) - max_voltage/2) / metadata_dict['cursor_out_gain']
-            data_dict.update({
-                'cursor_analog_volts': cursor_analog,
-                'cursor_analog_cm': cursor_analog_cm,
-            })
-            metadata_dict['cursor_analog_samplerate'] = cursor_analog_samplerate
-
-        metadata_dict.update({
-            'digital_samplerate': digital_samplerate,
-            'analog_samplerate': analog_samplerate,
-            'analog_voltsperbit': metadata['voltsperbit']
-        })
-
-        # Laser sensors
-        possible_ach = ['qwalor_sensor_ach', 'qwalor_ch1_sensor_ach', 'qwalor_ch2_sensor_ach', 
-                        'qwalor_ch3_sensor_ach', 'qwalor_ch4_sensor_ach']
+        # Laser trigger
         possible_dch = ['qwalor_trigger_dch', 'qwalor_ch1_trigger_dch', 'qwalor_ch2_trigger_dch', 
                         'qwalor_ch3_trigger_dch', 'qwalor_ch4_trigger_dch']
-        for ach in possible_ach:
-            if ach in metadata_dict:
-                sensor_name = ach[:-4]
-                laser_sensor_data = ecube_analog[:, metadata_dict[ach]]
-                data_dict[sensor_name] = laser_sensor_data
         for dch in possible_dch:
             if dch in metadata_dict:
                 trigger_name = dch[:-4]
@@ -322,7 +273,6 @@ def _parse_bmi3d_v1(data_dir, files):
 
         # Optical switch
         if 'qwalor_switch_rdy_dch' in metadata_dict: 
-            digital_samplerate = metadata['samplerate']
             switch_rdy_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_switch_rdy_dch']) 
             ecube_switch_moving = utils.extract_bits(digital_data, switch_rdy_mask)
             switch_bit_mask = utils.convert_channels_to_mask(metadata_dict['qwalor_switch_data_dch']) # 0xff0000
@@ -335,6 +285,68 @@ def _parse_bmi3d_v1(data_dir, files):
             optical_switch['timestamp'] = ecube_switch_timestamps
             optical_switch['channel'] = ecube_switch_channel # 1-indexed; positive is rising edge, zero is falling edge            
             data_dict['optical_switch'] = optical_switch
+
+    # Parse analog data
+    analog_data = None
+    if 'analog' in files:
+        analog_data, analog_metadata = aodata.load_preproc_analog_data(data_dir, files['analog'])
+    elif 'ecube' in files: 
+        analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'])
+    # elif 'emg' in files:
+    #    analog_data, analog_metadata = aodata.load_emg_analog(data_dir, files['emg'])
+    
+    if analog_data is not None:
+
+        # Mask and detect screen sensor events (A5 and D5)
+        if 'screen_measure_ach' in metadata_dict:
+            measure_clock_online = base.get_dch_data(digital_data, digital_samplerate, metadata_dict['screen_measure_dch'])
+            clock_measure_analog = analog_data[:, metadata_dict['screen_measure_ach']] # 5
+            clock_measure_digitized = utils.convert_analog_to_digital(clock_measure_analog, thresh=0.5)
+            measure_clock_offline = base.get_dch_data(clock_measure_digitized, analog_samplerate, 0)
+            if len(measure_clock_offline) > 0:
+                data_dict['measure_clock_online'] = measure_clock_online
+            if len(measure_clock_offline) > 0:
+                data_dict['measure_clock_offline'] = measure_clock_offline  
+
+        # And reward system (A0)
+        if 'reward_measure_ach' in metadata_dict:
+            reward_system_analog = analog_data[:, metadata_dict['reward_measure_ach']] # 0
+            reward_system_digitized = utils.convert_analog_to_digital(reward_system_analog)
+            reward_system_timestamps, reward_system_values = utils.detect_edges(reward_system_digitized, analog_samplerate, rising=True, falling=True)
+            reward_system = np.zeros((len(reward_system_timestamps),), dtype=[('timestamp', 'f8'), ('state', '?')])
+            reward_system['timestamp'] = reward_system_timestamps
+            reward_system['state'] = reward_system_values
+            if len(reward_system) > 0:
+                data_dict['reward_system'] = reward_system
+
+        # Analog cursor out (A3, A4) since version 11
+        if 'cursor_x_ach' in metadata_dict and 'cursor_z_ach' in metadata_dict:
+            cursor_analog = analog_data[:, [metadata_dict['cursor_x_ach'], metadata_dict['cursor_z_ach']]]
+            cursor_analog, _ = precondition.filter_kinematics(cursor_analog, samplerate=analog_samplerate)
+            cursor_analog_samplerate = 1000
+            cursor_analog = precondition.downsample(cursor_analog, analog_samplerate, cursor_analog_samplerate)
+            max_voltage = 3.34 # using teensy 3.6
+            cursor_analog_cm = ((cursor_analog * analog_metadata['voltsperbit']) - max_voltage/2) / metadata_dict['cursor_out_gain']
+            data_dict.update({
+                'cursor_analog_volts': cursor_analog,
+                'cursor_analog_cm': cursor_analog_cm,
+            })
+            metadata_dict['cursor_analog_samplerate'] = cursor_analog_samplerate
+
+        metadata_dict.update({
+            'digital_samplerate': digital_samplerate,
+            'analog_samplerate': analog_samplerate,
+            'analog_voltsperbit': analog_metadata['voltsperbit']
+        })
+
+        # Laser sensors
+        possible_ach = ['qwalor_sensor_ach', 'qwalor_ch1_sensor_ach', 'qwalor_ch2_sensor_ach', 
+                        'qwalor_ch3_sensor_ach', 'qwalor_ch4_sensor_ach']
+        for ach in possible_ach:
+            if ach in metadata_dict:
+                sensor_name = ach[:-4]
+                laser_sensor_data = analog_data[:, metadata_dict[ach]]
+                data_dict[sensor_name] = laser_sensor_data
 
     return data_dict, metadata_dict
 

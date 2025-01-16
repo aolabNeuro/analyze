@@ -165,6 +165,48 @@ def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
     metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata', cached=cached)
     return data, metadata
 
+def load_preproc_analog_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads analog data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: analog data
+        dict: dictionary of analog metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'analog')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    data = load_hdf_data(preproc_dir, filename, 'analog_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'analog_metadata', cached=cached)
+    return data, metadata
+
+def load_preproc_digital_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads digital data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: digital data
+        dict: dictionary of digital metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'digital')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    data = load_hdf_data(preproc_dir, filename, 'digital_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'digital_metadata', cached=cached)
+    return data, metadata
+
 def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads broadband data from a preprocessed file.
