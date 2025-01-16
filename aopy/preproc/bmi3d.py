@@ -145,7 +145,7 @@ def parse_bmi3d(data_dir, files):
 
 def _parse_bmi3d_v0(data_dir, files):
     '''
-    Simple parser for BMI3D data. Ignores eCube data.
+    Simple parser for BMI3D data. Ignores external data.
 
     Args:
         data_dir (str): where to look for the data
@@ -200,7 +200,7 @@ def _parse_bmi3d_v0(data_dir, files):
 
 def _parse_bmi3d_v1(data_dir, files):
     '''
-    Parser for BMI3D data which incorporates ecube data. Only compatible with sync versions > 0
+    Parser for BMI3D data which incorporates external sync data. Only compatible with sync versions > 0
 
     Args:
         data_dir (str): where to look for the data
@@ -464,11 +464,12 @@ def _prepare_bmi3d_v1(data, metadata):
             # Use the bmi3d clock cycles and the new estimated sync timestamps
             corrected_clock['timestamp_sync'] = timestamp_sync
 
-            prepare_errors.append(f"Clock mismatch: {len(sync_clock)} vs {len(internal_clock)}")
+            prepare_errors.append(f"Only {len(sync_clock)} out of {len(internal_clock)} clock cycles were recorded")
 
         if len(sync_clock) > len(internal_clock):
             warnings.warn("Warning: extra sync timestamps detected. Maybe a missing hdf file?")
-    
+            prepare_errors.append(f"Extra clock cycles were recorded ({len(sync_clock)} out of {len(internal_clock)})")
+
     # Otherwise fall back on the bmi3d clock
     elif 'bmi3d_clock' in data:
         corrected_clock['time'] = data['bmi3d_clock']['time'].copy()
@@ -526,6 +527,7 @@ def _prepare_bmi3d_v1(data, metadata):
     # Otherwise fall back on the sync events
     elif 'sync_events' in data:
         warnings.warn("No bmi3d event data found! Attempting to use sync events instead")
+        prepare_errors.append("No bmi3d sync event data found! Attempted to use sync events instead")
         corrected_events = np.zeros((len(data['sync_events']),), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         corrected_events['time'] = data['sync_events']['time']
         corrected_events['code'] = data['sync_events']['code']
@@ -549,22 +551,28 @@ def _prepare_bmi3d_v1(data, metadata):
         timestamp_measure = np.asarray([corrected_clock['timestamp_measure_offline'][cycle] for cycle in corrected_events['time']])
     else:
         timestamp_measure = np.nan*np.zeros((len(data['bmi3d_events']),))
-
     for idx in range(len(corrected_events)):
         if any([measure_event in corrected_events['event'][idx] for measure_event in [b'TARGET', b'CURSOR', b'PENALTY']]):
             corrected_events['timestamp'][idx] = timestamp_measure[idx]
         else:
             corrected_events['timestamp'][idx] = timestamp_sync[idx]
 
+    # And keep a copy of each clock for convenience
+    corrected_events['timestamp_measure'] = timestamp_measure[corrected_events['time']]
+    corrected_events['timestamp_sync'] = timestamp_sync[corrected_events['time']]
+
     # Check the integrity of the sync events from all the sources
     if 'bmi3d_events' in data and 'sync_events' in data:
         if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
             warnings.warn("sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
+            prepare_errors.append("sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
 
+    # Add task data
     if 'bmi3d_task' in data:
         task = data['bmi3d_task']
     elif 'timestamp_sync' in corrected_clock.dtype.names:
-        warnings.warn("No task data found! Reconstructing from sync clock data")
+        warnings.warn("No task data found! Reconstructing from sync data")
+        prepare_errors.append("No hdf task data found! Attempted to reconstruct from sync data")
 
         # Reconstruct the task data from available data
         task = np.zeros((len(corrected_clock),), dtype=[('time', 'u8'), ('cursor', 'f8', (3,)),])
@@ -577,6 +585,7 @@ def _prepare_bmi3d_v1(data, metadata):
             task['cursor'][:,[0,2]] = data['cursor_analog_cm'][samples]
     else:
         warnings.warn("No task data found!")
+        prepare_errors.append("No hdf task data found!")
         task = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
 
     data.update({
