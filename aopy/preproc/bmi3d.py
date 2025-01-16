@@ -163,6 +163,7 @@ def _parse_bmi3d_v0(data_dir, files):
 
     if 'hdf' not in files:
         warnings.warn("No hdf file found, cannot parse bmi3d data")
+        metadata['preproc_errors'] = ["No hdf file found, cannot parse bmi3d data"]
         return bmi3d_data, metadata
 
     bmi3d_hdf_filename = files['hdf']
@@ -350,13 +351,16 @@ def _prepare_bmi3d_v0(data, metadata):
             | **data (dict):** prepared bmi3d data
             | **metadata (dict):** prepared bmi3d metadata
     '''
+    preproc_errors = []
     if metadata['sync_protocol_version'] > 0:
         warnings.warn("This version of the parser should only be used without any external data sources (e.g. tablet)")
+        preproc_errors.append(f"Incompatible parser for sync protocol version {metadata['sync_protocol_version']}")
 
     if 'bmi3d_clock' in data:
         data['clock'] = data['bmi3d_clock']
     elif 'bmi3d_task' in data:
         warnings.warn("No clock data found, timing will be inaccurate. Enable HDF sync to fix this")
+        preproc_errors.append("No clock data found! Used task data instead. Enable HDF sync to fix this.")
 
         # Estimate timestamps
         bmi3d_cycles = np.arange(len(data['bmi3d_task']))
@@ -366,7 +370,8 @@ def _prepare_bmi3d_v0(data, metadata):
         bmi3d_clock['timestamp_bmi3d'] = bmi3d_timestamps
         data['clock'] = bmi3d_clock
     else:
-        warnings.warn("No clock data found! Cannot accurately prepare bmi3d data")
+        warnings.warn("No clock or task data found! Cannot accurately prepare bmi3d data")
+        preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
         data['task'] = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
         data['clock'] = np.zeros((0,), dtype=[('time', 'f8'), ('timestamp_bmi3d', 'f8')])
         return data, metadata
@@ -380,14 +385,17 @@ def _prepare_bmi3d_v0(data, metadata):
         data['events'] = corrected_events
     else:
         warnings.warn("No event data found! Cannot accurately prepare bmi3d data")
+        preproc_errors.append("No event data found! Cannot accurately prepare bmi3d data")
         data['events'] = np.zeros((0,), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
 
     if 'bmi3d_task' in data:
         data['task'] = data['bmi3d_task']
     else:
         warnings.warn("No task data found! Cannot accurately prepare bmi3d data")
+        preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
         data['task'] = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
         
+    metadata['preproc_errors'] = preproc_errors
     return data, metadata
 
 def _prepare_bmi3d_v1(data, metadata):
@@ -406,10 +414,10 @@ def _prepare_bmi3d_v1(data, metadata):
             | **data (dict):** prepared bmi3d data
             | **metadata (dict):** prepared bmi3d metadata
     '''
-    prepare_errors = []
+    preproc_errors = []
     if not metadata['sync_protocol_version'] > 0:
         warnings.warn("This version of the parser is only compatible with sync protocol version > 0")
-        prepare_errors.append(f"Incompatible parser for sync protocol version {metadata['sync_protocol_version']}")
+        preproc_errors.append(f"Incompatible parser for sync protocol version {metadata['sync_protocol_version']}")
 
     # Estimate display latency
     if 'sync_clock' in data and 'measure_clock_offline' in data:
@@ -426,7 +434,7 @@ def _prepare_bmi3d_v1(data, metadata):
             print("Sync latency estimate: {:.4f} s".format(measure_latency_estimate))
     else:
         measure_latency_estimate = 0.01 # Guess 10 ms
-        prepare_errors.append(f"Missing sync clock or measure clock data. Guessing {measure_latency_estimate} s latency")
+        preproc_errors.append(f"Missing sync clock or measure clock data. Guessing {measure_latency_estimate} s latency")
 
     metadata['measure_latency_estimate'] = measure_latency_estimate
 
@@ -464,11 +472,11 @@ def _prepare_bmi3d_v1(data, metadata):
             # Use the bmi3d clock cycles and the new estimated sync timestamps
             corrected_clock['timestamp_sync'] = timestamp_sync
 
-            prepare_errors.append(f"Only {len(sync_clock)} out of {len(internal_clock)} clock cycles were recorded")
+            preproc_errors.append(f"Only {len(sync_clock)} out of {len(internal_clock)} clock cycles were recorded")
 
         if len(sync_clock) > len(internal_clock):
             warnings.warn("Warning: extra sync timestamps detected. Maybe a missing hdf file?")
-            prepare_errors.append(f"Extra clock cycles were recorded ({len(sync_clock)} out of {len(internal_clock)})")
+            preproc_errors.append(f"Extra clock cycles were recorded ({len(sync_clock)} out of {len(internal_clock)})")
 
     # Otherwise fall back on the bmi3d clock
     elif 'bmi3d_clock' in data:
@@ -493,7 +501,7 @@ def _prepare_bmi3d_v1(data, metadata):
             corrected_clock['timestamp_measure_offline'] = timestamp_measure_offline
         else:
             warnings.warn(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles}). Ignoring")
-            prepare_errors.append(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles})")
+            preproc_errors.append(f"Analog screen sensor missing too many markers ({n_consecutive_missing_cycles}/{max_consecutive_missing_cycles})")
 
     # Assemble the corrected clock
     corrected_clock = pd.DataFrame.from_dict(corrected_clock).to_records(index=False)
@@ -515,7 +523,9 @@ def _prepare_bmi3d_v1(data, metadata):
 
     # By default use the internal events if they exist
     if 'bmi3d_events' in data:
-        corrected_events = np.zeros((len(data['bmi3d_events']),), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
+        corrected_events = np.zeros((len(data['bmi3d_events']),), dtype=
+                                    [('time', 'u8'), ('timestamp', 'f8'), ('timestamp_sync', 'f8'), ('timestamp_measure', 'f8'), 
+                                     ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         corrected_events['time'] = data['bmi3d_events']['time']
         corrected_events['code'] = data['bmi3d_events']['code']
         corrected_events['event'] = data['bmi3d_events']['event']
@@ -527,7 +537,7 @@ def _prepare_bmi3d_v1(data, metadata):
     # Otherwise fall back on the sync events
     elif 'sync_events' in data:
         warnings.warn("No bmi3d event data found! Attempting to use sync events instead")
-        prepare_errors.append("No bmi3d sync event data found! Attempted to use sync events instead")
+        preproc_errors.append("No bmi3d sync event data found! Attempted to use sync events instead")
         corrected_events = np.zeros((len(data['sync_events']),), dtype=
                                     [('time', 'u8'), ('timestamp', 'f8'), ('timestamp_sync', 'f8'), ('timestamp_measure', 'f8'), 
                                      ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
@@ -537,7 +547,7 @@ def _prepare_bmi3d_v1(data, metadata):
         corrected_events['data'] = data['sync_events']['data']
     else:
         warnings.warn("No sync events present! Make sure to enable HDF sync to fix this")
-        prepare_errors.append("No sync events present! Make sure to enable HDF sync to fix this")
+        preproc_errors.append("No sync events present! Make sure to enable HDF sync to fix this")
         data['events'] = np.zeros((0,), dtype=[('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
 
     # In either case, add a default 'timestamp' field to the events
@@ -567,14 +577,14 @@ def _prepare_bmi3d_v1(data, metadata):
     if 'bmi3d_events' in data and 'sync_events' in data:
         if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
             warnings.warn("sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
-            prepare_errors.append("sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
+            preproc_errors.append("sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
 
     # Add task data
     if 'bmi3d_task' in data:
         task = data['bmi3d_task']
     elif 'timestamp_sync' in corrected_clock.dtype.names:
         warnings.warn("No task data found! Reconstructing from sync data")
-        prepare_errors.append("No hdf task data found! Attempted to reconstruct from sync data")
+        preproc_errors.append("No hdf task data found! Attempted to reconstruct from sync data")
 
         # Reconstruct the task data from available data
         task = np.zeros((len(corrected_clock),), dtype=[('time', 'u8'), ('cursor', 'f8', (3,)),])
@@ -587,7 +597,7 @@ def _prepare_bmi3d_v1(data, metadata):
             task['cursor'][:,[0,2]] = data['cursor_analog_cm'][samples]
     else:
         warnings.warn("No task data found!")
-        prepare_errors.append("No hdf task data found!")
+        preproc_errors.append("No hdf task data found!")
         task = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
 
     data.update({
@@ -625,6 +635,7 @@ def _prepare_bmi3d_v1(data, metadata):
         metadata['cursor_interp_samplerate'] = 1000
         data['cursor_interp'] = aodata.get_interp_task_data(data, metadata, datatype='cursor', samplerate=metadata['cursor_interp_samplerate'])
         
+    metadata['preproc_errors'] = preproc_errors
     return data, metadata
 
 def get_peak_power_mW(exp_metadata):

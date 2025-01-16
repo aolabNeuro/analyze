@@ -116,7 +116,7 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
         ids.append(te_id)
     return ids
 
-def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
+def load_preproc_exp_data(preproc_dir, subject, te_id, date, verbose=True, cached=True):
     '''
     Loads experiment data from a preprocessed file.
 
@@ -125,6 +125,7 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        verbose (bool, optional): 
 
     Returns:
         dict: Dictionary of exp data
@@ -134,6 +135,10 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
     preproc_dir = os.path.join(preproc_dir, subject)
     data = load_hdf_group(preproc_dir, filename, 'exp_data', cached=cached)
     metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata', cached=cached)
+    
+    # Check for errors
+    if verbose:
+        
     return data, metadata
 
 def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
