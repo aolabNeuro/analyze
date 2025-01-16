@@ -227,7 +227,6 @@ def _parse_bmi3d_v1(data_dir, files):
 
     if digital_data is not None: # sync_events and sync_clock
         digital_samplerate = digital_metadata['samplerate']        
-        analog_samplerate = analog_metadata['samplerate']
 
         # Sync clock
         clock_sync_bit_mask = None
@@ -260,8 +259,14 @@ def _parse_bmi3d_v1(data_dir, files):
             sync_events['code'] = ecube_sync_events
             sync_events['event'] = sync_event_names
             sync_events['data'] = sync_event_data
+        
+        # Screen measurements digitized online
+        if 'screen_measure_dch' in metadata_dict:
             if len(sync_events) > 0:
                 data_dict['sync_events'] = sync_events
+            measure_clock_online = base.get_dch_data(digital_data, digital_samplerate, metadata_dict['screen_measure_dch'])
+            if len(measure_clock_offline) > 0:
+                data_dict['measure_clock_online'] = measure_clock_online
 
         # Laser trigger
         possible_dch = ['qwalor_trigger_dch', 'qwalor_ch1_trigger_dch', 'qwalor_ch2_trigger_dch', 
@@ -286,6 +291,8 @@ def _parse_bmi3d_v1(data_dir, files):
             optical_switch['channel'] = ecube_switch_channel # 1-indexed; positive is rising edge, zero is falling edge            
             data_dict['optical_switch'] = optical_switch
 
+        metadata_dict['digital_samplerate'] = digital_samplerate
+
     # Parse analog data
     analog_data = None
     if 'analog' in files:
@@ -296,15 +303,13 @@ def _parse_bmi3d_v1(data_dir, files):
     #    analog_data, analog_metadata = aodata.load_emg_analog(data_dir, files['emg'])
     
     if analog_data is not None:
+        analog_samplerate = analog_metadata['samplerate']
 
         # Mask and detect screen sensor events (A5 and D5)
         if 'screen_measure_ach' in metadata_dict:
-            measure_clock_online = base.get_dch_data(digital_data, digital_samplerate, metadata_dict['screen_measure_dch'])
             clock_measure_analog = analog_data[:, metadata_dict['screen_measure_ach']] # 5
             clock_measure_digitized = utils.convert_analog_to_digital(clock_measure_analog, thresh=0.5)
             measure_clock_offline = base.get_dch_data(clock_measure_digitized, analog_samplerate, 0)
-            if len(measure_clock_offline) > 0:
-                data_dict['measure_clock_online'] = measure_clock_online
             if len(measure_clock_offline) > 0:
                 data_dict['measure_clock_offline'] = measure_clock_offline  
 
@@ -334,7 +339,6 @@ def _parse_bmi3d_v1(data_dir, files):
             metadata_dict['cursor_analog_samplerate'] = cursor_analog_samplerate
 
         metadata_dict.update({
-            'digital_samplerate': digital_samplerate,
             'analog_samplerate': analog_samplerate,
             'analog_voltsperbit': analog_metadata['voltsperbit']
         })
