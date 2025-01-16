@@ -619,6 +619,8 @@ def _prepare_bmi3d_v1(data, metadata):
         clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
         if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
             data['clean_hand_position'] = clean_hand_position
+    elif isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+        data['clean_hand_position'] = task['manual_input']
 
     # Interpolate clean hand kinematics
     if ('timestamp_sync' in corrected_clock.dtype.names and 
