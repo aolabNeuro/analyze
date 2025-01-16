@@ -528,7 +528,9 @@ def _prepare_bmi3d_v1(data, metadata):
     elif 'sync_events' in data:
         warnings.warn("No bmi3d event data found! Attempting to use sync events instead")
         prepare_errors.append("No bmi3d sync event data found! Attempted to use sync events instead")
-        corrected_events = np.zeros((len(data['sync_events']),), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
+        corrected_events = np.zeros((len(data['sync_events']),), dtype=
+                                    [('time', 'u8'), ('timestamp', 'f8'), ('timestamp_sync', 'f8'), ('timestamp_measure', 'f8'), 
+                                     ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         corrected_events['time'] = data['sync_events']['time']
         corrected_events['code'] = data['sync_events']['code']
         corrected_events['event'] = data['sync_events']['event']
