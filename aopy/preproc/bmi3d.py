@@ -558,8 +558,8 @@ def _prepare_bmi3d_v1(data, metadata):
             corrected_events['timestamp'][idx] = timestamp_sync[idx]
 
     # And keep a copy of each clock for convenience
-    corrected_events['timestamp_measure'] = timestamp_measure[corrected_events['time']]
-    corrected_events['timestamp_sync'] = timestamp_sync[corrected_events['time']]
+    corrected_events['timestamp_measure'] = timestamp_measure
+    corrected_events['timestamp_sync'] = timestamp_sync
 
     # Check the integrity of the sync events from all the sources
     if 'bmi3d_events' in data and 'sync_events' in data:
