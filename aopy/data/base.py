@@ -125,7 +125,8 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, verbose=True, cache
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
-        verbose (bool, optional): 
+        verbose (bool, optional): check for preprocessing errors and print them (default True)
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: Dictionary of exp data
@@ -137,8 +138,10 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, verbose=True, cache
     metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata', cached=cached)
     
     # Check for errors
-    if verbose:
-        
+    if verbose and 'preproc_errors' in metadata and len(metadata['preproc_errors']) > 0:
+        warnings.warn(f"Preprocessing errors found in {filename}:")
+        for error in metadata['preproc_errors']:
+            print(error)
     return data, metadata
 
 def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
@@ -150,6 +153,7 @@ def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: Dictionary of eye data
@@ -170,6 +174,7 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: broadband data
@@ -192,7 +197,8 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Raises:
         ValueError: if drives are detected when drive number is None. 
         
@@ -230,7 +236,8 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Raises:
         ValueError: if drives are detected when drive number is None.
         
@@ -256,7 +263,7 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
         metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
     '''
     Loads spike data from a preprocessed file.
 
@@ -266,7 +273,8 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1,
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Returns:
         dict: spike data
         dict: Dictionary of spike metadata
@@ -278,7 +286,7 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1,
     
     return spikes, metadata
 
-def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
     '''
     Loads spike waveforms from a preprocessed file.
 
@@ -288,7 +296,8 @@ def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, ca
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Returns:
         dict: spike waveforms
     '''
