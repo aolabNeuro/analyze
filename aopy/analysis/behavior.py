@@ -4,6 +4,8 @@
 
 import numpy as np
 from scipy import signal
+from sklearn.feature_selection import r_regression
+from tqdm.auto import tqdm 
 
 from .base import calc_rolling_average
 from .. import preproc
@@ -322,14 +324,15 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
         
     return np.array(movement_onset)
 
-def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
+def get_cursor_leave_time(cursor_traj, samplerate, target_radius, cursor_radius=0):
     '''
     Compute the times when the cursor leaves the center target radius
     
     Args:
         cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
         fs (float) : sampling rate in Hz
-        target_radius (float) : the radius of the center target
+        target_radius (float) : the radius of the center target in cm
+        cursor_radius (float) : the radius of the cursor in cm. Default is 0
         
     Returns:
         cursor_leave_time (ntr): cursor leave times relative to the time when the cursor enters the center target
@@ -342,7 +345,7 @@ def get_cursor_leave_time(cursor_traj, samplerate, target_radius):
         t_axis = np.arange(cursor_traj[itr].shape[0])/samplerate
         
         dist = np.linalg.norm(cursor_traj[itr],axis=1)
-        leave_idx = np.where(dist>target_radius)[0][0]
+        leave_idx = np.where(dist > target_radius-cursor_radius)[0][0]
         cursor_leave_time.append(t_axis[leave_idx])
     
     return np.array(cursor_leave_time)
@@ -391,3 +394,103 @@ def calc_tracking_in_time(event_codes, event_times, proportion=False):
         tracking_in_time = tracking_in_time/(event_times[-1] - event_times[0])
         
     return tracking_in_time
+
+'''
+Hand behavior metrics
+'''
+def unit_vector(vector):
+    '''
+    Finds the unit vector of a given vector.
+
+    Args:
+        vector (list or array): D-dimensional vector
+
+    Returns:
+        unit_vector (list or array): D-dimensional vector with a magnitude of 1
+    '''
+    return vector/np.linalg.norm(vector)
+
+def angle_between(v1, v2, in_degrees=False):
+    '''
+    Computes the angle between two vectors. By default, the angle will be in radians and fall within the range [0,pi].
+
+    Args:
+        v1 (list or array): D-dimensional vector
+        v2 (list or array): D-dimensional vector
+        in_degrees (bool, optional): whether to return the angle in units of degrees. Default is False.
+
+    Returns:
+        float: angle (in radians or degrees)
+    '''
+    v1_u = unit_vector(v1)
+    v2_u = unit_vector(v2)
+    angle = np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
+
+    if in_degrees:
+        angle = angle*180/np.pi
+
+    return angle
+
+def vector_angle(vector, in_degrees=False):
+    '''
+    Computes the angle of a vector on the unit circle.
+
+    Args:
+        vector (list or array): D-dimensional vector
+        in_degrees (bool, optional): whether to return the angle in units of degrees. Default is False.
+
+    Returns:
+        float: angle (in radians or degrees)
+    '''
+    D = len(vector)
+    assert D==2, "This function currently works best for 2-dimensional vectors"
+
+    ref_vector = np.zeros((D,))
+    ref_vector[0] = 1
+    angle = angle_between(ref_vector, vector)
+    
+    # take the explementary (conjugate) angle for vectors that lie in Q3 or Q4
+    if vector[1]<0: # negative y-coordinate
+        angle = 2*np.pi - angle
+
+    if in_degrees:
+        angle = angle*180/np.pi
+
+    return angle
+
+
+def correlate_trajectories(trajectories, center=True, verbose=False):
+    '''
+    Correlates multiple trajectory datasets across trials by computing the 
+    Pearson correlation coefficient (R) between all pairs of trials. This function computs R for each trajectory dimension, then returns a weighted average based on the variance. 
+
+    Args:
+        trajectories (nt, ndim, ntrials): Trajectories to correlate, 
+                                 where `nt` is the number of timepoints, 
+                                 `ntrials` is the number of trials, and 
+                                 `ndims` is the number of dimensions for each trajectory (i.e. x, y, z).
+        center (bool): If each trial should be centered before computing correlation. (Safaie et al. 2023 sets this to true)
+        verbose (bool): If `True`, prints a progress bar during computation via the tqdm module. 
+
+    Returns:
+        ndarray: A 2D numpy array of Pearson correlation (R) scores between each pair of trials. 
+                 The shape of the output will be (ntrials, ntrials).
+    '''
+
+    nt, ndims, ntrials = trajectories.shape
+    
+    traj_correlation = np.zeros((ntrials, ntrials))*np.nan
+
+    trial_variance = np.var(trajectories, axis=0) # (ndim, ntrials)
+
+    iterator = tqdm(range(ntrials)) if verbose else range(ntrials)
+    for itrial in iterator:
+        temp_corrs = np.zeros((ntrials,ndims))*np.nan
+        for idim in range(ndims):
+            weight = trial_variance[idim, itrial]
+            temp_corrs[:,idim] = r_regression(trajectories[:,idim,:], trajectories[:,idim,itrial], center=center) * weight
+
+        traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[:, itrial])
+    
+    return traj_correlation
+

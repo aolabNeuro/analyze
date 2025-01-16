@@ -1,5 +1,9 @@
+# wrappers.py
+#
+# Wrappers for preprocessing functions. These functions are used to preprocess data in a single step,
+# calling the appropriate functions in the correct order.
+
 import os
-import h5py
 from importlib.metadata import version
 import datetime
 
@@ -10,8 +14,7 @@ from .optitrack import parse_optitrack
 from .. import postproc
 from .. import precondition
 from .. import data as aodata
-from ..precondition import eye
-from ..data import load_ecube_data_chunked, load_ecube_metadata, proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
+from ..data import proc_ecube_data, save_hdf, load_hdf_group, get_hdf_dictionary, get_preprocessed_filename
 from ..data import load_preproc_lfp_data, load_preproc_broadband_data, load_preproc_eye_data
 
 '''
@@ -36,6 +39,15 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         os.mkdir(preproc_dir)
     preproc_dir_base = os.path.dirname(preproc_dir)
 
+    # Remove existing files if overwrite is True
+    for source in preproc_jobs:
+        filename = aodata.get_preprocessed_filename(subject, te_id, date, source)
+        filepath = os.path.join(preproc_dir, subject, filename)
+        if overwrite and os.path.exists(filepath):
+            os.remove(filepath)
+            print(f'Removed existing file {filepath}')
+
+    # Process each job individually
     if 'exp' in preproc_jobs:
         print('processing experiment data...')
         exp_filename = get_preprocessed_filename(subject, te_id, date, 'exp')
@@ -243,7 +255,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
     try:
         # Calibrate the eye data
         cursor_samplerate = exp_metadata['cursor_interp_samplerate']
-        cursor_data = exp_data['cursor_interp']
+        cursor_data = exp_data['cursor_interp'][:,:2]
         events = exp_data['events']
         event_codes = events['code']
         event_times = events['timestamp'] # time points in the ecube time frame

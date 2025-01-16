@@ -52,5 +52,11 @@ class TutorialTests(unittest.TestCase):
         favorite_food = 'chicken'
         aopy.tutorial_functions.practice_function_gus(favorite_food)
 
+    def test_matt(self):
+        ''' This test tutorial_function.py '''
+        favorite_number = 7
+        output = aopy.tutorial_functions.practice_function_matt(favorite_number)
+        print(output)
+        
 if __name__ == "__main__":
     unittest.main()

@@ -2,14 +2,13 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
-import numpy as np
 import re
 from datetime import datetime
 import os
 import sys
 import math
-from scipy.ndimage.interpolation import shift
 
+import numpy as np
 
 '''
 Test signals
@@ -766,3 +765,34 @@ def convert_port_number(port_number, datatype='ap'):
     probe_dir = f'Neuropix-PXI-100.Probe{letter}-{datatype.upper()}'
     
     return probe_dir
+
+def multiply_mat_batch(data, mat, save_path, scale = 1, max_memory_gb = 1., dtype='int16', min_batch_size=0):
+    '''
+    Multiply a matrix to data in each batch to save memory. The result is saved in save_path.
+    This function can be used to multiply an inverse matrix by spike band time series.
+    
+    Args:
+        data (nt, nch): neural data. This should be a memory mapping array.
+        mat (anysize, nch): matrix to multiply by data
+        save_path (str): file path to save destriped lfp data
+        scale (float, optional): Scaling factor to multiply by data. 1/200 is necessary for whitened data in kilosort4. default is 1.
+        max_memory_gb (float): memory size in GB to determine batch size. default is 1.0 GB.
+        dtype (str, optional): dtype for data. default is int16.
+        min_batch_size (int): the number of size in integer to ensure that batch size is more than min_batch_size. default is 0.
+    
+    Returns:
+        None
+    '''
+        
+    n_samples, n_channels = data.shape
+    batch_size = int (max_memory_gb*1e9 / (n_channels*np.dtype(dtype).itemsize))
+    batch_size += min_batch_size
+    Nbatches = np.ceil(n_samples/batch_size).astype(int)
+
+    # Multiply matrix in each batch to save memory
+    x = np.memmap(save_path, dtype=dtype, mode='w+', shape=(n_samples, n_channels))
+
+    for ibatch in range(Nbatches):
+        tmp = mat @ (scale*data[ibatch*batch_size:(ibatch+1)*batch_size, :].T)
+        x[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp.T).astype(dtype)
+        x.flush()
