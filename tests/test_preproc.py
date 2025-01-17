@@ -527,6 +527,19 @@ class EventFilterTests(unittest.TestCase):
          self.assertTrue(np.allclose(segments, [[2, 4, 6], [2, 3, 6]]))
          self.assertTrue(np.allclose(times, [[1, 2, 3], [5, 6, 7]]))
 
+         events = [18, 82, 19, 34, 83, 64, 239, 18, 82, 19, 34, 83, 48, 239, 19, 83, 18, 66, 239]
+         times = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+         start_evt = [18, 19]
+         end_evt = [239]
+         expected_segments = [[18, 82, 19, 34, 83, 64, 239], [18, 82, 19, 34, 83, 48, 239], [19, 83, 18, 66, 239]]
+         expected_times = [[0, 1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12, 13], [14, 15, 16, 17, 18]]
+
+         segments, times = get_trial_segments_and_times(events, times,  start_evt, end_evt, repeating_start_events=True)
+         for i in range(len(segments)):
+             self.assertTrue(np.allclose(segments[i], expected_segments[i])) # check one at a time because np.allclose doesn't like nested arrays
+             self.assertTrue(np.allclose(times[i], expected_times[i]))
+         
+
     def test_locate_trials_with_event(self):
         # Test with ints
         aligned_events = np.array([[2, 7],
