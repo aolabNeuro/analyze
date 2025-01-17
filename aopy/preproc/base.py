@@ -503,7 +503,7 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
         trial_indices.append(np.where(trial_idx)[0])
     return trial_aligned, trial_indices
 
-def get_trial_segments(events, times, start_events, end_events):
+def get_trial_segments(events, times, start_events, end_events, repeating_start_events=False):
     '''
     Gets times for the start and end of each trial according to the given set of start_events and end_events
 
@@ -512,6 +512,7 @@ def get_trial_segments(events, times, start_events, end_events):
         times (nt): times vector
         start_events (list): set of start events to match
         end_events (list): set of end events to match
+        repeating_start_events (bool): whether the start events might occur multiple times within one segment. Otherwise always use the last start event within a segment. May lead to segments spanning multiple trials if used improperly. Default False.
 
     Returns:
         tuple: tuple containing:
@@ -521,7 +522,7 @@ def get_trial_segments(events, times, start_events, end_events):
     Note:
         - if there are multiple matching start or end events in a trial, only consider the first one
     '''
-    segments, segment_times = get_trial_segments_and_times(events, times, start_events, end_events)
+    segments, segment_times = get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=repeating_start_events)
     segment_times = np.array([[t[0], t[-1]] for t in segment_times])
     return segments, segment_times
 
@@ -535,12 +536,71 @@ def get_trial_segments_and_times(events, times, start_events, end_events, repeat
         times (nt): times vector
         start_events (list): set of start events to match
         end_events (list): set of end events to match
-        repeating_start_events (bool): whether the events used as start events may occur multiple times within one segment
+        repeating_start_events (bool): whether the start events might occur multiple times within one segment. Otherwise always use the last start event within a segment. May lead to segments spanning multiple trials if used improperly. Default False.
 
     Returns:
         tuple: tuple containing:
             | **segments (list of list of events):** a segment of each trial
             | **times (list of list of times):** list of timestamps corresponding to each event in the event code
+
+    Examples:
+
+        For segments that do not contain multiple start events (e.g. trials from center-out reaching task):
+
+        .. code-block:: python
+
+            from aopy.data.bmi3d import load_bmi3d_task_codes
+            task_codes = load_bmi3d_task_codes()
+            start_events = [task_codes['CENTER_TARGET_ON']]
+            end_events = [task_codes['TRIAL_END']]
+            print(start_events, end_events)
+
+            # example task data
+            events = [16, 80, 18, 32, 82, 48, 239, 16, 80, 19, 66, 239, 16, 80, 19, 32, 83, 48, 239]
+            times = np.arange(0,len(events))
+
+            # segments should contain only one 'CENTER_TARGET_ON' per segment, since the task is always to reach from the center to a random peripheral target
+            segments, times = get_trial_segments_and_times(events, times, start_events, end_events)
+            print(segments)
+            print(times)
+
+        For segments that contain multiple start events (e.g. trials from corners reaching task):
+
+        .. code-block:: python    
+
+            from aopy.data.bmi3d import load_bmi3d_task_codes
+            task_codes = load_bmi3d_task_codes()
+            start_events = [task_codes['CORNER_TARGET_ON']]
+            end_events = [task_codes['TRIAL_END']]
+            print(start_events, end_events)
+
+            # example task data
+            events = [18, 82, 19, 34, 83, 48, 239, 19, 83, 17, 66, 239, 19, 83, 17, 35, 81, 48, 239]
+            times = np.arange(0,len(events))
+            segments, times = get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=True)
+            
+            # segments should contain multiple 'CORNER_TARGET_ON' events within the same segment, since the task is to reach from one random corner to another
+            print(segments)
+            print(times)
+
+        For segments that do not contain multiple start events themselves but multiple start events may exist in the larger task structure (e.g. delay period from corners reaching task):
+
+        .. code-block:: python   
+
+            from aopy.data.bmi3d import load_bmi3d_task_codes
+            task_codes = load_bmi3d_task_codes()
+            start_events = [task_codes['CORNER_TARGET_ON']] # same as above, but now we want when the 2nd corner target in the sequence turns on
+            end_events = [task_codes['CORNER_TARGET_OFF']] # when 1st corner target turns off, indicating end of delay period
+            print(start_events, end_events)
+
+            # example task data (same as above)
+            events = [18, 82, 19, 34, 83, 48, 239, 19, 83, 17, 66, 239, 19, 83, 17, 35, 81, 48, 239]
+            times = np.arange(0,len(events))
+            segments, times = get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=False)
+            
+            # without repeating_start_events, segments skip over the 1st corner target in the sequence and start instead from when the 2nd corner target turns on (e.g when the delay period begins)
+            print(segments)
+            print(times)
 
     '''
     # Find the indices in events that correspond to start events
