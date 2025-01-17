@@ -520,7 +520,7 @@ def get_trial_segments(events, times, start_events, end_events, repeating_start_
             | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
 
     Note:
-        - if there are multiple matching start or end events in a trial, only consider the first one
+        - if there are multiple matching start or end events in a trial, the default is to only consider the first one. See :func:`~aopy.preproc.get_trial_segments_and_times` for more detail.
     '''
     segments, segment_times = get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=repeating_start_events)
     segment_times = np.array([[t[0], t[-1]] for t in segment_times])
@@ -542,6 +542,9 @@ def get_trial_segments_and_times(events, times, start_events, end_events, repeat
         tuple: tuple containing:
             | **segments (list of list of events):** a segment of each trial
             | **times (list of list of times):** list of timestamps corresponding to each event in the event code
+
+    Note:
+        - if there are multiple matching start or end events in a trial, the default is to only consider the first one. See examples for more detail.
 
     Examples:
 
