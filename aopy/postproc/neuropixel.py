@@ -78,8 +78,8 @@ def get_high_amplitude_units(preproc_dir, subject, te_id, date, port, amp_thresh
     Args:
         preproc_dir (str): The directory containing the preprocessed data.
         subject (str): The subject name.
-        te_id (str): The experiment task entry number.
-        date (str): The date of the experiment.
+        te_id (int): The experiment task entry number.
+        date (date): The date of the experiment.
         port (int): The port number identifying which probe to look at data from.
         amp_thresh (float, optional): The amplitude threshold (in microvolts) used to filter out units with low peak-to-peak amplitudes. Defaults to 50.
         start_time (float, optional): Start time (in seconds) for the time window to consider spikes (default is 0).
@@ -142,8 +142,8 @@ def extract_ks_template_amplitudes(preproc_dir, subject, te_id, date, port, data
     Args:
         preproc_dir (str): The directory containing the preprocessed data.
         subject (str): The subject name.
-        te_id (str): The experiment task entry number.
-        date (str): The date of the experiment.
+        te_id (int): The experiment task entry number.
+        date (date): The date of the experiment.
         port (int): The port number identifying which probe to look at data from.
         start_time (float, optional): Start time (in seconds) for the time window to consider spikes (default is 0).
         end_time (float, optional): End time (in seconds) for the time window to consider spikes (default is None, meaning all spikes after `start_time` are considered).
