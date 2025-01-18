@@ -156,26 +156,17 @@ def extract_ks_template_amplitudes(preproc_dir, subject, te_id, date, port, data
     ks_folder_name = os.path.join(aodata.get_kilosort_foldername(subject, te_id, date, data_source), f"port{port}/kilosort4")
     merged_ks_path = os.path.join(kilosort_dir, ks_folder_name)
     
-    if isinstance(te_id,int):
-        filename_mc = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
-        spike_times = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes') # Find relevant spikes based on the synchronized (preprocessed) spike times 
-    else:
-        filename_mc = aodata.get_preprocessed_filename(subject, te_id[0], date, 'spike')
-        # for tid in te_id:
-            
-        # Concatenate spike times 
+    # Load synchronized spike times
+    filename_mc = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_times = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes') # Find relevant spikes based on the synchronized (preprocessed) spike times 
     
     # Load kilosort data
     cluster_labels = np.load(os.path.join(merged_ks_path, 'spike_clusters.npy')) # Unpreprocessed output from kilosort
     template_features = np.load(os.path.join(merged_ks_path, 'amplitudes.npy'))
-    
-    # Load preprocessed (and synchronized) spike times. 
-    filename_mc = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_times = aodata.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{port}/spikes')
 
     # Separate into clusters
     template_amps = {}
-    for icluster in cluster_labels:
+    for icluster in np.unique(cluster_labels):
         
         # Subselect features between start_time and end_time
         if end_time is None:
