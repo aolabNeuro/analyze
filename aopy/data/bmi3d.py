@@ -1989,8 +1989,10 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
             | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
             | **reach_end_time (ntrial):** time at which the reach was completed
             | **reward_start_time (ntrial):** time at which the reward was presented
-            | **penalty_start_time (ntrial):** time at which the penalty was presented
+            | **penalty_start_time (ntrial):** time at which the penalty occurred
             | **penalty_event (ntrial):** numeric code for the penalty event
+            | **pause_start_time (ntrial):** time at which the pause occurred
+            | **pause_event (ntrial):** numeric code for the pause event
 
     Example:
 
@@ -2009,11 +2011,12 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
-    trial_end_codes = [task_codes['TRIAL_END']]
+    trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
     trial_start_codes = [task_codes['CORNER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
     penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['CORNER_TARGET_ON']
+    pause_codes = [task_codes['PAUSE_START'], task_codes['PAUSE_END'], task_codes['PAUSE']]
 
     # Concatenate base trial data
     if 'sequence_params' not in metadata:
@@ -2062,6 +2065,8 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
     new_df['reward_start_time'] = np.nan
     new_df['penalty_start_time'] = np.nan
     new_df['penalty_event'] = np.nan
+    new_df['pause_start_time'] = np.nan
+    new_df['pause_event'] = np.nan
     for i in range(len(new_df)):
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
@@ -2107,11 +2112,19 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
 
         # Penalty start times
         penalty_idx = np.isin(event_codes, penalty_codes)
-        penatly_codes = event_codes[penalty_idx]
+        penalty_events = event_codes[penalty_idx]
         penalty_times = event_times[penalty_idx]
         if len(penalty_times) > 0:
             new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
-            new_df.loc[i, 'penalty_event'] = penatly_codes[0]
+            new_df.loc[i, 'penalty_event'] = penalty_events[0]
+
+        # Pause events
+        pause_idx = np.isin(event_codes, pause_codes)
+        pause_events = event_codes[pause_idx]
+        pause_times = event_times[pause_idx]
+        if len(pause_times) > 0:
+            new_df.loc[i, 'pause_start_time'] = pause_times[0]
+            new_df.loc[i, 'pause_event'] = pause_events[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
