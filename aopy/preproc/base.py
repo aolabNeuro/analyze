@@ -552,7 +552,6 @@ def get_trial_segments_and_times(events, times, start_events, end_events, repeat
 
         .. code-block:: python
 
-            from aopy.data.bmi3d import load_bmi3d_task_codes
             task_codes = load_bmi3d_task_codes()
             start_events = [task_codes['CENTER_TARGET_ON']]
             end_events = [task_codes['TRIAL_END']]

@@ -1991,6 +1991,21 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
             | **reward_start_time (ntrial):** time at which the reward was presented
             | **penalty_start_time (ntrial):** time at which the penalty was presented
             | **penalty_event (ntrial):** numeric code for the penalty event
+
+    Example:
+
+        .. code-block:: python
+        
+            subject = 'churro'
+            start_date = '2025-01-17'
+            end_date = '2025-01-18'
+            entries = db.lookup_mc_sessions(subject=subject, date=(date.fromisoformat(start_date), date.fromisoformat(end_date)))
+            subjects, te_ids, te_dates = db.list_entry_details(entries)
+
+            df = tabulate_behavior_data_corners(preproc_dir, subjects, te_ids, te_dates)
+            display(df.head(8))
+
+        .. image:: _images/tabulate_behavior_data_corners.png
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
