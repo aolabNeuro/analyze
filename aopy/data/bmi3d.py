@@ -2001,6 +2001,8 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
     target_codes = task_codes['CORNER_TARGET_ON']
 
     # Concatenate base trial data
+    if 'sequence_params' not in metadata:
+        metadata.append('sequence_params')
     new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata, df=None, repeating_start_codes=True)
@@ -2009,34 +2011,26 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
         return df
 
     # Add target info
-    first_target_idx = [
-        code[np.isin(code, target_codes)][0] - target_codes[0] + 1 # add 1 for center target, which doesn't exist in this task
-        if np.sum(np.isin(code, target_codes)) > 0 else 0 # if target idx is 0, first target did not occur
+    chain_length = [
+        json.loads(params)['chain_length']
+        if 'chain_length' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    target_idx = [
+        code[np.isin(code, target_codes)] - target_codes[0] + 1 # add 1 for center target, which doesn't exist in this task
+        if np.sum(np.isin(code, target_codes)) > 0 else []
         for code 
         in new_df['event_codes']
     ]
-    second_target_idx = [
-        code[np.isin(code, target_codes)][-1] - target_codes[0] + 1 # add 1 for center target, which doesn't exist in this task
-        if np.sum(np.isin(code, target_codes)) > 1 else 0 # if target idx is 0, second target did not occur
-        for code 
-        in new_df['event_codes']
-    ]
-    first_target_location = [
-        np.squeeze(get_target_locations(preproc_dir, s, te, d, [t_idx]))
-        if t_idx > 0 else None          # if target idx is 0, target location is set to None, indicating first target did not occur
+    target_location = [
+        np.squeeze(get_target_locations(preproc_dir, s, te, d, t_idx))
         for s, te, d, t_idx 
-        in zip(new_df['subject'], new_df['te_id'], new_df['date'], first_target_idx)
+        in zip(new_df['subject'], new_df['te_id'], new_df['date'], target_idx)
     ]
-    second_target_location = [
-        np.squeeze(get_target_locations(preproc_dir, s, te, d, [t_idx]))
-        if t_idx > 0 else None          # if target idx is 0, target location is set to None, indicating second target did not occur
-        for s, te, d, t_idx 
-        in zip(new_df['subject'], new_df['te_id'], new_df['date'], second_target_idx)
-    ]
-    new_df['first_target_idx'] = first_target_idx
-    new_df['second_target_idx'] = second_target_idx
-    new_df['first_target_location'] = first_target_location
-    new_df['second_target_location'] = second_target_location
+    new_df['chain_length'] = chain_length
+    new_df['target_idx'] = target_idx
+    new_df['target_location'] = target_location
 
     # Add trial segment timing
     new_df['prev_trial_end_time'] = np.nan
@@ -2068,28 +2062,28 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
         new_df.loc[i, 'first_target_on_time'] = event_times[0]
 
         # Trial initiated if cursor enters the first corner target
-        hold_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_CORNER_TARGET']])] # this list may contain up to 2 events, entering the first corner target and entering the second corner target
+        hold_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_CORNER_TARGET']])] # this list may be as long as the number of corner targets in the chain
         new_df.loc[i, 'trial_initiated'] = len(hold_times) > 0
         if new_df.loc[i, 'trial_initiated']:
             new_df.loc[i, 'hold_start_time'] = hold_times[0] # entering the first corner target is the start of hold
 
         # Hold completed if second corner target turns on (start of delay)
-        delay_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_ON'])] # this list may contain up to 2 events, the first corner target on and the second corner target on
+        delay_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_ON'])] # this list may be as long as the number of corner targets in the chain
         new_df.loc[i, 'hold_completed'] = len(delay_times) > 1
         if new_df.loc[i, 'hold_completed']:
-            new_df.loc[i, 'delay_start_time'] = delay_times[-1] # second corner target on is the start of delay
+            new_df.loc[i, 'delay_start_time'] = delay_times[1] # second corner target on is the start of delay
 
         # Delay completed when first corner target turns off (go cue)
-        go_cue_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_OFF'])] # this list should contain at most 1 event
+        go_cue_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_OFF'])] # this list may be as long as one less than the number of corner tagets in the chain
         new_df.loc[i, 'delay_completed'] = len(go_cue_times) > 0
         if new_df.loc[i, 'delay_completed']:
             new_df.loc[i, 'go_cue_time'] = go_cue_times[0]
 
         # Reach completed if cursor enters second corner target (regardless of whether the trial was successful)
-        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_CORNER_TARGET'])] # this list may contain up to 2 events, entering the first corner target and entering the second corner target
+        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_CORNER_TARGET'])] # this list may be as long as the number of corner targets in the chain
         new_df.loc[i, 'reach_completed'] = len(reach_times) > 1
         if new_df.loc[i, 'reach_completed']:
-            new_df.loc[i, 'reach_end_time'] = reach_times[-1]
+            new_df.loc[i, 'reach_end_time'] = reach_times[1]
 
         # Reward start times
         reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
