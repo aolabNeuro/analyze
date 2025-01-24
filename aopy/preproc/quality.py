@@ -13,9 +13,9 @@ from tqdm.auto import tqdm
 
 from .. import precondition
 from .. import analysis
-from ..utils import print_progress_bar
-from ..visualization.base import plot_image_by_time
-from ..data.base import load_preproc_exp_data
+from .. import utils
+from .. import visualization
+from .. import data as aodata
 
 def detect_bad_exp_data(preproc_dir, subjects, ids, dates):
     '''
@@ -40,7 +40,7 @@ def detect_bad_exp_data(preproc_dir, subjects, ids, dates):
     for subject, date, te in tqdm(entries): 
         # Load data from bmi3d hdf 
         try:
-            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+            exp_data, exp_metadata = aodata.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
@@ -223,7 +223,7 @@ def detect_bad_trials(erp, sd_thr=5, ch_frac=0.5, debug=False):
         trials = np.arange(ntr)
         cmap = copy.copy(plt.get_cmap('viridis'))
         cmap.set_bad(color='w') # set the 'bad' color to white
-        im = plot_image_by_time(trials, erp.T, ylabel='channel', cmap=cmap)
+        im = visualization.plot_image_by_time(trials, erp.T, ylabel='channel', cmap=cmap)
         cbar = plt.colorbar(im)
         cbar.set_label('sd')
         plt.xlabel('trial')        
@@ -294,7 +294,7 @@ def detect_bad_timepoints(data, sd_thr=5, ch_frac=0.5, debug=False):
         time = np.arange(nt)
         cmap = copy.copy(plt.get_cmap('viridis'))
         cmap.set_bad(color='w') # set the 'bad' color to white
-        im = plot_image_by_time(time, data, ylabel='channel', cmap=cmap)
+        im = visualization.plot_image_by_time(time, data, ylabel='channel', cmap=cmap)
         cbar = plt.colorbar(im)
         cbar.set_label('sd')
         plt.xlabel('timepoint')
@@ -342,7 +342,7 @@ def high_freq_data_detection(data, srate, bad_channels=None, lf_c=100., sg_win_t
 
     # estimate hf influence, channel-wise
     for ch_i in np.arange(num_ch)[np.logical_not(bad_channels)]:
-        print_progress_bar(ch_i,num_ch)
+        utils.print_progress_bar(ch_i,num_ch)
         sg_step_t = sg_win_t - sg_over_t
         assert sg_step_t > 0, 'window length must be greater than window overlap'
         n, p, k = precondition.convert_taper_parameters(sg_win_t, sg_bw)
@@ -436,7 +436,7 @@ def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
     mask = [bool(not x) for x in bad_channels]
 
     for ch_i in np.arange(num_ch)[mask]:
-        print_progress_bar(ch_i, num_ch)
+        utils.print_progress_bar(ch_i, num_ch)
         ch_data = data_rect[:, ch_i]
         θ1 = 50 # initialize threshold value
         θ0 = 0
