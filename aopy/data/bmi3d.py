@@ -1531,7 +1531,7 @@ def get_source_files(preproc_dir, subject, te_id, date):
 
 def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
                            trial_end_codes, reward_codes, penalty_codes, metadata=[],
-                           df=None, event_code_type='code', return_bad_entries=False):
+                           df=None, event_code_type='code', return_bad_entries=False, repeating_start_codes=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of 
     subjects, task entry ids, and dates. Each list must be the same length. Trials 
@@ -1552,6 +1552,10 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             choices include 'event' and 'data'.
         return_bad_entries (bool, optional): If True, returns the list of task entries that could 
             not be loaded. Defaults to False.
+        repeating_start_codes (bool): whether the start codes might occur multiple times within one segment. 
+            Otherwise always use the last start code within a segment. May lead to segments spanning multiple 
+            trials if used improperly. Defaults to False.
+
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
@@ -1583,7 +1587,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         event_times = exp_data['events']['timestamp']
 
         # Trial aligned event codes and event times
-        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
+        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes, repeating_start_codes)
         reward = [np.any(np.isin(reward_codes, ec)) for ec in tr_seg]
         penalty = [np.any(np.isin(penalty_codes, ec)) for ec in tr_seg]
         
@@ -1940,6 +1944,186 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
         if len(penalty_times) > 0:
             new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
             new_df.loc[i, 'penalty_event'] = penatly_codes[0]
+
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+
+def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[], 
+                               df=None):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for corner reaching experiments. 
+    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
+    assign event codes for trial start, trial end, reward, penalty, and targets. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **chain_length (ntrial):** number of targets presented in each trial
+            | **target_idx (ntrial):** list of indices of the targets presented
+            | **target_location (ntrial):** list of locations of the targets presented
+            | **prev_trial_end_time (ntrial):** time at which the previous trial ended
+            | **trial_end_time (ntrial):** time at which the trial ended
+            | **first_target_on_time (ntrial):** time at which the trial started
+            | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated
+            | **hold_start_time (ntrial):** time at which the hold period started
+            | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
+            | **delay_start_time (ntrial):** time at which the delay period started
+            | **delay_completed (ntrial):** boolean values indicating whether the delay period was completed
+            | **go_cue_time (ntrial):** time at which the go cue was presented
+            | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
+            | **reach_end_time (ntrial):** time at which the reach was completed
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **penalty_start_time (ntrial):** time at which the penalty occurred
+            | **penalty_event (ntrial):** numeric code for the penalty event
+            | **pause_start_time (ntrial):** time at which the pause occurred
+            | **pause_event (ntrial):** numeric code for the pause event
+
+    Example:
+
+        .. code-block:: python
+        
+            subject = 'churro'
+            start_date = '2025-01-17'
+            end_date = '2025-01-18'
+            entries = db.lookup_mc_sessions(subject=subject, date=(date.fromisoformat(start_date), date.fromisoformat(end_date)))
+            subjects, te_ids, te_dates = db.list_entry_details(entries)
+
+            df = tabulate_behavior_data_corners(preproc_dir, subjects, te_ids, te_dates)
+            display(df.head(8))
+
+        .. image:: _images/tabulate_behavior_data_corners.png
+    '''
+    # Use default "trial" definition
+    task_codes = load_bmi3d_task_codes()
+    trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
+    trial_start_codes = [task_codes['CORNER_TARGET_ON']]
+    reward_codes = [task_codes['REWARD']]
+    penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    target_codes = task_codes['CORNER_TARGET_ON']
+    pause_codes = [task_codes['PAUSE_START'], task_codes['PAUSE_END'], task_codes['PAUSE']]
+
+    # Concatenate base trial data
+    if 'sequence_params' not in metadata:
+        metadata.append('sequence_params')
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata, df=None, repeating_start_codes=True)
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
+
+    # Add target info
+    chain_length = [
+        json.loads(params)['chain_length']
+        if 'chain_length' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    target_idx = [
+        code[np.isin(code, target_codes)] - target_codes[0] + 1 # add 1 for center target, which doesn't exist in this task
+        if np.sum(np.isin(code, target_codes)) > 0 else []
+        for code 
+        in new_df['event_codes']
+    ]
+    target_location = [
+        np.squeeze(get_target_locations(preproc_dir, s, te, d, t_idx))
+        for s, te, d, t_idx 
+        in zip(new_df['subject'], new_df['te_id'], new_df['date'], target_idx)
+    ]
+    new_df['chain_length'] = chain_length
+    new_df['target_idx'] = target_idx
+    new_df['target_location'] = target_location
+
+    # Add trial segment timing
+    new_df['prev_trial_end_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['first_target_on_time'] = np.nan
+    new_df['trial_initiated'] = False
+    new_df['hold_start_time'] = np.nan # aka first target enter time
+    new_df['hold_completed'] = False
+    new_df['delay_start_time'] = np.nan # aka second target on time
+    new_df['delay_completed'] = False
+    new_df['go_cue_time'] = np.nan # aka first target off time
+    new_df['reach_completed'] = False
+    new_df['reach_end_time'] = np.nan # aka second target enter time
+    new_df['reward_start_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_event'] = np.nan
+    new_df['pause_start_time'] = np.nan
+    new_df['pause_event'] = np.nan
+    for i in range(len(new_df)):
+        event_codes = new_df.loc[i, 'event_codes']
+        event_times = new_df.loc[i, 'event_times']
+
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        # First corner target appears
+        new_df.loc[i, 'first_target_on_time'] = event_times[0]
+
+        # Trial initiated if cursor enters the first corner target
+        hold_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_CORNER_TARGET']])] # this list may be as long as the number of corner targets in the chain
+        new_df.loc[i, 'trial_initiated'] = len(hold_times) > 0
+        if new_df.loc[i, 'trial_initiated']:
+            new_df.loc[i, 'hold_start_time'] = hold_times[0] # entering the first corner target is the start of hold
+
+        # Hold completed if second corner target turns on (start of delay)
+        delay_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_ON'])] # this list may be as long as the number of corner targets in the chain
+        new_df.loc[i, 'hold_completed'] = len(delay_times) > 1
+        if new_df.loc[i, 'hold_completed']:
+            new_df.loc[i, 'delay_start_time'] = delay_times[1] # second corner target on is the start of delay
+
+        # Delay completed when first corner target turns off (go cue)
+        go_cue_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_OFF'])] # this list may be as long as one less than the number of corner tagets in the chain
+        new_df.loc[i, 'delay_completed'] = len(go_cue_times) > 0
+        if new_df.loc[i, 'delay_completed']:
+            new_df.loc[i, 'go_cue_time'] = go_cue_times[0]
+
+        # Reach completed if cursor enters second corner target (regardless of whether the trial was successful)
+        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_CORNER_TARGET'])] # this list may be as long as the number of corner targets in the chain
+        new_df.loc[i, 'reach_completed'] = len(reach_times) > 1
+        if new_df.loc[i, 'reach_completed']:
+            new_df.loc[i, 'reach_end_time'] = reach_times[1]
+
+        # Reward start times
+        reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+
+        # Penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penalty_events = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penalty_events[0]
+
+        # Pause events
+        pause_idx = np.isin(event_codes, pause_codes)
+        pause_events = event_codes[pause_idx]
+        pause_times = event_times[pause_idx]
+        if len(pause_times) > 0:
+            new_df.loc[i, 'pause_start_time'] = pause_times[0]
+            new_df.loc[i, 'pause_event'] = pause_events[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
