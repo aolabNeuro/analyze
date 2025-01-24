@@ -1985,6 +1985,7 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
     reward_codes = [task_codes['REWARD']]
     penalty_codes = [task_codes['TIMEOUT_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['OTHER_PENALTY']]
+    pause_codes = [task_codes['PAUSE_START'], task_codes['PAUSE_END'], task_codes['PAUSE']]
     
     # Concatenate base trial data
     if 'sequence_params' not in metadata:
