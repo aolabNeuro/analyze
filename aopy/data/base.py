@@ -939,6 +939,13 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, center=(0,0), 
             
         .. image:: _images/ecog244_opto32_theta90.png
 
+        .. code-block:: python
+
+            plt.figure()
+            plot_spatial_drive_map(np.zeros(64,), drive_type='EMG_GR08MM1305', cmap='Greys', theta=0)
+            annotate_spatial_map_channels(drive_type='EMG_GR08MM1305', color='k', theta=0)
+
+        .. image:: _images/emg64_gr08mm1305.png
 
     '''
     config_files = files('aopy').joinpath('config')
@@ -954,6 +961,10 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, center=(0,0), 
     elif drive_type == 'NP_Insert72' or drive_type == 'NP_Insert137':
         signal_path_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_signal_path.xlsx'))
         elec_to_pos_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_ch_mapping.xlsx'))
+    elif drive_type == 'EMG_GR08MM1305':
+        signal_path_filepath = as_file(config_files.joinpath('251202_64ch_emg_signal_path.xlsx'))
+        elec_to_pos_filepath = as_file(config_files.joinpath('64ch_emg_gr08mm1305_elec_to_pos.xlsx'))
+        rotation_offset = (16, 48)
     else:
         raise ValueError('Drive type not supported')
     

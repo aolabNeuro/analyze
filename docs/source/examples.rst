@@ -27,4 +27,8 @@ Examples:
 .. toctree::
 
     examples/neuropixel_example.ipynb
+
+.. toctree::
+
+    examples/tabulate_tracking_task_example.ipynb
     
