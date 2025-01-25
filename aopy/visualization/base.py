@@ -449,6 +449,11 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     if extent is None:
         extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
+    if len(x_pos) != len(y_pos):
+        raise ValueError('x_pos and y_pos must have the same length!')
+    if len(data) != len(x_pos):
+        raise ValueError('Data and position must have the same length!')
+    data = np.squeeze(data)
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)

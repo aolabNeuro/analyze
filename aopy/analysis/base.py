@@ -1817,64 +1817,76 @@ def calc_spatial_map_correlation(data_maps, align_maps=False):
 
     Args:
         data_maps ((nmaps,) list): list of (ncol, nrow) spatial data arrays
-        align_maps (bool): Whether or not to align maps. Default False.
+        align_maps (bool): Whether or not to align maps. Always aligns to the first map. Default False.
 
     Returns:
         tuple: tuple containing:
             | **NCC (nmaps, nmaps):** normalized correlation coefficients
             | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+
+    Examples:
+
+        Generate a noisy map and two copies with known change and shift
+
+        .. code-block:: python
+
+            data1 = np.random.normal(0,1,(nrows,ncols))
+            data2 = data1.copy()
+            NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+            self.assertAlmostEqual(NCC[1,0], 1)
+
+            nrows_changed = 5
+            ncols_changed = 3
+            for irow in range(nrows_changed):
+                data2[irow,:ncols_changed] = 1
+
+            data3 = data2.copy()
+            data3 = np.roll(data3, 2, axis=0)
+
+            NCC, shifts = aopy.analysis.calc_spatial_map_correlation([data1, data2, data3], True)
+
+        Plot the maps and correlation coefficients against the reference map
+            
+        .. code-block:: python
+
+            fig, [ax1, ax2, ax3] = plt.subplots(1,3, figsize=(8,3))
+            im1 = ax1.pcolor(data1)
+            ax1.set(title='Reference')
+            plt.colorbar(im1, ax=ax1)
+            
+            im2 = ax2.pcolor(data2)
+            ax2.set(title=f'R^2={np.round(NCC[1,0],3)}')
+            plt.colorbar(im2, ax=ax2)
+            
+            im3 = ax3.pcolor(data3)
+            ax3.set(title=f'R^2={np.round(NCC[2,0],3)}')
+            plt.colorbar(im3, ax=ax3)
+
+        .. image:: _images/calc_spatial_map_correlation.png
     '''
     # Prepare spatial maps
     shifts = []
+    flat_maps = []
     for idx in range(len(data_maps)):
-        if align_maps:
-            data_maps[idx][np.isnan(data_maps[idx])] = 0 # replace NaNs with 0s so correlation doesn't output NaN
-        
+        data_map = data_maps[idx].copy()
+        data_map[np.isnan(data_maps[idx])] = 0 # replace NaNs with 0s so correlation doesn't output NaN
+        if align_maps:        
             # Align to first map
             shift = (0,0)
             if idx == 0:
                 day0_map = data_maps[0].copy()
             else:
-                data_maps[idx], shift = align_spatial_maps(day0_map, data_maps[idx])
+                data_map, shift = align_spatial_maps(day0_map, data_map)
             shifts.append(shift)
         else:
             shifts.append((0,0))
+        flat_maps.append(data_map.ravel())
             
     # Compute correlation
-    data_maps /= np.linalg.norm(data_maps, axis=1, keepdims=True)
-    NCC = np.corrcoef(data_maps)
+    flat_maps /= np.linalg.norm(flat_maps, axis=1, keepdims=True)
+    NCC = np.corrcoef(flat_maps)
 
     return NCC, shifts   
-
-def calc_spatial_data_correlation(elec_data, elec_pos, interp=False, grid_size=None, 
-                                  interp_method='cubic', align_maps=False):
-    '''
-    Wrapper around :func:`~aopy.analysis.calc_spatial_map_correlation` that interpolates electrode data 
-    onto a map before computing correlation.
-
-    Args:
-        elec_data ((nmaps,) list): list of (nch,) spatial data arrays
-        elec_pos ((nch, 2) array): electrode positions for each channel
-        interp (bool): whether or not to interpolate data maps. Default False.
-        grid_size ((2,) tuple, optional): map size for interpolation, e.g. (16,16) for a 16x16 grid
-        interp_method (str): interpolation method to use. Default 'cubic'
-        align_maps (bool): Whether or not to align maps. Default False.
-
-    Returns:
-        tuple: tuple containing:
-            | **NCC (nmaps, nmaps):** normalized correlation coefficients
-            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
-    '''
-    data_maps = []
-    for elec_data in elec_data:
-        if interp:
-            data_map, _ = visualization.calc_data_map(elec_data, elec_pos[:,0], elec_pos[:,1], 
-                                                    grid_size, interp_method=interp_method)
-        else:
-            data_map = visualization.get_data_map(elec_data, elec_pos[:,0], elec_pos[:,1])
-        data_maps.append(data_map)
-
-    return calc_spatial_map_correlation(data_maps, align_maps)
 
 def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
     '''
