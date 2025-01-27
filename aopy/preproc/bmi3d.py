@@ -112,7 +112,7 @@ def parse_bmi3d(data_dir, files):
         metadata['bmi3d_parser'] = 0
         metadata['sync_protocol_version'] = sync_version
 
-    elif sync_version < 15:
+    elif sync_version < 16:
         data, metadata = _parse_bmi3d_v1(data_dir, files)
         metadata['bmi3d_parser'] = 1
 
@@ -172,6 +172,8 @@ def _parse_bmi3d_v0(data_dir, files):
     # Load data and metadata from hdf file
     bmi3d_root_metadata = aodata.load_bmi3d_root_metadata(data_dir, bmi3d_hdf_filename)
     metadata.update(bmi3d_root_metadata)
+    if 'features' not in bmi3d_root_metadata:
+        metadata['features'] = []
     if aodata.is_table_in_hdf('task', bmi3d_hdf_full_filename):
         bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, bmi3d_hdf_filename, 'task')
         metadata.update(bmi3d_task_metadata)
@@ -618,12 +620,6 @@ def _prepare_bmi3d_v1(data, metadata):
         'clock': corrected_clock,
         'events': corrected_events,
     })
-
-    # Also put some information about the reward system
-    if 'reward_system' in data and 'reward_system' in metadata['features']:
-        metadata['has_reward_system'] = True
-    else:
-        metadata['has_reward_system'] = False
 
     # In some versions of BMI3D, hand position contained erroneous data
     # caused by `np.empty()` instead of `np.nan`. The 'clean_hand_position' 
