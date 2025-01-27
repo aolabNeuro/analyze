@@ -9,7 +9,7 @@ import numpy as np
 from ibldsp.voltage import destripe_lfp
 
 from ..utils import extract_barcodes_from_times, get_first_last_times, sync_timestamp_offline, convert_port_number
-from ..data import load_neuropixel_data, load_ks_output, get_channel_bank_name
+from .. import data as aodata
 
 def sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,off_times_ecube,inter_barcode_interval=20,bar_duration=0.02,verbose=False):
     '''
@@ -74,7 +74,7 @@ def parse_ksdata_entries(kilosort_dir, concat_data_dir):
     '''
     
     # Load kilosort data
-    kilosort_output = load_ks_output(kilosort_dir, concat_data_dir, flag='spike')
+    kilosort_output = aodata.load_ks_output(kilosort_dir, concat_data_dir, flag='spike')
     spike_indices = kilosort_output['spike_indices']
     spike_clusters = kilosort_output['spike_clusters']
     ks_label = kilosort_output['ks_label']
@@ -140,8 +140,8 @@ def concat_neuropixel_within_day(np_datadir, kilosort_dir, subject, date, ch_con
         bank_name_list = []
         for idx, path in enumerate(data_path):
             np_recorddir = os.path.split(path)[1]
-            _, metadata = load_neuropixel_data(np_datadir,np_recorddir,'ap',port_number=port_number)
-            bank_name_list.append(get_channel_bank_name(metadata['ch_bank'], ch_config_dir=ch_config_dir))
+            _, metadata = aodata.load_neuropixel_data(np_datadir,np_recorddir,'ap',port_number=port_number)
+            bank_name_list.append(aodata.get_channel_bank_name(metadata['ch_bank'], ch_config_dir=ch_config_dir))
         bank_name_list = np.array(bank_name_list)
         unique_bank = np.unique(bank_name_list)
         nch = metadata['num_channels'] # assumed nch is the same across sessions

@@ -20,6 +20,7 @@ from scipy import interpolate
 import nitime.algorithms as tsa
 import pywt
 
+from .. import visualization
 from .. import utils
 from .. import preproc
 from .. import precondition
@@ -1707,6 +1708,37 @@ def calc_itpc(analytical_signals):
 '''
 Statistics
 '''
+def align_spatial_maps(data1, data2):
+    '''
+    Align two input maps by finding the location of the peak of the 2D correlation function.
+    Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the maps
+    and the alignment should not be used. This function replaces input NaN values with 0 and uses 0-padding for all
+    edge conditions.
+
+    Args:
+        data1 (nrow, ncol): First input data array, used as baseline map.
+        data2 (nrow, ncol): Second input data array, will be shifted to match the baseline map.
+
+    Returns:
+        tuple: tuple containing:
+            | **data2_align (nrow, ncol):** aligned version of data2
+            | **shifts (tuple):** contains (row_shifts, col_shifts)
+    '''
+    # Replace NaNs with 0s so correlation doesn't output NaN
+    data1[np.isnan(data1)] = 0
+    data2[np.isnan(data2)] = 0
+    
+    # Align data maps.
+    corr = scipy.signal.correlate2d(data1/np.linalg.norm(data1), data2/np.linalg.norm(data2), 
+                                    boundary='fill', mode='same')
+    irow, icol = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
+    row_shift = int(irow - (data1.shape[0]-1)/2)
+    col_shift = int(icol - (data1.shape[1]-1)/2)
+    data2_align = np.roll(data2, row_shift, axis=0)
+    data2_align = np.roll(data2_align, col_shift, axis=1)
+    shifts = (row_shift, col_shift)
+    return data2_align, shifts
+
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''
     This function creates a map showning the local correlation between two input datamaps. If specified, it also aligns the input
@@ -1747,14 +1779,7 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     
     # Get maxidx of 2D spatial correlation matrix to ensure data maps are aligned.
     if align_maps:
-        corr = scipy.signal.correlate2d(data1/np.linalg.norm(data1), data2/np.linalg.norm(data2), 
-                                        boundary='fill', mode='same')
-        irow, icol = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
-        row_shift = int(irow - (data1.shape[0]-1)/2)
-        col_shift = int(icol - (data1.shape[1]-1)/2)
-        data2_align = np.roll(data2, row_shift, axis=0)
-        data2_align = np.roll(data2_align, col_shift, axis=1)
-        shifts = (row_shift, col_shift)
+        data2_align, shifts = align_spatial_maps(data1, data2)
     else:
         data2_align = data2
         shifts = (0,0)
@@ -1782,8 +1807,87 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     
     # Replace NaNs in correlation map
     NCC[nan_idx1] = np.nan
-    
     return NCC, shifts
+
+def calc_spatial_map_correlation(data_maps, align_maps=False):
+    '''
+    Generate a correlation matrix between all pairs of input data maps. If specified, it also aligns the input
+    maps. Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the datamaps
+    and alignment should not be used. This function replaces input NaN values with 0 to calculate the correlation
+    matrix. Data maps are normalized by their magnitude prior to computing correlation.
+
+    Args:
+        data_maps ((nmaps,) list): list of (ncol, nrow) spatial data arrays
+        align_maps (bool): Whether or not to align maps. Always aligns to the first map. Default False.
+
+    Returns:
+        tuple: tuple containing:
+            | **NCC (nmaps, nmaps):** normalized correlation coefficients
+            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+
+    Examples:
+
+        Generate a noisy map and two copies with known change and shift
+
+        .. code-block:: python
+
+            data1 = np.random.normal(0,1,(nrows,ncols))
+            data2 = data1.copy()
+            NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+            self.assertAlmostEqual(NCC[1,0], 1)
+
+            nrows_changed = 5
+            ncols_changed = 3
+            for irow in range(nrows_changed):
+                data2[irow,:ncols_changed] = 1
+
+            data3 = data2.copy()
+            data3 = np.roll(data3, 2, axis=0)
+
+            NCC, shifts = aopy.analysis.calc_spatial_map_correlation([data1, data2, data3], True)
+
+        Plot the maps and correlation coefficients against the reference map
+            
+        .. code-block:: python
+
+            fig, [ax1, ax2, ax3] = plt.subplots(1,3, figsize=(8,3))
+            im1 = ax1.pcolor(data1)
+            ax1.set(title='Reference')
+            plt.colorbar(im1, ax=ax1)
+            
+            im2 = ax2.pcolor(data2)
+            ax2.set(title=f'R^2={np.round(NCC[1,0],3)}')
+            plt.colorbar(im2, ax=ax2)
+            
+            im3 = ax3.pcolor(data3)
+            ax3.set(title=f'R^2={np.round(NCC[2,0],3)}')
+            plt.colorbar(im3, ax=ax3)
+
+        .. image:: _images/calc_spatial_map_correlation.png
+    '''
+    # Prepare spatial maps
+    shifts = []
+    flat_maps = []
+    for idx in range(len(data_maps)):
+        data_map = data_maps[idx].copy()
+        data_map[np.isnan(data_maps[idx])] = 0 # replace NaNs with 0s so correlation doesn't output NaN
+        if align_maps:        
+            # Align to first map
+            shift = (0,0)
+            if idx == 0:
+                day0_map = data_maps[0].copy()
+            else:
+                data_map, shift = align_spatial_maps(day0_map, data_map)
+            shifts.append(shift)
+        else:
+            shifts.append((0,0))
+        flat_maps.append(data_map.ravel())
+            
+    # Compute correlation
+    flat_maps /= np.linalg.norm(flat_maps, axis=1, keepdims=True)
+    NCC = np.corrcoef(flat_maps)
+
+    return NCC, shifts   
 
 def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
     '''

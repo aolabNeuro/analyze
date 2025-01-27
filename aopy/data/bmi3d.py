@@ -22,7 +22,7 @@ from ..preproc.base import get_data_segment, get_data_segments, get_trial_segmen
 from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
-from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_trial, load_hdf_ts_segment, load_hdf_group
+from . import base 
 
 ############
 # Raw data #
@@ -220,7 +220,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
     '''
     lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
 
-    metadata = load_hdf_group('', broadband_filepath, 'broadband_metadata')
+    metadata = base.load_hdf_group('', broadband_filepath, 'broadband_metadata')
     samplerate = metadata['samplerate']
     n_channels = int(metadata['n_channels'])
     n_samples = int(metadata['n_samples'])
@@ -803,7 +803,7 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
             
         .. image:: _images/get_cycle_data.png
     '''
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     if samplerate is None:
         samplerate = exp_metadata['fps']
 
@@ -845,7 +845,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''
     if 'eye' in datatype:
-        eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
             eye_data = eye_data['raw_data']
         elif datatype == 'eye_closed_mask':
@@ -999,7 +999,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
 
     Modified September 2023 to include optional sampling rate argument     
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     event_codes = data['events']['code']
     event_times = data['events']['timestamp']
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
@@ -1038,8 +1038,8 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
 
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1078,8 +1078,8 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
 
 
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1125,12 +1125,12 @@ def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_befo
         data_name='broadband_data'
         metadata_group='broadband_metadata'
         samplerate_key='samplerate'
-    filename = get_preprocessed_filename(subject, te_id, date, datatype)
+    filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
 
     try:
-        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
-        data = load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
+        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
+        data = base.load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
                                  samplerate, trigger_time, time_before, time_after, channels=channels)
     except FileNotFoundError as e:
         print(f"No data found in {preproc_dir} for subject {subject} on {date} ({te_id})")
@@ -1169,12 +1169,12 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
         data_name='broadband_data'
         metadata_group='broadband_metadata'
         samplerate_key='samplerate'
-    filename = get_preprocessed_filename(subject, te_id, date, datatype)
+    filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
 
     try:
-        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
-        data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
+        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        data = base.load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
                                    samplerate, start_time, end_time, channels=channels)
     except FileNotFoundError as e:
         print(f"No data found in {preproc_dir} for subject {subject} on {date} ({te_id})")
@@ -1204,8 +1204,8 @@ def get_spike_data_segment(preproc_dir, subject, te_id, date, start_time, end_ti
     '''
 
     # Load data
-    filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
+    filename_mc = base.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = base.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
     
     # Parse segment and bin spikes if necessary.
     spike_segment = {}
@@ -1246,8 +1246,8 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, tim
             - bins (numpy.ndarray): The time bin centers relative to the trigger times.
     """
     # Load data
-    filename_mc = get_preprocessed_filename(subject, te_id, date, 'spike')
-    spike_data = load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
+    filename_mc = base.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = base.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
     
     # Define relevant variables
     samplerate = int(np.round(1/bin_width))
@@ -1311,9 +1311,9 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     if start_time is None:
         start_time = 0.
     if end_time is None:
-        ts_filename = get_preprocessed_filename(subject, te_id, date, datatype)
+        ts_filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
         preproc_dir_subject = os.path.join(preproc_dir, subject)
-        ts_metadata = load_hdf_group(preproc_dir_subject, ts_filename, 
+        ts_metadata = base.load_hdf_group(preproc_dir_subject, ts_filename, 
                                                f'{datatype}_metadata', cached=True)
         end_time = ts_metadata['n_samples']/ts_metadata['samplerate']
 
@@ -1324,7 +1324,7 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     lfp_samplerate = f_extractor.fs
 
     # Find times to extract
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)    
+    exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)    
     step = int(decoder.call_rate * decoder.binlen)
     ts = exp_data['clock']['timestamp_sync'][::step]
     ts = ts[ts > start_time]
@@ -1476,7 +1476,7 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     Returns:
         ndarray: (ntarg x 3) array of coordinates of the given targets
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     try:
         trials = data['trials']
     except:
@@ -1507,7 +1507,7 @@ def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
             | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
             | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
     return freq_r, freq_d
 
@@ -1526,7 +1526,7 @@ def get_source_files(preproc_dir, subject, te_id, date):
             | ** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
             | ** data_dir (str):** directory where the source files were located
     '''
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
 
 def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
@@ -1577,7 +1577,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
 
         # Load data from bmi3d hdf 
         try:
-            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+            exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
@@ -2280,7 +2280,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
         # Load data from bmi3d hdf 
         try:
-            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+            exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
@@ -2719,5 +2719,5 @@ def load_bmi3d_task_codes(filename='task_codes.yaml'):
     config_dir = files('aopy').joinpath('config')
     params_file = as_file(config_dir.joinpath(filename))
     with params_file as f:
-        task_codes = yaml_read(f)[0]
+        task_codes = base.yaml_read(f)[0]
     return task_codes

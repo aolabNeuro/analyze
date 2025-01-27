@@ -884,8 +884,8 @@ class TestEyePlots(unittest.TestCase):
         te_id = 5974
         date = '2022-07-01'
         preproc_dir = data_dir
-        exp_data, exp_metadata = aopy.data.bmi3d.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        eye_data, eye_metadata = aopy.data.bmi3d.load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        exp_data, exp_metadata = aopy.data.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = aopy.data.load_preproc_eye_data(preproc_dir, subject, te_id, date)
 
         eye_raw = eye_data['raw_data']
         eye_samplerate = eye_metadata['samplerate']
