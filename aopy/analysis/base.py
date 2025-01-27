@@ -1712,7 +1712,8 @@ def align_spatial_maps(data1, data2):
     '''
     Align two input maps by finding the location of the peak of the 2D correlation function.
     Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the maps
-    and the alignment should not be used. This function replaces input NaN values with 0 to calculate the correlation.
+    and the alignment should not be used. This function replaces input NaN values with 0 and uses 0-padding for all
+    edge conditions.
 
     Args:
         data1 (nrow, ncol): First input data array, used as baseline map.
