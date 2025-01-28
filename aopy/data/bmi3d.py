@@ -1973,6 +1973,7 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
             | **penalty (ntrial):** boolean values indicating whether each trial was penalized
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **sequence_params (ntrial):** string of params used to generate all trajectories in the same task entry
             | **chain_length (ntrial):** number of targets presented in each trial
             | **target_idx (ntrial):** list of indices of the targets presented
             | **target_location (ntrial):** list of locations of the targets presented
