@@ -572,6 +572,24 @@ def calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, statistic='mean', bin
         tuple: tuple containing:
             | **dist (nbins):** electrode distance at each bin
             | **stat (nbins):** statistic at each bin
+
+    Example:
+    
+        .. code-block:: python
+        
+            nelec = 100
+            elec_data = np.arange(nelec)
+            elec_pos = [[idx, 1] for idx in range(nelec)]
+            pos = [0,1]
+            dist, mean = aopy.analysis.calc_stat_over_dist_from_pos(elec_data, elec_pos, pos)
+
+            plt.figure()
+            plt.plot(dist, mean)
+            plt.xlabel('Distance')
+            plt.ylabel('Mean')
+            plt.title('Increasing statistic with distance')
+
+        .. image:: _images/increasing_statistic_with_distance.png
     '''
     assert len(pos) == 2, "Position must be a 2D point"
     assert len(elec_data) == len(elec_pos), "Number of electrodes don't match!"

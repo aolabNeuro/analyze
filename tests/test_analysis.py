@@ -504,7 +504,6 @@ class CalcTests(unittest.TestCase):
         pos = [0,1]
         nbins=20
         dist, mean = aopy.analysis.calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, bins=nbins)
-        print(dist, mean)
         self.assertEqual(dist.size, nbins)
         self.assertEqual(mean.size, nbins)
 
