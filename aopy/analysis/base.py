@@ -557,6 +557,33 @@ def calc_corr_over_elec_distance(elec_data, elec_pos, bins=20, method='spearman'
 
     return dist, corr
 
+def calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, statistic='mean', bins=20):
+    '''
+    For spatial data, calculate a statistic over distance from a given position.
+
+    Args:
+        elec_data (nelec): electrode data
+        elec_pos (nelec, 2): x, y position of each electrode
+        pos (2,): x, y position to calculate distance from
+        statistic (str): statistic to calculate ('mean', 'std', 'median', 'max', 'min'). See scipy.stats.binned_statistic. Default 'mean'.
+        bins (int or array): number of bins or bin edges for binned_statistic. Default 20.
+
+    Returns:
+        tuple: tuple containing:
+            | **dist (nbins):** electrode distance at each bin
+            | **stat (nbins):** statistic at each bin
+    '''
+    assert len(pos) == 2, "Position must be a 2D point"
+    assert len(elec_data) == len(elec_pos), "Number of electrodes don't match!"
+    assert np.shape(elec_pos)[1] == 2, "Electrode positions must be 2D"
+
+    pos = np.array(pos)
+    dist = [np.linalg.norm(np.array(p) - pos) for p in elec_pos]
+    stat, edges, _ = stats.binned_statistic(dist, elec_data, statistic=statistic, bins=bins)
+    dist = (edges[:-1] + edges[1:]) / 2
+
+    return dist, stat
+
 def subtract_erp_baseline(erp, time, t0, t1):
     '''
     Subtract pre-trigger activity from trial-aligned data.
