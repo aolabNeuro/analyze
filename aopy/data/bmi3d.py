@@ -2072,39 +2072,39 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
             # Tracking begins
             new_df.loc[i, 'tracking_start_time'] = tracking_start_times[0]
 
-            # Tracking ends in one of three ways: reward, tracking out penalty, experimenter pause
+            # Tracking ends in one of these ways: reward, tracking out penalty, experimenter pause
             tracking_end_times = event_times[np.isin(event_codes, [task_codes['REWARD'], task_codes['OTHER_PENALTY'], task_codes['PAUSE_START'], task_codes['PAUSE']])]
             new_df.loc[i, 'tracking_end_time'] = tracking_end_times[0]
 
-            # Trajectory-tracking is a specific portion of tracking that excludes any ramp periods
+            # Trajectory-tracking is a specific portion of tracking that excludes any ramp periods 
+            # (earlier versions of the task did not use ramp-specific event codes, these were included in later versions for more accurate segmenting)
             ramp_up_events = event_codes[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_UP']])]
             ramp_down_events = event_codes[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_DOWN'], task_codes['CURSOR_LEAVE_TARGET_RAMP_DOWN']])]
 
-            # Earlier versions of the task did not contain ramp-specific event codes, so handle differently
-            if (ramp[i] > 0 and len(ramp_up_events) < 1) or (ramp_down[i] > 0 and len(ramp_down_events) < 1):
-                # Trajectory excludes ramp up period at beginning of tracking (as long as no penalty or pause interrupted ramp up)
+            # EARLIER VERSION HANDLING: Trajectory begins after the ramp up period at the start of tracking (as long as no penalty or pause interrupted ramp up)
+            if ramp[i] > 0 and len(ramp_up_events) < 1:
                 if new_df.loc[i, 'tracking_start_time'] + ramp[i] < new_df.loc[i, 'tracking_end_time']:
                     new_df.loc[i, 'trajectory_start_time'] = new_df.loc[i, 'tracking_start_time'] + ramp[i]
 
-                # If trial is successful, trajectory excludes ramp down period at end of tracking
-                if new_df.loc[i, 'reward']:
-                    new_df.loc[i, 'trajectory_end_time'] = new_df.loc[i, 'tracking_end_time'] - ramp_down[i]
-                    
-            # Later versions of the task contained ramp-specific event codes for more accurate segmenting
+            # LATER VERSION HANDLING: Trajectory begins the first time cursor interacts with target in a non-ramp state
             else:
-                # Trajectory begins the first time cursor interacts with target in a non-ramp state
                 trajectory_start_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET'],       # transition from ramp up to trajectory occurred while cursor was tracking in OR there's no ramp up
                                                                            task_codes['CURSOR_LEAVE_TARGET']])]     # transition from ramp up to trajectory occurred while cursor was tracking out
                 if len(trajectory_start_times) > 0:
                     new_df.loc[i, 'trajectory_start_time'] = trajectory_start_times[0]
 
-                # Trajectory ends the first time cursor interacts target in a ramp-down state (if that doesn't exist, then trajectory ends the same way tracking does)
-                trajectory_end_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_DOWN'],       # transition from trajectory to ramp down occurred while cursor was tracking in
-                                                                         task_codes['CURSOR_LEAVE_TARGET_RAMP_DOWN']])]     # transition from trajectory to ramp down occurred while cursor was tracking out
-                if len(trajectory_end_times) > 0:                        
-                    new_df.loc[i, 'trajectory_end_time'] = trajectory_end_times[0]
-                elif ~np.isnan(new_df.loc[i, 'trajectory_start_time']):
-                    new_df.loc[i, 'trajectory_end_time'] = new_df.loc[i, 'tracking_end_time']
+            # Trajectory ends in one of these ways: first occurrence of a ramp down event, reward, tracking out penalty, experimenter pause
+            trajectory_end_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_DOWN'],   # transition from trajectory to ramp down occurred while cursor was tracking in
+                                                                     task_codes['CURSOR_LEAVE_TARGET_RAMP_DOWN'],   # transition from trajectory to ramp down occurred while cursor was tracking out
+                                                                     task_codes['REWARD'],
+                                                                     task_codes['OTHER_PENALTY'],
+                                                                     task_codes['PAUSE_START'], task_codes['PAUSE']])]
+            if ~np.isnan(new_df.loc[i, 'trajectory_start_time']) and len(trajectory_end_times) > 0:
+                new_df.loc[i, 'trajectory_end_time'] = trajectory_end_times[0]
+
+            # EARLIER VERSION HANDLING: Trajectory excludes ramp down period at end of tracking if trial was successful
+            if new_df.loc[i, 'reward'] and ramp_down[i] > 0 and len(ramp_down_events) < 1:
+                new_df.loc[i, 'trajectory_end_time'] = new_df.loc[i, 'tracking_end_time'] - ramp_down[i]
 
         # Reward start times
         reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
