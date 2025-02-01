@@ -1971,13 +1971,21 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
             | **sequence_params (ntrial):** string of params used to generate all trajectories in the same task entry
             | **ref_freqs (ntrial):** array of frequencies used to generate reference trajectory for each trial
             | **dis_freqs (ntrial):** array of frequencies used to generate disturbance trajectory for each trial
+            | **prev_trial_end_time (ntrial):** time at which the previous trial ended
+            | **target_on_time (ntrial):** time at which the trial started
             | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated (i.e. hold was attempted)
             | **hold_start_time (ntrial):** time at which the hold period started
             | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
             | **tracking_start_time (ntrial):** time at which the hold period ended and tracking started
-            | **tracking_end_time (ntrial):** time at which tracking ended (whether with a reward or tracking out penalty)
             | **trajectory_start_time (ntrial):** time at which the ref & dis trajectories started (excluding the ramp up period)
             | **trajectory_end_time (ntrial):** time at which the ref & dis trajectories ended (excluding the ramp down period if the trial was rewarded)
+            | **tracking_end_time (ntrial):** time at which tracking ended (whether with a reward or tracking out penalty)
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **penalty_start_time (ntrial):** time at which the penalty occurred
+            | **penalty_event (ntrial):** numeric code for the penalty event
+            | **pause_start_time (ntrial):** time at which the pause occurred
+            | **pause_event (ntrial):** numeric code for the pause event
+            | **trial_end_time (ntrial):** time at which the trial ended
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
@@ -2006,14 +2014,7 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     new_df['ref_freqs'] = ref_freqs
     new_df['dis_freqs'] = dis_freqs
     
-    # Add trial segment timing
-    new_df['trial_initiated'] = np.zeros(len(new_df), dtype='bool')
-    new_df['hold_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['hold_completed'] = np.zeros(len(new_df), dtype='bool')
-    new_df['tracking_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['tracking_end_time'] = np.nan*np.zeros(len(new_df))
-    new_df['trajectory_start_time'] = np.nan*np.zeros(len(new_df))
-    new_df['trajectory_end_time'] = np.nan*np.zeros(len(new_df))
+    # Get ramp lengths
     ramp = [
         json.loads(params)['ramp']
         if 'ramp' in json.loads(params) else 0
@@ -2026,32 +2027,101 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
         for params
         in new_df['sequence_params']
     ]
+
+    # Add trial segment timing
+    new_df['prev_trial_end_time'] = np.nan
+    new_df['target_on_time'] = np.nan
+    new_df['trial_initiated'] = False
+    new_df['hold_start_time'] = np.nan
+    new_df['hold_completed'] = False
+    new_df['tracking_start_time'] = np.nan
+    new_df['trajectory_start_time'] = np.nan
+    new_df['trajectory_end_time'] = np.nan
+    new_df['tracking_end_time'] = np.nan
+    new_df['reward_start_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_event'] = np.nan
+    new_df['pause_start_time'] = np.nan
+    new_df['pause_event'] = np.nan
+    new_df['trial_end_time'] = np.nan
     for i in range(len(new_df)):
         event_codes = new_df.iloc[i]['event_codes']
         event_times = new_df.iloc[i]['event_times']
 
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        # Trial start time (center target appears)
+        new_df.loc[i, 'target_on_time'] = event_times[0]
+
         # Trial initiated when hold begins
-        _, initiation_times = get_trial_segments(event_codes, event_times,
-                                            [task_codes['CENTER_TARGET_ON']], [task_codes['TRIAL_START']])
-        new_df.loc[i,'trial_initiated'] = len(initiation_times) > 0 # if False, TIMEOUT_PENALTY
-        if new_df.loc[i,'trial_initiated']:
-            new_df.loc[i,'hold_start_time'] = initiation_times[0][-1]
+        initiation_times = event_times[np.isin(event_codes, [task_codes['TRIAL_START']])]
+        new_df.loc[i, 'trial_initiated'] = len(initiation_times) > 0 # if False, TIMEOUT_PENALTY
+        if new_df.loc[i, 'trial_initiated']:
+            new_df.loc[i, 'hold_start_time'] = initiation_times[0]
 
         # Hold completed when tracking begins (first time cursor enters target)
-        tracking_events, tracking_times = get_trial_segments_and_times(event_codes, event_times,
-                                            [task_codes['TRIAL_START']], [task_codes['REWARD'],task_codes['OTHER_PENALTY']])
-        new_df.loc[i,'hold_completed'] = len(tracking_times) > 0 # if False, HOLD_PENALTY
-        if new_df.loc[i,'hold_completed']:
-            new_df.loc[i,'tracking_start_time'] = tracking_times[0][1] # TRIAL_START, CURSOR_ENTER_TARGET ... REWARD/OTHER_PENALTY
-            new_df.loc[i,'tracking_end_time'] = tracking_times[0][-1]
+        tracking_start_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_UP'],     # first occurrence is beginning of ramp up
+                                                                 task_codes['CURSOR_ENTER_TARGET']])]           # if there's no ramp up, first occurrence is beginning of trajectory
+        new_df.loc[i,'hold_completed'] = len(tracking_start_times) > 0 # if False, HOLD_PENALTY
+        if new_df.loc[i, 'hold_completed']:
+            # Tracking begins
+            new_df.loc[i, 'tracking_start_time'] = tracking_start_times[0]
 
-            # Trajectory excludes ramp period at beginning of tracking (regardless of tracking success)
-            new_df.loc[i,'trajectory_start_time'] = new_df.loc[i,'tracking_start_time']+ramp[i]
-            new_df.loc[i,'trajectory_end_time'] = new_df.loc[i,'tracking_end_time']
+            # Tracking ends in one of two ways: reward or tracking out penalty
+            tracking_end_times = event_times[np.isin(event_codes, [task_codes['REWARD'], task_codes['OTHER_PENALTY']])]
+            new_df.loc[i, 'tracking_end_time'] = tracking_end_times[0]
 
-            # If tracking successful, trajectory excludes ramp period at end of tracking
-            if new_df.loc[i,'reward']:
-                new_df.loc[i,'trajectory_end_time'] = new_df.loc[i,'tracking_end_time']-ramp_down[i]
+            ramp_up_events = event_codes[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_UP']])]
+            ramp_down_events = event_codes[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_DOWN'], task_codes['CURSOR_LEAVE_TARGET_RAMP_DOWN']])]
+
+            # Earlier versions of the task did not contain ramp-specific event codes
+            if (ramp[i] > 0 and len(ramp_up_events) < 1) or (ramp_down[i] > 0 and len(ramp_down_events) < 1):
+                # Trajectory excludes ramp up period at beginning of tracking (regardless of tracking success)
+                new_df.loc[i, 'trajectory_start_time'] = new_df.loc[i, 'tracking_start_time'] + ramp[i]
+                new_df.loc[i, 'trajectory_end_time'] = new_df.loc[i, 'tracking_end_time']
+
+                # If trial is successful, trajectory excludes ramp down period at end of tracking
+                if new_df.loc[i, 'reward']:
+                    new_df.loc[i, 'trajectory_end_time'] = new_df.loc[i, 'tracking_end_time'] - ramp_down[i]
+
+            # Later versions of the task contained ramp-specific event codes for more accurate trial segmenting
+            else:
+                # Trajectory-tracking is a specific portion of tracking that excludes any ramp periods
+                trajectory_start_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET'],       # transition from ramp up to trajectory occurred while cursor was tracking in OR there's no ramp
+                                                                           task_codes['CURSOR_LEAVE_TARGET']])]     # transition from ramp up to trajectory occurred while cursor was tracking out
+                new_df.loc[i, 'trajectory_start_time'] = trajectory_start_times[0]
+
+                trajectory_end_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_TARGET_RAMP_DOWN'], # transition from trajectory to ramp down occurred while cursor was tracking in
+                                                                         task_codes['CURSOR_LEAVE_TARGET_RAMP_DOWN'], # transition from trajectory to ramp down occurred while cursor was tracking out
+                                                                         task_codes['REWARD'],                        # if there's no ramp down, trajectory may end with reward  
+                                                                         task_codes['OTHER_PENALTY']])]               # regardless of ramp down, trajectory may end with tracking out penalty
+                new_df.loc[i, 'trajectory_end_time'] = trajectory_end_times[0]
+
+        # Reward start times
+        reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+
+        # Penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penalty_events = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penalty_events[0]
+
+        # Pause events
+        pause_idx = np.isin(event_codes, pause_codes)
+        pause_events = event_codes[pause_idx]
+        pause_times = event_times[pause_idx]
+        if len(pause_times) > 0:
+            new_df.loc[i, 'pause_start_time'] = pause_times[0]
+            new_df.loc[i, 'pause_event'] = pause_events[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
