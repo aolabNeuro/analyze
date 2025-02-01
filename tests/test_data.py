@@ -888,6 +888,59 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
 
+    def test_tabulate_behavior_data_corners(self):
+        task_codes = load_bmi3d_task_codes()
+        subjects = ['test', 'test']
+        ids = [19005, 19054]
+        dates = ['2024-12-31', '2025-01-21'] # first entry is pre-pause state, second entry has pause state
+        df = tabulate_behavior_data_corners(data_dir, subjects, ids, dates, metadata=['target_radius', 'cursor_radius', 'rand_delay'])
+        self.assertEqual(len(df), 55)
+        self.assertEqual(len(df.columns), 26+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
+
+        # Check chain length (sequence param)
+        self.assertTrue(np.all(df['chain_length'] == 2))
+
+        # Check that rewarded trials are complete
+        self.assertTrue(np.all(df['trial_initiated'][df['reward']]))
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+
+        # Check that reach completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['reach_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['reach_completed']].target_location]))
+
+        # Check that hold completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['hold_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['hold_completed']].target_location]))
+
+        # Check that hold penalty trials have one target idx & location
+        self.assertTrue(np.all([len(idx)==1 for idx in df[df['hold_completed']==False].target_idx]))
+        self.assertTrue(np.all([loc.shape==(3,) for loc in df[df['hold_completed']==False].target_location]))
+
+        # Check that trial segments occur in the correct order
+        reward_df = df[df['reward']]
+        for i in range(len(reward_df)):
+            trial = reward_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['hold_start_time'])
+            self.assertTrue(trial['hold_start_time'] < trial['delay_start_time'])
+            self.assertTrue(trial['delay_start_time'] < trial['go_cue_time'])
+            self.assertTrue(trial['go_cue_time'] < trial['reach_end_time'])
+            self.assertTrue(trial['reach_end_time'] < trial['reward_start_time'])
+            self.assertTrue(trial['reward_start_time'] < trial['trial_end_time'])
+            
+        penalty_df = df[df['penalty']]
+        for i in range(len(penalty_df)):
+            trial = penalty_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['penalty_start_time'])
+            self.assertTrue(trial['penalty_start_time'] < trial['trial_end_time'])
+            
+        # Check pause events
+        pause_df = df[~np.isnan(df['pause_event'])]
+        self.assertTrue(np.all(pause_df['pause_event'] == task_codes['PAUSE_START']))
+        self.assertTrue(np.all(~np.isnan(pause_df['pause_start_time'])))
+        for i in range(len(pause_df)):
+            trial = pause_df.iloc[i]
+            self.assertTrue(trial['pause_start_time'] == trial['trial_end_time'])
+        
     def test_tabulate_behavior_data_tracking_task(self):
         subjects = ['test', 'test']
         ids = [8461, 8461]
@@ -1284,6 +1337,9 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
                    'CENTER_TARGET_OFF': 32,
+                   'CURSOR_ENTER_CORNER_TARGET': list(range(81, 85)),
+                   'CORNER_TARGET_ON': list(range(17, 21)),
+                   'CORNER_TARGET_OFF': list(range(33, 37)),
                    'REWARD': 48,
                    'DELAY_PENALTY': 66,
                    'TIMEOUT_PENALTY': 65,

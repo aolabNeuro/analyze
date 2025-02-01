@@ -602,6 +602,54 @@ class CalcTests(unittest.TestCase):
         filename = 'calc_corr2_map.png'
         aopy.visualization.savefig(docs_dir, filename)
 
+    def test_calc_spatial_map_correlation(self):
+        # Test correlation map
+        nrows = 11
+        ncols = 11
+        data1 = np.ones((nrows,ncols))
+        data2 = np.ones(data1.shape)
+
+        NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+        self.assertTrue(np.isnan(NCC[1,0]))
+
+
+        data1 = np.random.normal(0,1,(nrows,ncols))
+        data2 = data1.copy()
+        NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+        self.assertAlmostEqual(NCC[1,0], 1)
+
+        nrows_changed = 5
+        ncols_changed = 3
+        for irow in range(nrows_changed):
+            data2[irow,:ncols_changed] = 1
+
+        data3 = data2.copy()
+        data3 = np.roll(data3, 2, axis=0)
+
+        NCC, shifts = aopy.analysis.calc_spatial_map_correlation([data1, data2, data3], True)
+        self.assertLess(NCC[1,0], 1)
+        self.assertEqual(NCC[1,0], NCC[2,0])
+        self.assertEqual(shifts[0], (0, 0))
+        self.assertEqual(shifts[1], (0, 0))
+        self.assertEqual(shifts[2], (-2, 0))
+
+        # Plots for example figure 
+        fig, [ax1, ax2, ax3] = plt.subplots(1,3, figsize=(8,3))
+        im1 = ax1.pcolor(data1)
+        ax1.set(title='Reference')
+        plt.colorbar(im1, ax=ax1)
+        
+        im2 = ax2.pcolor(data2)
+        ax2.set(title=f'R^2={np.round(NCC[1,0],3)}')
+        plt.colorbar(im2, ax=ax2)
+        
+        im3 = ax3.pcolor(data3)
+        ax3.set(title=f'R^2={np.round(NCC[2,0],3)}')
+        plt.colorbar(im3, ax=ax3)
+
+        filename = 'calc_spatial_map_correlation.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):

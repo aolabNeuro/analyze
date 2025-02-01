@@ -10,6 +10,11 @@
   - 86
   - 87
   - 88
+  CURSOR_ENTER_CORNER_TARGET:
+  - 81
+  - 82
+  - 83
+  - 84
   DELAY_PENALTY: 66
   HOLD_PENALTY: 64
   PAUSE: 254
@@ -22,6 +27,16 @@
   - 22
   - 23
   - 24
+  CORNER_TARGET_ON:
+  - 17
+  - 18
+  - 19
+  - 20
+  CORNER_TARGET_OFF:
+  - 33
+  - 34
+  - 35
+  - 36
   REWARD: 48
   TIMEOUT_PENALTY: 65
   TIME_ZERO: 238
