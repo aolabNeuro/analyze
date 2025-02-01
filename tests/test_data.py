@@ -1293,7 +1293,11 @@ class TestYaml(unittest.TestCase):
                    'TRIAL_END': 239,
                    'TRIAL_START': 2,
                    'CURSOR_ENTER_TARGET': 80,
+                   'CURSOR_ENTER_TARGET_RAMP_UP': 81,
+                   'CURSOR_ENTER_TARGET_RAMP_DOWN': 82,
                    'CURSOR_LEAVE_TARGET': 96,
+                   'CURSOR_LEAVE_TARGET_RAMP_UP': 97,
+                   'CURSOR_LEAVE_TARGET_RAMP_DOWN': 98,
                    'OTHER_PENALTY': 79,
                    'PAUSE_START': 128,
                    'PAUSE_END': 129}
