@@ -492,7 +492,7 @@ def _prepare_bmi3d_v1(data, metadata):
             preproc_errors.append(f"Only {len(sync_clock)} out of {len(internal_clock)} clock cycles were recorded")
 
         if len(sync_clock) > len(internal_clock):
-            warnings.warn("Warning: extra sync timestamps detected. Maybe a missing hdf file?")
+            warnings.warn(f"Extra clock cycles were recorded ({len(sync_clock)} out of {len(internal_clock)})")
             preproc_errors.append(f"Extra clock cycles were recorded ({len(sync_clock)} out of {len(internal_clock)})")
 
     # Otherwise fall back on the bmi3d clock
@@ -549,7 +549,8 @@ def _prepare_bmi3d_v1(data, metadata):
     # By default use the internal events if they exist
     if 'bmi3d_events' in data:
         corrected_events = np.zeros((len(data['bmi3d_events']),), dtype=
-                                    [('time', 'u8'), ('timestamp', 'f8'), ('timestamp_sync', 'f8'), ('timestamp_measure', 'f8'), 
+                                    [('time', 'u8'), ('timestamp', 'f8'), ('timestamp_bmi3d', 'f8'),
+                                     ('timestamp_sync', 'f8'), ('timestamp_measure', 'f8'), 
                                      ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         corrected_events['time'] = data['bmi3d_events']['time']
         corrected_events['code'] = data['bmi3d_events']['code']
@@ -564,22 +565,27 @@ def _prepare_bmi3d_v1(data, metadata):
         warnings.warn("No bmi3d event data found! Attempting to use sync events instead")
         preproc_errors.append("No bmi3d sync event data found! Attempted to use sync events instead")
         corrected_events = np.zeros((len(data['sync_events']),), dtype=
-                                    [('time', 'u8'), ('timestamp', 'f8'), ('timestamp_sync', 'f8'), ('timestamp_measure', 'f8'), 
+                                    [('time', 'u8'), ('timestamp', 'f8'), ('timestamp_bmi3d', 'f8'), 
+                                     ('timestamp_sync', 'f8'), ('timestamp_measure', 'f8'), 
                                      ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         corrected_events['time'] = data['sync_events']['time']
         corrected_events['code'] = data['sync_events']['code']
         corrected_events['event'] = data['sync_events']['event']
         corrected_events['data'] = data['sync_events']['data']
     else:
-        warnings.warn("No sync events present! Make sure to enable HDF sync to fix this")
-        preproc_errors.append("No sync events present! Make sure to enable HDF sync to fix this")
+        warnings.warn("No bmi3d or sync events present!")
+        preproc_errors.append("No bmi3d or sync events present!")
         data['events'] = np.zeros((0,), dtype=[('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
 
     # Add timestamp fields to the events
     if 'timestamp_sync' in corrected_clock.dtype.names:
         timestamp_sync = np.asarray([corrected_clock['timestamp_sync'][cycle] for cycle in corrected_events['time']])
     else:
-        timestamp_sync = np.asarray([corrected_clock['timestamp_bmi3d'][cycle] for cycle in corrected_events['time']])
+        timestamp_sync = np.nan*np.zeros((len(data['bmi3d_events']),))
+    if 'timestamp_bmi3d' in corrected_clock.dtype.names:
+        timestamp_bmi3d = np.asarray([corrected_clock['timestamp_bmi3d'][cycle] for cycle in corrected_events['time']])
+    else:
+        timestamp_bmi3d = np.nan*np.zeros((len(data['bmi3d_events']),))
     if 'timestamp_measure_offline' in corrected_clock.dtype.names:
         timestamp_measure = np.asarray([corrected_clock['timestamp_measure_offline'][cycle] for cycle in corrected_events['time']])
     else:
@@ -588,13 +594,14 @@ def _prepare_bmi3d_v1(data, metadata):
     # And keep a copy of each clock for convenience
     corrected_events['timestamp_measure'] = timestamp_measure
     corrected_events['timestamp_sync'] = timestamp_sync
+    corrected_events['timestamp_bmi3d'] = timestamp_bmi3d
     corrected_events['timestamp'] = timestamp_sync # the default for simplicity
 
     # Check the integrity of the sync events from all the sources
     if 'bmi3d_events' in data and 'sync_events' in data:
-        if len(data['sync_events']['code']) != len(corrected_events['code']):
-            warnings.warn("Digital sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
-            preproc_errors.append("Digital sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
+        if len(data['sync_events']) != len(corrected_events):
+            warnings.warn(f"Number of sync events ({len(data['sync_events'])}) doesn't match number of bmi3d events ({len(corrected_events)}).")
+            preproc_errors.append(f"Number of sync events ({len(data['sync_events'])}) doesn't match number of bmi3d events ({len(corrected_events)}).")
 
     # Add task data
     if 'bmi3d_task' in data:
