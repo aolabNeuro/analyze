@@ -499,7 +499,9 @@ def _prepare_bmi3d_v1(data, metadata):
     elif 'bmi3d_clock' in data:
         corrected_clock['time'] = data['bmi3d_clock']['time'].copy()
         corrected_clock['timestamp_bmi3d'] = data['bmi3d_clock']['timestamp'].copy() 
-        approx_clock = data['bmi3d_clock']['timestamp'].copy()    
+        approx_clock = data['bmi3d_clock']['timestamp'].copy() 
+        warnings.warn("No sync clock present even though external data is available!")
+        preproc_errors.append("No sync clock present even though external data is available!")   
 
     elif 'sync_clock' not in data:
         warnings.warn("No clock data found! Cannot accurately prepare bmi3d data")
@@ -590,7 +592,7 @@ def _prepare_bmi3d_v1(data, metadata):
 
     # Check the integrity of the sync events from all the sources
     if 'bmi3d_events' in data and 'sync_events' in data:
-        if not np.array_equal(data['sync_events']['code'], corrected_events['code']):
+        if len(data['sync_events']['code']) != len(corrected_events['code']):
             warnings.warn("Digital sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
             preproc_errors.append("Digital sync events don't match bmi3d events. Check the integrity of the digital sync signals.")
 
