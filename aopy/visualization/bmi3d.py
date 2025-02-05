@@ -7,6 +7,7 @@ import numpy as np
 import seaborn as sns
 
 from . import base
+from .. import data as aodata
 
 def plot_decoder_weight_matrix(decoder, ax=None):
     """
@@ -49,7 +50,8 @@ def plot_readout_map(decoder, readouts, drive_type='ECoG244', cmap='YlGnBu', ax=
     """
     if ax is None:
         fig, ax = plt.subplots()
-    channels = np.nan * np.zeros(256)
+    elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type)
+    channels = np.nan * np.zeros(np.max(acq_ch) + 1)
     channels[decoder.channels - 1] = np.arange(len(decoder.channels))
     base.plot_spatial_drive_map(channels, interp=False, drive_type=drive_type, cmap=cmap, ax=ax, nan_color='#FF000000')
     base.annotate_spatial_map_channels(drive_type=drive_type, color='k', ax=ax)
