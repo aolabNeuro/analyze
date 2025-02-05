@@ -581,15 +581,15 @@ def _prepare_bmi3d_v1(data, metadata):
     if 'timestamp_sync' in corrected_clock.dtype.names:
         timestamp_sync = np.asarray([corrected_clock['timestamp_sync'][cycle] for cycle in corrected_events['time']])
     else:
-        timestamp_sync = np.nan*np.zeros((len(data['bmi3d_events']),))
+        timestamp_sync = np.nan*np.zeros((len(corrected_events),))
     if 'timestamp_bmi3d' in corrected_clock.dtype.names:
         timestamp_bmi3d = np.asarray([corrected_clock['timestamp_bmi3d'][cycle] for cycle in corrected_events['time']])
     else:
-        timestamp_bmi3d = np.nan*np.zeros((len(data['bmi3d_events']),))
+        timestamp_bmi3d = np.nan*np.zeros((len(corrected_events),))
     if 'timestamp_measure_offline' in corrected_clock.dtype.names:
         timestamp_measure = np.asarray([corrected_clock['timestamp_measure_offline'][cycle] for cycle in corrected_events['time']])
     else:
-        timestamp_measure = np.nan*np.zeros((len(data['bmi3d_events']),))
+        timestamp_measure = np.nan*np.zeros((len(corrected_events),))
 
     # And keep a copy of each clock for convenience
     corrected_events['timestamp_measure'] = timestamp_measure
