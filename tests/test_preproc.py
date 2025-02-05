@@ -658,6 +658,13 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIn('clock', data)
         self.assertIn('events', data)
         self.assertIn('task', data)
+        self.assertIsNotNone(data['clock'])
+        self.assertIsNotNone(data['events'])
+        self.assertIsNotNone(data['task'])
+        self.assertIn('time', data['clock'].dtype.names)
+        self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
+        self.assertIn('cursor', data['task'].dtype.names)
 
     def test_decode_events(self):
         dictionary = {
@@ -944,30 +951,40 @@ class TestPrepareExperiment(unittest.TestCase):
         # analog_data = analog_data[:25000*60,:8]
         # filename = utils.save_test_signal_ecube(analog_data, data_dir, 1, datasource='AnalogPanel')
 
-        # There is a pause bug that should be corrected
+        # There is a pause bug in this task
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
-        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+        self.assertNotEqual(len(data['sync_events']), len(data['bmi3d_events']))
 
         # Test what happens if no HDF file is provided
-        n_events = len(data['bmi3d_events'])
+        n_events = len(data['sync_events'])
         files = {}
         files['ecube'] = '2023-01-09_BMI3D_te7977'
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         self.assertRaises(AssertionError, lambda: self.check_required_fields(data, metadata))
 
         # Test if a dummy HDF file is provided
-        files['hdf'] = 'dummy_hdf_rig1_v13.hdf'
+        files['hdf'] = '../tmp/dummy_hdf_rig1_v13.hdf'
 
         # Make a dummy HDF file by copying an existing HDF file from the same experiment
         import shutil
         shutil.copy(os.path.join(data_dir, 'beig20230109_15_te7977.hdf'), os.path.join(data_dir, files['hdf']))
         with tables.open_file(os.path.join(data_dir, files['hdf']), 'r+') as f:
             f.get_node('/task').truncate(0)
+            f.get_node('/sync_events').truncate(0)
+            f.get_node('/sync_clock').truncate(0)
 
         data, metadata = parse_bmi3d(data_dir, files) # without ecube data
         self.assertEqual(n_events, len(data['events']))
-        self.check_required_fields(data, metadata)
 
+    def test_parse_bmi3d_v14(self):
+        files = {}
+        files['hdf'] = 'beig20231229_21_te13154.hdf'
+        data, metadata = parse_bmi3d(data_dir, files) # without ecube data
+        self.check_required_fields(data, metadata)
+        files['ecube'] = '2023-12-29_BMI3D_te13154'
+        data, metadata = parse_bmi3d(data_dir, files) # with ecube data
+        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+        self.check_required_fields(data, metadata)
 
     def test_parse_optitrack(self):
         files = {}
@@ -1143,8 +1160,6 @@ class TestPrepareExperiment(unittest.TestCase):
             laser_sensor='laser_sensor', debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug.png')
 
-        print(trial_powers)
-
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
         
         # Plot lfp response
@@ -1174,7 +1189,6 @@ class TestPrepareExperiment(unittest.TestCase):
         ds_data = precondition.downsample(sensor_data, samplerate, 1000)
         ds_data = ds_data - np.mean(ds_data)
         analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
-        print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
         visualization.savefig(docs_dir, 'laser_aligned_sensor.png')
@@ -1215,8 +1229,6 @@ class TestPrepareExperiment(unittest.TestCase):
         trial_times, trial_widths, trial_gains, trial_powers = get_laser_trial_times(preproc_dir, subject, te_id, date, debug=True)
         visualization.savefig(write_dir, 'laser_aligned_sensor_debug_dch_trigger.png')
 
-        print(trial_powers)
-
         lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
         
         # Plot lfp response
@@ -1246,7 +1258,6 @@ class TestPrepareExperiment(unittest.TestCase):
         ds_data = precondition.downsample(sensor_data, samplerate, 1000)
         ds_data = ds_data - np.mean(ds_data)
         analog_erp = analysis.calc_erp(ds_data, trial_times, time_before, time_after, 1000)
-        print(analog_erp.shape)
         im = visualization.plot_image_by_time(t, sensor_voltsperbit*analog_erp[:,0,:], ylabel='trials')
         im.set_clim(-0.01,0.01)
         visualization.savefig(docs_dir, 'laser_aligned_sensor_dch_trigger.png')

@@ -116,7 +116,7 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
         ids.append(te_id)
     return ids
 
-def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
+def load_preproc_exp_data(preproc_dir, subject, te_id, date, verbose=True, cached=True):
     '''
     Loads experiment data from a preprocessed file.
 
@@ -125,6 +125,8 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        verbose (bool, optional): check for preprocessing errors and print them (default True)
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: Dictionary of exp data
@@ -134,6 +136,11 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
     preproc_dir = os.path.join(preproc_dir, subject)
     data = load_hdf_group(preproc_dir, filename, 'exp_data', cached=cached)
     metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata', cached=cached)
+    
+    # Check for errors
+    if verbose and 'preproc_errors' in metadata and len(metadata['preproc_errors']) > 0:
+        errors = "\n".join([e.decode('utf-8') for e in metadata['preproc_errors']])
+        warnings.warn(f"Preprocessing errors found in {filename}:\n{errors}")
     return data, metadata
 
 def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
@@ -145,6 +152,7 @@ def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: Dictionary of eye data
@@ -156,6 +164,48 @@ def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
     metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata', cached=cached)
     return data, metadata
 
+def load_preproc_analog_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads analog data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: analog data
+        dict: dictionary of analog metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'analog')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    data = load_hdf_data(preproc_dir, filename, 'analog_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'analog_metadata', cached=cached)
+    return data, metadata
+
+def load_preproc_digital_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads digital data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: digital data
+        dict: dictionary of digital metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'digital')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    data = load_hdf_data(preproc_dir, filename, 'digital_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'digital_metadata', cached=cached)
+    return data, metadata
+
 def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads broadband data from a preprocessed file.
@@ -165,6 +215,7 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: broadband data
@@ -187,7 +238,8 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Raises:
         ValueError: if drives are detected when drive number is None. 
         
@@ -225,7 +277,8 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Raises:
         ValueError: if drives are detected when drive number is None.
         
@@ -251,7 +304,7 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
         metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
     '''
     Loads spike data from a preprocessed file.
 
@@ -261,7 +314,8 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1,
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Returns:
         dict: spike data
         dict: Dictionary of spike metadata
@@ -273,7 +327,7 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1,
     
     return spikes, metadata
 
-def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
     '''
     Loads spike waveforms from a preprocessed file.
 
@@ -283,7 +337,8 @@ def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, ca
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Returns:
         dict: spike waveforms
     '''
