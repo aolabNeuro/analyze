@@ -44,7 +44,7 @@ def plot_readout_map(decoder, readouts, drive_type='ECoG244', cmap='YlGnBu', ax=
     Args:
         decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
         readouts (list): The readout channels.
-        drive_type (str, optional): The type of drive. Defaults to 'ECoG244'.
+        drive_type (str, optional): The type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
         cmap (str, optional): The colormap to use. Defaults to 'YlGnBu'.
         ax (matplotlib.axes.Axes, optional): The axes on which to plot. Defaults to None.
     """
@@ -98,7 +98,7 @@ def plot_decoder_summary(decoder, drive_type='ECoG244', cmap='YlGnBu'):
 
     Args:
         decoder (riglib.bmi.Decoder): The decoder object from BMI3D.
-        drive_type (str, optional): The type of drive. Defaults to 'ECoG244'.
+        drive_type (str, optional): The type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
         cmap (str, optional): The colormap to use. Defaults to 'YlGnBu'.
     """
     fig, ax = plt.subplots(2, 2, figsize=(8, 8))

@@ -536,10 +536,11 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     '''
     # Calculate the proper extents
-    if data_map.size > 1:
+    assert np.ndim(data_map) == 2, 'data_map must be 2D'
+    if np.size(data_map) > 1:
         extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
-        x_spacing = (extent[1] - extent[0]) / (data_map.shape[1] - 1)
-        y_spacing = (extent[3] - extent[2]) / (data_map.shape[0] - 1)
+        x_spacing = (extent[1] - extent[0]) / (np.shape(data_map)[1] - 1)
+        y_spacing = (extent[3] - extent[2]) / (np.shape(data_map)[0] - 1)
         extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
     else:
         extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
@@ -582,7 +583,7 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
         data ((nch,) array): values from the spatial drive to plot in 2D
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
-        drive_type (str, optional): type of drive. Defaults to 'ECoG244'.
+        drive_type (str, optional): type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
             e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
@@ -2402,7 +2403,7 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
     Args:
         subject (str): subject name
         chamber (str): chamber type
-        drive_type (str): drive type
+        drive_type (str): drive type of the spatial map. See :func:`~aopy.data.load_chmap` for options. 
         theta (int, optional): rotation of the image in degrees. Default is 0.
         center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         alpha (float, optional): transparency of the image. Default is 0.5.
