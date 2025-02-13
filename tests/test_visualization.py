@@ -917,5 +917,12 @@ class TestDecoderPlots(unittest.TestCase):
         filename = 'decoder_weights.png'
         savefig(docs_dir, filename, transparent=False)
 
+        with open(os.path.join(data_dir, 'test_decoder_emg.pkl'), 'rb') as file:
+            decoder = pickle.load(file, fix_imports=False)
+
+        bmi3d.plot_decoder_summary(decoder, drive_type='EMG_GR08MM1305')
+        filename = 'decoder_weights_emg.png'
+        savefig(docs_dir, filename, transparent=False)
+
 if __name__ == "__main__":
     unittest.main()
