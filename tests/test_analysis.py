@@ -495,6 +495,25 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(dist[0], np.sqrt(2))
         self.assertEqual(corr[0], 1.0)
 
+    def test_calc_stat_over_dist_from_pos(self):
+
+        # Increasing statistic with distance
+        nelec = 100
+        elec_data = np.arange(nelec)
+        elec_pos = [[idx, 1] for idx in range(nelec)]
+        pos = [0,1]
+        nbins=20
+        dist, mean = aopy.analysis.calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, bins=nbins)
+        self.assertEqual(dist.size, nbins)
+        self.assertEqual(mean.size, nbins)
+
+        plt.figure()
+        plt.plot(dist, mean)
+        plt.xlabel('Distance')
+        plt.ylabel('Mean')
+        plt.title('Increasing statistic with distance')
+        aopy.visualization.savefig(docs_dir, 'increasing_statistic_with_distance.png', transparent=False)
+
     def test_calc_erp(self):
         nevents = 3
         event_times = 0.2 + np.arange(nevents)
