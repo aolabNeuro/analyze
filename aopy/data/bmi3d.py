@@ -1529,8 +1529,8 @@ def get_source_files(preproc_dir, subject, te_id, date):
     exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
 
-def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
-                           trial_end_codes, reward_codes, penalty_codes, metadata=[],
+def tabulate_behavior_data(preproc_dir, subjects, ids, dates, start_events, end_events, 
+                           reward_events, penalty_events, metadata=[],
                            df=None, event_code_type='code', return_bad_entries=False, repeating_start_codes=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of 
@@ -1542,10 +1542,10 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         subjects (list of str): Subject name for each recording
         ids (list of int): Block number of Task entry object for each recording
         dates (list of str): Date for each recording
-        trial_start_codes (list): list of numeric codes representing the start of a trial
-        trial_end_codes (list): list of numeric codes representing the end of a trial
-        reward_codes (list): list of numeric codes representing rewards
-        penalty_codes (list): list of numeric codes representing penalties
+        start_events (list): list of numeric codes representing the start of a trial
+        end_events (list): list of numeric codes representing the end of a trial
+        reward_events (list): list of numeric codes representing rewards
+        penalty_events (list): list of numeric codes representing penalties
         metadata (list, optional): list of metadata keys that should be included in the df
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
         event_code_type (str, optional): type of event codes to use. Defaults to 'code'. Other
@@ -1564,6 +1564,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             | **date (str):** date of recording
             | **event_codes (ntrial):** numeric code segments for each trial (specified by `event_code_type`)
             | **event_times (ntrial):** time segments for each trial
+            | **event_idx (ntrial):** index segments for each trial
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
             | **penalty (ntrial):** boolean values indicating whether each trial was penalized
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
@@ -1587,9 +1588,10 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         event_times = exp_data['events']['timestamp']
 
         # Trial aligned event codes and event times
-        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes, repeating_start_codes)
-        reward = [np.any(np.isin(reward_codes, ec)) for ec in tr_seg]
-        penalty = [np.any(np.isin(penalty_codes, ec)) for ec in tr_seg]
+        tr_seg, tr_t, tr_idx = get_trial_segments_and_times(event_codes, event_times, start_events, end_events, 
+                                                 repeating_start_codes, return_idx=True)
+        reward = [np.any(np.isin(reward_events, ec)) for ec in tr_seg]
+        penalty = [np.any(np.isin(penalty_events, ec)) for ec in tr_seg]
         
         # Build a dataframe for this task entry
         exp = {
@@ -1598,6 +1600,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             'date': date, 
             'event_codes': tr_seg,
             'event_times': tr_t, 
+            'event_idx': tr_idx,
             'reward': reward,
             'penalty': penalty,
         }
@@ -2011,7 +2014,7 @@ def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
     trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
-    trial_start_codes = [task_codes['CORNER_TARGET_ON']]
+    trial_start_codes = task_codes['CORNER_TARGET_ON']
     reward_codes = [task_codes['REWARD']]
     penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['CORNER_TARGET_ON']
