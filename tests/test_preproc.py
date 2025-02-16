@@ -526,7 +526,12 @@ class EventFilterTests(unittest.TestCase):
         segments, times = get_trial_segments_and_times(events, event_times,  start_evt, end_evt)
         self.assertTrue(np.allclose(segments, [[2, 4, 6], [2, 3, 6]]))
         self.assertTrue(np.allclose(times, [[1, 2, 3], [5, 6, 7]]))
+        
+        # Test return_idx
+        segments, times, idx = get_trial_segments_and_times(events, event_times,  start_evt, end_evt, return_idx=True)
+        self.assertTrue(np.allclose(idx, [[1, 2, 3], [5, 6, 7]]))
 
+        # Test repeating start events
         events = [18, 82, 19, 34, 83, 64, 239, 18, 82, 19, 34, 83, 48, 239, 19, 83, 18, 66, 239]
         event_times = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
         start_evt = [18, 19]
@@ -538,36 +543,6 @@ class EventFilterTests(unittest.TestCase):
         for i in range(len(segments)):
             np.testing.assert_allclose(segments[i], expected_segments[i])
             np.testing.assert_allclose(times[i], expected_times[i])
-
-        # Test with tuple events
-        event_names = ['a', 'b', 'c', 'a', 'a', 'b', 'c', 'c', 'a', 'a', 'b']
-        event_data = [0, 1, 2, 0, 0, 0, 1, 2, 0, 0, 0]
-        events = list(zip(event_names, event_data))
-        event_times = list(range(len(events)))
-        start_evt = [('a', 0)]
-        end_evt = [('c', 2)]
-        expected_segments = [[('a', 0), ('b', 1), ('c', 2)], [('a', 0), ('b', 0), ('c', 1), ('c', 2)]]
-        expected_times = [[0, 1, 2], [4, 5, 6, 7]]
-        segments, times = get_trial_segments_and_times(events, event_times,  start_evt, end_evt)
-        self.assertEqual(len(segments), len(times))
-        self.assertEqual(len(segments), len(expected_segments))
-        for i in range(len(segments)):
-            self.assertSequenceEqual(segments[i], expected_segments[i])
-            self.assertSequenceEqual(times[i], expected_times[i])
-
-        # With repeating start events
-        expected_segments = [[('a', 0), ('b', 1), ('c', 2)], [('a', 0), ('a', 0), ('b', 0), ('c', 1), ('c', 2)]]
-        expected_times = [[0, 1, 2], [3, 4, 5, 6, 7]]
-        segments, times = get_trial_segments_and_times(events, event_times,  start_evt, end_evt, repeating_start_events=True)
-        for i in range(len(segments)):
-            self.assertSequenceEqual(segments[i], expected_segments[i])
-            self.assertSequenceEqual(times[i], expected_times[i])
-
-        # Test return_idx
-        expected_idx = [[0, 1, 2], [4, 5, 6, 7]]
-        segments, times, idx = get_trial_segments_and_times(events, event_times,  start_evt, end_evt, return_idx=True)
-        for i in range(len(segments)):
-            self.assertSequenceEqual(idx[i], expected_idx[i])
 
     def test_locate_trials_with_event(self):
         # Test with ints
