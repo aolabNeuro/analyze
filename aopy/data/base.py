@@ -139,8 +139,7 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, verbose=True, cache
     
     # Check for errors
     if verbose and 'preproc_errors' in metadata and len(metadata['preproc_errors']) > 0:
-        errors = "\n".join([e.decode('utf-8') for e in metadata['preproc_errors']])
-        warnings.warn(f"Preprocessing errors found in {filename}:\n{errors}")
+        warnings.warn(f"Preprocessing errors found in {filename}:\n{metadata['preproc_errors']}")
     return data, metadata
 
 def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
