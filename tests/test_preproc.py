@@ -519,26 +519,30 @@ class EventFilterTests(unittest.TestCase):
         self.assertTrue(np.allclose(times, [[1, 2], [5, 6]]))
 
     def test_get_trial_segments_and_times(self):
-         events = [0, 2, 4, 6, 0, 2, 3, 6]
-         times = [0, 1, 2, 3, 4, 5, 6, 7]
-         start_evt = 2
-         end_evt = 6
-         segments, times = get_trial_segments_and_times(events, times,  start_evt, end_evt)
-         self.assertTrue(np.allclose(segments, [[2, 4, 6], [2, 3, 6]]))
-         self.assertTrue(np.allclose(times, [[1, 2, 3], [5, 6, 7]]))
+        events = [0, 2, 4, 6, 0, 2, 3, 6]
+        event_times = [0, 1, 2, 3, 4, 5, 6, 7]
+        start_evt = 2
+        end_evt = 6
+        segments, times = get_trial_segments_and_times(events, event_times,  start_evt, end_evt)
+        self.assertTrue(np.allclose(segments, [[2, 4, 6], [2, 3, 6]]))
+        self.assertTrue(np.allclose(times, [[1, 2, 3], [5, 6, 7]]))
+        
+        # Test return_idx
+        segments, times, idx = get_trial_segments_and_times(events, event_times,  start_evt, end_evt, return_idx=True)
+        self.assertTrue(np.allclose(idx, [[1, 2, 3], [5, 6, 7]]))
 
-         events = [18, 82, 19, 34, 83, 64, 239, 18, 82, 19, 34, 83, 48, 239, 19, 83, 18, 66, 239]
-         times = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
-         start_evt = [18, 19]
-         end_evt = [239]
-         expected_segments = [[18, 82, 19, 34, 83, 64, 239], [18, 82, 19, 34, 83, 48, 239], [19, 83, 18, 66, 239]]
-         expected_times = [[0, 1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12, 13], [14, 15, 16, 17, 18]]
+        # Test repeating start events
+        events = [18, 82, 19, 34, 83, 64, 239, 18, 82, 19, 34, 83, 48, 239, 19, 83, 18, 66, 239]
+        event_times = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
+        start_evt = [18, 19]
+        end_evt = [239]
+        expected_segments = [[18, 82, 19, 34, 83, 64, 239], [18, 82, 19, 34, 83, 48, 239], [19, 83, 18, 66, 239]]
+        expected_times = [[0, 1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12, 13], [14, 15, 16, 17, 18]]
 
-         segments, times = get_trial_segments_and_times(events, times,  start_evt, end_evt, repeating_start_events=True)
-         for i in range(len(segments)):
-             self.assertTrue(np.allclose(segments[i], expected_segments[i])) # check one at a time because np.allclose doesn't like nested arrays
-             self.assertTrue(np.allclose(times[i], expected_times[i]))
-         
+        segments, times = get_trial_segments_and_times(events, event_times,  start_evt, end_evt, repeating_start_events=True)
+        for i in range(len(segments)):
+            np.testing.assert_allclose(segments[i], expected_segments[i])
+            np.testing.assert_allclose(times[i], expected_times[i])
 
     def test_locate_trials_with_event(self):
         # Test with ints

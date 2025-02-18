@@ -895,7 +895,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2024-12-31', '2025-01-21'] # first entry is pre-pause state, second entry has pause state
         df = tabulate_behavior_data_corners(data_dir, subjects, ids, dates, metadata=['target_radius', 'cursor_radius', 'rand_delay'])
         self.assertEqual(len(df), 55)
-        self.assertEqual(len(df.columns), 26+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
+        self.assertEqual(len(df.columns), 27+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
 
         # Check chain length (sequence param)
         self.assertTrue(np.all(df['chain_length'] == 2))
