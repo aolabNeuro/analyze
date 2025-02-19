@@ -13,7 +13,7 @@ install_requires = [
     'psutil',
     'h5py',
     'tables',
-    'scikit-learn',
+    'scikit-learn>=1.0',
     'statsmodels',
     'nitime',
     'xlrd',
@@ -22,17 +22,18 @@ install_requires = [
     'scipy',
     'PyWavelets',
     'Pillow',
-    'seaborn',
     'pyyaml',
     'tqdm',
     'open-ephys-python-tools',
     'aolab-bmi3d>=1.0',
-    'sympy'
+    'sympy',
+    'ibllib',
+    'seaborn>=0.13.2'
 ]
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.8.0",
+    version="0.9.0",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

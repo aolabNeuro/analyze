@@ -27,4 +27,12 @@ Examples:
 .. toctree::
 
     examples/data_transforms.ipynb
+
+.. toctree::
+
+    examples/neuropixel_example.ipynb
+
+.. toctree::
+
+    examples/tabulate_tracking_task_example.ipynb
     

@@ -1,28 +1,37 @@
 # visualization.py
+# 
 # Code for general neural data plotting (raster plots, multi-channel field potential plots, psth, etc.)
+
 import string
 import warnings
-import seaborn as sns
+from datetime import timedelta
+import os
+import copy
+import sys
+if sys.version_info >= (3,9):
+    from importlib.resources import files, as_file
+else:
+    from importlib_resources import files, as_file
+
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib import colors
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
-
+from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+import matplotlib.font_manager as fm
+import seaborn as sns
 from scipy.interpolate import griddata
 from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 from scipy import signal
 from scipy.stats import zscore
 import numpy as np
-import os
 from PIL import Image
-import copy
 import pandas as pd
 from tqdm import tqdm
-import pandas as pd
-from datetime import timedelta
 
 from .. import precondition
 from .. import analysis
@@ -198,8 +207,8 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), thet
 
     Returns:
         tuple: tuple containing:
-        | **fig (pyplot.Figure):** figure where the subplots were placed
-        | **ax (list):** pyplot.Axes handles for each stimulation site
+            | **fig (pyplot.Figure):** figure where the subplots were placed
+            | **ax (list):** pyplot.Axes handles for each stimulation site
 
     Examples:
 
@@ -396,10 +405,31 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
             x_missing = np.reshape(np.delete(x_pos, missing),-1)
             y_missing = np.reshape(np.delete(y_pos, missing),-1)
 
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plt.figure()
+            plot_spatial_map(data_map, x_missing, y_missing)
+
+        .. image:: _images/posmap.png
+
+        Use `calc_data_map` to interpolate the missing data
+
+        .. code-block:: python
+
             interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
             plot_spatial_map(interp_map, xy[0], xy[1])
 
         .. image:: _images/posmap_calcmap.png
+
+        Use cubic interpolation to generate a high resolution map
+
+        .. code-block:: python
+
+            interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [100, 100], threshold_dist=1.5, 
+                interp_method='cubic')
+            plt.figure()
+            plot_spatial_map(interp_map, xy[0], xy[1])
+
+        .. image:: _images/posmap_calcmap_interp.png
 
     Args:
         data (nch): list of values
@@ -419,6 +449,11 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     if extent is None:
         extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
+    if len(x_pos) != len(y_pos):
+        raise ValueError('x_pos and y_pos must have the same length!')
+    if len(data) != len(x_pos):
+        raise ValueError('Data and position must have the same length!')
+    data = np.squeeze(data)
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
@@ -764,6 +799,50 @@ def plot_raster(data, cue_bin=None, ax=None):
     if cue_bin is not None:
         ax.axvline(x=cue_bin, linewidth=2.5, color='r')
 
+def plot_angles(angles, magnitudes=None, ax=None, **kwargs):
+    '''
+    Polar plot of angles and optional magnitudes. Useful for plotting ITPC or other phase data.
+
+    Args:
+        angles (nt): array of angles in radians
+        magnitudes (nt, optional): array of magnitudes to plot as line lengths
+        ax (plt.Axis, optional): axis to plot the targets on (should be a polar plot)
+        **kwargs: additional keyword arguments to pass to plt.plot
+
+    Examples:
+
+        .. code-block:: python
+
+            angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+            plot_angles(angles)
+
+        .. image:: _images/angles_simple.png
+
+        .. code-block:: python
+
+            angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+            magnitudes = np.arange(len(angles)) + 1
+
+            fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+            plot_angles(angles, magnitudes, ax)
+
+        .. image:: _images/angles_magnitudes.png
+    '''
+    
+    if ax is None and plt.gca().name != 'polar':
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+    elif ax is None:
+        ax = plt.gca()
+        
+    if magnitudes is None:
+        magnitudes = np.ones(len(angles))
+        
+    # Draw the lines
+    for a, m in zip(angles, magnitudes):
+        theta = [0, a]
+        r = [0, m]
+        ax.plot(theta, r, **kwargs)
+
 def set_bounds(bounds, ax=None):
     '''
     Sets the x, y, and z limits according to the given bounds
@@ -783,7 +862,62 @@ def set_bounds(bounds, ax=None):
         ax.set(xlim=(1.1 * bounds[0], 1.1 * bounds[1]),
                ylim=(1.1 * bounds[2], 1.1 * bounds[3]))
 
+def color_targets(target_locations, target_idx, colors, target_radius, bounds=None, ax=None, **kwargs):
+    '''
+    Color targets according to their index. Useful for visualizing unique targets when trajectories
+    aren't obviously aligned to specific targets.
 
+    Args:
+        target_locations ((ntargets, 2) or (ntargets, 3) array): array of target (x, y[, z]) locations
+        target_idx ((ntargets,) array): array of indices for each target, used to determine color
+        colors (list): list of colors corresponding to each unique index in target_idx
+        target_radius (float): radius of the targets in cm
+        bounds (tuple, optional): 4- or 6-element tuple describing (-x, x, -y, y[, -z, z]) cursor bounds
+        ax (plt.Axis, optional): axis to plot the targets on (2D or 3D)
+        **kwargs: additional keyword arguments to pass to plot_circles()
+
+    Examples:
+        Create and plot eight targets for a center-out task.
+        
+        .. code-block:: python
+
+            angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+            radius = 6.5
+            target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+            target_locations = np.vstack(([0, 0], target_locations))
+
+        Specify the colors per target index in case they are out of order.
+            
+        .. code-block:: python
+
+            target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, peripheral are index 1 through 9
+            colors = ['black'] + sns.color_palette("husl", 8)
+            target_radius = 0.5
+            bounds = (-8, 8, -8, 8)
+
+        Use :func:`~aopy.visualization.color_targets` to plot the targets
+        
+        .. code-block:: python
+
+            fig, ax = plt.subplots(figsize=(8, 8))
+            color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+            ax.set_aspect('equal')
+            filename = 'color_targets.png'
+
+        .. image:: _images/color_targets.png
+    '''
+    
+    assert len(target_locations) == len(target_idx), "Locations must be the same length as indices"
+    target_locations = np.array(np.array(target_locations).tolist())
+    target_idx = np.array(np.array(target_idx).tolist())
+    loc_idx = np.concatenate((np.expand_dims(target_idx, 1), target_locations), axis=1)
+    loc_idx = np.unique(loc_idx, axis=0)
+    assert len(colors) >= len(np.unique(target_idx)), "Not enough colors for unique indices"
+    for row in loc_idx:
+        idx = row[0].astype(int)
+        loc = row[1:]
+        plot_circles([loc], target_radius, colors[idx], bounds=bounds, ax=ax, **kwargs)
+        
 def plot_targets(target_positions, target_radius, bounds=None, alpha=0.5, 
                  origin=(0, 0, 0), ax=None, unique_only=True):    
     '''
@@ -1317,8 +1451,143 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
     else:
         ax.plot(time_axis, waveforms)
 
-    ax.set_xlabel(r'Time ($\mu$s)')
+    ax.set_xlabel(r'Time ($\mu$s)')    
+    
+def plot_condition_tuning(per_condition_data, conditions, ylabel='success rate', ax=None, **kwargs):
+    '''
+    Plot tuning curves for categorical data. Essentially a scatter plot with the mean of each condition
+    plotted as a solid line.
 
+    Args:
+        per_condition_data (nconditions, ...): data for each condition
+        conditions (nconditions): condition for each data point
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
+
+    Examples:
+
+        Plot the success rate for 4 different conditions
+
+        .. code-block:: python
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            data = np.random.normal(0, 1, (4, 2, 4))
+            
+            fig = plt.figure()
+            plot_condition_tuning(data, np.degrees(direction))
+            
+        .. image:: _images/condition_tuning.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    per_condition_data = np.array(per_condition_data).reshape(len(per_condition_data), -1)
+    ntr = per_condition_data.shape[1]
+    print(per_condition_data.shape)
+    print(conditions.shape)
+
+    # Scatter plot
+    plt.scatter(np.tile(conditions, (1,ntr)), per_condition_data, **kwargs)
+
+    # Add means
+    dist = (np.max(conditions) - np.min(conditions)) / len(conditions)
+    for idx, cond in enumerate(per_condition_data):
+        mean = np.mean(cond)
+        ax.plot([conditions[idx]-dist/2, conditions[idx]+dist/2], [mean, mean], 'r-')
+
+    ax.set_xlabel('condition')
+    ax.set_ylabel(ylabel)
+
+def plot_direction_tuning(per_direction_data, directions, show_var=True, wrap=True, ylabel='success rate', ax=None):
+    '''
+    Plot tuning curves for directional data. The mean across trials is plotted as a solid line and the variance as 
+    a shaded region around the mean. Works with both cartesian and polar axes.
+    
+    Args:
+        per_direction_data (ndir, nch, ntrial): direction responses for each channel. If only one channel, can be (ndir, ntrial).
+        directions (ndir): unique directions in radians
+        show_var (bool, optional): if True, plots the standard deviation around the mean. Default True.
+        wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Can be cartesian or polar. Default the current axis.
+    
+    Example:
+        Polar plot of tuning curves for 4 targets
+
+        .. code-block:: python
+
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            data = np.random.normal(0, 1, (4, 2, 4))
+            
+            plt.figure()
+            plot_direction_tuning(data, direction)
+        
+        .. image:: _images/direction_tuning.png
+
+        Again but with polar plot
+        
+        .. code-block:: python
+        
+            fig = plt.figure()
+            ax = fig.add_subplot(projection='polar')
+
+            plot_direction_tuning(data, direction)
+        
+        .. image:: _images/direction_tuning_polar.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    if np.ndim(per_direction_data) == 1:
+        per_direction_data = np.expand_dims(per_direction_data, 1)
+    if np.ndim(per_direction_data) == 2:
+        per_direction_data = np.expand_dims(per_direction_data, 1)
+            
+    if len(directions) != len(per_direction_data):
+        directions = np.unique(directions)
+    assert len(directions) == len(per_direction_data), "Direction and mean must have the same length"
+
+    # Calculate mean and variance
+    mean = np.nanmean(per_direction_data, axis=2)
+    if show_var:
+        var = np.nanstd(per_direction_data, axis=2)
+    else:
+        var = np.zeros_like(mean)
+
+    # Sort the data and decide if the data fills a full circle or half circle
+    if np.max(np.abs(directions)) > 2*np.pi:
+        directions = np.radians(directions) # probably in degrees by mistake
+    modulo = np.pi
+    if np.max(directions) - np.min(directions) >= (np.pi):
+        modulo = np.pi * 2
+    directions = np.array(directions) % modulo
+    idx = np.argsort(directions)
+
+    # Wrap around the circle
+    if wrap:
+        directions = np.hstack((directions[idx], [directions[idx[0]] + modulo]))
+        mean = np.vstack((mean[idx], [mean[idx[0]]]))
+        var = np.vstack((var[idx], [var[idx[0]]]))
+    else:
+        directions = directions[idx]
+        mean = mean[idx]
+        var = var[idx]
+
+    # Plot
+    if ax.name != 'polar':
+        directions = np.degrees(directions)
+
+    for ch in range(mean.shape[1]):
+        ax.plot(directions, mean[:,ch])
+        ax.fill_between(directions, mean[:,ch]-var[:,ch], mean[:,ch]+var[:,ch], alpha=0.5)
+
+    try:
+        label_position=ax.get_rlabel_position()
+        ax.text(np.radians(label_position-1),ax.get_rmax()*1.1,ylabel,
+            rotation=label_position,ha='left',va='center')
+    except:
+        ax.set_xlabel('direction (deg)')
+        ax.set_ylabel(ylabel)
+    
 def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     '''
     This function plots the tuning curves output from analysis.run_tuningcurve_fit overlaying the actual firing rate data.
@@ -1479,6 +1748,96 @@ def reset_plot_color(ax):
         .. image:: _images/reset_plot_color.png
     '''
     ax.set_prop_cycle(None)
+
+def plot_scalebar(ax, size, label, color='black', fontsize=12, vertical=False,
+                  bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Add a scalebar to a plot with the given size and label. The scalebar can be 
+    vertical or horizontal. The left edge (bottom edge if vertical) of the scalebar 
+    will be located at the given bbox_to_anchor position in Axis units (0 to 1).
+    
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        size (float): size of the scalebar in units of the plot
+        label (str): label for the scalebar, e.g. '1 s' or '10 um'
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        vertical (bool): If True, the scalebar will be vertical. Default is horizontal.
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    Examples:
+
+        Adding a scalebar to a plot with a size of 10 and a label of '10 ms'.
+
+        .. code-block:: python
+
+            plt.subplots()
+            plt.plot(np.arange(10), np.arange(10)/10)
+            aopy.visualization.plot_scalebar(plt.gca(), 1.5, '1 s', color='orange')
+            aopy.visualization.plot_scalebar(plt.gca(), 0.15, '0.1 V', vertical=True, color='green')
+            aopy.visualization.plot_xy_scalebar(plt.gca(), 1.5, '1 s', 0.15, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+            filename = 'scalebar_example.png'
+
+        .. image:: _images/scalebar_example.png
+    '''
+    if not vertical:
+        xsize = size
+        ysize = 0
+        label_top = False
+        loc = 'upper left'
+    else:
+        xsize = 0
+        ysize = size
+        label_top = True  
+        loc = 'lower center' 
+
+    # Draw the scalebar
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        xsize,
+        label,
+        loc=loc,
+        bbox_to_anchor=bbox_to_anchor,
+        bbox_transform=ax.transAxes,
+        pad=kwargs.pop('pad', 0),
+        borderpad=kwargs.pop('borderpad', 0),
+        sep=kwargs.pop('sep', 4),
+        color=color,
+        frameon=False,
+        label_top=label_top,
+        size_vertical=ysize,
+        fontproperties=fm.FontProperties(size=fontsize),
+        **kwargs
+    )
+    ax.add_artist(scalebar)
+
+
+def plot_xy_scalebar(ax, xsize, xlabel, ysize, ylabel, color='black', fontsize=12, 
+                     bbox_to_anchor=[0.1, 0.1], **kwargs):
+    '''
+    Shortcut to add two scalebars to a plot with the given x and y sizes and labels. 
+
+    Args:
+        ax (pyplot.Axes): axis to plot the scalebar on
+        xsize (float): size of the x scalebar
+        xlabel (str): label for the x scalebar
+        ysize (float): size of the y scalebar
+        ylabel (str): label for the y scalebar
+        color (str): color of the scalebar. Can be any input that pyplot interprets as a color.
+        fontsize (int): size of the font for the label
+        bbox_to_anchor (tuple): (x, y) position of the scalebar in the plot in Axis units. 
+            Default is (0.1, 0.1).
+        **kwargs: additional keyword arguments to pass to AnchoredSizeBar
+
+    See also:
+        :func:`~aopy.visualization.plot_scalebar`
+    '''
+    plot_scalebar(ax, xsize, xlabel, color=color, fontsize=fontsize, 
+                  bbox_to_anchor=bbox_to_anchor, **kwargs)
+    plot_scalebar(ax, ysize, ylabel, color=color, fontsize=fontsize, 
+                  vertical=True, bbox_to_anchor=bbox_to_anchor, **kwargs)
 
 def profile_data_channels(data, samplerate, figuredir, **kwargs):
     """
@@ -1781,6 +2140,85 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
 
     return pcm
 
+def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_grid=None, 
+                     cmap='viridis', grid_size=(4,4), colorbar=True, **kwargs):
+    '''
+    Plot a grid of different frequency bands and time points for a given time-frequency map across
+    spatial locations.
+
+    Args:
+        freqs (nfreq,): frequency values
+        time (nt,): time values
+        tf_data (nfreq, nt, nch): time-frequency data across spatial channels
+        bands (list): list of tuples of frequency bands to plot
+        elec_pos (nch, 2): x, y position of each electrode
+        clim (tuple, optional): color limits for the plot, e.g. (0,1) for tfcoh maps. Default None
+        interp_grid (tuple, optional): (x, y) grid to interpolate the data onto. Default None
+        cmap (str, optional): colormap to use for plotting. Default 'viridis'
+        grid_size (tuple, optional): (width, height) in inches of each subplot grid. Default (4,4)
+        kwargs (dict, optional): other keyword arguments to pass to calc_data_map
+    
+    Returns:
+        list of pyplot.Axes: axes objects for each subplot in the grid
+
+    Examples:
+
+        Random power across space with increased power at time 1 and decreased power in high frequencies.
+
+        .. code-block:: python
+
+            nfreq = 100
+            nt = 3
+            nch = 100
+            freqs = np.linspace(1,250,nfreq)
+            time = np.linspace(0, 1, nt)
+            tf_data = np.random.rand(nfreq,nt,nch)
+            tf_data[:,1,:] *= 2 # increase power at time 1
+            tf_data[freqs > 10, :, :] *= 0.5 # decrease power in high frequencies
+            bands = [(1, 10), (10, 250)]
+            x, y = np.meshgrid(np.arange(10), np.arange(10))
+            elec_pos = np.zeros((100,2))
+            elec_pos[:,0] = x.reshape(-1)
+            elec_pos[:,1] = y.reshape(-1)
+            plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=(0,1), interp_grid=None, 
+                        cmap='viridis')
+        
+        .. image:: _images/tf_map_grid.png
+    '''
+    fig, ax = plt.subplots(len(bands), len(time), figsize=(grid_size[0]*len(time),grid_size[1]*len(bands)), 
+                           layout='constrained')
+    for band_idx, band in enumerate(bands):
+        for t_idx, t in enumerate(time):
+            if ax.ndim == 2:
+                this_ax = ax[band_idx, t_idx]
+            else:
+                this_ax = ax[max(band_idx, t_idx)]
+            this_tf_data = tf_data[(freqs > band[0]) & (freqs < band[1]),t_idx,:]
+            if interp_grid is None:
+                data_map = get_data_map(
+                    np.squeeze(np.mean(this_tf_data, axis=0)),
+                    elec_pos[:,0],
+                    elec_pos[:,1]
+                )
+            else:
+                data_map = calc_data_map(
+                    np.squeeze(np.mean(this_tf_data, axis=0)),
+                    elec_pos[:,0],
+                    elec_pos[:,1],
+                    interp_grid,
+                    **kwargs
+                )  
+            im = plot_spatial_map(
+                data_map, elec_pos[:,0], elec_pos[:,1], 
+                cmap=cmap, ax=this_ax)
+            if clim is not None:
+                im.set_clim(clim)
+            if colorbar:
+                plt.colorbar(im, ax=this_ax, shrink=0.7)
+            this_ax.set_title(f't={t:.2f}, {band[0]}-{band[1]} Hz')
+            this_ax.set(xticks=[], yticks=[], xlabel='', ylabel='')
+    return ax
+
 def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
     '''
     This function outputs an ordered list of RGB colors that are linearly spaced between white and the input color. See also sns.color_palette for a gradient of RGB values within a Seaborn color palette.
@@ -1912,3 +2350,84 @@ def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area
     ax.set_theta_offset(offset)  
 
     return n, bins, patches
+
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, center=(0,0), color=None, invert=False, ax=None, **kwargs):
+    '''
+    Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
+    placed at the same coordinates as electrode positions for the given electrode drive. The image
+    is also optionally inverted and recolored with a single input color.
+
+    Args:
+        filepath (str): path to the image file
+        drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
+        color (str, optional): color to use for the image. Default is None.
+        invert (bool, optional): whether to invert the image. Default is False.
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. alpha.
+    '''
+    if ax is None:
+        ax = plt.gca()
+    with Image.open(filepath) as im:
+        a = np.array(im.convert('L'))/255
+        if color is None:
+            c = np.array(im.convert('RGB'))/255
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = c
+        else:
+            img = np.zeros((*a.shape, 4))
+            img[:,:,:3] = colors.to_rgb(color)
+        img[:,:,3] = a if invert else 1 - a
+    img = np.rot90(img, np.ceil(theta/90), axes=(1,0))
+    
+    # Calculate the proper extents
+    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta, center=center)
+    x = elec_pos[:,0]
+    y = elec_pos[:,1]
+    extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
+    x_spacing = (extent[1] - extent[0]) / (len(np.unique(x)) - 1)
+    y_spacing = (extent[3] - extent[2]) / (len(np.unique(y)) - 1)
+    extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
+
+    ax.imshow(img, origin='upper', extent=extent, **kwargs)
+
+def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(0,0), alpha=0.5, **kwargs):
+    '''
+    Overlay a precomputed image of chamber sucli on a spatial map of electrodes. 
+    Images are stored in the aopy.config directory. Currently available images are:
+        - Affi LM1 ECoG244
+        - Beignet LM1 ECoG244
+
+    Args:
+        subject (str): subject name
+        chamber (str): chamber type
+        drive_type (str): drive type
+        theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
+        alpha (float, optional): transparency of the image. Default is 0.5.
+        kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. color.
+
+    Examples:
+
+        .. code-block:: python
+
+            elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
+
+        .. image:: _images/overlay_sulci_beignet.png
+
+        .. code-block:: python
+            
+            plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+            overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
+
+        .. image:: _images/overlay_sulci_affi.png
+
+    '''
+    config_dir = files('aopy').joinpath('config')
+    filename = f'{subject.lower()}_{chamber.lower()}_{drive_type.lower()}_sulci.png'
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)

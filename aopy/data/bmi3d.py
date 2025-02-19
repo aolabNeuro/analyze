@@ -1,17 +1,15 @@
 import sys
-from functools import lru_cache
 import traceback
 import warnings
-from matplotlib import pyplot as plt
 import os
-import datetime
+import json
+
+from functools import lru_cache
 import numpy as np
 import h5py
 import tables
 import pandas as pd
-import json
 from tqdm.auto import tqdm
-from scipy import interpolate
 if sys.version_info >= (3,9):
     from importlib.resources import files, as_file
 else:
@@ -19,11 +17,12 @@ else:
 
 from .. import precondition
 from .. import preproc
+from .. import postproc
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
 from ..utils import derivative, get_pulse_edge_times, compute_pulse_duty_cycles, convert_digital_to_channels, detect_edges
-from .base import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data, yaml_read, get_preprocessed_filename, load_hdf_data, load_hdf_ts_trial, load_hdf_ts_segment, load_hdf_group
+from . import base 
 
 ############
 # Raw data #
@@ -221,7 +220,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
     '''
     lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
 
-    metadata = load_hdf_group('', broadband_filepath, 'broadband_metadata')
+    metadata = base.load_hdf_group('', broadband_filepath, 'broadband_metadata')
     samplerate = metadata['samplerate']
     n_channels = int(metadata['n_channels'])
     n_samples = int(metadata['n_samples'])
@@ -538,18 +537,25 @@ def get_ecube_digital_input_times(path, data_dir, ch):
 #####################
 def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1000, step=1, **kwargs):
     '''
-    Gets interpolated kinematic data from preprocessed experiment data to the desired 
-    sampling rate. Cursor kinematics are returned in screen coordinates, while other 
-    kinematics are returned in their original coordinate system (e.g. hand kinematics 
-    in optitrack coordinates).
+    Gets interpolated data from preprocessed experiment task cycles to the desired 
+    sampling rate. Cursor kinematics are returned in screen coordinates, while user input 
+    kinematics are returned either in their original raw coordinate system with datatype='user_raw' (e.g. 
+    optitrack coordinates), in world coordinates with datatype='user_world', or in screen coordinates 
+    with datatype='user_screen' (similar to cursor kinematics but without any bounding under position
+    control).
 
     Args:
         exp_data (dict): A dictionary containing the experiment data.
         exp_metadata (dict): A dictionary containing the experiment metadata.
         datatype (str, optional): The type of kinematic data to interpolate. 
-            For 'hand' kinematics, interp the 'clean_hand_position' experiment data
-            For 'cursor' kinematics, interp the x and z position of the 'cursor' task data
-            For other kinematics, try to interp exp_data['task'][datatype]
+            - 'cursor' for cursor kinematics
+            - 'user_raw' for raw input coordinates
+            - 'user_world' for user input in world coordinates
+            - 'user_screen' for user input in screen coordinates
+            - 'reference' for reference kinematics
+            - 'disturbance' for disturbance kinematics
+            - 'targets' for target positions
+            - other datatypes if they exist as exp_data['task'][<datatype>]
         samplerate (float, optional): The desired output sampling rate in Hz. 
             Defaults to 1000.
         step (int, optional): task data will be decimated with steps this big. Default 1.
@@ -561,7 +567,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
     Examples:
         
-        Cursor kinematics
+        Cursor kinematics in screen coordinates (datatype 'cursor')
 
         .. code-block:: python
         
@@ -573,7 +579,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         
         .. image:: _images/get_interp_cursor_centerout.png
 
-        Hand kinematics
+        Raw input kinematics (datatype 'user_raw', 'hand', or 'manual_input')
        
         .. code-block:: python
 
@@ -583,7 +589,27 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
         .. image:: _images/get_interp_hand_centerout.png
 
-        Target positions
+        User input kinematics in world coordinates (datatype 'user_world')
+       
+        .. code-block:: python
+
+            user_world = get_interp_task_data(exp_data, exp_metadata, datatype='user_world', samplerate=100)
+            ax = plt.axes(projection='3d')
+            visualization.plot_trajectories([user_world], [-10, 10, -10, 10, -10, 10])
+
+        .. image:: _images/get_user_world.png
+
+        User input kinematics in screen coordinates (datatype 'user_screen')
+       
+        .. code-block:: python
+
+            user_screen = get_interp_task_data(exp_data, exp_metadata, datatype='user_screen', samplerate=100)
+            ax = plt.axes(projection='3d')
+            visualization.plot_trajectories([user_screen], [-10, 10, -10, 10, -10, 10])
+
+        .. image:: _images/get_user_screen.png
+
+        Target positions (datatype 'target')
 
         .. code-block:: python
             
@@ -596,7 +622,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
 
         .. image:: _images/get_interp_targets_centerout.png
 
-        Cursor and target (reference) kinematics
+        Cursor and target (datatype 'reference') kinematics
 
         .. code-block:: python
             
@@ -641,18 +667,57 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         clock = exp_data['clock']['timestamp_bmi3d']
 
     # Fetch the relevant BMI3D data
-    if datatype == 'hand':
-        data_cycles = exp_data['clean_hand_position'] # 3d hand position (optitrack coords: x,y,z) on each bmi3d cycle
+    if datatype in ['hand', 'user_raw', 'manual_input']:
+        warnings.warn("Raw hand position is not recommended for analysis. Use 'user_world' instead for 3D world coordinate inputs.")
+        data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
+    elif datatype == 'user_world':
+        # 3d user input converted to world coordinates
+        if 'exp_gain' in exp_metadata:
+            scale = exp_metadata['scale']
+        else:
+            scale = np.sign(exp_metadata['scale'])
+        data_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                  exp_metadata['offset'], scale)
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] # 2d cursor position (bmi3d coords: x,z) on each bmi3d cycle
-    elif datatype == 'user':
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
+    elif datatype == 'user_screen':
+        # 3d user input converted to screen coordinates. Only works for singular mappings, not incremental mappings.
+        if 'incremental_rotation' in exp_metadata['features']:
+            warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
+        if 'exp_gain' in exp_metadata:
+            scale = exp_metadata['scale']
+            exp_gain = exp_metadata['exp_gain']
+        else:
+            scale = np.sign(exp_metadata['scale'])
+            exp_gain = np.abs(exp_metadata['scale'])
+        user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                  exp_metadata['offset'], scale)
+        if 'exp_rotation' in exp_metadata:
+            exp_rotation = exp_metadata['exp_rotation']
+        else:
+            exp_rotation = 'none'
+        if 'perturbation_rotation_x' in exp_metadata:
+            x_rot = exp_metadata['perturbation_rotation_x']
+            z_rot = exp_metadata['perturbation_rotation_z']
+        else:
+            x_rot = 0
+            z_rot = 0
+        if 'pertubation_rotation' in exp_metadata:
+            y_rot = exp_metadata['pertubation_rotation']
+        else:
+            y_rot = 0
+        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain)
+        data_cycles = np.dot(user_world_cycles, exp_mapping)
+    elif datatype in ['user', 'intended_cursor']:
+        if datatype == 'user':
+            warnings.warn("User input is not recommended. Use 'intended_cursor' instead for clarity.")
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['cursor'][:,[0,2]] - exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d cursor position before disturbance added (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] - exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # cursor position before disturbance added (bmi3d coords: x,z,y)
     elif datatype == 'reference':
-        data_cycles =  exp_data['task']['current_target'][:,[0,2]] # 2d target position (bmi3d coords: x,z)
+        data_cycles =  exp_data['task']['current_target'][:,[0,2,1]] # target position (bmi3d coords: x,z,y)
     elif datatype == 'disturbance':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['current_disturbance'][:,[0,2]]*dis_on # 2d disturbance value (bmi3d coords: x,z)
+        data_cycles = exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # disturbance value (bmi3d coords: x,z,y)
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
@@ -738,7 +803,7 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
             
         .. image:: _images/get_cycle_data.png
     '''
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     if samplerate is None:
         samplerate = exp_metadata['fps']
 
@@ -780,7 +845,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''
     if 'eye' in datatype:
-        eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
             eye_data = eye_data['raw_data']
         elif datatype == 'eye_closed_mask':
@@ -934,7 +999,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
 
     Modified September 2023 to include optional sampling rate argument     
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     event_codes = data['events']['code']
     event_times = data['events']['timestamp']
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
@@ -973,8 +1038,8 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
 
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1013,8 +1078,8 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
 
 
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1060,12 +1125,12 @@ def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_befo
         data_name='broadband_data'
         metadata_group='broadband_metadata'
         samplerate_key='samplerate'
-    filename = get_preprocessed_filename(subject, te_id, date, datatype)
+    filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
 
     try:
-        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
-        data = load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
+        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
+        data = base.load_hdf_ts_trial(preproc_dir, filename, data_group, data_name, 
                                  samplerate, trigger_time, time_before, time_after, channels=channels)
     except FileNotFoundError as e:
         print(f"No data found in {preproc_dir} for subject {subject} on {date} ({te_id})")
@@ -1104,18 +1169,103 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
         data_name='broadband_data'
         metadata_group='broadband_metadata'
         samplerate_key='samplerate'
-    filename = get_preprocessed_filename(subject, te_id, date, datatype)
+    filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
 
     try:
-        samplerate = load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
-        data = load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
+        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        data = base.load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
                                    samplerate, start_time, end_time, channels=channels)
     except FileNotFoundError as e:
         print(f"No data found in {preproc_dir} for subject {subject} on {date} ({te_id})")
         raise e
 
     return data, samplerate
+
+def get_spike_data_segment(preproc_dir, subject, te_id, date, start_time, end_time, drive=1, bin_width=.01):
+    '''
+    Loads and extracts a segment of spiking data for a given subject and experiment, optionally binning the spike times.
+
+    Args:
+        preproc_dir (str): Path to the preprocessed data directory.
+        subject (str): Subject name.
+        te_id (str): Task entry number.
+        date (str): The date of the experiment.
+        start_time (float): The start time [s] of the segment to extract.
+        end_time (float): The end time [s] of the segment to extract.
+        drive (int, optional): Which drive (port) to load data from.
+        bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. If set to `None`, no binning is applied and spike times are returned.
+        
+    Returns:
+        tuple: A tuple containing:
+            - spike_segment (dict): A dictionary where keys are unit labels and values are arrays of spike times (or binned spike counts) for that unit.
+            - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
+    
+    '''
+
+    # Load data
+    filename_mc = base.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = base.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
+    
+    # Parse segment and bin spikes if necessary.
+    spike_segment = {}
+    for unit_label in list(spike_data.keys()):
+        temp_spike_segment = spike_data[unit_label][np.logical_and(spike_data[unit_label]>=start_time, spike_data[unit_label]<=end_time)] - start_time
+        if bin_width is None:
+            spike_segment[unit_label] = temp_spike_segment + start_time
+            bins = None
+        else:
+            spike_segment[unit_label], bins = precondition.bin_spike_times(temp_spike_segment, 0, end_time-start_time, bin_width)
+
+    return spike_segment, bins
+
+def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, time_before, time_after, drive=1, bin_width=0.01):
+    """
+    Loads spike data for a given subject and experiment, then aligns binned spike to trigger times.
+
+    .. image:: _images/spike_align_example.png
+
+    Args:
+        preproc_dir (str): Path to the preprocessed data directory.
+        subject (str): Subject name.
+        te_id (str): Task entry number.
+        date (str): The date of the experiment.
+        trigger_times (numpy.ndarray): 1D Array of trigger times (in seconds) for each trial to which spike data should be aligned.
+        time_before (float): The amount of time (in seconds) before each trigger time to include in the aligned spike data.
+        time_after (float): The amount of time (in seconds) after each trigger time to include in the aligned spike data.
+        drive (int): The drive number corresponding to the spike data.
+        bin_width (float, optional): The width of the bins [s]. Default is 0.01 (10ms) seconds. 
+
+    Returns:
+        tuple: A tuple containing:
+            - spike_aligned (numpy.ndarray): A 3D array of aligned spike data with shape (ntime, nunits, ntrials), where:
+                - ntime is the number of time bins between `time_before` and `time_after` around each trigger.
+                - nch is the number of units.
+                - ntrials is the number of trials (trigger events).
+            - unit_labels (list of str): A list of unit labels corresponding to the 'nunits' dimension in the aligned spike data.
+            - bins (numpy.ndarray): The time bin centers relative to the trigger times.
+    """
+    # Load data
+    filename_mc = base.get_preprocessed_filename(subject, te_id, date, 'spike')
+    spike_data = base.load_hdf_group(os.path.join(preproc_dir, subject), filename_mc, f'drive{drive}/spikes', cached=True)
+    
+    # Define relevant variables
+    samplerate = int(np.round(1/bin_width))
+    bins = np.arange(-time_before, time_after, bin_width) + bin_width/2
+    ntime = int(np.round((time_after+time_before)/bin_width))
+    nch = len(spike_data)
+    ntrials = len(trigger_times)
+    
+    # Parse segment and bin spikes if necessary.
+    unit_labels = list(spike_data.keys())
+    spike_aligned = np.zeros((ntime, nch, ntrials))*np.nan #(ntime, nch, ntrials)
+    for iunit, unit_label in enumerate(unit_labels):
+        binned_spikes, _ = precondition.bin_spike_times(spike_data[unit_label], 0, trigger_times[-1]+time_after, bin_width)
+        spike_aligned[:,iunit,:] = np.squeeze(preproc.base.trial_align_data(binned_spikes, trigger_times-(bin_width/2), time_before, time_after, samplerate)) # Squeeze to remove singleton dimension from only doing one unit at a time. Adjust trigger times to center on the previously binned spikes. 
+        
+    return spike_aligned, unit_labels, bins
+
+
 
 @lru_cache(maxsize=1)
 def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
@@ -1161,9 +1311,9 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     if start_time is None:
         start_time = 0.
     if end_time is None:
-        ts_filename = get_preprocessed_filename(subject, te_id, date, datatype)
+        ts_filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
         preproc_dir_subject = os.path.join(preproc_dir, subject)
-        ts_metadata = load_hdf_group(preproc_dir_subject, ts_filename, 
+        ts_metadata = base.load_hdf_group(preproc_dir_subject, ts_filename, 
                                                f'{datatype}_metadata', cached=True)
         end_time = ts_metadata['n_samples']/ts_metadata['samplerate']
 
@@ -1174,7 +1324,7 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     lfp_samplerate = f_extractor.fs
 
     # Find times to extract
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)    
+    exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)    
     step = int(decoder.call_rate * decoder.binlen)
     ts = exp_data['clock']['timestamp_sync'][::step]
     ts = ts[ts > start_time]
@@ -1326,7 +1476,7 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     Returns:
         ndarray: (ntarg x 3) array of coordinates of the given targets
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     try:
         trials = data['trials']
     except:
@@ -1357,7 +1507,7 @@ def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
             | **freq_r (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate reference trajectory
             | **freq_d (list of arrays):** (ntrial) list of (nfreq,) frequencies used to generate disturbance trajectory
     '''
-    data, metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     freq_r, freq_d = get_ref_dis_frequencies(data, metadata)
     return freq_r, freq_d
 
@@ -1376,12 +1526,12 @@ def get_source_files(preproc_dir, subject, te_id, date):
             | ** files (dict):** dictionary of (source, filepath) files that are associated with the given experiment
             | ** data_dir (str):** directory where the source files were located
     '''
-    exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te_id, date)
+    exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     return exp_metadata['source_files'], exp_metadata['source_dir']
 
 def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, 
                            trial_end_codes, reward_codes, penalty_codes, metadata=[],
-                           df=None, event_code_type='code', return_bad_entries=False):
+                           df=None, event_code_type='code', return_bad_entries=False, repeating_start_codes=False):
     '''
     Concatenate trials from across experiments. Experiments are given as lists of 
     subjects, task entry ids, and dates. Each list must be the same length. Trials 
@@ -1402,6 +1552,10 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
             choices include 'event' and 'data'.
         return_bad_entries (bool, optional): If True, returns the list of task entries that could 
             not be loaded. Defaults to False.
+        repeating_start_codes (bool): whether the start codes might occur multiple times within one segment. 
+            Otherwise always use the last start code within a segment. May lead to segments spanning multiple 
+            trials if used improperly. Defaults to False.
+
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
@@ -1423,7 +1577,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
 
         # Load data from bmi3d hdf 
         try:
-            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+            exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
@@ -1433,7 +1587,7 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes,
         event_times = exp_data['events']['timestamp']
 
         # Trial aligned event codes and event times
-        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes)
+        tr_seg, tr_t = get_trial_segments_and_times(event_codes, event_times, trial_start_codes, trial_end_codes, repeating_start_codes)
         reward = [np.any(np.isin(reward_codes, ec)) for ec in tr_seg]
         penalty = [np.any(np.isin(penalty_codes, ec)) for ec in tr_seg]
         
@@ -1561,7 +1715,8 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **target_idx (ntrial):** index of the target that was presented
             | **target_location (ntrial):** location of the target that was presented
-            | **trial_start_time (ntrial):** time at which the trial started
+            | **center_target_on_time (ntrial):** time at which the trial started
+            | **prev_trial_end_time (ntrial):** time at which the previous trial ended
             | **trial_end_time (ntrial):** time at which the trial ended
             | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated
             | **hold_start_time (ntrial):** time at which the hold period started
@@ -1582,7 +1737,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     trial_end_codes = [task_codes['TRIAL_END']]
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
-    penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['PERIPHERAL_TARGET_ON']
 
     # Concatenate base trial data
@@ -1793,6 +1948,186 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
+def tabulate_behavior_data_corners(preproc_dir, subjects, ids, dates, metadata=[], 
+                               df=None):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for corner reaching experiments. 
+    Makes use of the task codes saved in `/config/task_codes.yaml` to automatically 
+    assign event codes for trial start, trial end, reward, penalty, and targets. 
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **chain_length (ntrial):** number of targets presented in each trial
+            | **target_idx (ntrial):** list of indices of the targets presented
+            | **target_location (ntrial):** list of locations of the targets presented
+            | **prev_trial_end_time (ntrial):** time at which the previous trial ended
+            | **trial_end_time (ntrial):** time at which the trial ended
+            | **first_target_on_time (ntrial):** time at which the trial started
+            | **trial_initiated (ntrial):** boolean values indicating whether the trial was initiated
+            | **hold_start_time (ntrial):** time at which the hold period started
+            | **hold_completed (ntrial):** boolean values indicating whether the hold period was completed
+            | **delay_start_time (ntrial):** time at which the delay period started
+            | **delay_completed (ntrial):** boolean values indicating whether the delay period was completed
+            | **go_cue_time (ntrial):** time at which the go cue was presented
+            | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
+            | **reach_end_time (ntrial):** time at which the reach was completed
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **penalty_start_time (ntrial):** time at which the penalty occurred
+            | **penalty_event (ntrial):** numeric code for the penalty event
+            | **pause_start_time (ntrial):** time at which the pause occurred
+            | **pause_event (ntrial):** numeric code for the pause event
+
+    Example:
+
+        .. code-block:: python
+        
+            subject = 'churro'
+            start_date = '2025-01-17'
+            end_date = '2025-01-18'
+            entries = db.lookup_mc_sessions(subject=subject, date=(date.fromisoformat(start_date), date.fromisoformat(end_date)))
+            subjects, te_ids, te_dates = db.list_entry_details(entries)
+
+            df = tabulate_behavior_data_corners(preproc_dir, subjects, te_ids, te_dates)
+            display(df.head(8))
+
+        .. image:: _images/tabulate_behavior_data_corners.png
+    '''
+    # Use default "trial" definition
+    task_codes = load_bmi3d_task_codes()
+    trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
+    trial_start_codes = [task_codes['CORNER_TARGET_ON']]
+    reward_codes = [task_codes['REWARD']]
+    penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    target_codes = task_codes['CORNER_TARGET_ON']
+    pause_codes = [task_codes['PAUSE_START'], task_codes['PAUSE_END'], task_codes['PAUSE']]
+
+    # Concatenate base trial data
+    if 'sequence_params' not in metadata:
+        metadata.append('sequence_params')
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata, df=None, repeating_start_codes=True)
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
+
+    # Add target info
+    chain_length = [
+        json.loads(params)['chain_length']
+        if 'chain_length' in json.loads(params) else 0
+        for params
+        in new_df['sequence_params']
+    ]
+    target_idx = [
+        code[np.isin(code, target_codes)] - target_codes[0] + 1 # add 1 for center target, which doesn't exist in this task
+        if np.sum(np.isin(code, target_codes)) > 0 else []
+        for code 
+        in new_df['event_codes']
+    ]
+    target_location = [
+        np.squeeze(get_target_locations(preproc_dir, s, te, d, t_idx))
+        for s, te, d, t_idx 
+        in zip(new_df['subject'], new_df['te_id'], new_df['date'], target_idx)
+    ]
+    new_df['chain_length'] = chain_length
+    new_df['target_idx'] = target_idx
+    new_df['target_location'] = target_location
+
+    # Add trial segment timing
+    new_df['prev_trial_end_time'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['first_target_on_time'] = np.nan
+    new_df['trial_initiated'] = False
+    new_df['hold_start_time'] = np.nan # aka first target enter time
+    new_df['hold_completed'] = False
+    new_df['delay_start_time'] = np.nan # aka second target on time
+    new_df['delay_completed'] = False
+    new_df['go_cue_time'] = np.nan # aka first target off time
+    new_df['reach_completed'] = False
+    new_df['reach_end_time'] = np.nan # aka second target enter time
+    new_df['reward_start_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_event'] = np.nan
+    new_df['pause_start_time'] = np.nan
+    new_df['pause_event'] = np.nan
+    for i in range(len(new_df)):
+        event_codes = new_df.loc[i, 'event_codes']
+        event_times = new_df.loc[i, 'event_times']
+
+        # Trial end times
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]:
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0.
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        # First corner target appears
+        new_df.loc[i, 'first_target_on_time'] = event_times[0]
+
+        # Trial initiated if cursor enters the first corner target
+        hold_times = event_times[np.isin(event_codes, [task_codes['CURSOR_ENTER_CORNER_TARGET']])] # this list may be as long as the number of corner targets in the chain
+        new_df.loc[i, 'trial_initiated'] = len(hold_times) > 0
+        if new_df.loc[i, 'trial_initiated']:
+            new_df.loc[i, 'hold_start_time'] = hold_times[0] # entering the first corner target is the start of hold
+
+        # Hold completed if second corner target turns on (start of delay)
+        delay_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_ON'])] # this list may be as long as the number of corner targets in the chain
+        new_df.loc[i, 'hold_completed'] = len(delay_times) > 1
+        if new_df.loc[i, 'hold_completed']:
+            new_df.loc[i, 'delay_start_time'] = delay_times[1] # second corner target on is the start of delay
+
+        # Delay completed when first corner target turns off (go cue)
+        go_cue_times = event_times[np.isin(event_codes, task_codes['CORNER_TARGET_OFF'])] # this list may be as long as one less than the number of corner tagets in the chain
+        new_df.loc[i, 'delay_completed'] = len(go_cue_times) > 0
+        if new_df.loc[i, 'delay_completed']:
+            new_df.loc[i, 'go_cue_time'] = go_cue_times[0]
+
+        # Reach completed if cursor enters second corner target (regardless of whether the trial was successful)
+        reach_times = event_times[np.isin(event_codes, task_codes['CURSOR_ENTER_CORNER_TARGET'])] # this list may be as long as the number of corner targets in the chain
+        new_df.loc[i, 'reach_completed'] = len(reach_times) > 1
+        if new_df.loc[i, 'reach_completed']:
+            new_df.loc[i, 'reach_end_time'] = reach_times[1]
+
+        # Reward start times
+        reward_times = event_times[np.isin(event_codes, task_codes['REWARD'])]      
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+
+        # Penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penalty_events = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penalty_events[0]
+
+        # Pause events
+        pause_idx = np.isin(event_codes, pause_codes)
+        pause_events = event_codes[pause_idx]
+        pause_times = event_times[pause_idx]
+        if len(pause_times) > 0:
+            new_df.loc[i, 'pause_start_time'] = pause_times[0]
+            new_df.loc[i, 'pause_event'] = pause_events[0]
+
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+
 def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, metadata=[], df=None):
     '''
     Wrapper around tabulate_behavior_data() specifically for tracking task experiments. 
@@ -1945,7 +2280,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
         # Load data from bmi3d hdf 
         try:
-            exp_data, exp_metadata = load_preproc_exp_data(preproc_dir, subject, te, date)
+            exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
             print(f"Entry {subject} {date} {te} could not be loaded.")
             traceback.print_exc()
@@ -2218,7 +2553,7 @@ def tabulate_feature_data(preproc_dir, subjects, te_ids, dates, start_times, end
         tuple: tuple containing:
             | **segments (ntrial,):** list of tensors of (nt, nfeat) feature data from each trial
             | **samplerate (float):** samplerate of the feature data
-        '''
+    '''
     try:
         if len(decoders) == len(subjects):
             steps = [int(decoder.call_rate*decoder.binlen) for decoder in decoders]
@@ -2341,7 +2676,36 @@ def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_
         segments.append(segment)
         
     return segments, samplerate
+
+def tabulate_spike_data_segments(preproc_dir, subjects, te_ids, dates, start_times, end_times, drives, bin_width=0.01):
+    '''
+    Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        start_times (list of float): times in the recording at which the desired segments start
+        end_times (list of float): times in the recording at which the desired segments end
+        drives (list): Defines which drive to load data from. For neuropixel data this is usually '1' or '2'
+        bin_width (int): Bin width to bin spike times at. If None, the segments of spike times will be returned. 
+
+    Returns:
+            tuple: A tuple containing:
+                - segments (list of dicts): A list where each element is a dictionary of spike data for a unit in a specific experiment.
+                - bins (numpy.ndarray or None): An array of bin edges if binning was applied, otherwise `None`.
+    '''
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times) == len(drives)
+    
+    # Fetch the segments
+    segments = []
+    for s, t, d, dr, st, et in list(zip(subjects, te_ids, dates, drives, start_times, end_times)):
+        segment, bins = get_spike_data_segment(preproc_dir, s, t, d, st, et, dr, bin_width=bin_width)
+        segments.append(segment)
         
+    return segments, bins
+
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''
     Load the default BMI3D task codes. File-specific codes can be found in exp_metadata['event_sync_dict']
@@ -2355,5 +2719,5 @@ def load_bmi3d_task_codes(filename='task_codes.yaml'):
     config_dir = files('aopy').joinpath('config')
     params_file = as_file(config_dir.joinpath(filename))
     with params_file as f:
-        task_codes = yaml_read(f)[0]
+        task_codes = base.yaml_read(f)[0]
     return task_codes

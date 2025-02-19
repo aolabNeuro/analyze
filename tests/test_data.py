@@ -14,6 +14,7 @@ import unittest
 import os
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 from matplotlib.testing.compare import compare_images
 import datetime
 import json
@@ -38,6 +39,10 @@ class LoadPreprocTests(unittest.TestCase):
         cls.id = 3498
         cls.subject = 'fake_subject'
         cls.date = '2021-12-13'
+        
+        cls.id2 = '0000'
+        cls.subject2 = 'test'
+        cls.date2 = '2024-11-12'
         preproc.proc_single(data_dir, files, write_dir, cls.subject, cls.id, cls.date, ['exp', 'eye', 'broadband', 'lfp'], overwrite=True) # without ecube data
 
     def test_load_preproc_exp_data(self):
@@ -59,7 +64,10 @@ class LoadPreprocTests(unittest.TestCase):
         lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
-
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
     def test_find_preproc_ids_from_day(self):
         ids = find_preproc_ids_from_day(write_dir, self.subject, self.date, 'exp')
         self.assertIn(self.id, ids)
@@ -70,7 +78,44 @@ class LoadPreprocTests(unittest.TestCase):
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
-
+    
+    # Test for loading functions when data has multiple drive data
+    def test_load_preproc_lfp_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+        
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(lfp_data, np.ndarray)
+        self.assertIsInstance(lfp_metadata, dict)
+        
+    def test_load_preproc_ap_data_multidrive(self):
+        with self.assertRaises(ValueError):
+            ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=None)
+            
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        ap_data, ap_metadata = load_preproc_ap_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(ap_data, np.ndarray)
+        self.assertIsInstance(ap_metadata, dict)
+        
+    def test_load_preproc_spike_data_multidrive(self):
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        spike, metadata = load_preproc_spike_data(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(spike, dict)
+        self.assertIsInstance(metadata, dict)
+        
+    def test_load_spike_waveforms_multidrive(self):
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=1)
+        self.assertIsInstance(wfs, dict)
+        wfs = load_spike_waveforms(data_dir, self.subject2, self.id2, self.date2, drive_number=2)        
+        self.assertIsInstance(wfs, dict)     
+                
 class OptitrackTests(unittest.TestCase):
         
     def test_load_mocap(self):
@@ -344,6 +389,16 @@ class HDFTests(unittest.TestCase):
         self.assertIn('group_data', result['group1'])
         print(result)
 
+    def test_list_root_groups(self):
+        testfile = 'load_hdf_contents_test.hdf'
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group1", append=True)
+        group_data_dict = {'group_data': np.arange(1000)}
+        save_hdf(write_dir, testfile, data_dict=group_data_dict, data_group="/group2", append=True)
+        group_names = list_root_groups(write_dir, testfile)
+        self.assertIn('group1', group_names)
+        self.assertIn('group2', group_names)
+        
     def test_load_hdf_data(self):
         testfile = 'load_hdf_test.hdf'
         testpath = os.path.join(write_dir, testfile)
@@ -421,23 +476,38 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=100)
         hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=100)
         targets_interp = get_interp_task_data(exp_data, exp_metadata, datatype='targets', samplerate=100)
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user_world', samplerate=100)
+        screen_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user_screen', samplerate=100)
 
-        self.assertEqual(cursor_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(targets_interp.shape[1], 9) # 9 targets including center
+        self.assertEqual(user_interp.shape[1], 3)
 
         self.assertEqual(len(cursor_interp), len(hand_interp))
 
         plt.figure()
         visualization.plot_trajectories([cursor_interp], [-10, 10, -10, 10])
         filename = 'get_interp_cursor_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         ax = plt.axes(projection='3d')
-        visualization.plot_trajectories([hand_interp], [-10, 10, -10, 10, -10, 10])
+        visualization.plot_trajectories([hand_interp]) #, [-10, 10, -10, 10, -10, 10])
         filename = 'get_interp_hand_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        visualization.plot_trajectories([user_interp]) #, [-10, 10, -10, 10, -10, 10])
+        filename = 'get_user_world.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
+
+        plt.figure()
+        ax = plt.axes(projection='3d')
+        visualization.plot_trajectories([user_interp]) #, [-10, 10, -10, 10, -10, 10])
+        filename = 'get_user_screen.png'
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         time = np.arange(len(targets_interp))/100
@@ -446,7 +516,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlabel('time (s)')
         plt.ylabel('x position (cm)')
         filename = 'get_interp_targets_centerout.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         # Test with tracking task data (rig1)
         exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
@@ -458,12 +528,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
         dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps'])
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps'])
 
-        self.assertEqual(cursor_interp.shape[1], 2)
-        self.assertEqual(ref_interp.shape[1], 2)
-        self.assertEqual(dis_interp.shape[1], 2)
-        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
+        self.assertEqual(ref_interp.shape[1], 3)
+        self.assertEqual(dis_interp.shape[1], 3)
+        self.assertEqual(user_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
@@ -479,7 +549,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_cursor_tracking.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
@@ -489,7 +559,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_user_tracking.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
         
         # Test with tracking task data (tablet rig)
         exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'churro', 375, '2023-10-02')
@@ -501,12 +571,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
         dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
         user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='hand', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
 
-        self.assertEqual(cursor_interp.shape[1], 2)
-        self.assertEqual(ref_interp.shape[1], 2)
-        self.assertEqual(dis_interp.shape[1], 2)
-        self.assertEqual(user_interp.shape[1], 2)
+        self.assertEqual(cursor_interp.shape[1], 3)
+        self.assertEqual(ref_interp.shape[1], 3)
+        self.assertEqual(dis_interp.shape[1], 3)
+        self.assertEqual(user_interp.shape[1], 3)
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
@@ -520,7 +590,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_cursor_tracking_tablet.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
@@ -530,7 +600,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
         filename = 'get_interp_user_tracking_tablet.png'
-        visualization.savefig(docs_dir, filename)
+        visualization.savefig(docs_dir, filename, transparent=False)
 
     def test_get_task_data(self):
 
@@ -603,7 +673,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_end_codes = [REWARD, TRIAL_END]
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
         self.assertEqual(len(trajs), 9)
-        self.assertEqual(trajs[1].shape[1], 2) # x z
+        self.assertEqual(trajs[1].shape[1], 3)
         bounds = [-10, 10, -10, 10]
         plt.figure()
         visualization.plot_trajectories(trajs, bounds=bounds)
@@ -622,7 +692,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.close()
 
         # Plot hand trajectories - expect same 9 trials but hand kinematics.
-        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='hand')
+        hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='manual_input')
         self.assertEqual(len(hand_trajs), 9)
         self.assertEqual(hand_trajs[1].shape[1], 3)
         plt.figure()
@@ -645,7 +715,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Test component wise velocity output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
         self.assertEqual(len(vel), 9)
-        self.assertEqual(vel[1].shape[1], 2)
+        self.assertEqual(vel[1].shape[1], 3)
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
@@ -759,7 +829,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 40.42532)
+        np.testing.assert_allclose(trial['penalty_start_time'], 40.314078)
         self.assertEqual(trial['penalty_event'], 65) # timeout penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
@@ -774,7 +844,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 42.64848)
+        np.testing.assert_allclose(trial['penalty_start_time'], 42.64896)
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
@@ -818,6 +888,59 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
 
+    def test_tabulate_behavior_data_corners(self):
+        task_codes = load_bmi3d_task_codes()
+        subjects = ['test', 'test']
+        ids = [19005, 19054]
+        dates = ['2024-12-31', '2025-01-21'] # first entry is pre-pause state, second entry has pause state
+        df = tabulate_behavior_data_corners(data_dir, subjects, ids, dates, metadata=['target_radius', 'cursor_radius', 'rand_delay'])
+        self.assertEqual(len(df), 55)
+        self.assertEqual(len(df.columns), 26+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
+
+        # Check chain length (sequence param)
+        self.assertTrue(np.all(df['chain_length'] == 2))
+
+        # Check that rewarded trials are complete
+        self.assertTrue(np.all(df['trial_initiated'][df['reward']]))
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+
+        # Check that reach completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['reach_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['reach_completed']].target_location]))
+
+        # Check that hold completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['hold_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['hold_completed']].target_location]))
+
+        # Check that hold penalty trials have one target idx & location
+        self.assertTrue(np.all([len(idx)==1 for idx in df[df['hold_completed']==False].target_idx]))
+        self.assertTrue(np.all([loc.shape==(3,) for loc in df[df['hold_completed']==False].target_location]))
+
+        # Check that trial segments occur in the correct order
+        reward_df = df[df['reward']]
+        for i in range(len(reward_df)):
+            trial = reward_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['hold_start_time'])
+            self.assertTrue(trial['hold_start_time'] < trial['delay_start_time'])
+            self.assertTrue(trial['delay_start_time'] < trial['go_cue_time'])
+            self.assertTrue(trial['go_cue_time'] < trial['reach_end_time'])
+            self.assertTrue(trial['reach_end_time'] < trial['reward_start_time'])
+            self.assertTrue(trial['reward_start_time'] < trial['trial_end_time'])
+            
+        penalty_df = df[df['penalty']]
+        for i in range(len(penalty_df)):
+            trial = penalty_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['penalty_start_time'])
+            self.assertTrue(trial['penalty_start_time'] < trial['trial_end_time'])
+            
+        # Check pause events
+        pause_df = df[~np.isnan(df['pause_event'])]
+        self.assertTrue(np.all(pause_df['pause_event'] == task_codes['PAUSE_START']))
+        self.assertTrue(np.all(~np.isnan(pause_df['pause_start_time'])))
+        for i in range(len(pause_df)):
+            trial = pause_df.iloc[i]
+            self.assertTrue(trial['pause_start_time'] == trial['trial_end_time'])
+        
     def test_tabulate_behavior_data_tracking_task(self):
         subjects = ['test', 'test']
         ids = [8461, 8461]
@@ -1023,6 +1146,79 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         for i in range(len(ts_seg)):
             self.assertEqual(ts_seg[i].shape, ts_seg_single_file[i].shape)
 
+    def test_get_spike_data_segment(self):
+        # Check basic functionality
+        start_time = 0.1
+        end_time = 0.15
+        bin_width = 0.01
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
+        spike_segments_port2, _ = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 2, bin_width=bin_width)
+        
+        port1_keys = list(spike_segments_port1.keys())
+        port2_keys = list(spike_segments_port2.keys())
+        port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
+        port2_segment_lens = [len(spike_segments_port2[key]) for key in port2_keys]
+        self.assertEqual(port1_segment_lens[0], np.round((end_time-start_time)/bin_width).astype(int)) # Check that the data segment is the expected length
+        self.assertEqual(len(np.unique(port1_segment_lens)), 1) # Check that the data segments for all units are the same length
+        self.assertFalse(len(spike_segments_port1) == len(spike_segments_port2)) # Check that different data (units) is loaded for different ports
+
+        # Check a different bin width
+        bin_width=0.005
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=bin_width)
+        port1_keys = list(spike_segments_port1.keys())
+        port1_segment_lens = [len(spike_segments_port1[key]) for key in port1_keys]
+        self.assertEqual(port1_segment_lens[0], np.round((end_time-start_time)/bin_width).astype(int)) # Check that the data segment is the expected length
+        self.assertEqual(len(np.unique(port1_segment_lens)), 1) # Check that the data segments for all units are the same length
+
+        # Check unbinned spike segments
+        end_time=1
+        spike_segments_port1, bins = get_spike_data_segment(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), start_time, end_time, 1, bin_width=None)
+        spike_times = spike_segments_port1['24']
+        self.assertTrue(np.logical_and(spike_times>=start_time, spike_times<=end_time).all()) # Check that all times are between the start and end
+        self.assertEqual(np.sum(np.diff(spike_times)>0), len(spike_times)-1) # Check that spike times are monotonic.
+
+    def test_get_spike_data_aligned(self):
+        time_before = 0.1
+        time_after = 0.4
+        bin_width = 0.01
+        flash_df = bmi3d.tabulate_behavior_data_flash(data_dir, ['affi'], [18378], [datetime.date(2024, 9, 23)])
+        trigger_times = np.array(flash_df['flash_start_time'])
+        spike_aligned, unit_labels, bins = get_spike_data_aligned(data_dir, 'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before, time_after, 1, bin_width=bin_width)
+
+        self.assertEqual(spike_aligned.shape[1], len(unit_labels))  # Assert that the correct number of units are in the aligned data. Plot will check other axis.
+
+        # Plot for example figure 
+        spike_aligned1, unit_labels, bins1 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.01 )
+        spike_aligned2, unit_labels, bins2 = get_spike_data_aligned(data_dir,'affi', 18378, datetime.date(2024, 9, 23), trigger_times, time_before,time_after, 1, bin_width=0.001 )
+        iunit = 24
+        fig, ax = plt.subplots(1,2, figsize=(10,4))
+        ax[0].pcolor(bins1, np.arange(len(trigger_times)), spike_aligned1[:,iunit,:].T, cmap='Grays') #24
+        ax[1].pcolor(bins2, np.arange(len(trigger_times)), spike_aligned2[:,iunit,:].T, cmap='Grays') #24
+
+
+        ax[0].set(title=f"Unit label: {unit_labels[iunit]} - Bin width: 10ms", xlabel='Time [s]', ylabel='Trial')
+        ax[1].set(title=f"Unit label: {unit_labels[iunit]} - Bin width: 100ms", xlabel='Time [s]', ylabel='Trial')
+        ax[0].set_xticks(bins1[::10], np.round(bins1[::10],2))
+        ax[1].set_xticks(bins2[::100], np.round(bins2[::100],2))
+        fig.tight_layout()
+    
+        filename = 'spike_align_example.png'
+        visualization.savefig(docs_dir, filename)
+   
+    def test_tabulate_spike_data_segments(self):
+        subjects = ['affi', 'affi']
+        te_ids = [18378, 18378]
+        dates = [datetime.date(2024, 9, 23), datetime.date(2024, 9, 23)]
+        drives = [1,2]
+        start_times = [.1,.1]
+        end_times = [.15,.15]
+        bin_width = 0.01
+        segments, bins = tabulate_spike_data_segments(data_dir, subjects, te_ids, dates, start_times, end_times, drives, bin_width)
+
+        self.assertEqual(len(segments), len(subjects))
+        self.assertEqual(len(segments[0]['0']), 5)
+        self.assertEqual(len(segments[1]['0']), 5)
+
     def test_tabulate_behavior_data_flash(self):
         files = {}
         files['hdf'] = 'test20220311_07_te4298.hdf'
@@ -1066,7 +1262,20 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertLessEqual(df['trial_time'][trial], 100.)
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
-            
+
+    def test_get_kilosort_foldername(self):
+        subject='affi'
+        te_id = 1000
+        date = datetime.date(2024,9,23)
+        data_source = 'Neuropixel'
+        foldername = get_kilosort_foldername(subject, te_id, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000")
+
+        # Test multiple TEs
+        te_ids = [1000,1001]
+        foldername = get_kilosort_foldername(subject, te_ids, date, data_source)
+        self.assertEqual(foldername, "2024-09-23_Neuropixel_affi_te1000_te1001")
+
 class TestMatlab(unittest.TestCase):
     
     def test_load_matlab_cell_strings(self):
@@ -1125,6 +1334,9 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
                    'CENTER_TARGET_OFF': 32,
+                   'CURSOR_ENTER_CORNER_TARGET': list(range(81, 85)),
+                   'CORNER_TARGET_ON': list(range(17, 21)),
+                   'CORNER_TARGET_OFF': list(range(33, 37)),
                    'REWARD': 48,
                    'DELAY_PENALTY': 66,
                    'TIMEOUT_PENALTY': 65,
@@ -1223,6 +1435,85 @@ class SignalPathTests(unittest.TestCase):
         np.testing.assert_array_equal(test_signalpath_table['electrode'].to_numpy()[:240], connected_elecs)
         self.assertEqual(acq_ch_position.shape[0], 240)
         self.assertEqual(acq_ch_position.shape[1], 2)
+
+        acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='NP_Insert137')
+
+    def test_align_neuropixel_recoring_drive(self):
+        # Create plots for documentation with affi and biegnet
+        fig, ax = plt.subplots(1,2)
+        subjects = ['affi', 'beignet']
+        neuropixel_drive='NP_Insert137'
+        drive2 = 'ECoG244'
+        for iax, subject in enumerate(subjects):
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, ax=ax[iax])
+            ax[iax].set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
+
+        fig, ax = plt.subplots(1,2)
+        neuropixel_drive='NP_Insert72'
+        for iax, subject in enumerate(subjects):
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            center = (5,5)
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta, center=center)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, center=center, ax=ax[iax])
+            ax[iax].set(xlim=(-3,13), ylim=(-3,13), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
+
+        # Test the rest of the combinations
+        for subject in subjects:
+            neuropixel_drive = 'NP_Insert72'
+            drive2 = 'ECoG244'
+            aligned_np_drive_coordinates, drive2_coordinates ,  recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
+
+            neuropixel_drive='NP_Insert137'
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
+
+            ## Test with opto drive
+            drive2 = 'Opto32'
+            neuropixel_drive = 'NP_Insert72'
+            # acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
+            ax.set_aspect('equal')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
+
+            neuropixel_drive='NP_Insert137'
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
+            fig, ax = plt.subplots(1,1)
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
+            ax.set_aspect('equal')
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
     def test_map_data2elec(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'
@@ -1575,6 +1866,17 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_mc_sessions()
         df = db.encode_onehot_sequence_name(sessions, sequence_types=['centerout_2D'])
         self.assertEqual(df.shape[1], 4) 
+
+    def test_add_metadata_columns(self):
+
+        sessions = db.lookup_sessions()
+        df = pd.DataFrame({
+            'te_id': [e.id for e in sessions],
+        })
+        db.add_metadata_columns(df, sessions, ['id_copy', 'test'], [lambda e: e.id, lambda e: 'test'])
+        self.assertEqual(len(df), len(sessions))
+        self.assertEqual(df['id_copy'].sum(), df['te_id'].sum())
+        self.assertTrue(all(df['test'] == 'test'))
 
 if __name__ == "__main__":
     unittest.main()
