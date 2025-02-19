@@ -369,10 +369,12 @@ class BMI3DTaskEntry():
             Decoder: decoder object (type depends on which decoder is being loaded)
         '''
         if decoder_dir is not None:
-            filename = bmi3d.get_decoder_name(self.record)
+            filename = bmi3d.get_decoder_name(self.record, dbname=self.dbname)
             filename = os.path.join(decoder_dir, filename)
         else:
-            filename = bmi3d.get_decoder_name_full(self.record)
+            decoder_basename = bmi3d.get_decoder_name(self.record, dbname=self.dbname)
+            sys_path = bmi3d.models.System.objects.using(self.dbname).get(name='bmi').path
+            filename =  os.path.join(sys_path, decoder_basename)
         dec = pickle.load(open(filename, 'rb'))
         dec.db_entry = self.get_decoder_record()
         return dec
@@ -613,6 +615,62 @@ class BMI3DDecoder():
         dec = pickle.load(open(filepath, 'rb'))
         self.dec = dec
         return dec
+
+'''
+Create
+'''
+def create_decoder_parent(project, session, task_name='nothing', task_desc='decoder parent', **kwargs):
+    '''
+    Create a new decoder parent entry (a TaskEntry) in the database. These are used to keep track of
+    decoders that weren't trained on a specific session.
+
+    Args:
+        project (str): project name
+        session (str): session name
+        task_name (str, optional): task name. Defaults to 'nothing'.
+        task_desc (str, optional): task description. Defaults to 'decoder parent'.
+        kwargs (dict, optional): optional keyword arguments, including `dbname` to specify the database
+
+    Returns:
+        TaskEntry: the new decoder parent entry
+    '''
+    dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+
+    subj = bmi3d.models.Subject.objects.using(dbname).get(name='test')
+    task = bmi3d.models.Task.objects.using(dbname).get(name=task_name)
+    
+    te = bmi3d.models.TaskEntry(subject_id=subj.id, task_id=task.id)
+    te.entry_name = task_desc
+    te.project = project
+    te.session = session
+    te.save(using=dbname)
+    
+    return te
+
+def save_decoder(decoder_parent, decoder, suffix, **kwargs):
+    '''
+    Save a new decoder to the database, associated with the given parent TaskEntry. If the decoder
+    was trained on a specific session, use that as the parent. If not, use 
+    :func:`~aopy.data.db.lookup_decoder_parent` or :func:`~aopy.data.db.create_decoder_parent` to 
+    look up or create a new parent entry, respectively.
+
+    Args:
+        decoder_parent (TaskEntry): the parent decoder entry
+        decoder (object): the decoder object to save
+        suffix (str): suffix to append to the decoder name
+        kwargs (dict, optional): optional keyword arguments, including `dbname` to specify the database
+
+    Note:
+        This only works if you have the `bmi` system path locally. See the BMI3D setup page
+        to find this path and make it available on your system.
+    ''' 
+    te_id = decoder_parent.id
+    new_decoder_fname = decoder.save()
+    new_decoder_name = f"{decoder_parent.project}_{decoder_parent.session}_{suffix}" 
+        
+    print("Saving new decoder:", new_decoder_name)
+    dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+    dbq.save_bmi(new_decoder_name, te_id, new_decoder_fname, dbname=dbname)
 
 '''
 Wrappers
