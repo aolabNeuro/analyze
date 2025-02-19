@@ -2438,8 +2438,8 @@ def plot_plane(ax, plane, scale=1.0, color='grey', alpha=0.15, resolution=100):
 
     Args:
         ax (mpl_toolkits.mplot3d.Axes3D): The Matplotlib 3D axis on which to plot the plane.
-        plane (numpy.ndarray): Specifies how the plane is transformed:
-            - If shape (3,3) or (4,4): Treated as a transformation matrix for rotation.
+        plane (4-tuple or (3,3) or (4,4) matrix): Specifies how the plane is transformed:
+            - If shape (3,3) or (4,4): Treated as a transformation matrix for rotating the plane z=0.
             - If shape (4,): Treated as plane equation coefficients (A, B, C, D) for Ax + By + Cz + D = 0.
         scale (float, optional): Scaling factor for the plane's size. Default is 1.0.
         color (str, optional): Color of the plane. Default is 'grey'.
