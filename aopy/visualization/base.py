@@ -2452,27 +2452,32 @@ def plot_plane(ax, plane, scale=1.0, color='grey', alpha=0.15, resolution=100):
     Raises:
         ValueError: If 'plane' does not have a valid shape (expected (3,3), (4,4), or (4,)).
 
-    Notes:
+    Note:
         - When 'plane' is a transformation matrix, only the upper-left (3,3) submatrix is used.
         - When 'plane' is a plane equation (A, B, C, D), the function solves for z using z = (-A * x - B * y - D) / C.
 
-    Example:
-        import matplotlib.pyplot as plt
-        from mpl_toolkits.mplot3d import Axes3D
-        import numpy as np
+    Examples:
 
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
+        .. code-block:: python
 
-        # Example using a transformation matrix (identity)
-        plane = np.eye(3)  
-        plot_plane(ax, mapping, scale=1.0, color='blue', alpha=0.3)
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+            import numpy as np
 
-        # Example using a plane equation Ax + By + Cz + D = 0
-        plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
-        plot_plane(ax, plane_eq, scale=1.0, color='red', alpha=0.5)
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
 
-        plt.show()
+            # Example using a transformation matrix (identity)
+            plane = np.eye(3)  
+            plot_plane(ax, plane, scale=1.0, color='blue', alpha=0.3)
+
+            # Example using a plane equation Ax + By + Cz + D = 0
+            plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
+            plot_plane(ax, plane_eq, scale=1.0, color='red', alpha=0.5)
+
+            plt.show()
+
+        .. image:: _images/plot_plane_example.png
     """
     
     xy_range = np.linspace(-10*scale, 10*scale, 100)
