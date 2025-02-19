@@ -2434,10 +2434,7 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
 
 def plot_plane(ax, plane, scale=1.0, color='grey', alpha=0.15, resolution=100):
     """
-    Plots a 3D plane on a given Matplotlib axis.
-
-    This function generates a square plane centered at the origin, applies a transformation 
-    using a given mapping (either a rotation matrix or a plane equation), and renders it in 3D space.
+    Plots a 3D plane centered at the origin.
 
     Args:
         ax (mpl_toolkits.mplot3d.Axes3D): The Matplotlib 3D axis on which to plot the plane.
