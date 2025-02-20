@@ -376,6 +376,9 @@ def _prepare_bmi3d_v0(data, metadata):
 
     if 'bmi3d_clock' in data:
         data['clock'] = data['bmi3d_clock']
+        names = list(data['clock'].dtype.names)
+        names[np.where([n == 'timestamp' for n in names])[0][0]] = 'timestamp_bmi3d'
+        data['clock'].dtype.names = names
     elif 'bmi3d_task' in data:
         warnings.warn("No clock data found, timing will be inaccurate. Enable HDF sync to fix this")
         preproc_errors.append("No clock data found! Used task data instead. Enable HDF sync to fix this.")

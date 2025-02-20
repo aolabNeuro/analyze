@@ -986,6 +986,13 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
         self.check_required_fields(data, metadata)
 
+    def test_parse_bmi3d_v16(self):
+        files = {}
+        files['hdf'] = 'leo20250213_41_te1966.hdf'
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 0)
+
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
