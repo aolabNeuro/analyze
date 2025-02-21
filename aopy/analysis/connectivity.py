@@ -254,7 +254,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
     
     if window is None:
         window = (0, n)
-    nullcond_window = (-n, 0)
+    nullcond_window = (-time_before, 0)
     data_altcond = prepare_erp(
         erp, samplerate, time_before, time_after, nullcond_window, window, 
         zscore=zscore, ref=ref
