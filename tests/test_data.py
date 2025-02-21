@@ -1659,12 +1659,20 @@ class DatabaseTests(unittest.TestCase):
         te.feats.set([feat])
         te.save(using='test_aopy')
 
+        system = models.System(name="bmi", path=write_dir, archive="")
+        system.save(using='test_aopy')
+
         # Add a decoder entry that was "trained" on a parent task entry
-        task = models.Task.objects.get(name="nothing")
-        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, entry_name="decoder parent")
-        te.save(using='test_aopy')
-        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
-        decoder.save(using='test_aopy')
+        from riglib.bmi.state_space_models import StateSpaceEndptVel2D
+        from riglib.bmi.bmi import Decoder, MachineOnlyFilter
+        ssm = StateSpaceEndptVel2D()
+        A, B, W = ssm.get_ssm_matrices()
+        filt = MachineOnlyFilter(A, W)
+        units = []
+        decoder = Decoder(filt, units, ssm, binlen=0.1)
+        parent = db.create_decoder_parent('project', 'session')
+        db.save_decoder(parent, decoder, 'test_decoder')
+        decoder = db.lookup_decoders()[0]
 
         # And a flash task entry
         task = models.Task.objects.get(name="manual control")
@@ -1672,9 +1680,6 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
         te.save(using='test_aopy')
-
-        system = models.System(name="test_system", path="", archive="")
-        system.save(using='test_aopy')
 
         # Add a bmi task entry
         task = models.Task(name="bmi control")
@@ -1760,14 +1765,14 @@ class DatabaseTests(unittest.TestCase):
         # Other sanity tests
         total_decoders = 1
         self.assertEqual(len(db.lookup_decoders()), total_decoders)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
 
         # Test filtering
         self.assertEqual(len(db.lookup_decoders(name="non_existent")), 0)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
         decoders = db.lookup_decoders(parent_id=db.lookup_decoder_parent()[0].id)
         self.assertEqual(len(decoders), 1)
-        self.assertEqual(decoders[0].name, "test_decoder")
+        self.assertEqual(decoders[0].name, "project_session_test_decoder")
 
     def test_filter_functions(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1824,7 +1829,7 @@ class DatabaseTests(unittest.TestCase):
         # Test a bmi session and decoder
         te = db.lookup_sessions(task_name="bmi control")[0]
         decoder = te.get_decoder_record()
-        self.assertEqual(decoder.name, "test_decoder")
+        self.assertEqual(decoder.name, "project_session_test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
         # Test preprocess function
