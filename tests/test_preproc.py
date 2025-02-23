@@ -667,8 +667,12 @@ class TestPrepareExperiment(unittest.TestCase):
         self.assertIsNotNone(data['task'])
         self.assertIn('time', data['clock'].dtype.names)
         self.assertIn('timestamp_bmi3d', data['clock'].dtype.names)
-        self.assertIn('timestamp', data['events'].dtype.names)
         self.assertIn('cursor', data['task'].dtype.names)
+        self.assertIn('timestamp_bmi3d', data['events'].dtype.names)
+        self.assertIn('timestamp', data['events'].dtype.names)
+        self.assertIn('event', data['events'].dtype.names)
+        self.assertIn('code', data['events'].dtype.names)
+        self.assertIn('data', data['events'].dtype.names)
 
     def test_decode_events(self):
         dictionary = {
