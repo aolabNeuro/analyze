@@ -398,11 +398,16 @@ def _prepare_bmi3d_v0(data, metadata):
         return data, metadata
     
     if 'bmi3d_events' in data:
-        corrected_events = np.zeros((len(data['bmi3d_events']),), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
+        corrected_events = np.zeros((len(data['bmi3d_events']),), 
+                                    dtype=[('time', 'u8'), ('timestamp', 'f8'), ('timestamp_bmi3d', 'f8'),
+                                           ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
         corrected_events['time'] = data['bmi3d_events']['time']
-        corrected_events['timestamp'] =  np.asarray([data['clock']['timestamp_bmi3d'][cycle] for cycle in data['bmi3d_events']['time']])
+        corrected_events['timestamp_bmi3d'] =  np.asarray([data['clock']['timestamp_bmi3d'][cycle] for cycle in data['bmi3d_events']['time']])
+        corrected_events['timestamp'] =  corrected_events['timestamp_bmi3d']
         corrected_events['code'] = data['bmi3d_events']['code']
         corrected_events['event'] = data['bmi3d_events']['event']
+        if 'data' in data['bmi3d_events'].dtype.names:
+            corrected_events['data'] = data['bmi3d_events']['data']
         data['events'] = corrected_events
     else:
         warnings.warn("No event data found! Cannot accurately prepare bmi3d data")
