@@ -2432,7 +2432,7 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
     with params_file as f:
         overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)
 
-def plot_plane(ax, plane, scale=1.0, color='grey', alpha=0.15, resolution=100):
+def plot_plane(plane, ax=None, gain=1.0, color='grey', alpha=0.15, resolution=100, **kwargs):
     """
     Plots a 3D plane centered at the origin.
 
@@ -2441,7 +2441,7 @@ def plot_plane(ax, plane, scale=1.0, color='grey', alpha=0.15, resolution=100):
         plane (4-tuple or (3,3) or (4,4) matrix): Specifies how the plane is transformed:
             - If shape (3,3) or (4,4): Treated as a transformation matrix for rotating the plane z=0.
             - If shape (4,): Treated as plane equation coefficients (A, B, C, D) for Ax + By + Cz + D = 0.
-        scale (float, optional): Scaling factor for the plane's size. Default is 1.0.
+        gain (float, optional): Scaling factor for the plane's size. Default is 1.0. Recommend using exp_gain from metadata.
         color (str, optional): Color of the plane. Default is 'grey'.
         alpha (float, optional): Transparency of the plane, where 1 is opaque and 0 is fully transparent. Default is 0.15.
         resolution (int, optional): Number of subdivisions for the plane. Higher values increase smoothness. Default is 100.
@@ -2466,18 +2466,21 @@ def plot_plane(ax, plane, scale=1.0, color='grey', alpha=0.15, resolution=100):
 
             # Example using a transformation matrix (identity)
             plane = np.eye(3)  
-            plot_plane(ax, plane, scale=1.0, color='blue', alpha=0.3)
+            plot_plane(plane, ax, gain=1.0, color='blue', alpha=0.3)
 
             # Example using a plane equation Ax + By + Cz + D = 0
             plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
-            plot_plane(ax, plane_eq, scale=1.0, color='red', alpha=0.5)
+            plot_plane(plane_eq, ax, gain=1.0, color='red', alpha=0.5)
 
             plt.show()
 
         .. image:: _images/plot_plane_example.png
     """
+    if ax==None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
     
-    xy_range = np.linspace(-10*scale, 10*scale, 100)
+    xy_range = np.linspace(-10*gain, 10*gain, resolution)
     x, y = np.meshgrid(xy_range, xy_range)
     
     # If plane is described as a transformation matrix:
@@ -2492,7 +2495,7 @@ def plot_plane(ax, plane, scale=1.0, color='grey', alpha=0.15, resolution=100):
         z = (-A * x - B * y - D) / C
         
     else:
-        raise ValueError(f"Invalid mapping shape {arr.shape}. Expected (3,3) or (4,4) \
+        raise ValueError(f"Invalid mapping shape {plane.shape}. Expected (3,3) or (4,4) \
                          for transformation matrices, or (4,) for plane equations.")
         
     ax.plot_surface(x, y, z, alpha=alpha, color=color)
