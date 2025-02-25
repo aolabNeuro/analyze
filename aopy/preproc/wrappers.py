@@ -13,6 +13,7 @@ from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
 from .. import data as aodata
+from aopy.utils.base import detect_edges
 
 '''
 proc_* wrappers
@@ -30,6 +31,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         preproc_jobs (list): list of proc_types to generate
         overwrite (bool, optional): Overwrite files in result_dir. Defaults to False.
     '''
+    print(files)
     if os.path.basename(os.path.normpath(preproc_dir)) != subject:
         preproc_dir = os.path.join(preproc_dir, subject)
     if not os.path.exists(preproc_dir):
@@ -96,6 +98,18 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
+    if 'emg' in preproc_jobs:
+        print('processing emg data...')
+        exp_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'exp')
+        emg_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'emg')
+        
+        proc_emg(
+            data_dir, 
+            files, 
+            preproc_dir, 
+            emg_filename, 
+            overwrite=overwrite
+        )
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
@@ -370,3 +384,53 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
                                                 max_memory_gb=max_memory_gb, **filter_kwargs)
         
     aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+
+
+
+def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1., filter_kwargs={}):
+    '''
+    Process emg data:
+        Loads 'broadband' hdf data or 'ecube' headstage data and metadata
+    Saves lfp data into the HDF datasets:
+        lfp_data (nt, nch)
+        lfp_metadata (dict)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        max_memory_gb (float, optional): max memory used to load binary data at one time
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "emg" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+
+    # Preprocess neural data into lfp   
+    
+    if 'emg' in files:
+        result_filepath = os.path.join(result_dir, result_filename)
+        
+        emg_data, emg_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['emg'], 'data')
+        #Channels 0:64 Are EMG
+        #Need to add functionality to deal with different shaped EMG inputs
+        emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),)))
+    
+        clck = emg_data_reshape[:,-24] # I think this should always grab the clock signal
+
+        clck = np.round(clck/30000) # This is hardcoded currently based on
+
+        ts, values = detect_edges(clck>0.8, 2048, rising=True, falling=False) # Currently undoing the time transform because Quatt sampling rate is unreliable
+        emg_clck_idx = (ts*2048).astype(int)
+
+        emg_data = {'emg_raw': emg_data_reshape, 'emg_clck_idx': emg_clck_idx, 'emg_clck_raw':clck}
+
+    
+    aodata.save_hdf(result_dir, result_filename, emg_data, "/emg_data", append=True)
