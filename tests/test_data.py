@@ -947,6 +947,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2023-02-25', '2023-02-25']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)  # no penalties in this session
         self.assertEqual(len(df), 42) # 21 total trials, duplicated
+        self.assertEqual(len(df.columns), 24+1+0) # no. of columns + auto-added sequence params + user-inputted metadata
+
         self.assertTrue(np.all(df['reward']))
         self.assertFalse(np.all(df['penalty']))
         self.assertTrue(np.all(df['trial_initiated']))
@@ -984,6 +986,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2023-10-02', '2023-10-02']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)
         self.assertEqual(len(df), 212)
+        self.assertEqual(len(df.columns), 24+1+0) # no. of columns + auto-added sequence params + user-inputted metadata
 
         # Check sequence params
         self.assertTrue(np.all([json.loads(params)['ramp']==0 for params in df['sequence_params']]))
@@ -1346,7 +1349,11 @@ class TestYaml(unittest.TestCase):
                    'TRIAL_END': 239,
                    'TRIAL_START': 2,
                    'CURSOR_ENTER_TARGET': 80,
+                   'CURSOR_ENTER_TARGET_RAMP_UP': 81,
+                   'CURSOR_ENTER_TARGET_RAMP_DOWN': 82,
                    'CURSOR_LEAVE_TARGET': 96,
+                   'CURSOR_LEAVE_TARGET_RAMP_UP': 97,
+                   'CURSOR_LEAVE_TARGET_RAMP_DOWN': 98,
                    'OTHER_PENALTY': 79,
                    'PAUSE_START': 128,
                    'PAUSE_END': 129}
