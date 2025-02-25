@@ -699,7 +699,8 @@ class KinematicsPlottingTests(unittest.TestCase):
         plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
         plot_plane(plane_eq, ax, gain=1.0, color='red', alpha=0.5)
 
-        plt.show()
+        filename = 'plot_plane_example.png'
+        savefig(docs_dir, filename)
         
     def test_get_color_gradient_RGB(self):
         npts = 200
