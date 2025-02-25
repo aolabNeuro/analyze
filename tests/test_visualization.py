@@ -684,6 +684,23 @@ class KinematicsPlottingTests(unittest.TestCase):
         filename = 'gradient_trajectories_3d.png'
         savefig(docs_dir, filename, transparent=False)
         plt.close()
+
+    def test_plot_plane(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Example using a transformation matrix (identity)
+        plane = np.eye(3)  
+        plot_plane(plane, ax, gain=1.0, color='blue', alpha=0.3)
+
+        # Example using a plane equation Ax + By + Cz + D = 0
+        plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
+        plot_plane(plane_eq, ax, gain=1.0, color='red', alpha=0.5)
+
+        filename = 'plot_plane_example.png'
+        savefig(docs_dir, filename)
         
     def test_get_color_gradient_RGB(self):
         npts = 200
