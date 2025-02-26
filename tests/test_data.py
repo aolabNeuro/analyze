@@ -1337,6 +1337,8 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_ENTER_CORNER_TARGET': list(range(81, 85)),
                    'CORNER_TARGET_ON': list(range(17, 21)),
                    'CORNER_TARGET_OFF': list(range(33, 37)),
+                   'TARGET_ON': list(range(16,30)),
+                   'CURSOR_ENTER_TARGET': list(range(80,94)),
                    'REWARD': 48,
                    'DELAY_PENALTY': 66,
                    'TIMEOUT_PENALTY': 65,
