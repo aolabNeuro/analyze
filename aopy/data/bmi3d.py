@@ -2242,6 +2242,85 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
+def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[], 
+                                      df=None, event_code_type = 'code'):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for random target location experiments. 
+    Uses the task event names (b'TARGET_ON' and b'TRIAL_END', specifically) or corresponding codes
+    to find start and end times for experiments.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+        event_code_type: (str, optional): type of event codes to use. Defaults to 'code'. Other
+        choice is 'event'.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_names (ntrial):** event name segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **target_idx (ntrial): ** target index for each trial within a unique data session
+            | **target_loc (ntrial): ** target locations (x,y,z) for each trial 
+'''
+    # Set up how to tabulate based on event_code_type.
+    if event_code_type == 'event':
+        trial_end_codes = [b'TRIAL_END']
+        trial_start_codes = [b'TARGET_ON']
+        reward_codes = [b'REWARD']
+        penalty_codes = [['HOLD_PENALTY'], ['DELAY_PENALTY']]
+        
+        new_df = tabulate_behavior_data(
+            preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+            reward_codes, penalty_codes, metadata =[], df=None, event_code_type= event_code_type) 
+    
+        match_filter = b'TARGET_ON'
+        event_mask = new_df['event_codes'].apply(lambda x: x == match_filter)
+    
+    elif event_code_type == 'code':  #default 
+        task_codes = load_bmi3d_task_codes()
+        reward_codes = task_codes['REWARD']
+        penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['DELAY_PENALTY']]
+        trial_end_codes = task_codes['TRIAL_END']
+        trial_start_codes = task_codes['TARGET_ON']
+    
+        new_df = tabulate_behavior_data(
+            preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+            reward_codes, penalty_codes, metadata =[], df=None, event_code_type='code') 
+    
+        event_mask = new_df['event_codes'].apply(lambda x: np.isin(x,trial_start_codes))
+    
+    index_locs = new_df.apply(lambda row: np.array(row['event_idx'])[event_mask[row.name]].tolist(), axis=1) #get indices of events that match condition 
+
+    entries_list = list(zip(subjects, dates, ids)) #get unique entries 
+
+    target_idx = []
+    target_loc = []
+    for subject, date, te in entries_list: 
+    
+        df_sub = new_df[(new_df['subject']==subject) & (new_df['te_id']==te) & (new_df['date']==date)].index.tolist() #dataframe subset
+    
+        exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date) #need to reload data 
+     
+        idxloc_sub = index_locs[df_sub] #subset 
+        targ_idx = [exp_data['bmi3d_events']['data'][val] for val in idxloc_sub]
+    
+        targ_loc = get_target_locations(preproc_dir,subject, te, date, targ_idx)
+        target_idx.extend(targ_idx)
+        target_loc.extend(targ_loc)
+    
+    new_df['target_idx'] = np.array(target_idx).flatten() #convert to list 
+    new_df['target_location'] = target_loc
+    
+    return new_df
+
 def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
                        debug=True, df=None, **kwargs):
     '''
