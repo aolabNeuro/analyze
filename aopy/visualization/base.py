@@ -2476,7 +2476,7 @@ def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=Non
 
         .. image:: _images/plot_plane_example.png
     """
-    if ax==None:
+    if ax is None:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
     
