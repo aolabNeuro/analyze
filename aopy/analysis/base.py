@@ -604,14 +604,15 @@ def calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, statistic='mean', bin
 
 def calc_stat_over_angle_from_pos(elec_data, elec_pos, origin, statistic='mean', bins=20):
     '''
-    For spatial data, calculate a statistic against the angle between each position and a given origin.
+    Bins spatial data based on the angle from each electrode to the origin, 
+    then compute a statistic on the electrode data within each angular bin.
 
     Args:
         elec_data (nelec): electrode data
         elec_pos (nelec, 2): x, y position of each electrode
         origin (2,): x, y position to calculate angle from
         statistic (str): statistic to calculate ('mean', 'std', 'median', 'max', 'min'). See scipy.stats.binned_statistic. Default 'mean'.
-        bins (int or array): number of bins or bin edges for binned_statistic. Default 20.
+        bins (int or array): number of angular bins or bin edges for binned_statistic. Default 20.
 
     Returns:
         tuple: tuple containing:
