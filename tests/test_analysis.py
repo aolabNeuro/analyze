@@ -514,6 +514,35 @@ class CalcTests(unittest.TestCase):
         plt.title('Increasing statistic with distance')
         aopy.visualization.savefig(docs_dir, 'increasing_statistic_with_distance.png', transparent=False)
 
+    def test_calc_stat_over_angle_from_pos(self):
+
+        # Create a circle of electrodes
+        nelec = 100
+        elec_data = np.arange(nelec)
+        elec_pos = [[np.cos(idx/nelec*2*np.pi), np.sin(idx/nelec*2*np.pi)] for idx in range(nelec)]
+        origin1 = [0,0]
+        origin2 = [0,1]
+
+        plt.figure()
+        plt.subplot(1,2,1)
+        plt.scatter(*np.array(elec_pos).T, c=elec_data)
+        plt.scatter(*origin1, color='b')
+        plt.scatter(*origin2, color='r')
+        plt.axis('equal')
+
+        angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin1)
+        plt.subplot(1,2,2)
+        plt.plot(angle, mean, color='b')
+        angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin2)
+        plt.plot(angle, mean, color='r')
+        plt.xlabel('Angle (rad)')
+        plt.ylabel('Mean')
+
+        plt.legend(['Origin 1', 'Origin 2'])
+
+        plt.tight_layout()
+        aopy.visualization.savefig(docs_dir, 'angle_versus_position.png', transparent=False)
+
     def test_calc_erp(self):
         nevents = 3
         event_times = 0.2 + np.arange(nevents)
