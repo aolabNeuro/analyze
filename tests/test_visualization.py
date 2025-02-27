@@ -541,6 +541,29 @@ class KinematicsPlottingTests(unittest.TestCase):
             plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
             savefig(write_dir, filename)
 
+    def test_plot_3D_targets(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
+        colors = ['red', 'blue', 'green']
+        plot_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+
+        filename = 'plot_3D_targets.png'
+        savefig(write_dir, filename)
+
+    def test_plot_sphere(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        plot_sphere(location=(0, 1, 2), color='blue', radius=5, resolution=30, alpha=0.5, ax=ax)
+
+        filename = 'plot_sphere_example.png'
+        savefig(docs_dir, filename)
+
     def test_plot_trajectories(self):
 
         # Test with two known trajectories
@@ -693,13 +716,14 @@ class KinematicsPlottingTests(unittest.TestCase):
 
         # Example using a transformation matrix (identity)
         plane = np.eye(3)  
-        plot_plane(plane, ax, gain=1.0, color='blue', alpha=0.3)
+        plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
 
         # Example using a plane equation Ax + By + Cz + D = 0
         plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
-        plot_plane(plane_eq, ax, gain=1.0, color='red', alpha=0.5)
+        plot_plane(plane_eq, gain=1.0, color='red', alpha=0.5, ax=ax)
 
-        plt.show()
+        filename = 'plot_plane_example.png'
+        savefig(docs_dir, filename)
         
     def test_get_color_gradient_RGB(self):
         npts = 200
