@@ -602,6 +602,62 @@ def calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, statistic='mean', bin
 
     return dist, stat
 
+def calc_stat_over_angle_from_pos(elec_data, elec_pos, origin, statistic='mean', bins=20):
+    '''
+    Bins spatial data based on the angle from each electrode to the origin, 
+    then compute a statistic on the electrode data within each angular bin.
+
+    Args:
+        elec_data (nelec): electrode data
+        elec_pos (nelec, 2): x, y position of each electrode
+        origin (2,): x, y position to calculate angle from
+        statistic (str): statistic to calculate ('mean', 'std', 'median', 'max', 'min'). See scipy.stats.binned_statistic. Default 'mean'.
+        bins (int or array): number of angular bins or bin edges for binned_statistic. Default 20.
+
+    Returns:
+        tuple: tuple containing:
+            | **angle (nbins):** angle (in radians) to origin at each bin
+            | **stat (nbins):** statistic at each bin
+
+    Example:
+    
+        .. code-block:: python
+        
+            # Create a circle of electrodes
+            nelec = 100
+            elec_data = np.arange(nelec)
+            elec_pos = [[np.cos(idx/nelec*2*np.pi), np.sin(idx/nelec*2*np.pi)] for idx in range(nelec)]
+            origin1 = [0,0]
+            origin2 = [0,1]
+
+            plt.figure()
+            plt.subplot(1,2,1)
+            plt.scatter(*np.array(elec_pos).T, c=elec_data)
+            plt.scatter(*origin1, color='b')
+            plt.scatter(*origin2, color='r')
+            plt.axis('equal')
+
+            angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin1)
+            plt.subplot(1,2,2)
+            plt.plot(angle, mean, color='b')
+            angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin2)
+            plt.plot(angle, mean, color='r')
+            plt.xlabel('Angle (rad)')
+            plt.ylabel('Mean')
+
+        .. image:: _images/angle_versus_position.png
+    '''
+    assert len(origin) == 2, "Origin must be a 2D point"
+    assert len(elec_data) == len(elec_pos), "Number of electrodes don't match!"
+    assert np.shape(elec_pos)[1] == 2, "Electrode positions must be 2D"
+
+    origin = np.array(origin)
+    angle = [np.arctan2(p[1] - origin[1], p[0] - origin[0]) for p in elec_pos]
+    stat, edges, _ = stats.binned_statistic(angle, elec_data, statistic=statistic, bins=bins)
+    angle = (edges[:-1] + edges[1:]) / 2
+
+    return angle, stat
+
 def subtract_erp_baseline(erp, time, t0, t1):
     '''
     Subtract pre-trigger activity from trial-aligned data.
