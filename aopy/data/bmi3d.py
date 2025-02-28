@@ -18,6 +18,7 @@ else:
 from .. import precondition
 from .. import preproc
 from .. import postproc
+from .. import utils
 from ..preproc.base import get_data_segment, get_data_segments, get_trial_segments, get_trial_segments_and_times, interp_timestamps2timeseries, sample_timestamped_data, trial_align_data
 from ..preproc.bmi3d import get_target_events, get_ref_dis_frequencies
 from ..whitematter import ChunkedStream, Dataset
@@ -2277,6 +2278,13 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
     '''
     if df is None:
         df = pd.DataFrame()
+        
+    possible_triggers = ['qwalor_trigger', 'qwalor_ch1_trigger', 'qwalor_ch2_trigger', 
+                        'qwalor_ch3_trigger', 'qwalor_ch4_trigger']
+    possible_sensors = ['qwalor_sensor', 'qwalor_ch1_sensor', 'qwalor_ch2_sensor', 
+                       'qwalor_ch3_sensor', 'qwalor_ch4_sensor']
+    possible_stim_sites = ['stimulation_site', 'stimulation_site_ch1', 'stimulation_site_ch2',
+                           'stimulation_site_ch3', 'stimulation_site_ch4']
 
     entries = list(zip(subjects, dates, ids))
     for subject, date, te in tqdm(entries): 
@@ -2290,9 +2298,102 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             continue
 
         # Find laser trial times 
+        idx = np.array([n in exp_metadata.keys() and exp_metadata[n] != '' for n in possible_stim_sites])
+        laser_triggers = np.array(possible_triggers)[idx]
+        laser_sensors = np.array(possible_sensors)[idx]
+        stim_sites = np.array(possible_stim_sites)[idx]
+            
+        for stim_idx in range(len(laser_triggers)):
+            try:
+                trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
+                    preproc_dir, subject, te, date, debug=debug, laser_trigger=laser_triggers[stim_idx], 
+                    laser_sensor=laser_sensors[stim_idx], **kwargs)
+            except:
+                print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
+                traceback.print_exc()
+                continue
+
+            # Tabulate everything together
+            exp = {
+                'subject': subject,
+                'te_id': te, 
+                'date': date, 
+                'trial_time': trial_times,
+                'trial_width': trial_widths, 
+                'trial_gain': trial_gains,
+                'trial_power': trial_powers,
+            }
+
+            # Add requested metadata
+            for key in metadata:
+                if key == 'stimulation_site' and 'qwalor_switch_rdy_dch' in exp_metadata:
+
+                    # Switched laser with multiple stim sites
+                    exp['stimulation_site'] = preproc.bmi3d.get_switched_stimulation_sites(
+                        preproc_dir, subject, te, date, trial_times, debug=debug
+                    )
+
+                elif key == 'stimulation_site' and len(laser_triggers) > 1:
+                    exp['stimulation_site'] = exp_metadata[stim_sites[stim_idx]]
+
+                elif key in exp_metadata:
+                    exp[key] = [exp_metadata[key] for _ in range(len(trial_times))]
+                else:
+                    exp[key] = None
+                    print(f"Entry {subject} {date} {te} does not have metadata {key}.")
+
+
+            # Concatenate with existing dataframe
+            df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+    
+    return df
+
+def tabulate_null_stim_data(preproc_dir, subjects, ids, dates, metadata=[], 
+                            poisson_mu=0.25, refractory_period=0.1, df=None):
+    '''
+    Concatenate null stimulation data by generating poisson-timed stimulation times
+    for the given recordings. Recordings are given as lists of subjects, task entry ids, 
+    and dates. Each list must be the same length. See :func:`~aopy.preproc.utils.generate_poisson_timestamps`
+    for more information on the poisson-timed stimulation times that are generated.
+    
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df.
+            By default empty.
+        poisson_mu (float, optional): mean of the inter-trial times. Default 0.25.
+        refractory_period (float, optional): minimum time between trials. Default 0.1.
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of stimulation
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **trial_time (float):** time of stimulation within recording
+    '''
+    if df is None:
+        df = pd.DataFrame()
+
+    entries = list(zip(subjects, dates, ids))
+    for subject, date, te in tqdm(entries): 
+
+        # Load data from bmi3d hdf 
         try:
-            trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
-                preproc_dir, subject, te, date, debug=debug, **kwargs)
+            exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            continue
+
+        # Generate trial times 
+        try:
+            min_time = exp_data['clock']['timestamp_sync'][0]
+            max_time = exp_data['clock']['timestamp_sync'][-1]
+            trial_times = utils.generate_poisson_timestamps(poisson_mu, max_time, min_time, refractory_period)
         except:
             print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
             traceback.print_exc()
@@ -2304,26 +2405,15 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             'te_id': te, 
             'date': date, 
             'trial_time': trial_times,
-            'trial_width': trial_widths, 
-            'trial_gain': trial_gains,
-            'trial_power': trial_powers,
         }
 
         # Add requested metadata
         for key in metadata:
-            if key == 'stimulation_site' and 'qwalor_switch_rdy_dch' in exp_metadata:
-                
-                # Switched laser with multiple stim sites
-                exp['stimulation_site'] = preproc.bmi3d.get_switched_stimulation_sites(
-                    preproc_dir, subject, te, date, trial_times, debug=debug
-                )
-
-            elif key in exp_metadata:
+            if key in exp_metadata:
                 exp[key] = [exp_metadata[key] for _ in range(len(trial_times))]
             else:
                 exp[key] = None
                 print(f"Entry {subject} {date} {te} does not have metadata {key}.")
-
 
         # Concatenate with existing dataframe
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)

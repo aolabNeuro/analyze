@@ -6,10 +6,12 @@ import os
 import numpy as np
 import unittest
 from pathlib import Path
+from matplotlib import pyplot as plt
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -415,7 +417,36 @@ class TestMath(unittest.TestCase):
         self.assertTrue(np.all(A.T == multiplied_mat))
         del multiplied_mat
         save_path.unlink()
+
+    def test_generate_poisson_timestamps(self):
+        mu = 2.0
+        max_time = 500.0
+        min_time = 0.0
+        refractory_period = 0.1
+
+        np.random.seed(5)
+        timestamps = generate_poisson_timestamps(mu, max_time, min_time, refractory_period)
+        inter_event_times = np.diff(timestamps)
+
+        # Plot event train
+        plt.figure()
+        plt.subplot(2,1,1)
+        plt.eventplot(timestamps, orientation='horizontal', linelengths=0.8)
+        plt.xlabel("Time")
+        plt.title("Poisson Event Train (mu=2.0)")
+
+        plt.subplot(2,1,2)
+        plt.hist(inter_event_times, bins=20)
+        plt.xlabel("Inter-event time")
+        plt.ylabel("Count")
+        plt.vlines(np.mean(inter_event_times), 0, 1, transform=plt.gca().get_xaxis_transform(), color='r', linestyle='--')
+        plt.tight_layout()
+        aopy.visualization.savefig(docs_dir, "poisson_event_train.png", transparent=False)
         
+        # Check that inter-event times respect the refractory period
+        self.assertTrue(np.all(timestamps >= min_time) and np.all(timestamps < max_time))
+        self.assertTrue(np.all(np.round(inter_event_times - refractory_period, 6) >= 0))
+
 class MemoryTests(unittest.TestCase):
 
     def test_get_memory_available(self):
