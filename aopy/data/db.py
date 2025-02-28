@@ -452,15 +452,15 @@ class BMI3DTaskEntry():
         Returns:
             list: preprocessed sources for this task entry
         '''
+        sources = list(self.get_raw_files().keys())
         params = self.task_params
-        sources = ['exp']
+        
         if 'record_headstage' in params and params['record_headstage']:
             sources.append('broadband')
             sources.append('lfp')
         if 'neuropixels' in self.features:
             sources.append('spike')
             sources.append('lfp')
-        sources.append('eye')
         
         return sources
     
