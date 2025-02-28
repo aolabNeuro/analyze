@@ -17,6 +17,8 @@ from sklearn.metrics import confusion_matrix
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
+from scipy.stats import wilcoxon
+from statsmodels.stats.multitest import fdrcorrection
 import nitime.algorithms as tsa
 import pywt
 
@@ -1405,16 +1407,16 @@ def calc_welch_psd(data, fs, n_freq=None):
         f, psd = signal.welch(data, fs, average='median', scaling='spectrum', axis=0)
     return f, np.sqrt(psd)
 
-def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
+def get_tfr_feats(freqs, spec, bands, log=False, epsilon=1e-9):
     '''
-    Estimate band power in specified frequency bands using multitaper power spectral density estimate
+    Estimate band power in specified frequency bands, preserving other dimensions.
 
     Args:
         f (nfreq,): Frequency points vector
-        psd_est (nfreq, nt, nch): spectrogram of data
+        spec (nfreq, nt, nch): spectrogram of data
         bands (list of tuples): frequency bands of interest in Hz, e.g. [(0, 10), (10, 20), (130, 140)]
-        log (bool): boolean to select whether band power should be in log scale or not
-        epsilon (float): small number, e.g. 1e-10 to add to power before averaging in case there are zero values
+        log (bool, optional): boolean to select whether band power should be in log scale or not
+        epsilon (float, optional): small number to avoid division by zero. Default 1e-9.
         
     Returns:
         lfp_power (n_features, nt, nch): band power features at each timepoint for each channel
@@ -1434,6 +1436,56 @@ def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
             feats[idx] = np.mean(spec[fft_inds], axis=0)
 
     return np.squeeze(feats)
+
+def calc_tfr_mean(freqs, time, spec, band=(0, np.inf), window=(-np.inf, np.inf)):
+    """
+    Calculate the mean within a specific frequency band and time window.
+    
+    Args:
+        freqs (nfreq,): Frequency values in Hz.
+        time (nt,): Time values in seconds.
+        spec (nfreq, nt, ...): Time-frequency spectrogram data.
+        band (tuple): Frequency band (low, high) in Hz. Defaults to (0, np.inf).
+        window (tuple, optional): Time window (start, end) in seconds. Defaults to (-np.inf, np.inf).
+
+    Returns:
+        (...): Mean spectral value within the specified band and time window for each channel.
+    """
+    freq_idx = (freqs >= band[0]) & (freqs < band[1])
+    time_idx = (time >= window[0]) & (time < window[1])
+    tf_idx = np.ix_(freq_idx, time_idx)
+    
+    return np.nanmean(spec[tf_idx], axis=(0, 1))
+
+def calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs, band=(0,np.inf), window=(-np.inf, np.inf),
+                                alternative='greater', nan_policy='raise', alpha=0.05):
+    """
+    Compute band-specific Wilcoxon sign-rank test with false discovery-rate correction. Used for comparing 
+    coherence maps against null distributions. Spectrograms must be multi-channel.
+    
+    Args:
+        freqs (nfreq,): Frequency axis in Hz.
+        time (nt,): Time axis in seconds.
+        spec (nfreq, nt, nch): Observed spectrogram.
+        null_specs (n_null, nfreq, nt, nch): Distribution of null spectrograms.
+        band (tuple, optional): Frequency band (low, high) in Hz. Defaults to (0, np.inf).
+        window (tuple, optional): Time window (start, end) in seconds. Defaults to (-np.inf, np.inf).
+        alternative (str, optional): Hypothesis test alternative. Defaults to 'greater'.
+        nan_policy (str, optional): Handling of NaN values. Defaults to 'raise'.
+        alpha (float, optional): Significance level. Defaults to 0.05.
+    
+    Returns:
+        tuple: tuple containing:
+            - diff (nch,): Effect size at each channel.
+            - p_fdrc (nch,): Adjusted p-values at each channel.
+    """  
+    mean = calc_tfr_mean(freqs, time, spec, band, window)
+    null_means = np.array([calc_tfr_mean(freqs, time, null_spec, band, window) for null_spec in null_specs])
+    null_mean = np.nanmean(null_means, axis=0)
+    
+    diff, p_fdrc = calc_fdrc_ranktest(mean, null_mean, alternative=alternative, 
+                                      nan_policy=nan_policy, alpha=alpha)
+    return diff, p_fdrc
 
 def get_bandpower_feats(data, samplerate, bands, method='mt', log=False, epsilon=0, **kwargs):
     '''
@@ -2058,6 +2110,31 @@ def calc_confidence_interval_overlap(CI1, CI2):
     
     return overlap
 
+def calc_fdrc_ranktest(altdata, nulldata_dist, alternative='greater', nan_policy='raise', alpha=0.05):
+    """
+    Compute statistical significance using the Wilcoxon signed-rank test with FDR correction.
+    
+    Args:
+        altdata (nch): Observed data values.
+        nulldata_dist (n_null, nch): Null distribution for comparison.
+        alternative (str, optional): Hypothesis test alternative ('greater', 'less', 'two-sided'). Defaults to 'greater'.
+        nan_policy (str, optional): Handling of NaN values. Defaults to 'raise'.
+        alpha (float, optional): Significance level. Defaults to 0.05.
+    
+    Returns:
+        tuple: tuple containing:
+            | **effect_size (nch):** differences between the alternative and null data
+            | **p_fdrc (nch):** Adjusted p-values for each alternative hypothesis test.
+    """
+    differences = altdata - nulldata_dist
+    result = wilcoxon(differences, axis=0, alternative=alternative, nan_policy=nan_policy)
+    p_ranktest = result.pvalue
+    rej, p_fdrc = fdrcorrection(p_ranktest, alpha=alpha)
+    
+    diff = np.nanmean(differences, axis=0)
+    diff[p_fdrc > alpha] = 0
+    
+    return diff, p_fdrc
 
 def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regularization='auto', lda_model=None, return_weights=False, return_confusion_matrix=False):
     """
