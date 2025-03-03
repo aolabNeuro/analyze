@@ -271,8 +271,8 @@ def _parse_bmi3d_v1(data_dir, files):
                 data_dict['measure_clock_online'] = measure_clock_online
 
         # Laser trigger
-        possible_dch = ['qwalor_trigger_dch', 'qwalor_ch1_trigger_dch', 'qwalor_ch2_trigger_dch', 
-                        'qwalor_ch3_trigger_dch', 'qwalor_ch4_trigger_dch']
+        lasers = aodata.bmi3d.load_bmi3d_lasers()
+        possible_dch = [laser['trigger_dch'] for laser in lasers]
         for dch in possible_dch:
             if dch in metadata_dict:
                 trigger_name = dch[:-4]
@@ -346,13 +346,13 @@ def _parse_bmi3d_v1(data_dir, files):
         })
 
         # Laser sensors
-        possible_ach = ['qwalor_sensor_ach', 'qwalor_ch1_sensor_ach', 'qwalor_ch2_sensor_ach', 
-                        'qwalor_ch3_sensor_ach', 'qwalor_ch4_sensor_ach']
-        for ach in possible_ach:
+        lasers = aodata.bmi3d.load_bmi3d_lasers()
+        possible_ach = [laser['sensor_ach'] for laser in lasers]
+        sensor_names = [laser['sensor'] for laser in lasers]
+        for ach, name in zip(possible_ach, sensor_names):
             if ach in metadata_dict:
-                sensor_name = ach[:-4]
                 laser_sensor_data = analog_data[:, metadata_dict[ach]]
-                data_dict[sensor_name] = laser_sensor_data
+                data_dict[name] = laser_sensor_data
 
     return data_dict, metadata_dict
 

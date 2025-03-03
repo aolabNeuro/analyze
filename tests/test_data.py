@@ -1263,6 +1263,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
 
+    def test_tabulate_poisson_trial_times(self):
+        subjects = ['test']
+        ids = [6577]
+        dates = ['2022-08-19']
+        df = tabulate_poisson_trial_times(data_dir, subjects, ids, dates)
+
+        self.assertIn('trial_time', df.columns)
+        self.assertTrue(len(df) > 0)
+
     def test_get_kilosort_foldername(self):
         subject='affi'
         te_id = 1000
@@ -1360,6 +1369,16 @@ class TestYaml(unittest.TestCase):
         task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
 
         self.assertDictEqual(params, task_codes_file)
+
+    def test_load_lasers(self):
+        lasers = load_bmi3d_lasers()
+        for l in lasers:
+            self.assertIn('name', l.keys())
+            self.assertIn('stimulation_site', l.keys())
+            self.assertIn('trigger', l.keys())
+            self.assertIn('trigger_dch', l.keys())
+            self.assertIn('sensor', l.keys())
+            self.assertIn('sensor_ach', l.keys())
 
 class SignalPathTests(unittest.TestCase):
 

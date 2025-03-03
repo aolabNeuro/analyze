@@ -796,3 +796,37 @@ def multiply_mat_batch(data, mat, save_path, scale = 1, max_memory_gb = 1., dtyp
         tmp = mat @ (scale*data[ibatch*batch_size:(ibatch+1)*batch_size, :].T)
         x[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp.T).astype(dtype)
         x.flush()
+
+def generate_poisson_timestamps(mu, max_time, min_time=0., refractory_period=0.):
+    """
+    Generate timestamps following a Poisson process with mean time between events mu,
+    with a specified minimum refractory period, and that fall within a specified time window.
+    The number of timestamps generated is determined by the time window and the mean time between 
+    events and cannot be specified directly. The generated timestamps are random but can be
+    repeated by setting the random seed using `np.random.seed()`.
+
+    Args:
+        mu (float): Mean time between events in seconds.
+        max_time (float): End time of the window in seconds.
+        min_time (float, optional): Start time of the window in seconds. Default 0.
+        refractory_period (float, optional): Minimum refractory period between events in seconds. Default 0.
+
+    Returns:
+        np.ndarray: Array of timestamps within the specified time window.
+
+    Note:
+        The distribution is not guaranteed to be poisson when the refractory period is nonzero. As
+        the refractory period increases, the distribution will approach a uniform distribution.
+    """
+    # Initial estimate of required number of events (overestimate to ensure coverage)
+    estimated_events = int((max_time - min_time) / mu * 1.5)
+    
+    # Generate inter-event times
+    inter_event_times = np.random.exponential(mu, estimated_events)
+    inter_event_times = np.maximum(inter_event_times, refractory_period)
+    
+    # Use a cumulative sum to transform intervals into times
+    event_times = np.cumsum(inter_event_times)
+    event_times += min_time
+    event_times = event_times[event_times < max_time]
+    return event_times
