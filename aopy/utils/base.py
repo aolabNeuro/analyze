@@ -801,6 +801,9 @@ def generate_poisson_timestamps(mu, max_time, min_time=0., refractory_period=0.)
     """
     Generate timestamps following a Poisson process with mean time between events mu,
     with a specified minimum refractory period, and that fall within a specified time window.
+    The number of timestamps generated is determined by the time window and the mean time between 
+    events and cannot be specified directly. The generated timestamps are random but can be
+    repeated by setting the random seed using `np.random.seed()`.
 
     Args:
         mu (float): Mean time between events in seconds.
@@ -810,6 +813,10 @@ def generate_poisson_timestamps(mu, max_time, min_time=0., refractory_period=0.)
 
     Returns:
         np.ndarray: Array of timestamps within the specified time window.
+
+    Note:
+        The distribution is not guaranteed to be poisson when the refractory period is nonzero. As
+        the refractory period increases, the distribution will approach a uniform distribution.
     """
     # Initial estimate of required number of events (overestimate to ensure coverage)
     estimated_events = int((max_time - min_time) / mu * 1.5)

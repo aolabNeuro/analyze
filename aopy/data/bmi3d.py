@@ -2356,13 +2356,13 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
     
     return df
 
-def tabulate_null_stim_data(preproc_dir, subjects, ids, dates, metadata=[], 
-                            poisson_mu=0.25, refractory_period=0.1, df=None):
+def tabulate_poisson_trial_times(preproc_dir, subjects, ids, dates, metadata=[], 
+                                 poisson_mu=0.25, refractory_period=0.1, df=None):
     '''
-    Concatenate null stimulation data by generating poisson-timed stimulation times
-    for the given recordings. Recordings are given as lists of subjects, task entry ids, 
-    and dates. Each list must be the same length. See :func:`~aopy.preproc.utils.generate_poisson_timestamps`
-    for more information on the poisson-timed stimulation times that are generated.
+    Generate poisson-spaced trial times for the given recordings. Recordings are given as 
+    lists of subjects, task entry ids, and dates. Each list must be the same length. See 
+    :func:`~aopy.preproc.utils.generate_poisson_timestamps` for more information on the 
+    poisson-spaced trial times that are generated.
     
     Args:
         preproc_dir (str): base directory where the files live
@@ -2371,17 +2371,17 @@ def tabulate_null_stim_data(preproc_dir, subjects, ids, dates, metadata=[],
         dates (list of str): Date for each recording
         metadata (list, optional): list of metadata keys that should be included in the df.
             By default empty.
-        poisson_mu (float, optional): mean of the inter-trial times. Default 0.25.
-        refractory_period (float, optional): minimum time between trials. Default 0.1.
+        poisson_mu (float, optional): mean of the inter-trial times in seconds. Default 0.25.
+        refractory_period (float, optional): minimum time between trials in seconds. Default 0.1.
         df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data
             | **subject (str):** subject name
             | **te_id (str):** task entry id
-            | **date (str):** date of stimulation
+            | **date (str):** date of each trial
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
-            | **trial_time (float):** time of stimulation within recording
+            | **trial_time (float):** time generated within recording
     '''
     if df is None:
         df = pd.DataFrame()
