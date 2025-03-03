@@ -1370,6 +1370,16 @@ class TestYaml(unittest.TestCase):
 
         self.assertDictEqual(params, task_codes_file)
 
+    def test_load_lasers(self):
+        lasers = load_bmi3d_lasers()
+        for l in lasers:
+            self.assertIn('name', l.keys())
+            self.assertIn('stimulation_site', l.keys())
+            self.assertIn('trigger', l.keys())
+            self.assertIn('trigger_dch', l.keys())
+            self.assertIn('sensor', l.keys())
+            self.assertIn('sensor_ach', l.keys())
+
 class SignalPathTests(unittest.TestCase):
 
     def test_lookup_excel_value(self):

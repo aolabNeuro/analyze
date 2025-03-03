@@ -2278,13 +2278,6 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
     '''
     if df is None:
         df = pd.DataFrame()
-        
-    possible_triggers = ['qwalor_trigger', 'qwalor_ch1_trigger', 'qwalor_ch2_trigger', 
-                        'qwalor_ch3_trigger', 'qwalor_ch4_trigger']
-    possible_sensors = ['qwalor_sensor', 'qwalor_ch1_sensor', 'qwalor_ch2_sensor', 
-                       'qwalor_ch3_sensor', 'qwalor_ch4_sensor']
-    possible_stim_sites = ['stimulation_site', 'stimulation_site_ch1', 'stimulation_site_ch2',
-                           'stimulation_site_ch3', 'stimulation_site_ch4']
 
     entries = list(zip(subjects, dates, ids))
     for subject, date, te in tqdm(entries): 
@@ -2298,13 +2291,28 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             continue
 
         # Find laser trial times 
-        idx = np.array([n in exp_metadata.keys() and exp_metadata[n] != '' for n in possible_stim_sites])
-        laser_triggers = np.array(possible_triggers)[idx]
-        laser_sensors = np.array(possible_sensors)[idx]
-        stim_sites = np.array(possible_stim_sites)[idx]
+        if 'laser_trigger' in kwargs and 'laser_sensor' in kwargs:
+            laser_triggers = [kwargs.pop('laser_trigger')]
+            laser_sensors = [kwargs.pop('laser_sensor')]
+            stim_sites = ['stimulation_site']
+        else:
+            lasers = load_bmi3d_lasers()
+            possible_stim_sites = [laser['stimulation_site'] for laser in lasers]
+            possible_triggers = [laser['trigger'] for laser in lasers]
+            possible_sensors = [laser['sensor'] for laser in lasers]
+            idx = np.array([n in exp_metadata.keys() and exp_metadata[n] != '' for n in possible_stim_sites])
+            laser_triggers = np.array(possible_triggers)[idx]
+            laser_sensors = np.array(possible_sensors)[idx]
+            stim_sites = np.array(possible_stim_sites)[idx]
+
+        print('laser_triggers:', laser_triggers)
+        print('laser_sensors:', laser_sensors)
             
         for stim_idx in range(len(laser_triggers)):
             try:
+                print('laser_trigger:', laser_triggers[stim_idx])
+                print('laser_sensor:', laser_sensors[stim_idx])
+
                 trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
                     preproc_dir, subject, te, date, debug=debug, laser_trigger=laser_triggers[stim_idx], 
                     laser_sensor=laser_sensors[stim_idx], **kwargs)
@@ -2809,8 +2817,22 @@ def load_bmi3d_task_codes(filename='task_codes.yaml'):
     Returns:
         dict: (name, code) task code dictionary
     '''
-    config_dir = files('aopy').joinpath('config')
-    params_file = as_file(config_dir.joinpath(filename))
-    with params_file as f:
-        task_codes = base.yaml_read(f)[0]
-    return task_codes
+    return base.load_yaml_config(filename)[0]
+
+def load_bmi3d_lasers(filename='lasers.yaml'):
+    '''
+    Load the config metadata for BMI3D lasers.
+
+    Args:
+        filename (str, optional): filename of the laser names to load. Defaults to 'laser_names.yaml'.
+
+    Returns:
+        list: list of lasers available in the config. Each laser is a dictionary with keys
+            - name: name of the laser
+            - stimulation_site: name of the metadata key for the stimulation site
+            - trigger: name of the metadata key for the trigger channel
+            - trigger_dch: index of the trigger digital channel
+            - sensor: name of the metadata key for the sensor channel
+            - sensor_ach: index of the sensor analog channel
+    '''
+    return base.load_yaml_config(filename)
