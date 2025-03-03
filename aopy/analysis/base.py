@@ -1481,9 +1481,8 @@ def calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs, band=(0,np.inf), 
     """  
     mean = calc_tfr_mean(freqs, time, spec, band, window)
     null_means = np.array([calc_tfr_mean(freqs, time, null_spec, band, window) for null_spec in null_specs])
-    null_mean = np.nanmean(null_means, axis=0)
     
-    diff, p_fdrc = calc_fdrc_ranktest(mean, null_mean, alternative=alternative, 
+    diff, p_fdrc = calc_fdrc_ranktest(mean, null_means, alternative=alternative, 
                                       nan_policy=nan_policy, alpha=alpha)
     return diff, p_fdrc
 
