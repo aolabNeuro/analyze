@@ -1263,11 +1263,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
 
-    def test_tabulate_null_stim_data(self):
+    def test_tabulate_poisson_trial_times(self):
         subjects = ['test']
         ids = [6577]
         dates = ['2022-08-19']
-        df = tabulate_null_stim_data(data_dir, subjects, ids, dates)
+        df = tabulate_poisson_trial_times(data_dir, subjects, ids, dates)
 
         self.assertIn('trial_time', df.columns)
         self.assertTrue(len(df) > 0)
