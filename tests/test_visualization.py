@@ -541,7 +541,7 @@ class KinematicsPlottingTests(unittest.TestCase):
             plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
             savefig(write_dir, filename)
 
-    def test_plot_3D_targets(self):
+    def test_color_targets_3D(self):
         from mpl_toolkits.mplot3d import Axes3D
 
         fig = plt.figure()
@@ -549,10 +549,10 @@ class KinematicsPlottingTests(unittest.TestCase):
 
         target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
         colors = ['red', 'blue', 'green']
-        plot_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+        color_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
 
-        filename = 'plot_3D_targets.png'
-        savefig(write_dir, filename)
+        filename = 'color_targets_3D.png'
+        savefig(docs_dir, filename)
 
     def test_plot_sphere(self):
         from mpl_toolkits.mplot3d import Axes3D

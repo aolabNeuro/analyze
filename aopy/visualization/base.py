@@ -2500,7 +2500,7 @@ def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=Non
         
     ax.plot_surface(x, y, z, alpha=alpha, color=color)
 
-def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, ax=None, **kwargs):
+def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
     """
     Plots a 3D sphere on a specified 3D Matplotlib axis.
 
@@ -2510,8 +2510,9 @@ def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, ax=Non
         radius (float, optional): Radius of the sphere. Default is 4.
         resolution (int, optional): Number of subdivisions for the sphere's surface. Higher values 
             result in a smoother appearance but may reduce performance. Default is 20.
-        alpha (float, optional): Transparency of the sphere, where 1 is opaque and 0.4 is fully 
-            transparent. Must be between 0.4 and 1. Default is 1.
+        alpha (float, optional): Transparency of the sphere, where 1 is opaque and 0 is fully 
+            transparent. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
         ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the sphere.
 
     Raises:
@@ -2535,10 +2536,6 @@ def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, ax=Non
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
     
-    # Assert that alpha is within the valid range [0.4, 1]
-    if not (0.4 <= alpha <= 1):
-        raise ValueError(f"Invalid value for transparency (alpha): {alpha}. Must be between 0.4 and 1.")
-    
     # Generate points in spherical coordinates
     phi = np.linspace(0, 2 * np.pi, resolution) # azimuthal angle
     theta = np.linspace(0, np.pi, resolution) # polar angle
@@ -2549,9 +2546,10 @@ def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, ax=Non
     z = radius * np.outer(np.ones(np.size(phi)), np.cos(theta)) + location[2]
     
     # Plot sphere
-    ax.plot_surface(x, y, z, color=color, alpha=alpha-0.4)
+    ax.plot_surface(x, y, z, color=color, alpha=alpha, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)
 
-def plot_targets_3D(target_locations, colors, target_radius=1, resolution=20, alpha=1, ax=None, **kwargs):
+def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
     """
     Plots multiple targets as spheres in 3D space.
 
@@ -2562,18 +2560,12 @@ def plot_targets_3D(target_locations, colors, target_radius=1, resolution=20, al
             targets will default to black. Must match the number of unique targets.
         target_radius (float, optional): Radius of each target sphere. Default is 1.
         resolution (int, optional): Resolution of the spheres (passed to 'plot_sphere'). Default is 20.
-        alpha (float, optional): Transparency of the spheres, where 1 is opaque, and 0.4 is the minimum 
-            allowed transparency. Default is 1.
+        alpha (float, optional): Transparency of the spheres, where 1 is opaque. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
         ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the targets.
 
     Raises:
-        ValueError: If 'alpha' is outside the range [0.4, 1].
         ValueError: If 'colors' is less than the number of unique targets.
-
-    Notes:
-        - This function calls 'plot_sphere' for each target in 'target_locations'.
-        - If 'colors' is not specified, all targets will be rendered in black.
-        - The number of colors provided must be at least equal to the number of unique target locations.
 
     Examples:
         To visualize three targets with different colors and sizes:
@@ -2600,13 +2592,12 @@ def plot_targets_3D(target_locations, colors, target_radius=1, resolution=20, al
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
     if colors==None:
-        colors = 'black' * len(np.unique(target_locations))
+        colors = ['gray'] * len(np.unique(target_locations))
     if not (len(colors) >= len(np.unique(target_locations))):
         raise ValueError(f"Not enough colors ({len(colors)}) provided for \
                               number of targets ({len(np.unique(target_locations))}).")
-    if not (0.4 <= alpha <= 1):
-        raise ValueError(f"Invalid value for transparency (alpha): {alpha}. Must be between 0.4 and 1.")
         
     unique_targets = set(tuple(target) for target in target_locations)
     for t,target in enumerate(unique_targets):
-        plot_sphere(target, color=colors[t], radius=target_radius, resolution=resolution, alpha=alpha, ax=ax)
+        plot_sphere(target, color=colors[t], radius=target_radius, resolution=resolution, alpha=alpha, ax=ax, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)
