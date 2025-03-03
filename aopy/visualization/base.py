@@ -2515,8 +2515,6 @@ def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
         ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the sphere.
 
-    Raises:
-        ValueError: If the 'alpha' value is outside the valid range [0.4, 1].
 
     Examples:
         To plot a semi-transparent blue sphere with a radius of 1 at the origin:
