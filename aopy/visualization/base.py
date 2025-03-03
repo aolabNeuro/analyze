@@ -2433,12 +2433,11 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
     with params_file as f:
         overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)
 
-def plot_plane(plane, ax=None, gain=1.0, color='grey', alpha=0.15, resolution=100, **kwargs):
+def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=None, **kwargs):
     """
     Plots a 3D plane centered at the origin.
 
     Args:
-        ax (mpl_toolkits.mplot3d.Axes3D): The Matplotlib 3D axis on which to plot the plane.
         plane (4-tuple or (3,3) or (4,4) matrix): Specifies how the plane is transformed:
             - If shape (3,3) or (4,4): Treated as a transformation matrix for rotating the plane z=0.
             - If shape (4,): Treated as plane equation coefficients (A, B, C, D) for Ax + By + Cz + D = 0.
@@ -2446,6 +2445,7 @@ def plot_plane(plane, ax=None, gain=1.0, color='grey', alpha=0.15, resolution=10
         color (str, optional): Color of the plane. Default is 'grey'.
         alpha (float, optional): Transparency of the plane, where 1 is opaque and 0 is fully transparent. Default is 0.15.
         resolution (int, optional): Number of subdivisions for the plane. Higher values increase smoothness. Default is 100.
+        ax (mpl_toolkits.mplot3d.Axes3D): The Matplotlib 3D axis on which to plot the plane.
 
     Raises:
         ValueError: If 'plane' does not have a valid shape (expected (3,3), (4,4), or (4,)).
@@ -2467,17 +2467,17 @@ def plot_plane(plane, ax=None, gain=1.0, color='grey', alpha=0.15, resolution=10
 
             # Example using a transformation matrix (identity)
             plane = np.eye(3)  
-            plot_plane(plane, ax, gain=1.0, color='blue', alpha=0.3)
+            plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
 
             # Example using a plane equation Ax + By + Cz + D = 0
             plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
-            plot_plane(plane_eq, ax, gain=1.0, color='red', alpha=0.5)
+            plot_plane(plane_eq, gain=1.0, color='red', alpha=0.5, ax=ax)
 
             plt.show()
 
         .. image:: _images/plot_plane_example.png
     """
-    if ax==None:
+    if ax is None:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
     
@@ -2500,3 +2500,102 @@ def plot_plane(plane, ax=None, gain=1.0, color='grey', alpha=0.15, resolution=10
                          for transformation matrices, or (4,) for plane equations.")
         
     ax.plot_surface(x, y, z, alpha=alpha, color=color)
+
+def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
+    """
+    Plots a 3D sphere on a specified 3D Matplotlib axis. If no axis is specified, opens a new figure with a single 3D axis.
+
+    Args:
+        location (tuple or list): Coordinates of the sphere's center, specified as (x, y, z).
+        color (str, optional): Color of the sphere. Default is 'gray'.
+        radius (float, optional): Radius of the sphere. Default is 4.
+        resolution (int, optional): Number of subdivisions for the sphere's surface. Higher values 
+            result in a smoother appearance but may reduce performance. Default is 20.
+        alpha (float, optional): Transparency of the sphere, where 1 is opaque and 0 is fully 
+            transparent. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
+        ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the sphere.
+
+
+    Examples:
+        To plot a semi-transparent blue sphere with a radius of 1 at the origin:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            plot_sphere(location=(0, 1, 2), color='blue', radius=5, resolution=30, alpha=0.5, ax=ax)
+
+        .. image:: _images/plot_sphere_example.png
+    """
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    
+    # Generate points in spherical coordinates
+    phi = np.linspace(0, 2 * np.pi, resolution) # azimuthal angle
+    theta = np.linspace(0, np.pi, resolution) # polar angle
+    
+    # Translate to cartesian coordinates
+    x = radius * np.outer(np.cos(phi), np.sin(theta)) + location[0]
+    y = radius * np.outer(np.sin(phi), np.sin(theta)) + location[1]
+    z = radius * np.outer(np.ones(np.size(phi)), np.cos(theta)) + location[2]
+    
+    # Plot sphere
+    ax.plot_surface(x, y, z, color=color, alpha=alpha, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)
+
+def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
+    """
+    Plots multiple targets as spheres in 3D space.
+
+    Args:
+        target_locations (list of tuples or lists): List of (x, y, z) coordinates specifying the 
+            centers of the target spheres.
+        colors (list of str or None, optional): List of colors for the targets. If not provided, all 
+            targets will default to black. Must match the number of unique targets.
+        target_radius (float, optional): Radius of each target sphere. Default is 1.
+        resolution (int, optional): Resolution of the spheres (passed to 'plot_sphere'). Default is 20.
+        alpha (float, optional): Transparency of the spheres, where 1 is opaque. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
+        ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the targets.
+
+    Raises:
+        ValueError: If 'colors' is less than the number of unique targets.
+
+    Examples:
+        To visualize three targets with different colors and sizes:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+            target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
+            colors = ['red', 'blue', 'green']
+            plot_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+
+            plt.show()
+            
+        .. image:: _images/plot_3D_targets.png
+    """
+    
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    if colors==None:
+        colors = ['gray'] * len(np.unique(target_locations))
+    if not (len(colors) >= len(np.unique(target_locations))):
+        raise ValueError(f"Not enough colors ({len(colors)}) provided for \
+                              number of targets ({len(np.unique(target_locations))}).")
+        
+    unique_targets = set(tuple(target) for target in target_locations)
+    for t,target in enumerate(unique_targets):
+        plot_sphere(target, color=colors[t], radius=target_radius, resolution=resolution, alpha=alpha, ax=ax, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)
