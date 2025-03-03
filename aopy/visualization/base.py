@@ -2502,7 +2502,7 @@ def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=Non
 
 def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
     """
-    Plots a 3D sphere on a specified 3D Matplotlib axis.
+    Plots a 3D sphere on a specified 3D Matplotlib axis. If no axis is specified, opens a new figure with a single 3D axis.
 
     Args:
         location (tuple or list): Coordinates of the sphere's center, specified as (x, y, z).
