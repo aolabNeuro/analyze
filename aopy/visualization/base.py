@@ -2586,7 +2586,6 @@ def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, a
             
         .. image:: _images/plot_3D_targets.png
     """
-    import seaborn as sns
     
     if ax is None:
         fig = plt.figure()
