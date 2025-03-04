@@ -1444,12 +1444,12 @@ def calc_tfr_mean(freqs, time, spec, band=(0, np.inf), window=(-np.inf, np.inf))
     Args:
         freqs (nfreq,): Frequency values in Hz.
         time (nt,): Time values in seconds.
-        spec (nfreq, nt, ...): Time-frequency spectrogram data.
+        spec (nfreq, nt, nch): Time-frequency spectrogram data.
         band (tuple): Frequency band (low, high) in Hz. Defaults to (0, np.inf).
         window (tuple, optional): Time window (start, end) in seconds. Defaults to (-np.inf, np.inf).
 
     Returns:
-        (...): Mean spectral value within the specified band and time window for each channel.
+        (nch,): Mean spectral value within the specified band and time window for each channel.
     """
     freq_idx = (freqs >= band[0]) & (freqs < band[1])
     time_idx = (time >= window[0]) & (time < window[1])
@@ -1470,8 +1470,10 @@ def calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs, band=(0,np.inf), 
         null_specs (n_null, nfreq, nt, nch): Distribution of null spectrograms.
         band (tuple, optional): Frequency band (low, high) in Hz. Defaults to (0, np.inf).
         window (tuple, optional): Time window (start, end) in seconds. Defaults to (-np.inf, np.inf).
-        alternative (str, optional): Hypothesis test alternative. Defaults to 'greater'.
-        nan_policy (str, optional): Handling of NaN values. Defaults to 'raise'.
+        alternative (str, optional): Hypothesis test alternative. See scipy.stats.calc_fdrc_ranktest for 
+            options. Defaults to 'greater'.
+        nan_policy (str, optional): Handling of NaN values. See scipy.stats.calc_fdrc_ranktest for options. 
+            Defaults to 'raise'.
         alpha (float, optional): Significance level. Defaults to 0.05.
     
     Returns:
