@@ -52,16 +52,18 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertTrue(np.isnan(data_map[0,0]))
         plt.figure()
         plot_spatial_map(data_map, x_missing, y_missing)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Fill in the missing values by using calc_data_map instead of get_data_map
         filename = 'posmap_calcmap.png'
         interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
+        np.testing.assert_allclose(x_pos.reshape(-1), xy[0])
+        np.testing.assert_allclose(y_pos.reshape(-1), xy[1])
         self.assertEqual(interp_map.shape, (10, 10))
         self.assertFalse(np.isnan(interp_map[0,0]))
         plt.figure()
         plot_spatial_map(interp_map, xy[0], xy[1])
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Use cubic interpolation to generate a high resolution map
         filename = 'posmap_calcmap_interp.png'
@@ -69,7 +71,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(interp_map.shape, (100, 100))
         plt.figure()
         plot_spatial_map(interp_map, xy[0], xy[1])
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Test using an alpha map on top of the spatial map
         filename = 'posmap_alphamap.png'
@@ -77,7 +79,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(data_map.shape, (10, 10))
         plt.figure()
         plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
     def test_single_spatial_map(self):
         data = 2.0
@@ -135,6 +137,12 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plt.axis('off')
         filename = 'ecog244_opto32_index_subset.png'
         savefig(write_dir, filename)
+
+        plt.figure()
+        plot_spatial_drive_map(np.zeros(64,), drive_type='EMG_GR08MM1305', cmap='Greys', theta=0)
+        annotate_spatial_map_channels(drive_type='EMG_GR08MM1305', color='k', theta=0)
+        filename = 'emg64_gr08mm1305.png'
+        savefig(docs_dir, filename, transparent=False)
 
     def test_plot_image_by_time(self):
         time = np.array([-2, -1, 0, 1, 2, 3])
@@ -299,11 +307,59 @@ class CurveFittingTests(unittest.TestCase):
         # Test without ax input
         fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+        savefig(docs_dir, filename, transparent=False)
 
         # test with ax input
         fig, ax = plt.subplots(2,4)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
+
+    def test_plot_direction_tuning(self):
+        np.random.seed(0)
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        data = np.random.normal(0, 1, (4, 2))
         
+        plt.figure()
+        plot_direction_tuning(data, direction, show_var=False)
+        savefig(write_dir, 'direction_tuning_simple.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(data, direction, wrap=False, show_var=False)
+        savefig(write_dir, 'direction_tuning_simple_polar.png', transparent=False)
+
+        # Try multichannel
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        data = np.random.normal(0, 1, (4, 2, 4))
+        
+        plt.figure()
+        plot_direction_tuning(data, direction)
+        savefig(docs_dir, 'direction_tuning.png', transparent=False)
+
+        plt.figure()
+        plot_direction_tuning(data, np.degrees(direction))
+        savefig(write_dir, 'direction_tuning_degrees.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(data, direction)
+        savefig(docs_dir, 'direction_tuning_polar.png', transparent=False)
+
+        # Test the categorical plot
+        fig = plt.figure()
+        plot_condition_tuning(data, np.degrees(direction))
+        savefig(docs_dir, 'condition_tuning.png', transparent=False)
+
+        # Make sure both work with a 180 degree range
+        direction = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+
+        plt.figure()
+        plot_direction_tuning(data, direction)
+        savefig(write_dir, 'direction_tuning_modulo.png', transparent=False)
+
     def test_plot_boxplots(self):
         # Rectangular array
         np.random.seed(0)
@@ -485,6 +541,29 @@ class KinematicsPlottingTests(unittest.TestCase):
             plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
             savefig(write_dir, filename)
 
+    def test_color_targets_3D(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
+        colors = ['red', 'blue', 'green']
+        color_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+
+        filename = 'color_targets_3D.png'
+        savefig(docs_dir, filename)
+
+    def test_plot_sphere(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        plot_sphere(location=(0, 1, 2), color='blue', radius=5, resolution=30, alpha=0.5, ax=ax)
+
+        filename = 'plot_sphere_example.png'
+        savefig(docs_dir, filename)
+
     def test_plot_trajectories(self):
 
         # Test with two known trajectories
@@ -620,7 +699,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         plt.close()
 
         # Hand data plotted in 3d
-        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='manual_input')
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='user_world')
         plt.figure()
         ax = plt.axes(projection='3d')
         gradient_trajectories(traj[:3], bounds=[-10,10,-10,10,-10,0], ax=ax)
@@ -628,6 +707,23 @@ class KinematicsPlottingTests(unittest.TestCase):
         filename = 'gradient_trajectories_3d.png'
         savefig(docs_dir, filename, transparent=False)
         plt.close()
+
+    def test_plot_plane(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Example using a transformation matrix (identity)
+        plane = np.eye(3)  
+        plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
+
+        # Example using a plane equation Ax + By + Cz + D = 0
+        plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
+        plot_plane(plane_eq, gain=1.0, color='red', alpha=0.5, ax=ax)
+
+        filename = 'plot_plane_example.png'
+        savefig(docs_dir, filename)
         
     def test_get_color_gradient_RGB(self):
         npts = 200
@@ -812,13 +908,13 @@ class TestPlotUtils(unittest.TestCase):
         plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
         overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
         filename = 'overlay_sulci_beignet.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
         plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
         overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
         filename = 'overlay_sulci_affi.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
 class TestEyePlots(unittest.TestCase):
 
@@ -828,8 +924,8 @@ class TestEyePlots(unittest.TestCase):
         te_id = 5974
         date = '2022-07-01'
         preproc_dir = data_dir
-        exp_data, exp_metadata = aopy.data.bmi3d.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        eye_data, eye_metadata = aopy.data.bmi3d.load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        exp_data, exp_metadata = aopy.data.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = aopy.data.load_preproc_eye_data(preproc_dir, subject, te_id, date)
 
         eye_raw = eye_data['raw_data']
         eye_samplerate = eye_metadata['samplerate']
@@ -859,6 +955,13 @@ class TestDecoderPlots(unittest.TestCase):
 
         bmi3d.plot_decoder_summary(decoder)
         filename = 'decoder_weights.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        with open(os.path.join(data_dir, 'test_decoder_emg.pkl'), 'rb') as file:
+            decoder = pickle.load(file, fix_imports=False)
+
+        bmi3d.plot_decoder_summary(decoder, drive_type='EMG_GR08MM1305')
+        filename = 'decoder_weights_emg.png'
         savefig(docs_dir, filename, transparent=False)
 
 if __name__ == "__main__":

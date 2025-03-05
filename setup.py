@@ -13,7 +13,7 @@ install_requires = [
     'psutil',
     'h5py',
     'tables',
-    'scikit-learn',
+    'scikit-learn>=1.0',
     'statsmodels',
     'nitime',
     'xlrd',
@@ -33,7 +33,7 @@ install_requires = [
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.8.1",
+    version="0.9.0",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

@@ -13,12 +13,14 @@ from sklearn.cluster import KMeans
 from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import confusion_matrix
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
 import nitime.algorithms as tsa
 import pywt
 
+from .. import visualization
 from .. import utils
 from .. import preproc
 from .. import precondition
@@ -456,7 +458,7 @@ def calc_ISI(data, fs, bin_width, hist_width, plot_flag = False):
 def calc_sem(data, axis=None):
     '''
     This function calculates the standard error of the mean (SEM). The SEM is calculated with the following equation
-    where :math:`\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
+    where :math:`\\sigma` is the standard deviation and :math:`n` is the number of samples. When the data matrix includes NaN values,
     this function ignores them when calculating the :math:`n`. If no value for axis is input, the SEM will be 
     calculated across the entire input array.
 
@@ -554,6 +556,107 @@ def calc_corr_over_elec_distance(elec_data, elec_pos, bins=20, method='spearman'
     dist = (edges[:-1] + edges[1:]) / 2
 
     return dist, corr
+
+def calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, statistic='mean', bins=20):
+    '''
+    For spatial data, calculate a statistic over distance from a given position.
+
+    Args:
+        elec_data (nelec): electrode data
+        elec_pos (nelec, 2): x, y position of each electrode
+        pos (2,): x, y position to calculate distance from
+        statistic (str): statistic to calculate ('mean', 'std', 'median', 'max', 'min'). See scipy.stats.binned_statistic. Default 'mean'.
+        bins (int or array): number of bins or bin edges for binned_statistic. Default 20.
+
+    Returns:
+        tuple: tuple containing:
+            | **dist (nbins):** electrode distance at each bin
+            | **stat (nbins):** statistic at each bin
+
+    Example:
+    
+        .. code-block:: python
+        
+            nelec = 100
+            elec_data = np.arange(nelec)
+            elec_pos = [[idx, 1] for idx in range(nelec)]
+            pos = [0,1]
+            dist, mean = aopy.analysis.calc_stat_over_dist_from_pos(elec_data, elec_pos, pos)
+
+            plt.figure()
+            plt.plot(dist, mean)
+            plt.xlabel('Distance')
+            plt.ylabel('Mean')
+            plt.title('Increasing statistic with distance')
+
+        .. image:: _images/increasing_statistic_with_distance.png
+    '''
+    assert len(pos) == 2, "Position must be a 2D point"
+    assert len(elec_data) == len(elec_pos), "Number of electrodes don't match!"
+    assert np.shape(elec_pos)[1] == 2, "Electrode positions must be 2D"
+
+    pos = np.array(pos)
+    dist = [np.linalg.norm(np.array(p) - pos) for p in elec_pos]
+    stat, edges, _ = stats.binned_statistic(dist, elec_data, statistic=statistic, bins=bins)
+    dist = (edges[:-1] + edges[1:]) / 2
+
+    return dist, stat
+
+def calc_stat_over_angle_from_pos(elec_data, elec_pos, origin, statistic='mean', bins=20):
+    '''
+    Bins spatial data based on the angle from each electrode to the origin, 
+    then compute a statistic on the electrode data within each angular bin.
+
+    Args:
+        elec_data (nelec): electrode data
+        elec_pos (nelec, 2): x, y position of each electrode
+        origin (2,): x, y position to calculate angle from
+        statistic (str): statistic to calculate ('mean', 'std', 'median', 'max', 'min'). See scipy.stats.binned_statistic. Default 'mean'.
+        bins (int or array): number of angular bins or bin edges for binned_statistic. Default 20.
+
+    Returns:
+        tuple: tuple containing:
+            | **angle (nbins):** angle (in radians) to origin at each bin
+            | **stat (nbins):** statistic at each bin
+
+    Example:
+    
+        .. code-block:: python
+        
+            # Create a circle of electrodes
+            nelec = 100
+            elec_data = np.arange(nelec)
+            elec_pos = [[np.cos(idx/nelec*2*np.pi), np.sin(idx/nelec*2*np.pi)] for idx in range(nelec)]
+            origin1 = [0,0]
+            origin2 = [0,1]
+
+            plt.figure()
+            plt.subplot(1,2,1)
+            plt.scatter(*np.array(elec_pos).T, c=elec_data)
+            plt.scatter(*origin1, color='b')
+            plt.scatter(*origin2, color='r')
+            plt.axis('equal')
+
+            angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin1)
+            plt.subplot(1,2,2)
+            plt.plot(angle, mean, color='b')
+            angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin2)
+            plt.plot(angle, mean, color='r')
+            plt.xlabel('Angle (rad)')
+            plt.ylabel('Mean')
+
+        .. image:: _images/angle_versus_position.png
+    '''
+    assert len(origin) == 2, "Origin must be a 2D point"
+    assert len(elec_data) == len(elec_pos), "Number of electrodes don't match!"
+    assert np.shape(elec_pos)[1] == 2, "Electrode positions must be 2D"
+
+    origin = np.array(origin)
+    angle = [np.arctan2(p[1] - origin[1], p[0] - origin[0]) for p in elec_pos]
+    stat, edges, _ = stats.binned_statistic(angle, elec_data, statistic=statistic, bins=bins)
+    angle = (edges[:-1] + edges[1:]) / 2
+
+    return angle, stat
 
 def subtract_erp_baseline(erp, time, t0, t1):
     '''
@@ -754,8 +857,9 @@ def classify_by_lda(X_train_lda, y_class_train,
         random_state (int, optional): random state for data spliting Defaults to 1.
 
     Returns:
-        accuracy (float): mean accuracy of the repeated lda runs.
-        std (float): standard deviation of the repeated lda runs.
+        tuple: Tuple containing:
+            **accuracy (float):** mean accuracy of the repeated lda runs.
+            **std (float):** standard deviation of the repeated lda runs.
     """
 
     assert X_train_lda.shape[0] == len(y_class_train)
@@ -925,6 +1029,11 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
         print(f"Scale ({scale[0]}, {scale[-1]})")
         print(f"Freqs ({freqs_ud[0]}, {freqs_ud[-1]})")
     
+    shape = coef.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    coef = coef.reshape(shape)
+
     if not complex_output:
         coef = np.abs(coef)
     return freqs, time, np.flip(coef, axis=0)
@@ -1006,19 +1115,27 @@ def calc_ft_tfr(data, samplerate, win_t, step, f_max=None, pad=2, window=None,
         data, fs=samplerate, window=window, nperseg=win_size, noverlap=overlap_size, nfft=nfft, 
         detrend=detrend, scaling='spectrum', axis=0, mode='complex')
     
+    spec = spec.transpose(0,2,1)
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
+
     if complex_output:
-        return freqs[:nfk], time, spec[:nfk].transpose(0,2,1)
+        return freqs[:nfk], time, spec[:nfk]
     else:
-        return freqs[:nfk], time, np.abs(spec[:nfk]).transpose(0,2,1)
+        return freqs[:nfk], time, np.abs(spec[:nfk])
 
 
-def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64'):
+def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, complex_output=False, dtype='float64', nonnegative_freqs=True):
     '''
     Compute multitaper time-frequency estimate from multichannel signal input. 
     This code is adapted from the Pesaran lab `tfspec`.    
     
     Args:
-        ts_data (nt, nch): time series array
+        ts_data (nt, [nch, ntr]): time series array. If nch=1, the second dimension can be omitted.
+            If ntr=1, the third dimension can be omitted. Output spectrogram dimensions
+            (n_freq, n_time, [nch, ntr]) will also be reduced accordingly.
         n (float): window length in seconds
         p (float): standardized half bandwidth in hz
         k (int): number of DPSS tapers to use
@@ -1038,12 +1155,14 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         complex_output (bool): if True, return the complex signal instead of magnitude.
                                Default False.
         dtype (str): dtype of the output. Default 'float64'
+        nonnegative_freqs (bool): if True, only include non-negative frequencies in the output.
+                                       Default True.
                        
     Returns:
         tuple: Tuple containing:
             | **f (n_freq):** frequency axis for spectrogram
             | **t (n_time):** time axis for spectrogram
-            | **spec (n_freq,n_time,nch):** multitaper spectrogram estimate
+            | **spec (n_freq,n_time,nch,ntr):** multitaper spectrogram estimate
         
     Examples:
         
@@ -1093,6 +1212,8 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
         ts_data = np.array(ts_data)
     if ts_data.ndim == 1:
         ts_data = ts_data[:, np.newaxis]
+    if ts_data.ndim == 2:
+        ts_data = ts_data[:, :, np.newaxis]
     if ts_data.shape[1] == 1:
         ref = False
     if step == None:
@@ -1100,37 +1221,54 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     if fk == None:
         fk = fs/2
         
-    ts_data = ts_data.T
-    nch,nt = ts_data.shape
-    fk = np.array([0,fk])
-    tapers, _ = precondition.dpsschk(n*fs, p, k)
+    ts_data = ts_data.transpose(1, 0, 2)  # (nch, nt, ntr)
+    nch, nt, ntr = ts_data.shape
+    fk = np.array([0, fk])
+    tapers, _ = precondition.dpsschk(n * fs, p, k)
     
-    win_size = tapers.shape[0] # window size (data points of tapers)
-    step_size = int(np.floor(step*fs)) # step size
-    nf = np.max([256,pad*2**utils.nextpow2(win_size+1)]) # 0 padding for efficient computation in FFT
-    nfk = np.floor(fk/fs*nf) # number of data points in frequency axis
-    nwin = 1 + int(np.floor((nt-win_size)/step_size)) # number of windows
-    f = np.linspace(fk[0],fk[1],int(nfk[1] - nfk[0])) # frequency axis for spectrogram
+    win_size = tapers.shape[0]  # window size (data points of tapers)
+    step_size = int(np.floor(step * fs))  # step size
+    nf = np.max([256, pad * 2 ** utils.nextpow2(win_size + 1)])  # 0 padding for efficient computation in FFT
+    nwin = 1 + int(np.floor((nt - win_size) / step_size))  # number of windows
+    nfk = np.floor(fk / fs * nf)  # number of data points in frequency axis
+    if nonnegative_freqs:
+        f = np.linspace(fk[0], fk[1], int(nfk[1] - nfk[0]))  # frequency axis for spectrogram
+    else:
+        f = np.fft.fftfreq(nf, d=1/fs)
+        f = np.fft.fftshift(f)
+        nfk = [int(nf/2)-int(nfk[1]), int(nf/2)+int(nfk[1])]
+        f = f[nfk[0]:nfk[1]]
 
-    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch), dtype=dtype)
+    spec = np.zeros((int(nfk[1] - nfk[0]), nwin, nch, ntr), dtype=dtype)
     for iwin in range(nwin):
         if ref:
-            m_data = np.sum(ts_data[:,step_size*iwin:step_size*iwin+win_size],axis=0)/nch # Mean across channels for that window
-            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]-m_data).T # Subtract mean from data           
+            m_data = np.sum(ts_data[:, step_size * iwin:step_size * iwin + win_size, :], axis=0) / nch  # Mean across channels for that window
+            win_data = (ts_data[:, step_size * iwin:step_size * iwin + win_size, :] - m_data).transpose(1, 0, 2)  # Subtract mean from data           
         else:
-            win_data = (ts_data[:,step_size*iwin:step_size*iwin+win_size]).T
+            win_data = (ts_data[:, step_size * iwin:step_size * iwin + win_size, :]).transpose(1, 0, 2)
         
         # Compute power for each taper
-        tapers_ik = tapers[:, :, np.newaxis]  # Shape: (win_size, k, 1)
-        win_data_reshaped = win_data[:, np.newaxis, :]  # Shape: (win_size, 1, nch)
-        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch)
+        tapers_ik = tapers[:, :, np.newaxis, np.newaxis]  # Shape: (win_size, k, 1, 1)
+        win_data_reshaped = win_data[:, np.newaxis, :, :]  # Shape: (win_size, 1, nch, ntr)
+        fk_data = np.fft.fft(tapers_ik * win_data_reshaped, nf, axis=0)  # Shape: (nf, k, nch, ntr)
+        if not nonnegative_freqs:
+            fk_data = np.fft.fftshift(fk_data, axes=0)
         if complex_output:
-            spec[:,iwin,:] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :], axis=1)
+            spec[:, iwin, :, :] = np.mean(fk_data[int(nfk[0]):int(nfk[1]), :, :, :], axis=1)
         else:
-            spec[:,iwin,:] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :]), axis=1).real
+            spec[:, iwin, :, :] = np.mean(np.abs(fk_data[int(nfk[0]):int(nfk[1]), :, :, :]), axis=1).real
 
-    t = np.arange(nwin)*step + n/2 # Center of each window is time axis
-    
+    if not nonnegative_freqs:
+        f = np.fft.ifftshift(f)
+        spec = np.fft.ifftshift(spec, axes=0)
+
+    t = np.arange(nwin) * step + n / 2  # Center of each window is time axis
+
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
+
     return f, t, spec
 
 def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackknife=False, adaptive=False, sides='onesided'):
@@ -1213,6 +1351,11 @@ def calc_tsa_mt_tfr(data, fs, win_t, step_t, bw=None, f_max=None, pad=2, jackkni
         win_data = data[window_sample_range,:]
         freqs, _win_psd, _ = calc_mt_psd(win_data, fs, bw, nfft, adaptive, jackknife, sides)
         spec[:,idx_window,...] = _win_psd
+
+    shape = spec.shape
+    while shape and shape[-1] == 1:
+        shape = shape[:-1] # remove trailing axes with length 1
+    spec = spec.reshape(shape)
 
     return freqs[:nfk], time, spec[:nfk]
 
@@ -1666,6 +1809,37 @@ def calc_itpc(analytical_signals):
 '''
 Statistics
 '''
+def align_spatial_maps(data1, data2):
+    '''
+    Align two input maps by finding the location of the peak of the 2D correlation function.
+    Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the maps
+    and the alignment should not be used. This function replaces input NaN values with 0 and uses 0-padding for all
+    edge conditions.
+
+    Args:
+        data1 (nrow, ncol): First input data array, used as baseline map.
+        data2 (nrow, ncol): Second input data array, will be shifted to match the baseline map.
+
+    Returns:
+        tuple: tuple containing:
+            | **data2_align (nrow, ncol):** aligned version of data2
+            | **shifts (tuple):** contains (row_shifts, col_shifts)
+    '''
+    # Replace NaNs with 0s so correlation doesn't output NaN
+    data1[np.isnan(data1)] = 0
+    data2[np.isnan(data2)] = 0
+    
+    # Align data maps.
+    corr = scipy.signal.correlate2d(data1/np.linalg.norm(data1), data2/np.linalg.norm(data2), 
+                                    boundary='fill', mode='same')
+    irow, icol = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
+    row_shift = int(irow - (data1.shape[0]-1)/2)
+    col_shift = int(icol - (data1.shape[1]-1)/2)
+    data2_align = np.roll(data2, row_shift, axis=0)
+    data2_align = np.roll(data2_align, col_shift, axis=1)
+    shifts = (row_shift, col_shift)
+    return data2_align, shifts
+
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''
     This function creates a map showning the local correlation between two input datamaps. If specified, it also aligns the input
@@ -1706,14 +1880,7 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     
     # Get maxidx of 2D spatial correlation matrix to ensure data maps are aligned.
     if align_maps:
-        corr = scipy.signal.correlate2d(data1/np.linalg.norm(data1), data2/np.linalg.norm(data2), 
-                                        boundary='fill', mode='same')
-        irow, icol = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
-        row_shift = int(irow - (data1.shape[0]-1)/2)
-        col_shift = int(icol - (data1.shape[1]-1)/2)
-        data2_align = np.roll(data2, row_shift, axis=0)
-        data2_align = np.roll(data2_align, col_shift, axis=1)
-        shifts = (row_shift, col_shift)
+        data2_align, shifts = align_spatial_maps(data1, data2)
     else:
         data2_align = data2
         shifts = (0,0)
@@ -1741,8 +1908,87 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     
     # Replace NaNs in correlation map
     NCC[nan_idx1] = np.nan
-    
     return NCC, shifts
+
+def calc_spatial_map_correlation(data_maps, align_maps=False):
+    '''
+    Generate a correlation matrix between all pairs of input data maps. If specified, it also aligns the input
+    maps. Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the datamaps
+    and alignment should not be used. This function replaces input NaN values with 0 to calculate the correlation
+    matrix. Data maps are normalized by their magnitude prior to computing correlation.
+
+    Args:
+        data_maps ((nmaps,) list): list of (ncol, nrow) spatial data arrays
+        align_maps (bool): Whether or not to align maps. Always aligns to the first map. Default False.
+
+    Returns:
+        tuple: tuple containing:
+            | **NCC (nmaps, nmaps):** normalized correlation coefficients
+            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+
+    Examples:
+
+        Generate a noisy map and two copies with known change and shift
+
+        .. code-block:: python
+
+            data1 = np.random.normal(0,1,(nrows,ncols))
+            data2 = data1.copy()
+            NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+            self.assertAlmostEqual(NCC[1,0], 1)
+
+            nrows_changed = 5
+            ncols_changed = 3
+            for irow in range(nrows_changed):
+                data2[irow,:ncols_changed] = 1
+
+            data3 = data2.copy()
+            data3 = np.roll(data3, 2, axis=0)
+
+            NCC, shifts = aopy.analysis.calc_spatial_map_correlation([data1, data2, data3], True)
+
+        Plot the maps and correlation coefficients against the reference map
+            
+        .. code-block:: python
+
+            fig, [ax1, ax2, ax3] = plt.subplots(1,3, figsize=(8,3))
+            im1 = ax1.pcolor(data1)
+            ax1.set(title='Reference')
+            plt.colorbar(im1, ax=ax1)
+            
+            im2 = ax2.pcolor(data2)
+            ax2.set(title=f'R^2={np.round(NCC[1,0],3)}')
+            plt.colorbar(im2, ax=ax2)
+            
+            im3 = ax3.pcolor(data3)
+            ax3.set(title=f'R^2={np.round(NCC[2,0],3)}')
+            plt.colorbar(im3, ax=ax3)
+
+        .. image:: _images/calc_spatial_map_correlation.png
+    '''
+    # Prepare spatial maps
+    shifts = []
+    flat_maps = []
+    for idx in range(len(data_maps)):
+        data_map = data_maps[idx].copy()
+        data_map[np.isnan(data_maps[idx])] = 0 # replace NaNs with 0s so correlation doesn't output NaN
+        if align_maps:        
+            # Align to first map
+            shift = (0,0)
+            if idx == 0:
+                day0_map = data_maps[0].copy()
+            else:
+                data_map, shift = align_spatial_maps(day0_map, data_map)
+            shifts.append(shift)
+        else:
+            shifts.append((0,0))
+        flat_maps.append(data_map.ravel())
+            
+    # Compute correlation
+    flat_maps /= np.linalg.norm(flat_maps, axis=1, keepdims=True)
+    NCC = np.corrcoef(flat_maps)
+
+    return NCC, shifts   
 
 def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
     '''
@@ -1811,3 +2057,100 @@ def calc_confidence_interval_overlap(CI1, CI2):
     overlap = (overlap_width / min(width1, width2))
     
     return overlap
+
+
+def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regularization='auto', lda_model=None, return_weights=False, return_confusion_matrix=False):
+    """
+    Perform cross-validation with Linear Discriminant Analysis (LDA) to estimate decoding accuracy at each time point.
+
+    This function performs an n-fold cross-validation LDA analysis on time-series data to compute the decoding accuracy 
+    across time windows defined by `lags`. Optionally, it can return the weights of the LDA classifier and/or confusion matrices 
+    for each fold.
+
+    Args:
+        data (numpy.ndarray): The input data array with shape (ntime, nch, ntrials), where `ntime` is the number of time points,
+                               `nch` is the number of channels, and `ntrials` is the number of trials.
+        labels (numpy.ndarray): Array of shape (ntrials,) containing the labels for each trial.
+        samplerate (float or int): Samplerate of data. Used to compute the timeaxis.
+        lags (int, optional): The number of time lags to include in the analysis (default is 3). To only use a single timepoint set lags=0
+        nfolds (int, optional): The number of folds for cross-validation (default is 5).
+        regularization (str or float, optional): If regularization should be included when building the LDA model. Input into the shrinkage parameter of the sklearn 
+                                LDA function. Can either be None, 'auto', or a float between 0 and 1. 
+        lda_model (sklearn LDA class, optional): User-defined LDA model from sklearn.discriminant_analysis.LinearDiscriminantAnalysis. If None, this function will initialize the model.
+        return_weights (bool, optional): Whether to return the LDA weights (default is False).
+        return_confusion_matrix (bool, optional): Whether to return the confusion matrix for each fold (default is False).
+
+    Returns:
+        tuple: Tuple containing:
+            **accuracy (ntime-nlags, nfolds):** The decoding accuracy for each time point (and fold if cross-validation is used). 
+            **time_axis (nt-nlags):** The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
+            **(Optional) LDA Weights (ntime-lags, nlabels, nfeatures, nfolds):** The LDA weights for each time point, channel, and fold if `return_weights=True`. Note: nfeatures will include lagged features if lags are used.
+            **(Optional) Confusion Matrix (ntime-lags, nlabels, nlabels, nfolds):** The confusion matrix for each fold if `return_confusion_matrix=True`. 
+
+    Raises:
+        ValueError: If the input data or labels are not valid, or if there is a mismatch between the data and labels.
+
+    Notes:      
+        If `nfolds < 2`, no cross-validation is performed, and the function will calculate the accuracy based on the entire dataset.
+        If `nfolds >= 2`, k-fold cross-validation is performed, and decoding accuracy is calculated for each fold.
+    """
+
+    ntime, nch, ntrials = data.shape 
+    nlabels = len(np.unique(labels))
+
+    # Perform n-fold xval LDA at each time point 
+    decoding_accuracy = np.zeros((ntime-lags, nfolds))*np.nan
+    weights = np.zeros((ntime-lags, nlabels, (1+lags)*nch, nfolds))*np.nan # (ntime, ntargets, nfeatures, nfolds)
+    cm = np.zeros((ntime-lags, nlabels, nlabels, nfolds))*np.nan
+    nwind = data.shape[0] - lags
+    time_axis = (np.arange(nwind)+lags)/samplerate
+    for iwind in range(nwind):
+        if lda_model is None:
+            lda = LinearDiscriminantAnalysis(solver='eigen', shrinkage=regularization)
+        else:
+            lda = lda_model
+
+        end_wind = iwind+lags+1
+
+        # If there are nans at this timestep, return nan in all places
+        if np.sum(np.isnan(data[iwind:end_wind,:,:])):
+            if nfolds < 2:
+                decoding_accuracy[iwind] = np.nan
+                weights[iwind,:,:] = np.nan
+                cm[iwind,:,:] = np.nan
+            else:
+                decoding_accuracy[iwind,:] = np.nan
+                if return_weights:
+                    weights[iwind,:,:,:] = np.nan
+                if return_confusion_matrix:
+                    cm[iwind,:,:,:] = np.nan
+
+        else:
+            # If not cross validated
+            if nfolds < 2:
+                lda.fit(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0), labels)
+                decoding_accuracy[iwind] = lda.score(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0), labels)
+                predicted_labels = lda.predict(np.vstack(data[iwind:end_wind,:,:]).T - np.mean(np.vstack(data[iwind:end_wind,:,:]).T, axis=0))
+                cm[iwind,:,:,0] = confusion_matrix(labels, predicted_labels)
+                                                        
+            # if cross validated: 
+            else:
+                kf = model_selection.KFold(n_splits=nfolds,shuffle=True,random_state=None)
+                for ifold, (train_idx, test_idx) in enumerate(kf.split(np.vstack(data[iwind:end_wind,:,:]).T)):
+                    # print(ifold, train_idx, test_idx, iwind, end_wind)
+                    lda.fit(np.vstack(data[iwind:end_wind,:,train_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0), labels[train_idx])
+                    decoding_accuracy[iwind, ifold] = lda.score(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0), labels[test_idx])
+                    predicted_labels = lda.predict(np.vstack(data[iwind:end_wind,:,test_idx]).T - np.mean(np.vstack(data[iwind:end_wind,:,train_idx]).T, axis=0))
+                    if return_weights:
+                        weights[iwind,:,:,ifold] = lda.coef_
+                    if return_confusion_matrix:
+                        cm[iwind,:,:,ifold] = confusion_matrix(labels[test_idx], predicted_labels, normalize='true')
+            
+    if return_weights & return_confusion_matrix:
+        return decoding_accuracy, time_axis, weights, cm
+    elif return_weights: 
+        return decoding_accuracy, time_axis, weights
+    elif return_confusion_matrix:
+        return decoding_accuracy, time_axis, cm
+    else:
+        return decoding_accuracy, time_axis

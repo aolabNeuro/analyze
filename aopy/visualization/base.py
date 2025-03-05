@@ -405,10 +405,31 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
             x_missing = np.reshape(np.delete(x_pos, missing),-1)
             y_missing = np.reshape(np.delete(y_pos, missing),-1)
 
+            data_map = get_data_map(data_missing, x_missing, y_missing)
+            plt.figure()
+            plot_spatial_map(data_map, x_missing, y_missing)
+
+        .. image:: _images/posmap.png
+
+        Use `calc_data_map` to interpolate the missing data
+
+        .. code-block:: python
+
             interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
             plot_spatial_map(interp_map, xy[0], xy[1])
 
         .. image:: _images/posmap_calcmap.png
+
+        Use cubic interpolation to generate a high resolution map
+
+        .. code-block:: python
+
+            interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [100, 100], threshold_dist=1.5, 
+                interp_method='cubic')
+            plt.figure()
+            plot_spatial_map(interp_map, xy[0], xy[1])
+
+        .. image:: _images/posmap_calcmap_interp.png
 
     Args:
         data (nch): list of values
@@ -428,6 +449,11 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     if extent is None:
         extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
+    if len(x_pos) != len(y_pos):
+        raise ValueError('x_pos and y_pos must have the same length!')
+    if len(data) != len(x_pos):
+        raise ValueError('Data and position must have the same length!')
+    data = np.squeeze(data)
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
@@ -510,10 +536,11 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     '''
     # Calculate the proper extents
-    if data_map.size > 1:
+    assert np.ndim(data_map) == 2, 'data_map must be 2D'
+    if np.size(data_map) > 1:
         extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
-        x_spacing = (extent[1] - extent[0]) / (data_map.shape[0] - 1)
-        y_spacing = (extent[3] - extent[2]) / (data_map.shape[1] - 1)
+        x_spacing = (extent[1] - extent[0]) / (np.shape(data_map)[1] - 1)
+        y_spacing = (extent[3] - extent[2]) / (np.shape(data_map)[0] - 1)
         extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
     else:
         extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
@@ -556,7 +583,7 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
         data ((nch,) array): values from the spatial drive to plot in 2D
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
-        drive_type (str, optional): type of drive. Defaults to 'ECoG244'.
+        drive_type (str, optional): type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
             e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
@@ -1425,8 +1452,143 @@ def plot_waveforms(waveforms, samplerate, plot_mean=True, ax=None):
     else:
         ax.plot(time_axis, waveforms)
 
-    ax.set_xlabel(r'Time ($\mu$s)')
+    ax.set_xlabel(r'Time ($\mu$s)')    
+    
+def plot_condition_tuning(per_condition_data, conditions, ylabel='success rate', ax=None, **kwargs):
+    '''
+    Plot tuning curves for categorical data. Essentially a scatter plot with the mean of each condition
+    plotted as a solid line.
 
+    Args:
+        per_condition_data (nconditions, ...): data for each condition
+        conditions (nconditions): condition for each data point
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Default the current axis.
+
+    Examples:
+
+        Plot the success rate for 4 different conditions
+
+        .. code-block:: python
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            data = np.random.normal(0, 1, (4, 2, 4))
+            
+            fig = plt.figure()
+            plot_condition_tuning(data, np.degrees(direction))
+            
+        .. image:: _images/condition_tuning.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    per_condition_data = np.array(per_condition_data).reshape(len(per_condition_data), -1)
+    ntr = per_condition_data.shape[1]
+    print(per_condition_data.shape)
+    print(conditions.shape)
+
+    # Scatter plot
+    plt.scatter(np.tile(conditions, (1,ntr)), per_condition_data, **kwargs)
+
+    # Add means
+    dist = (np.max(conditions) - np.min(conditions)) / len(conditions)
+    for idx, cond in enumerate(per_condition_data):
+        mean = np.mean(cond)
+        ax.plot([conditions[idx]-dist/2, conditions[idx]+dist/2], [mean, mean], 'r-')
+
+    ax.set_xlabel('condition')
+    ax.set_ylabel(ylabel)
+
+def plot_direction_tuning(per_direction_data, directions, show_var=True, wrap=True, ylabel='success rate', ax=None):
+    '''
+    Plot tuning curves for directional data. The mean across trials is plotted as a solid line and the variance as 
+    a shaded region around the mean. Works with both cartesian and polar axes.
+    
+    Args:
+        per_direction_data (ndir, nch, ntrial): direction responses for each channel. If only one channel, can be (ndir, ntrial).
+        directions (ndir): unique directions in radians
+        show_var (bool, optional): if True, plots the standard deviation around the mean. Default True.
+        wrap (bool, optional): if True, duplicates the first value to wrap the plot around a circle. Default True.
+        ylabel (str, optional): label for the y-axis. Default "success rate"
+        ax (pyplot.Axes, optional): axis to plot the tuning curves on. Can be cartesian or polar. Default the current axis.
+    
+    Example:
+        Polar plot of tuning curves for 4 targets
+
+        .. code-block:: python
+
+            direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+            data = np.random.normal(0, 1, (4, 2, 4))
+            
+            plt.figure()
+            plot_direction_tuning(data, direction)
+        
+        .. image:: _images/direction_tuning.png
+
+        Again but with polar plot
+        
+        .. code-block:: python
+        
+            fig = plt.figure()
+            ax = fig.add_subplot(projection='polar')
+
+            plot_direction_tuning(data, direction)
+        
+        .. image:: _images/direction_tuning_polar.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    if np.ndim(per_direction_data) == 1:
+        per_direction_data = np.expand_dims(per_direction_data, 1)
+    if np.ndim(per_direction_data) == 2:
+        per_direction_data = np.expand_dims(per_direction_data, 1)
+            
+    if len(directions) != len(per_direction_data):
+        directions = np.unique(directions)
+    assert len(directions) == len(per_direction_data), "Direction and mean must have the same length"
+
+    # Calculate mean and variance
+    mean = np.nanmean(per_direction_data, axis=2)
+    if show_var:
+        var = np.nanstd(per_direction_data, axis=2)
+    else:
+        var = np.zeros_like(mean)
+
+    # Sort the data and decide if the data fills a full circle or half circle
+    if np.max(np.abs(directions)) > 2*np.pi:
+        directions = np.radians(directions) # probably in degrees by mistake
+    modulo = np.pi
+    if np.max(directions) - np.min(directions) >= (np.pi):
+        modulo = np.pi * 2
+    directions = np.array(directions) % modulo
+    idx = np.argsort(directions)
+
+    # Wrap around the circle
+    if wrap:
+        directions = np.hstack((directions[idx], [directions[idx[0]] + modulo]))
+        mean = np.vstack((mean[idx], [mean[idx[0]]]))
+        var = np.vstack((var[idx], [var[idx[0]]]))
+    else:
+        directions = directions[idx]
+        mean = mean[idx]
+        var = var[idx]
+
+    # Plot
+    if ax.name != 'polar':
+        directions = np.degrees(directions)
+
+    for ch in range(mean.shape[1]):
+        ax.plot(directions, mean[:,ch])
+        ax.fill_between(directions, mean[:,ch]-var[:,ch], mean[:,ch]+var[:,ch], alpha=0.5)
+
+    try:
+        label_position=ax.get_rlabel_position()
+        ax.text(np.radians(label_position-1),ax.get_rmax()*1.1,ylabel,
+            rotation=label_position,ha='left',va='center')
+    except:
+        ax.set_xlabel('direction (deg)')
+        ax.set_ylabel(ylabel)
+    
 def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     '''
     This function plots the tuning curves output from analysis.run_tuningcurve_fit overlaying the actual firing rate data.
@@ -1980,7 +2142,7 @@ def plot_tfr(values, times, freqs, cmap='plasma', logscale=False, ax=None, **kwa
     return pcm
 
 def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_grid=None, 
-                     cmap='viridis', grid_size=(4,4), **kwargs):
+                     cmap='viridis', grid_size=(4,4), colorbar=True, **kwargs):
     '''
     Plot a grid of different frequency bands and time points for a given time-frequency map across
     spatial locations.
@@ -2052,8 +2214,10 @@ def plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=None, interp_gr
                 cmap=cmap, ax=this_ax)
             if clim is not None:
                 im.set_clim(clim)
-            plt.colorbar(im, ax=this_ax, shrink=0.7)
+            if colorbar:
+                plt.colorbar(im, ax=this_ax, shrink=0.7)
             this_ax.set_title(f't={t:.2f}, {band[0]}-{band[1]} Hz')
+            this_ax.set(xticks=[], yticks=[], xlabel='', ylabel='')
     return ax
 
 def get_color_gradient_RGB(npts, end_color, start_color=[1,1,1]):
@@ -2188,7 +2352,7 @@ def plot_circular_hist(data, bins=16, density=False, offset=0, proportional_area
 
     return n, bins, patches
 
-def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, invert=False, ax=None, **kwargs):
+def overlay_image_on_spatial_map(filepath, drive_type, theta=0, center=(0,0), color=None, invert=False, ax=None, **kwargs):
     '''
     Overlay an image on a spatial map of electrodes. The image is rotated by theta degrees and 
     placed at the same coordinates as electrode positions for the given electrode drive. The image
@@ -2198,6 +2362,7 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
         filepath (str): path to the image file
         drive_type (str): drive type to use for the spatial map. See :func:`aopy.data.load_chmap` for options.
         theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         color (str, optional): color to use for the image. Default is None.
         invert (bool, optional): whether to invert the image. Default is False.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
@@ -2218,17 +2383,17 @@ def overlay_image_on_spatial_map(filepath, drive_type, theta=0, color=None, inve
     img = np.rot90(img, np.ceil(theta/90), axes=(1,0))
     
     # Calculate the proper extents
-    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta)
+    elec_pos, _, _ = aodata.load_chmap(drive_type, theta=theta, center=center)
     x = elec_pos[:,0]
     y = elec_pos[:,1]
     extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
-    x_spacing = (extent[1] - extent[0]) / (len(x) - 1)
-    y_spacing = (extent[3] - extent[2]) / (len(y) - 1)
+    x_spacing = (extent[1] - extent[0]) / (len(np.unique(x)) - 1)
+    y_spacing = (extent[3] - extent[2]) / (len(np.unique(y)) - 1)
     extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
 
     ax.imshow(img, origin='upper', extent=extent, **kwargs)
 
-def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.5, **kwargs):
+def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(0,0), alpha=0.5, **kwargs):
     '''
     Overlay a precomputed image of chamber sucli on a spatial map of electrodes. 
     Images are stored in the aopy.config directory. Currently available images are:
@@ -2238,8 +2403,9 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.
     Args:
         subject (str): subject name
         chamber (str): chamber type
-        drive_type (str): drive type
+        drive_type (str): drive type of the spatial map. See :func:`~aopy.data.load_chmap` for options. 
         theta (int, optional): rotation of the image in degrees. Default is 0.
+        center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         alpha (float, optional): transparency of the image. Default is 0.5.
         kwargs (dict, optional): other keyword arguments to pass to ax.imshow, e.g. color.
 
@@ -2265,4 +2431,171 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, alpha=0.
     filename = f'{subject.lower()}_{chamber.lower()}_{drive_type.lower()}_sulci.png'
     params_file = as_file(config_dir.joinpath(filename))
     with params_file as f:
-        overlay_image_on_spatial_map(f, drive_type, theta=theta, alpha=alpha, **kwargs)
+        overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)
+
+def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=None, **kwargs):
+    """
+    Plots a 3D plane centered at the origin.
+
+    Args:
+        plane (4-tuple or (3,3) or (4,4) matrix): Specifies how the plane is transformed:
+            - If shape (3,3) or (4,4): Treated as a transformation matrix for rotating the plane z=0.
+            - If shape (4,): Treated as plane equation coefficients (A, B, C, D) for Ax + By + Cz + D = 0.
+        gain (float, optional): Scaling factor for the plane's size. Default is 1.0. Recommend using exp_gain from metadata.
+        color (str, optional): Color of the plane. Default is 'grey'.
+        alpha (float, optional): Transparency of the plane, where 1 is opaque and 0 is fully transparent. Default is 0.15.
+        resolution (int, optional): Number of subdivisions for the plane. Higher values increase smoothness. Default is 100.
+        ax (mpl_toolkits.mplot3d.Axes3D): The Matplotlib 3D axis on which to plot the plane.
+
+    Raises:
+        ValueError: If 'plane' does not have a valid shape (expected (3,3), (4,4), or (4,)).
+
+    Note:
+        - When 'plane' is a transformation matrix, only the upper-left (3,3) submatrix is used.
+        - When 'plane' is a plane equation (A, B, C, D), the function solves for z using z = (-A * x - B * y - D) / C.
+
+    Examples:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+            import numpy as np
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+            # Example using a transformation matrix (identity)
+            plane = np.eye(3)  
+            plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
+
+            # Example using a plane equation Ax + By + Cz + D = 0
+            plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
+            plot_plane(plane_eq, gain=1.0, color='red', alpha=0.5, ax=ax)
+
+            plt.show()
+
+        .. image:: _images/plot_plane_example.png
+    """
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    
+    xy_range = np.linspace(-10*gain, 10*gain, resolution)
+    x, y = np.meshgrid(xy_range, xy_range)
+    
+    # If plane is described as a transformation matrix:
+    if plane.shape in [(3,3),(4,4)]:
+        coords = np.column_stack((x.ravel(), y.ravel(), np.zeros_like(x.ravel())))
+        rotated_coords = coords @ plane[:3, :3]
+        x, y, z = rotated_coords.T.reshape(3, *x.shape)
+    
+    # If plane is described as an equation:
+    elif plane.shape == (4,):
+        A,B,C,D = plane
+        z = (-A * x - B * y - D) / C
+        
+    else:
+        raise ValueError(f"Invalid mapping shape {plane.shape}. Expected (3,3) or (4,4) \
+                         for transformation matrices, or (4,) for plane equations.")
+        
+    ax.plot_surface(x, y, z, alpha=alpha, color=color)
+
+def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
+    """
+    Plots a 3D sphere on a specified 3D Matplotlib axis. If no axis is specified, opens a new figure with a single 3D axis.
+
+    Args:
+        location (tuple or list): Coordinates of the sphere's center, specified as (x, y, z).
+        color (str, optional): Color of the sphere. Default is 'gray'.
+        radius (float, optional): Radius of the sphere. Default is 4.
+        resolution (int, optional): Number of subdivisions for the sphere's surface. Higher values 
+            result in a smoother appearance but may reduce performance. Default is 20.
+        alpha (float, optional): Transparency of the sphere, where 1 is opaque and 0 is fully 
+            transparent. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
+        ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the sphere.
+
+
+    Examples:
+        To plot a semi-transparent blue sphere with a radius of 1 at the origin:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            plot_sphere(location=(0, 1, 2), color='blue', radius=5, resolution=30, alpha=0.5, ax=ax)
+
+        .. image:: _images/plot_sphere_example.png
+    """
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    
+    # Generate points in spherical coordinates
+    phi = np.linspace(0, 2 * np.pi, resolution) # azimuthal angle
+    theta = np.linspace(0, np.pi, resolution) # polar angle
+    
+    # Translate to cartesian coordinates
+    x = radius * np.outer(np.cos(phi), np.sin(theta)) + location[0]
+    y = radius * np.outer(np.sin(phi), np.sin(theta)) + location[1]
+    z = radius * np.outer(np.ones(np.size(phi)), np.cos(theta)) + location[2]
+    
+    # Plot sphere
+    ax.plot_surface(x, y, z, color=color, alpha=alpha, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)
+
+def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
+    """
+    Plots multiple targets as spheres in 3D space.
+
+    Args:
+        target_locations (list of tuples or lists): List of (x, y, z) coordinates specifying the 
+            centers of the target spheres.
+        colors (list of str or None, optional): List of colors for the targets. If not provided, all 
+            targets will default to black. Must match the number of unique targets.
+        target_radius (float, optional): Radius of each target sphere. Default is 1.
+        resolution (int, optional): Resolution of the spheres (passed to 'plot_sphere'). Default is 20.
+        alpha (float, optional): Transparency of the spheres, where 1 is opaque. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
+        ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the targets.
+
+    Raises:
+        ValueError: If 'colors' is less than the number of unique targets.
+
+    Examples:
+        To visualize three targets with different colors and sizes:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+            target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
+            colors = ['red', 'blue', 'green']
+            plot_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+
+            plt.show()
+            
+        .. image:: _images/plot_3D_targets.png
+    """
+    
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    if colors==None:
+        colors = ['gray'] * len(np.unique(target_locations))
+    if not (len(colors) >= len(np.unique(target_locations))):
+        raise ValueError(f"Not enough colors ({len(colors)}) provided for \
+                              number of targets ({len(np.unique(target_locations))}).")
+        
+    unique_targets = set(tuple(target) for target in target_locations)
+    for t,target in enumerate(unique_targets):
+        plot_sphere(target, color=colors[t], radius=target_radius, resolution=resolution, alpha=alpha, ax=ax, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)

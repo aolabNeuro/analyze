@@ -829,7 +829,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 40.42532)
+        np.testing.assert_allclose(trial['penalty_start_time'], 40.314078)
         self.assertEqual(trial['penalty_event'], 65) # timeout penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
@@ -844,7 +844,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 42.64848)
+        np.testing.assert_allclose(trial['penalty_start_time'], 42.64896)
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
@@ -888,6 +888,59 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
 
+    def test_tabulate_behavior_data_corners(self):
+        task_codes = load_bmi3d_task_codes()
+        subjects = ['test', 'test']
+        ids = [19005, 19054]
+        dates = ['2024-12-31', '2025-01-21'] # first entry is pre-pause state, second entry has pause state
+        df = tabulate_behavior_data_corners(data_dir, subjects, ids, dates, metadata=['target_radius', 'cursor_radius', 'rand_delay'])
+        self.assertEqual(len(df), 55)
+        self.assertEqual(len(df.columns), 27+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
+
+        # Check chain length (sequence param)
+        self.assertTrue(np.all(df['chain_length'] == 2))
+
+        # Check that rewarded trials are complete
+        self.assertTrue(np.all(df['trial_initiated'][df['reward']]))
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+
+        # Check that reach completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['reach_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['reach_completed']].target_location]))
+
+        # Check that hold completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['hold_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['hold_completed']].target_location]))
+
+        # Check that hold penalty trials have one target idx & location
+        self.assertTrue(np.all([len(idx)==1 for idx in df[df['hold_completed']==False].target_idx]))
+        self.assertTrue(np.all([loc.shape==(3,) for loc in df[df['hold_completed']==False].target_location]))
+
+        # Check that trial segments occur in the correct order
+        reward_df = df[df['reward']]
+        for i in range(len(reward_df)):
+            trial = reward_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['hold_start_time'])
+            self.assertTrue(trial['hold_start_time'] < trial['delay_start_time'])
+            self.assertTrue(trial['delay_start_time'] < trial['go_cue_time'])
+            self.assertTrue(trial['go_cue_time'] < trial['reach_end_time'])
+            self.assertTrue(trial['reach_end_time'] < trial['reward_start_time'])
+            self.assertTrue(trial['reward_start_time'] < trial['trial_end_time'])
+            
+        penalty_df = df[df['penalty']]
+        for i in range(len(penalty_df)):
+            trial = penalty_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['penalty_start_time'])
+            self.assertTrue(trial['penalty_start_time'] < trial['trial_end_time'])
+            
+        # Check pause events
+        pause_df = df[~np.isnan(df['pause_event'])]
+        self.assertTrue(np.all(pause_df['pause_event'] == task_codes['PAUSE_START']))
+        self.assertTrue(np.all(~np.isnan(pause_df['pause_start_time'])))
+        for i in range(len(pause_df)):
+            trial = pause_df.iloc[i]
+            self.assertTrue(trial['pause_start_time'] == trial['trial_end_time'])
+        
     def test_tabulate_behavior_data_tracking_task(self):
         subjects = ['test', 'test']
         ids = [8461, 8461]
@@ -1210,6 +1263,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
 
+    def test_tabulate_poisson_trial_times(self):
+        subjects = ['test']
+        ids = [6577]
+        dates = ['2022-08-19']
+        df = tabulate_poisson_trial_times(data_dir, subjects, ids, dates)
+
+        self.assertIn('trial_time', df.columns)
+        self.assertTrue(len(df) > 0)
+
     def test_get_kilosort_foldername(self):
         subject='affi'
         te_id = 1000
@@ -1281,6 +1343,9 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
                    'CENTER_TARGET_OFF': 32,
+                   'CURSOR_ENTER_CORNER_TARGET': list(range(81, 85)),
+                   'CORNER_TARGET_ON': list(range(17, 21)),
+                   'CORNER_TARGET_OFF': list(range(33, 37)),
                    'REWARD': 48,
                    'DELAY_PENALTY': 66,
                    'TIMEOUT_PENALTY': 65,
@@ -1304,6 +1369,16 @@ class TestYaml(unittest.TestCase):
         task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
 
         self.assertDictEqual(params, task_codes_file)
+
+    def test_load_lasers(self):
+        lasers = load_bmi3d_lasers()
+        for l in lasers:
+            self.assertIn('name', l.keys())
+            self.assertIn('stimulation_site', l.keys())
+            self.assertIn('trigger', l.keys())
+            self.assertIn('trigger_dch', l.keys())
+            self.assertIn('sensor', l.keys())
+            self.assertIn('sensor_ach', l.keys())
 
 class SignalPathTests(unittest.TestCase):
 
@@ -1380,66 +1455,84 @@ class SignalPathTests(unittest.TestCase):
         self.assertEqual(acq_ch_position.shape[0], 240)
         self.assertEqual(acq_ch_position.shape[1], 2)
 
-    def test_align_recording_drives(self):
-        # Create plot for documentation with affi and biegnet
+        acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='NP_Insert137')
+
+    def test_align_neuropixel_recoring_drive(self):
+        # Create plots for documentation with affi and biegnet
         fig, ax = plt.subplots(1,2)
         subjects = ['affi', 'beignet']
         neuropixel_drive='NP_Insert137'
         drive2 = 'ECoG244'
         for iax, subject in enumerate(subjects):
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax[iax])
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax[iax])
-            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=6) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, ax=ax[iax])
-            ax[iax].set(xlim=(-2,13.25), ylim=(-2,13.25), title=f'{subject}')
-        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png')
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, ax=ax[iax])
+            ax[iax].set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
+
+        fig, ax = plt.subplots(1,2)
+        neuropixel_drive='NP_Insert72'
+        for iax, subject in enumerate(subjects):
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            center = (5,5)
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta, center=center)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, center=center, ax=ax[iax])
+            ax[iax].set(xlim=(-3,13), ylim=(-3,13), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
 
         # Test the rest of the combinations
         for subject in subjects:
             neuropixel_drive = 'NP_Insert72'
             drive2 = 'ECoG244'
-            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
-
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates ,  recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             neuropixel_drive='NP_Insert137'
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
             visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
-            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             ## Test with opto drive
             drive2 = 'Opto32'
             neuropixel_drive = 'NP_Insert72'
-            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            # acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
+            ax.set_aspect('equal')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             neuropixel_drive='NP_Insert137'
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
             visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
-            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
-
-
+            ax.set_aspect('equal')
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
     def test_map_data2elec(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'
@@ -1585,12 +1678,20 @@ class DatabaseTests(unittest.TestCase):
         te.feats.set([feat])
         te.save(using='test_aopy')
 
+        system = models.System(name="bmi", path=write_dir, archive="")
+        system.save(using='test_aopy')
+
         # Add a decoder entry that was "trained" on a parent task entry
-        task = models.Task.objects.get(name="nothing")
-        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, entry_name="decoder parent")
-        te.save(using='test_aopy')
-        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
-        decoder.save(using='test_aopy')
+        from riglib.bmi.state_space_models import StateSpaceEndptVel2D
+        from riglib.bmi.bmi import Decoder, MachineOnlyFilter
+        ssm = StateSpaceEndptVel2D()
+        A, B, W = ssm.get_ssm_matrices()
+        filt = MachineOnlyFilter(A, W)
+        units = []
+        decoder = Decoder(filt, units, ssm, binlen=0.1)
+        parent = db.create_decoder_parent('project', 'session')
+        db.save_decoder(parent, decoder, 'test_decoder')
+        decoder = db.lookup_decoders()[0]
 
         # And a flash task entry
         task = models.Task.objects.get(name="manual control")
@@ -1598,9 +1699,6 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
         te.save(using='test_aopy')
-
-        system = models.System(name="test_system", path="", archive="")
-        system.save(using='test_aopy')
 
         # Add a bmi task entry
         task = models.Task(name="bmi control")
@@ -1686,14 +1784,14 @@ class DatabaseTests(unittest.TestCase):
         # Other sanity tests
         total_decoders = 1
         self.assertEqual(len(db.lookup_decoders()), total_decoders)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
 
         # Test filtering
         self.assertEqual(len(db.lookup_decoders(name="non_existent")), 0)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
         decoders = db.lookup_decoders(parent_id=db.lookup_decoder_parent()[0].id)
         self.assertEqual(len(decoders), 1)
-        self.assertEqual(decoders[0].name, "test_decoder")
+        self.assertEqual(decoders[0].name, "project_session_test_decoder")
 
     def test_filter_functions(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1750,7 +1848,7 @@ class DatabaseTests(unittest.TestCase):
         # Test a bmi session and decoder
         te = db.lookup_sessions(task_name="bmi control")[0]
         decoder = te.get_decoder_record()
-        self.assertEqual(decoder.name, "test_decoder")
+        self.assertEqual(decoder.name, "project_session_test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
         # Test preprocess function

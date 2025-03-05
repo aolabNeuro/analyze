@@ -2,6 +2,7 @@
 #
 # Code related to tuning analysis, e.g. modulation depth, specificity, curve fitting, etc.
 
+import warnings
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.stats import f_oneway
@@ -69,15 +70,15 @@ def get_mean_fr_per_condition(data, condition_labels, return_significance=False)
     This function computes the average activity for each feature and trial. 
 
     Args:
-        data (ntime, nch, ntrials): Trial aligned neural data
+        data (nt, nch, ntrials): Trial aligned neural data
         condition_labels (ntrials): condition label for each trial
         return_significance (bool): Uses the one-way ANOVA test to compute a p-value for each channel/unit
 
     Returns:
         tuple: Tuple containing:
-            | **means_d: (nch, nconditions)** = mean firing rate per neuron per target direction
-            | **stds_d: (nch, nconditions)** standard deviation from mean firing rate per neuron
-            | **pvalue: (nch)** significance of modulation
+            | **means_d (nch, nconditions):** = mean firing rate per neuron per target direction
+            | **stds_d (nch, nconditions):** standard deviation from mean firing rate per neuron
+            | **pvalue (nch, optional):** significance of modulation
     '''
     means_d = []
     stds_d = []
@@ -95,6 +96,79 @@ def get_mean_fr_per_condition(data, condition_labels, return_significance=False)
     else:
         return np.array(means_d).T, np.array(stds_d).T
     
+def convert_target_to_direction(target_locations, origin=[0,0], zero_axis=[0,1], clockwise=True):
+    '''
+    Converts target index to target direction in radians. NaNs are returned for targets at the origin.
+
+    Args:
+        target_locations (ntargets, 2): array of unique target (x, y) locations
+        origin (2-tuple): (x,y) coordinate of the center of all targets defining the polar plane. Default is [0,0].
+        zero_axis (2-tuple): (x,y) coordinate of the axis representing zero degrees. Default is [0,1] (up).
+        clockwise (bool): direction of rotation. Default True.
+
+    Returns:
+        (ntarget,) array: target direction in radians for each trial
+    '''
+    target_locations = np.array(target_locations)
+    assert target_locations.shape[1] == 2, "Target locations must be 2D"
+    directions = np.array([np.arctan2(*t) for t in target_locations - origin])
+    directions -= np.arctan2(*zero_axis)
+    directions *= -1 if not clockwise else 1
+    centered_targets = np.linalg.norm(target_locations - origin, axis=1) == 0
+    if any(centered_targets):
+        warnings.warn("Targets detected at the origin. Setting direction to np.nan.")
+        directions[centered_targets] = np.nan
+    return directions % (2 * np.pi)
+
+def get_per_target_response(data, target_idx):
+    '''
+    Organizes trial response per target. Pads with nans if there are unequal number of trials per target.
+
+    Args:
+        data (nt, nch, ntrials): trial aligned neural data
+        target_idx (ntrials): target index for each trial
+
+    Returns:
+        tuple: Tuple containing:
+            | **per_target_response (ntargets, nt, nch, ntrials/ntargets):** trial aligned neural data per target
+            | **unique_targets (ntargets):** unique target indices corresponding to the 3rd dimension of per_target_response
+    
+    Examples:
+
+        .. code-block:: python
+            erp = np.zeros((100, 2, 16))
+            erp[:,0,:4] = 3
+            erp[:,0,4:8] = 1
+            erp[:,0,8:12] = 2
+            erp[:,0,12:] = 4
+            target_idx = [2, 2, 2, 2, 0, 0, 0, 0, 1, 1, 1, 1, 3, 3, 3, 3]
+            target_locations = np.array([[0, 1], [1, 1], [1, 0], [-1, 0]])
+
+            per_target_resp, unique_targets = aopy.analysis.get_per_target_response(erp, target_idx)
+            target_angles = aopy.analysis.convert_target_to_direction(target_locations[unique_targets])
+
+            self.assertEqual(target_angles.size, 4)
+            self.assertEqual(per_target_resp.shape, (4, 100, 2, 4))
+
+            per_target_resp = np.mean(per_target_resp, axis=1)
+
+            plt.figure()
+            aopy.visualization.plot_direction_tuning(per_target_resp, target_angles)
+
+        .. image:: _images/get_target_tuning.png
+    '''
+    unique_targets = np.unique(target_idx)
+    ntargets = len(unique_targets)
+    max_trials = np.max([np.sum(target_idx == t) for t in unique_targets])
+
+    nt, nch, _ = data.shape
+    per_target_response = np.full((ntargets, nt, nch, max_trials), np.nan)
+
+    for i, target in enumerate(unique_targets):
+        target_trials = data[:, :, target_idx == target]
+        per_target_response[i, :, :, :target_trials.shape[2]] = target_trials
+
+    return per_target_response, unique_targets
 
 def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     '''
@@ -156,8 +230,8 @@ def calc_dprime(*dist):
 
         d' = \\frac{µ_{max} - µ_{min}}{\sqrt{\sum_{i=0}^{n-1} (p_i)\sigma_i^2}}
 
-    where $µ_{max} - µ_{min}$ is the peak-to-peak distance across category means, $p_i$ is the proportion 
-    of trials in the i-th category, and $\sigma_i^2$ is the standard deviation of the i-th category.
+    where :math:`µ_{max} - µ_{min}` is the peak-to-peak distance across category means, :math:`p_i` is the proportion 
+    of trials in the i-th category, and :math:`\sigma_i^2` is the standard deviation of the i-th category.
 
     Args:
         *dist (ntr, nch): distribution of the data for each category. d-prime is calculated along the first axis.
@@ -167,9 +241,9 @@ def calc_dprime(*dist):
     
     Examples:
     
-        $d'$ is essentially a signal-to-noise ratio. In the simple case of two distributions, the numerator 
+        :math:`d'` is essentially a signal-to-noise ratio. In the simple case of two distributions, the numerator 
         is the distance between the two means while the denominator is the average noise within each distribution. 
-        If the distributions are normal and of equal variance then the $d'$ value becomes the z-score of the 
+        If the distributions are normal and of equal variance then the :math:`d'` value becomes the z-score of the 
         difference between the two means.
 
         .. code-block:: python

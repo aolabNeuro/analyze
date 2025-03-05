@@ -23,11 +23,11 @@ autodoc_mock_imports = ['numpy', 'pandas', 'psutil', 'h5py', 'tables', 'sklearn'
 # -- Project information -----------------------------------------------------
 
 project = 'aopy'
-copyright = '2022, aolab'
+copyright = '2025, aolab'
 author = 'aolab'
 
 # The full version, including alpha/beta/rc tags
-release = '0.6'
+release = '0.9.0'
 
 
 # -- General configuration ---------------------------------------------------
