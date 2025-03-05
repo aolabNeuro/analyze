@@ -1341,7 +1341,9 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     # Extract
     n_pts = int(f_extractor.win_len * ts_samplerate)
     n_ch = len(channels)
-    n_freq = len(f_extractor.bands)
+    n_freq = 1
+    if hasattr(f_extractor, 'bands'):
+        n_freq = len(f_extractor.bands)
     cycle_data = np.zeros((len(ts), n_freq, n_ch))
     for i, t in enumerate(ts):
         sample_num = int((t-ts_start_time-latency) * ts_samplerate)
