@@ -1022,12 +1022,12 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
     wav = pywt.ContinuousWavelet(f'cmor{fb}-{f0_norm}') # 'cmorB-C' for a complex Morlet wavelet with the
                                                         # given time-decay (B) and center frequency (C) params.
     scale = pywt.frequency2scale(wav, freqs_ud)
-    coef, _ = pywt.cwt(data, scale, wav, method=method, axis=0)
     if verbose:
         print(wav.bandwidth_frequency)
         print(f"Wavelet ({wav.lower_bound}, {wav.upper_bound})")
         print(f"Scale ({scale[0]}, {scale[-1]})")
         print(f"Freqs ({freqs_ud[0]}, {freqs_ud[-1]})")
+    coef, _ = pywt.cwt(data, scale, wav, method=method, axis=0)
     
     shape = coef.shape
     while shape and shape[-1] == 1:
@@ -1224,10 +1224,10 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     ts_data = ts_data.transpose(1, 0, 2)  # (nch, nt, ntr)
     nch, nt, ntr = ts_data.shape
     fk = np.array([0, fk])
-    tapers, _ = precondition.dpsschk(n * fs, p, k)
+    tapers, _ = precondition.dpsschk(int(n * fs), p, k) # round down
     
     win_size = tapers.shape[0]  # window size (data points of tapers)
-    step_size = int(np.floor(step * fs))  # step size
+    step_size = int(step * fs) # step size
     nf = np.max([256, pad * 2 ** utils.nextpow2(win_size + 1)])  # 0 padding for efficient computation in FFT
     nwin = 1 + int(np.floor((nt - win_size) / step_size))  # number of windows
     nfk = np.floor(fk / fs * nf)  # number of data points in frequency axis

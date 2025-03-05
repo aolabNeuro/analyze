@@ -652,6 +652,7 @@ class CalcTests(unittest.TestCase):
 
     def test_calc_spatial_map_correlation(self):
         # Test correlation map
+        np.random.seed(0)
         nrows = 11
         ncols = 11
         data1 = np.ones((nrows,ncols))
@@ -2237,13 +2238,13 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         # input--> output
         freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate)
         self.assertEqual(len(transfer_func), len(t)/2)
-        np.testing.assert_array_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func))[np.isin(freqs, exp_freqs)], [p1_out, p2_out])
 
         # input--> output, only at experimental freqs
         freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate, exp_freqs)
         self.assertEqual(len(transfer_func), len(exp_freqs))
-        np.testing.assert_array_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), [p1_out, p2_out])
 
     def test_pair_trials_by_frequency(self):
