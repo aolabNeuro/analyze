@@ -1156,16 +1156,12 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
             | **segment (nt, nch):** data segment from the given preprocessed file
             | **samplerate (float):** sampling rate of the returned data
     '''
+    data_group='/'
+    data_name=f'{datatype}_data'
+    metadata_group=f'{datatype}_metadata'
+    samplerate_key='samplerate'
     if datatype == 'lfp':
-        data_group='/'
-        data_name='lfp_data'
-        metadata_group='lfp_metadata'
         samplerate_key='lfp_samplerate'
-    elif datatype == 'broadband':
-        data_group='/'
-        data_name='broadband_data'
-        metadata_group='broadband_metadata'
-        samplerate_key='samplerate'
     filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
 
