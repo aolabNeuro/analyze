@@ -1324,7 +1324,7 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     if end_time is not None:
         ts = ts[ts < end_time]
     if len(ts) == 0:
-        raise ValueError("No timestamps found in the specified time range")
+        raise ValueError(f"No timestamps found in the specified time range ({start_time} to {end_time})")
 
     # Load ts data
     ts_start_time = start_time - f_extractor.win_len - latency
@@ -1333,7 +1333,7 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
         end_time, channels=channels, datatype=datatype
     )
     if len(ts_data) == 0:
-        raise ValueError("No data found in the specified time range")
+        raise ValueError(f"No data found in the specified time range ({start_time} to {end_time})")
     if ts_samplerate != lfp_samplerate:
         downsample_factor = ts_samplerate // lfp_samplerate
         print(f"Downsampling by a factor of {downsample_factor}")
