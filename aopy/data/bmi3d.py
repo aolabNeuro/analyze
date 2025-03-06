@@ -1353,6 +1353,8 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
         else:
             cycle_data[i] = f_extractor.extract_features(cont_samples.T).T.reshape(n_freq, n_ch)
     cycle_data = np.reshape(cycle_data, (len(ts), -1)) # (nt, nfeats)
+    if len(cycle_data) == 0:
+        raise ValueError("No data found in the specified time range")
 
     # Run the features through the decoder before resampling if necessary
     if decode and len(channels) == len(decoder.channels):
