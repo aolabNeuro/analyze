@@ -699,6 +699,76 @@ class CalcTests(unittest.TestCase):
         filename = 'calc_spatial_map_correlation.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
+class TFRStatsTests(unittest.TestCase):
+
+    def test_calc_fdrc_ranktest(self):
+        np.random.seed(42)
+        
+        # Create sample data: 10 samples, 2 channels
+        altdata = np.random.normal(2, 1, (10, 2))  # higher mean
+        nulldata = np.random.normal(0, 1, (10, 2))  # lower mean
+        
+        diff, p_fdrc = aopy.analysis.calc_fdrc_ranktest(altdata, nulldata)
+        assert diff.shape == (2,)
+        assert p_fdrc.shape == (2,)
+        assert np.all(diff > 0)  # differences should be positive
+
+    def test_calc_tfr_mean(self):
+        np.random.seed(42)
+
+        freqs = np.linspace(1, 100, 10)  # 10 frequency points
+        time = np.linspace(0, 1, 20)     # 20 time points
+        spec = np.ones((10, 20, 3)) * 5  # 3 channels, all values = 5
+        
+        result = aopy.analysis.calc_tfr_mean(freqs, time, spec)
+        assert result.shape == (3,)  # one value per channel
+        assert np.allclose(result, 5.0)  # mean should be 5
+
+        # Create test data with different values in different frequency ranges
+        freqs = np.linspace(1, 100, 10)  # 10 frequency points
+        time = np.linspace(0, 1, 20)     # 20 time points
+        spec = np.ones((10, 20, 2)) * 2  # base value is 2
+        
+        # Set values in the upper half of frequencies to 8
+        spec[5:] = 8
+        result_low = aopy.analysis.calc_tfr_mean(freqs, time, spec, band=(1, 50))
+        np.testing.assert_allclose(result_low, 2.0)
+        
+        result_high = aopy.analysis.calc_tfr_mean(freqs, time, spec, band=(50, 100))
+        np.testing.assert_allclose(result_high, 8.0)
+
+    def test_calc_tfr_mean_fdrc_ranktest(self):
+        np.random.seed(42)
+
+        # Create test data
+        freqs = np.linspace(1, 100, 10)
+        time = np.linspace(0, 1, 20)
+        
+        # Create observed spec with higher values
+        spec = np.random.normal(5, 1, (10, 20, 3))  # 3 channels
+        
+        # Create null specs with lower values
+        n_null = 5
+        null_specs = np.random.normal(1, 1, (n_null, 10, 20, 3))
+        
+        diff, p_fdrc = aopy.analysis.calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs)
+        self.assertEqual(diff.shape, (3,))
+        self.assertEqual(p_fdrc.shape, (3,))
+        self.assertTrue(np.all(diff > 0))
+        
+        # Change lf values to 1 (within null range)
+        spec[freqs <= 50] = 1
+        
+        # Only the high frequency band should show a significant difference
+        diff_hf, _ = aopy.analysis.calc_tfr_mean_fdrc_ranktest(
+            freqs, time, spec, null_specs, band=(50, 100))
+        self.assertTrue(np.all(diff_hf > 0))
+
+        diff_lf, _ = aopy.analysis.calc_tfr_mean_fdrc_ranktest(
+            freqs, time, spec, null_specs, band=(1, 50))
+        np.testing.assert_allclose(diff_lf, 0)
+
+
 class CurveFittingTests(unittest.TestCase):
 
     def test_fit_linear_regression(self):
