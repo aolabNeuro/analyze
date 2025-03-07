@@ -111,6 +111,30 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'posmap_244ch.png'
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
 
+    def test_plot_spatial_drive_maps(self):
+
+        im1 = np.arange(256).astype(float)
+        im2 = np.flip(im1)
+        im3 = im1.copy()
+        np.random.shuffle(im3)
+        im4 = np.flip(im3)
+        maps = [im1, im2, im3, im4]
+        plot_spatial_drive_maps(maps, (1,4), (2,2), cmap='viridis', clim=(0,255), label_mode="L")
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_1_4.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), cbar_mode='single')
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_2_2_single_cbar.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        fig, axes, ims, cbars = plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), label_mode=None, cbar_mode='each', axes_pad=(0.4,0.05))
+        ims[3].set_clim(127,255)
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_2_2.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_annotate_spatial_map(self):
         plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
