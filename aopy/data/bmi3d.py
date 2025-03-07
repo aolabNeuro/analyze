@@ -1324,7 +1324,7 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     if end_time is not None:
         ts = ts[ts < end_time]
     if len(ts) == 0:
-        raise ValueError("No timestamps found in the specified time range")
+        raise ValueError(f"No timestamps found in the specified time range ({start_time} to {end_time})")
 
     # Load ts data
     ts_start_time = start_time - f_extractor.win_len - latency
@@ -1332,6 +1332,8 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
         preproc_dir, subject, te_id, date, ts_start_time, 
         end_time, channels=channels, datatype=datatype
     )
+    if len(ts_data) == 0:
+        raise ValueError(f"No data found in the specified time range ({start_time} to {end_time})")
     if ts_samplerate != lfp_samplerate:
         downsample_factor = ts_samplerate // lfp_samplerate
         print(f"Downsampling by a factor of {downsample_factor}")
@@ -1341,7 +1343,9 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     # Extract
     n_pts = int(f_extractor.win_len * ts_samplerate)
     n_ch = len(channels)
-    n_freq = len(f_extractor.bands)
+    n_freq = 1
+    if hasattr(f_extractor, 'bands'):
+        n_freq = len(f_extractor.bands)
     cycle_data = np.zeros((len(ts), n_freq, n_ch))
     for i, t in enumerate(ts):
         sample_num = int((t-ts_start_time-latency) * ts_samplerate)
