@@ -1265,3 +1265,19 @@ def yaml_read(filename):
         task_codes = yaml.load(file, Loader=yaml.FullLoader)
 
     return task_codes
+
+def load_yaml_config(filename):
+    '''
+    Load a yaml configuration file into a dictionary
+
+    Args:
+        config_file (str): path to the yaml configuration file
+
+    Returns:
+        dict: dictionary containing the configuration parameters
+    '''
+    config_dir = files('aopy').joinpath('config')
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        config = yaml_read(f)
+    return config
