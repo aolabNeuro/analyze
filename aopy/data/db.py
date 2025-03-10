@@ -452,9 +452,10 @@ class BMI3DTaskEntry():
         Returns:
             list: preprocessed sources for this task entry
         '''
-        sources = list(self.get_raw_files().keys())
+        sources = ['exp']
+        if 'quatt_bmi' in self.features:
+            sources.append('emg')
         params = self.task_params
-        
         if 'record_headstage' in params and params['record_headstage']:
             sources.append('broadband')
             sources.append('lfp')
