@@ -2243,7 +2243,7 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     return df
 
 def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[], 
-                                      df=None, event_code_type = 'code'):
+                                      df=None):
     '''
     Wrapper around tabulate_behavior_data() specifically for random target location experiments. 
     Uses the task event names (b'TARGET_ON' and b'TRIAL_END', specifically) or corresponding codes
@@ -2271,33 +2271,22 @@ def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[],
             | **target_loc (ntrial): ** target locations (x,y,z) for each trial 
 '''
     # Set up how to tabulate based on event_code_type.
-    if event_code_type == 'event':
-        trial_end_codes = [b'TRIAL_END']
-        trial_start_codes = [b'TARGET_ON']
-        reward_codes = [b'REWARD']
-        penalty_codes = [['HOLD_PENALTY'], ['DELAY_PENALTY']]
-        
-        new_df = tabulate_behavior_data(
-            preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
-            reward_codes, penalty_codes, metadata =[], df=None, event_code_type= event_code_type) 
+    #event_code_type == 'event':
+    trial_end_codes = [b'TRIAL_END', b'PAUSE']
+    trial_start_codes = [b'TARGET_ON']
+    reward_codes = [b'REWARD']
+    penalty_codes = [b'HOLD_PENALTY', b'DELAY_PENALTY', b'TIMEOUT_PENALTY',b'OTHER_PENALTY']
     
-        match_filter = b'TARGET_ON'
-        event_mask = new_df['event_codes'].apply(lambda x: x == match_filter)
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata = metadata, df=None, event_code_type= 'event') 
+
+    match_filter = b'TARGET_ON'
+    event_mask = new_df['event_codes'].apply(lambda x: x == match_filter)
     
-    elif event_code_type == 'code':  #default 
-        task_codes = load_bmi3d_task_codes()
-        reward_codes = task_codes['REWARD']
-        penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['DELAY_PENALTY']]
-        trial_end_codes = task_codes['TRIAL_END']
-        trial_start_codes = task_codes['TARGET_ON']
-    
-        new_df = tabulate_behavior_data(
-            preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
-            reward_codes, penalty_codes, metadata =[], df=None, event_code_type='code') 
-    
-        event_mask = new_df['event_codes'].apply(lambda x: np.isin(x,trial_start_codes))
-    
-    index_locs = new_df.apply(lambda row: np.array(row['event_idx'])[event_mask[row.name]].tolist(), axis=1) #get indices of events that match condition 
+    index_locs = []
+    for idx, row in new_df.iterrows():
+        index_locs.extend(np.array(row['event_idx'])[event_mask[idx]].tolist())
 
     entries_list = list(zip(subjects, dates, ids)) #get unique entries 
 
@@ -2309,7 +2298,7 @@ def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[],
     
         exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date) #need to reload data 
      
-        idxloc_sub = index_locs[df_sub] #subset 
+        idxloc_sub = np.array(index_locs)[df_sub] #subset 
         targ_idx = [exp_data['bmi3d_events']['data'][val] for val in idxloc_sub]
     
         targ_loc = get_target_locations(preproc_dir,subject, te, date, targ_idx)
