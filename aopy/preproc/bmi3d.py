@@ -226,7 +226,7 @@ def _parse_bmi3d_v1(data_dir, files):
         digital_data, digital_metadata = aodata.load_ecube_digital(data_dir, files['ecube'])
     elif 'emg' in files:
          digital_data, digital_metadata = aodata.load_emg_digital(data_dir, files['emg'])
-
+    
     if digital_data is not None: # sync_events and sync_clock
         digital_samplerate = digital_metadata['samplerate']        
 
