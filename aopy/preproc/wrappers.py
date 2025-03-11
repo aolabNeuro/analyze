@@ -429,3 +429,4 @@ def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False, max_
 
     
     aodata.save_hdf(result_dir, result_filename, emg_data, "/emg_data", append=True)
+    aodata.save_hdf(result_dir, result_filename, emg_metadata, "/emg_metadata", append=True)
