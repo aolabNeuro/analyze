@@ -225,14 +225,7 @@ def _parse_bmi3d_v1(data_dir, files):
     elif 'ecube' in files:
         digital_data, digital_metadata = aodata.load_ecube_digital(data_dir, files['ecube'])
     elif 'emg' in files:
-         digital_data, _ = aodata.load_emg_digital(data_dir, files['emg'])
-    #So that load_emg_digital pulls the raw clock out of the 16 analog channels
-    #Convert analog to digital then Threshold as 0's and ones. What format? A array of 64 bit integers for
-    #Make a giant array of zeros that is 0's by the number of samples in the quat
-    #Call convert_channels_to_digital or something to convert to an array of 
-
-    #digital_data=the thing I processed
-    #digital_metadata=samplerate 2048
+         digital_data, digital_metadata = aodata.load_emg_digital(data_dir, files['emg'])
 
     if digital_data is not None: # sync_events and sync_clock
         digital_samplerate = digital_metadata['samplerate']        
