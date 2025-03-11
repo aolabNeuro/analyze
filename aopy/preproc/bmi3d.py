@@ -224,8 +224,15 @@ def _parse_bmi3d_v1(data_dir, files):
         digital_data, digital_metadata = aodata.load_preproc_digital_data(data_dir, files['digital'])
     elif 'ecube' in files:
         digital_data, digital_metadata = aodata.load_ecube_digital(data_dir, files['ecube'])
-    # elif 'emg' in files:
-    #     digital_data, digital_metadata = aodata.load_emg_digital(data_dir, files['emg'])
+    elif 'emg' in files:
+         digital_data, _ = aodata.load_emg_digital(data_dir, files['emg'])
+    #So that load_emg_digital pulls the raw clock out of the 16 analog channels
+    #Convert analog to digital then Threshold as 0's and ones. What format? A array of 64 bit integers for
+    #Make a giant array of zeros that is 0's by the number of samples in the quat
+    #Call convert_channels_to_digital or something to convert to an array of 
+
+    #digital_data=the thing I processed
+    #digital_metadata=samplerate 2048
 
     if digital_data is not None: # sync_events and sync_clock
         digital_samplerate = digital_metadata['samplerate']        
@@ -245,7 +252,7 @@ def _parse_bmi3d_v1(data_dir, files):
                 data_dict['sync_clock'] = sync_clock
 
         # Mask and detect BMI3D computer events from ecube
-        if 'event_sync_dch' in metadata_dict:
+        if 'event_sync_dch' in metadata_dict or metadata_dict['event_sync_dch'] is None:
             event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
             ecube_sync_data = utils.extract_bits(digital_data, event_bit_mask)
             ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
@@ -295,7 +302,9 @@ def _parse_bmi3d_v1(data_dir, files):
 
         metadata_dict['digital_samplerate'] = digital_samplerate
 
-    # Parse analog data
+
+    #Quat analog data?
+    #Parse analog data
     analog_data = None
     if 'analog' in files:
         analog_data, analog_metadata = aodata.load_preproc_analog_data(data_dir, files['analog'])

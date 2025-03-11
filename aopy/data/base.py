@@ -160,8 +160,15 @@ def load_preproc_emg_data(preproc_dir, subject, te_id, date, cached=True):
     filename = get_preprocessed_filename(subject, te_id, date, 'emg')
     preproc_dir = os.path.join(preproc_dir, subject)
     data = load_hdf_group(preproc_dir, filename, 'emg_data', cached=cached)
-    #metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata', cached=cached)
-    return data
+    tmp_metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata', cached=cached)
+
+    emg_keys = [key for key in list(tmp_metadata.keys()) if 'emg' in key]
+
+    metadata={}
+    for key in emg_keys:
+        metadata[key] = tmp_metadata[key]
+
+    return data, metadata
 
 def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
     '''

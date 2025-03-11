@@ -425,12 +425,7 @@ def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False, max_
     
         clck = emg_data_reshape[:,-24] # I think this should always grab the clock signal
 
-        clck = np.round(clck/30000) # This is hardcoded currently based on
-
-        ts, values = detect_edges(clck>0.8, 2048, rising=True, falling=False) # Currently undoing the time transform because Quatt sampling rate is unreliable
-        emg_clck_idx = (ts*2048).astype(int)
-
-        emg_data = {'emg_raw': emg_data_reshape, 'emg_clck_idx': emg_clck_idx, 'emg_clck_raw':clck}
+        emg_data = {'emg_raw': emg_data_reshape, 'emg_clock_raw':clck}
 
     
     aodata.save_hdf(result_dir, result_filename, emg_data, "/emg_data", append=True)

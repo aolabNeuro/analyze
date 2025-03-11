@@ -399,6 +399,33 @@ def load_ecube_digital(path, data_dir):
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'DigitalPanel')
     return data, metadata
 
+def load_emg_digital(path, data_dir):
+    '''
+    Just a wrapper around load_ecube_data() and load_ecube_metadata()
+
+    Args:
+        path (str): base directory where ecube data is stored
+        data_dir (str): folder you want to load
+
+    Returns:
+        tuple: Tuple containing:
+            | **data (nt):** digital data, arranged as 64-bit numbers representing the 64 channels
+            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
+    '''
+    emg_data, emg_metadata = aopy.data.load_bmi3d_hdf_table(data_dir, files['emg'], 'data')
+    emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),)))
+
+    digital_data = np.zeros((np.shape(emg_data_reshape)[0], 64))
+    digital_data[:,0:16] = emg_data_reshape[:,-24:-8]
+    div = np.std(digital_data,axis=0)
+    digital_data = (digital_data - np.mean(digital_data, axis=0)) / div
+
+    digital_data = aopy.utils.base.convert_analog_to_digital(digital_data, thresh=0.3)
+
+    digital_data = aopy.utils.base.convert_channels_to_digital(digital_data)
+    
+    return digital_data, emg_metadata
+
 def load_ecube_analog(path, data_dir, channels=None):
     '''
     Just a wrapper around load_ecube_data() and load_ecube_metadata()
