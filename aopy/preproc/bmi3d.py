@@ -221,7 +221,8 @@ def _parse_bmi3d_v1(data_dir, files):
     # Parse digital data
     digital_data = None
     if 'digital' in files:
-        digital_data, digital_metadata = aodata.load_preproc_digital_data(data_dir, files['digital'])
+        digital_data = aodata.load_hdf_data('', files['digital'], 'digital_data')
+        digital_metadata = aodata.load_hdf_group('', files['digital'], 'digital_metadata')
     elif 'ecube' in files:
         digital_data, digital_metadata = aodata.load_ecube_digital(data_dir, files['ecube'])
     elif 'emg' in files:
@@ -300,11 +301,10 @@ def _parse_bmi3d_v1(data_dir, files):
     #Parse analog data
     analog_data = None
     if 'analog' in files:
-        analog_data, analog_metadata = aodata.load_preproc_analog_data(data_dir, files['analog'])
+        analog_data = aodata.load_hdf_data('', files['analog'], 'analog_data')
+        analog_metadata = aodata.load_hdf_group('', files['analog'], 'analog_metadata')
     elif 'ecube' in files: 
         analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'])
-    # elif 'emg' in files:
-    #    analog_data, analog_metadata = aodata.load_emg_analog(data_dir, files['emg'])
     
     if analog_data is not None:
         analog_samplerate = analog_metadata['samplerate']
