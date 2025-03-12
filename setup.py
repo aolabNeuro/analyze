@@ -28,7 +28,7 @@ install_requires = [
     'aolab-bmi3d>=1.0',
     'sympy',
     'ibllib',
-    'seaborn>=0.13.2'
+    'seaborn>=0.13.2',
     'remodnav',
 ]
 

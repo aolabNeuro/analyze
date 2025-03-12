@@ -11,8 +11,7 @@ import remodnav
 from .base import calc_rolling_average
 from .. import preproc
 from .. import postproc
-from ..data import load_bmi3d_task_codes
-
+from ..data import load_bmi3d_task_codes, get_kinematic_segments
 '''
 Behavioral metrics 
 '''
@@ -495,6 +494,28 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
     
     return traj_correlation
 
+'''Eye behavior metrics'''
+def get_default_parameters(pursuit_velthresh=5.0,noise_factor=5.0,velthresh_startvelocity=300.0,min_intersaccade_duration=0.04,min_saccade_duration=0.01,max_initial_saccade_freq=2.0,saccade_context_window_length=1.0,max_pso_duration=0.04,min_fixation_duration=0.04,min_pursuit_duration=0.04,lowpass_cutoff_freq=4.0,min_blink_duration=0.02,dilate_nan=0.01,median_filter_length=0.05,savgol_length=0.019,savgol_polyord=2,max_vel=2000.0):
+    clf_params = dict(
+        pursuit_velthresh=pursuit_velthresh, # default 2.0
+        noise_factor=noise_factor,
+        velthresh_startvelocity=velthresh_startvelocity,
+        min_intersaccade_duration=min_intersaccade_duration,
+        min_saccade_duration=min_saccade_duration,
+        max_initial_saccade_freq=max_initial_saccade_freq,
+        saccade_context_window_length=saccade_context_window_length,
+        max_pso_duration=max_pso_duration,
+        min_fixation_duration=min_fixation_duration,
+        min_pursuit_duration=min_pursuit_duration,
+        lowpass_cutoff_freq=lowpass_cutoff_freq,)
+    preproc_params = dict(
+        min_blink_duration=min_blink_duration,
+        dilate_nan=dilate_nan,
+        median_filter_length=median_filter_length,
+        savgol_length=savgol_length,
+        savgol_polyord=savgol_polyord,
+        max_vel=max_vel,)
+    return clf_params, preproc_params
 
 def classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
     
@@ -511,3 +532,72 @@ def classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_h
     events = clf(pp, classify_isp=True, sort_events=True)
     
     return events
+
+def event_starts_and_ends(eye_trajectories, event_label, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+
+    events=classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+
+    times=[]
+    start_positions = []
+    end_positions = []
+
+    for i in events:
+        if i['label'] == event_label:
+            times.append([i['start_time'],i['end_time']])
+            start_positions.append([i['start_x'], i['start_y']])
+            end_positions.append([i['end_x'], i['end_y']])
+
+    return np.array(times), np.array(start_positions), np.array(end_positions)
+
+
+def get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, event_label, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+    
+    eye_trajectories, eye_codes = get_kinematic_segments(
+        preproc_dir, subject, exp_id, exp_date, start_events, end_events, datatype='eye'
+    )
+
+    # Process each trial
+    start_end_times=[]
+    start_pos=[]
+    end_pos=[]
+
+    for idx, eye_trajectory in enumerate(eye_trajectories):
+        s_e, xs_ys, xe_ye = event_starts_and_ends(eye_trajectory, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    
+        if s_e.size == 0:
+            print(f"No matching events found in trial {idx}, appending empty arrays.")
+            start_end_times.append([])
+            start_pos.append([])
+            end_pos.append([])
+        else:
+            start_end_times.append(s_e)
+            start_pos.append(xs_ys)
+            end_pos.append(xe_ye)
+
+    return start_end_times,start_pos,end_pos
+
+def get_all_remodnav_data(preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+    
+    eye_trajectories, eye_codes = get_kinematic_segments(
+        preproc_dir, subject, exp_id, exp_date, start_events, end_events, datatype='eye'
+    )
+
+    events=[]
+
+    for eye_trajectory in eye_trajectories:
+        ev=classify_eye_behavior(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+        events.append(ev)
+    
+    return events
+
+def get_saccade_times_and_positions (preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+    times, start, end=get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, 'SACC', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    return (times, start, end)
+
+def get_pursuit_times_and_positions (preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+    times, start, end=get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, 'PURS', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    return (times, start, end)
+
+def get_fixation_times_and_positions (preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+    times, start, end=get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, 'FIXA', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    return (times, start, end)
