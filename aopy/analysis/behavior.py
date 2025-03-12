@@ -6,6 +6,7 @@ import numpy as np
 from scipy import signal
 from sklearn.feature_selection import r_regression
 from tqdm.auto import tqdm 
+import remodnav
 
 from .base import calc_rolling_average
 from .. import preproc
@@ -494,3 +495,19 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
     
     return traj_correlation
 
+
+def classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+    
+    eye_data = eye_trajectories[:,:2].T
+    data = np.core.records.fromarrays(
+        eye_data,  # Extract x, y
+        names='x,y',
+        formats='f8,f8'
+    )
+    screen_half_height_deg=np.degrees(np.arctan2(screen_half_height,viewing_dist))
+    px2deg=screen_half_height_deg/screen_half_height
+    clf = remodnav.EyegazeClassifier(px2deg, samplerate, **clf_params)
+    pp = clf.preproc(data, **preproc_params)
+    events = clf(pp, classify_isp=True, sort_events=True)
+    
+    return events

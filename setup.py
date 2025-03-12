@@ -29,6 +29,7 @@ install_requires = [
     'sympy',
     'ibllib',
     'seaborn>=0.13.2'
+    'remodnav',
 ]
 
 setuptools.setup(
