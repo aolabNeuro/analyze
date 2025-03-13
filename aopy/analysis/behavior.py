@@ -497,9 +497,9 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
 '''Eye behavior metrics'''
 def get_default_parameters(pursuit_velthresh=5.0,noise_factor=5.0,velthresh_startvelocity=300.0,min_intersaccade_duration=0.04,min_saccade_duration=0.01,max_initial_saccade_freq=2.0,saccade_context_window_length=1.0,max_pso_duration=0.04,min_fixation_duration=0.04,min_pursuit_duration=0.04,lowpass_cutoff_freq=4.0,min_blink_duration=0.02,dilate_nan=0.01,median_filter_length=0.05,savgol_length=0.019,savgol_polyord=2,max_vel=2000.0):
     """
-        Returns default parameters required for behavior analysis using REMoDNaV.
+        Returns default parameters required for behavior analysis using REMoDNaV (Dar et al., 2020).
 
-        Arguments:
+        Args:
             For clf_params:
                 pursuit_velthresh (float): Velocity threshold to distinguish periods of pursuit from periods of fixation. Default is 5.0.
                 noise_factor (float): Factor to account for noise in the data. Default is 5.0.
@@ -526,7 +526,7 @@ def get_default_parameters(pursuit_velthresh=5.0,noise_factor=5.0,velthresh_star
                 - preproc_params: Parameters needed for preprocessing.
         """
     clf_params = dict(
-        pursuit_velthresh=pursuit_velthresh, # default 2.0
+        pursuit_velthresh=pursuit_velthresh,
         noise_factor=noise_factor,
         velthresh_startvelocity=velthresh_startvelocity,
         min_intersaccade_duration=min_intersaccade_duration,
@@ -536,19 +536,21 @@ def get_default_parameters(pursuit_velthresh=5.0,noise_factor=5.0,velthresh_star
         max_pso_duration=max_pso_duration,
         min_fixation_duration=min_fixation_duration,
         min_pursuit_duration=min_pursuit_duration,
-        lowpass_cutoff_freq=lowpass_cutoff_freq,)
+        lowpass_cutoff_freq=lowpass_cutoff_freq,
+        )
     preproc_params = dict(
         min_blink_duration=min_blink_duration,
         dilate_nan=dilate_nan,
         median_filter_length=median_filter_length,
         savgol_length=savgol_length,
         savgol_polyord=savgol_polyord,
-        max_vel=max_vel,)
+        max_vel=max_vel,
+        )
     return clf_params, preproc_params
 
-def classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+def classify_behavior_in_eye_trajectory(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
     """
-        Classifies eye behavior based on eye trajectories using the REMoDNaV algorithm.
+        Classifies eye behavior based on a single trial eye trajectory using the REMoDNaV algorithm.
         
         Args:
             eye_trajectories (nt, n_features): array of eye trajectories,
@@ -560,11 +562,11 @@ def classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_h
             viewing_dist (float): The viewing distance in cm.
             samplerate (int, optional): Sampling rate of the eye tracker in Hz, by default 1000.
     
-        Returns
-        events (list): List of dictionaries containing classified eye movement events
+        Returns:
+            events (list): List of dictionaries containing classified eye movement events
                     where one list per trial containing multiple dictionaries,
                     and each dictionary contains the following keys:
-                        - 'id': # actually not sure what id is
+                        - 'id': event identifier.
                         - 'label': Type of eye movement (e.g., saccade, fixation, pursuit).
                         - 'start_time': Start time of the event in seconds.
                         - 'end_time': End time of the event in seconds.
@@ -577,9 +579,9 @@ def classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_h
                         - 'med_velocity': Median velocity of the eye movement in degrees/second.
                         - 'avg_velocity': Average velocity of the eye movement in degrees/second.
     """
-    eye_data = eye_trajectories[:,:2].T
+    eye_data = eye_trajectory[:,:2].T
     data = np.core.records.fromarrays(
-        eye_data,  # Extract x, y
+        eye_data,
         names='x,y',
         formats='f8,f8'
     )
@@ -591,9 +593,9 @@ def classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_h
     
     return events
 
-def event_starts_and_ends(eye_trajectories, event_label, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+def get_event_start_and_end_in_eye_trajectory(eye_trajectory, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
     """
-    Extracts the start and end times and x,y positions of specified events from eye movement trajectories.
+    Extracts the start and end times and x,y positions of specified events from a single trial eye trajectory.
 
     Args:
         eye_trajectories (nt, n_features): array of eye trajectories,
@@ -612,7 +614,7 @@ def event_starts_and_ends(eye_trajectories, event_label, clf_params, preproc_par
                 start_positions (ndarray): An array of start positions (x, y) for each event.
                 end_positions (ndarray): An array of end positions (x, y) for each event.
     """
-    events=classify_eye_behavior(eye_trajectories, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    events=classify_behavior_in_eye_trajectory(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
 
     times=[]
     start_positions = []
@@ -627,7 +629,7 @@ def event_starts_and_ends(eye_trajectories, event_label, clf_params, preproc_par
     return np.array(times), np.array(start_positions), np.array(end_positions)
 
 
-def get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, event_label, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+def get_event_times_and_positions(preproc_dir, subject, te_id, date, start_events, end_events, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
     
     """
     Extracts event times and positions from eye movement data for a given session.
@@ -635,8 +637,8 @@ def get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_
     Args:
         preproc_dir (str): Base directory where file lives
         subject (str): Subject name.
-        exp_id (int): Block number of task entry object. # change name to te_id
-        exp_date (str): Date of the recording.
+        te_id (int): Block number of task entry object.
+        date (str): Date of the recording.
         start_events (list): List of numeric codes representing the start of a trial.
         end_events (list): List of numeric codes representing the end of a trial.
         event_label (str): The label of the event to extract. (e.g., 'SACC', 'PURS', 'FIXA')
@@ -656,16 +658,15 @@ def get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_
     """
 
     eye_trajectories, eye_codes = get_kinematic_segments(
-        preproc_dir, subject, exp_id, exp_date, start_events, end_events, datatype='eye'
+        preproc_dir, subject, te_id, date, start_events, end_events, datatype='eye'
     )
 
-    # Process each trial
     start_end_times=[]
     start_pos=[]
     end_pos=[]
 
     for idx, eye_trajectory in enumerate(eye_trajectories):
-        s_e, xs_ys, xe_ye = event_starts_and_ends(eye_trajectory, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+        s_e, xs_ys, xe_ye = get_event_start_and_end_in_eye_trajectory(eye_trajectory, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
     
         if s_e.size == 0:
             print(f"No matching events found in trial {idx}, appending empty arrays.")
@@ -679,15 +680,15 @@ def get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_
 
     return start_end_times,start_pos,end_pos
 
-def get_all_remodnav_data(preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+def get_all_remodnav_data(preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
     """
     Extracts specified event times and positions from eye movement data for a given session.
     
     Args:
         preproc_dir (str): Base directory where file lives
         subject (str): Subject name.
-        exp_id (int): Block number of task entry object. # change name to te_id
-        exp_date (str): Date of the recording.
+        te_id (int): Block number of task entry object.
+        date (str): Date of the recording.
         start_events (list): List of numeric codes representing the start of a trial.
         end_events (list): List of numeric codes representing the end of a trial.
         event_label (str): The label of the event to extract. (e.g., 'SACC', 'PURS', 'FIXA')
@@ -706,26 +707,26 @@ def get_all_remodnav_data(preproc_dir, subject, exp_id, exp_date, start_events, 
             List of arrays containing end positions of detected events for each trial.
     """
     eye_trajectories, eye_codes = get_kinematic_segments(
-        preproc_dir, subject, exp_id, exp_date, start_events, end_events, datatype='eye'
+        preproc_dir, subject, te_id, date, start_events, end_events, datatype='eye'
     )
 
     events=[]
 
     for eye_trajectory in eye_trajectories:
-        ev=classify_eye_behavior(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+        ev=classify_behavior_in_eye_trajectory(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
         events.append(ev)
     
     return events
 
-def get_saccade_times_and_positions (preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+def get_saccade_times_and_positions (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
     """
         Extracts saccade event times and positions from preprocessed eye-tracking data.
 
         Args:
             preproc_dir (str): Base directory where file lives
             subject (str): Subject name.
-            exp_id (int): Block number of task entry object. # change name to te_id
-            exp_date (str): Date of the recording.
+            te_id (int): Block number of task entry object.
+            date (str): Date of the recording.
             start_events (list): List of numeric codes representing the start of a trial.
             end_events (list): List of numeric codes representing the end of a trial.
             clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
@@ -742,18 +743,18 @@ def get_saccade_times_and_positions (preproc_dir, subject, exp_id, exp_date, sta
             end_pos : (end_x, end_y):
                 List of arrays containing end positions of saccades for each trial.
         """
-    times, start, end=get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, 'SACC', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    times, start, end=get_event_times_and_positions(preproc_dir, subject, te_id, date, start_events, end_events, 'SACC', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
     return (times, start, end)
 
-def get_pursuit_times_and_positions (preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+def get_pursuit_times_and_positions (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
     """
         Extracts pursuit event times and positions from preprocessed eye-tracking data.
 
         Args:
             preproc_dir (str): Base directory where file lives
             subject (str): Subject name.
-            exp_id (int): Block number of task entry object. # change name to te_id
-            exp_date (str): Date of the recording.
+            te_id (int): Block number of task entry object.
+            date (str): Date of the recording.
             start_events (list): List of numeric codes representing the start of a trial.
             end_events (list): List of numeric codes representing the end of a trial.
             clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
@@ -770,18 +771,18 @@ def get_pursuit_times_and_positions (preproc_dir, subject, exp_id, exp_date, sta
             end_pos : (end_x, end_y):
                 List of arrays containing end positions of pursuits for each trial.
         """
-    times, start, end=get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, 'PURS', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    times, start, end=get_event_times_and_positions(preproc_dir, subject, te_id, date, start_events, end_events, 'PURS', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
     return (times, start, end)
 
-def get_fixation_times_and_positions (preproc_dir, subject, exp_id, exp_date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist=28, samplerate=1000):
+def get_fixation_times_and_positions (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
     """
         Extracts fixation events times and positions from preprocessed eye-tracking data.
 
         Args:
             preproc_dir (str): Base directory where file lives
             subject (str): Subject name.
-            exp_id (int): Block number of task entry object. # change name to te_id
-            exp_date (str): Date of the recording.
+            te_id (int): Block number of task entry object. # change name to te_id
+            date (str): Date of the recording.
             start_events (list): List of numeric codes representing the start of a trial.
             end_events (list): List of numeric codes representing the end of a trial.
             clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
@@ -798,5 +799,5 @@ def get_fixation_times_and_positions (preproc_dir, subject, exp_id, exp_date, st
             end_pos : (end_x, end_y):
                 List of arrays containing end positions of fixations for each trial.
         """
-    times, start, end=get_event_times_and_positions(preproc_dir, subject, exp_id, exp_date, start_events, end_events, 'FIXA', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    times, start, end=get_event_times_and_positions(preproc_dir, subject, te_id, date, start_events, end_events, 'FIXA', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
     return (times, start, end)
