@@ -1637,7 +1637,7 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     if not axinput:
         fig.tight_layout()
         
-def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='k', box_width=0.5, ax=None):
+def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='k', box_width=0.5, label_xticks=True, ax=None):
     '''
     This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
 
@@ -1647,6 +1647,7 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='
         trendline (bool): If a line should be used to connect boxplots
         facecolor (color): Color of the box faces. Can be any input that pyplot interprets as a color.
         linecolor (color): Color of the connecting lines.
+        label_xticks(bool): If the values of 'plt_xaxis' should be used to label the xticks. If multiple boxplots are plotted on the same figure this should be set to False.
         ax (axes handle): Axes to plot
 
     Examples:
@@ -1702,7 +1703,7 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
-    ax.set_xticklabels(plt_xaxis)
+    ax.set_xticklabels(plt_xaxis) if plt_xaxis else None
 
 def advance_plot_color(ax, n):
     '''
