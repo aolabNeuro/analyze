@@ -1703,7 +1703,8 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
-    ax.set_xticklabels(plt_xaxis) if plt_xaxis else None
+    if label_xticks:
+        ax.set_xticklabels(plt_xaxis)
 
 def advance_plot_color(ax, n):
     '''
