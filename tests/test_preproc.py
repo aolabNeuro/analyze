@@ -1001,6 +1001,15 @@ class TestPrepareExperiment(unittest.TestCase):
         self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 0)
 
+    def test_parse_bmi3d_v18(self):
+        files = {}
+        files['hdf'] = 'some exp hdf file.hdf'
+        files['emg'] = 'the emg file from that exp.hdf'
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 18)
+        self.assertEqual(len(data['preproc_errors']), 0)
+
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
@@ -1460,6 +1469,9 @@ class ProcTests(unittest.TestCase):
 
         plt.tight_layout()
         visualization.savefig(docs_dir, 'proc_lfp_comparison.png')
+
+    def test_proc_emg(self):
+        raise ValueError("Test not implemented")
 
 class QualityTests(unittest.TestCase):
 

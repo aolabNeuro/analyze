@@ -142,6 +142,28 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, verbose=True, cache
         warnings.warn(f"Preprocessing errors found in {filename}:\n{metadata['preproc_errors']}")
     return data, metadata
 
+def load_preproc_emg_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads emg data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: Dictionary of exp data
+        dict: Dictionary of exp metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'emg')
+    path = str(os.path.join(preproc_dir, subject))
+    data = load_hdf_group(path, filename, 'emg_data', cached=cached)
+    metadata = load_hdf_group(path, filename, 'emg_metadata', cached=cached)
+
+    return data, metadata
+
 def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads eye data from a preprocessed file.
