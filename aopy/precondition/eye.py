@@ -256,7 +256,8 @@ def classify_event_in_eye_trajectory(eye_trajectory, clf_params, preproc_params,
         Args:
             eye_trajectories (nt, n_features): array of eye trajectories,
                                     Where 'nt' is the number of timepoints,
-                                    'n_features' are the x,y coordinates for each eye.
+                                    'n_features' are the x,y coordinates for one eye. 
+                                        Note: n_features shape must = 2.
             clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
             preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
             screen_half_height (float): Half the height of the screen in cm.
@@ -280,7 +281,20 @@ def classify_event_in_eye_trajectory(eye_trajectory, clf_params, preproc_params,
                         - 'med_velocity': Median velocity of the eye movement in degrees/second.
                         - 'avg_velocity': Average velocity of the eye movement in degrees/second.
     """
-    eye_data = eye_trajectory[:,:2].T
+
+    def check_array_shape(eye_trajectory):
+        """
+        Checks if the input array has the correct shape for eye trajectory data.
+        """
+        if isinstance(eye_trajectory, np.ndarray) and eye_trajectory.ndim == 2 and eye_trajectory.shape[1] == 2:
+            return True
+        else:
+            print("Warning! Input array must be a 2D numpy array with shape (nt, 2).")
+
+    check_array_shape(eye_trajectory)
+
+    eye_data = eye_trajectory.T
+
     data = np.core.records.fromarrays(
         eye_data,
         names='x,y',
@@ -409,7 +423,7 @@ def get_all_eye_events(preproc_dir, subject, te_id, date, start_events, end_even
             List of arrays containing end positions of detected events for each trial.
     """
     eye_trajectories, eye_codes = get_kinematic_segments(
-        preproc_dir, subject, te_id, date, start_events, end_events, datatype='eye'
+        preproc_dir, subject, te_id, date, start_events, end_events, datatype='eye', samplerate=samplerate
     )
 
     events=[]
