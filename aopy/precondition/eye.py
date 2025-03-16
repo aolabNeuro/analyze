@@ -198,8 +198,7 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
 '''REMoDNaV classification'''
 def get_default_parameters(pursuit_velthresh=5.0,noise_factor=5.0,velthresh_startvelocity=300.0,min_intersaccade_duration=0.04,min_saccade_duration=0.01,max_initial_saccade_freq=2.0,saccade_context_window_length=1.0,max_pso_duration=0.04,min_fixation_duration=0.04,min_pursuit_duration=0.04,lowpass_cutoff_freq=4.0,min_blink_duration=0.02,dilate_nan=0.01,median_filter_length=0.05,savgol_length=0.019,savgol_polyord=2,max_vel=2000.0):
     """
-        Returns default parameters required for behavior analysis using REMoDNaV (Dar et al., 2020).
-
+        Returns default parameters required for behavior analysis using REMoDNaV (Dar et al., 2021) https://doi.org/10.3758/s13428-020-01428-x
         Args:
             For clf_params:
                 pursuit_velthresh (float): Velocity threshold to distinguish periods of pursuit from periods of fixation. Default is 5.0.
@@ -459,7 +458,7 @@ def get_saccade_trials (preproc_dir, subject, te_id, date, start_events, end_eve
             end_pos : (end_x, end_y):
                 List of arrays containing end positions of saccades for each trial.
         """
-    times, start, end=detect_eye_events(preproc_dir, subject, te_id, date, start_events, end_events, 'SACC', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    times, start, end=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'SACC', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
     return (times, start, end)
 
 def get_pursuit_trials (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
@@ -487,7 +486,7 @@ def get_pursuit_trials (preproc_dir, subject, te_id, date, start_events, end_eve
             end_pos : (end_x, end_y):
                 List of arrays containing end positions of pursuits for each trial.
         """
-    times, start, end=detect_eye_events(preproc_dir, subject, te_id, date, start_events, end_events, 'PURS', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    times, start, end=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'PURS', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
     return (times, start, end)
 
 def get_fixation_trials (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
@@ -515,5 +514,5 @@ def get_fixation_trials (preproc_dir, subject, te_id, date, start_events, end_ev
             end_pos : (end_x, end_y):
                 List of arrays containing end positions of fixations for each trial.
         """
-    times, start, end=detect_eye_events(preproc_dir, subject, te_id, date, start_events, end_events, 'FIXA', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    times, start, end=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'FIXA', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
     return (times, start, end)
