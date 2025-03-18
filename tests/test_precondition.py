@@ -602,6 +602,33 @@ class EyeTests(unittest.TestCase):
         self.assertTrue(np.all(onset[1:]-offset[:-1] > 0.02)) # intersaccade min
 
 
+    def test_detect_eye_events(self):
+        samplerate = 1000
+        eye_trajectory, _ = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=samplerate)
+        clf_params,preproc_params=get_default_parameters()
+
+        times, start_positions, end_positions = detect_eye_events(eye_trajectory, 'SACC', clf_params, preproc_params, 10.75, 28, samplerate)
+        duration= times[:,1]-times[:,0]
+        distance = np.linalg.norm(end_positions-start_positions, axis=1)
+
+        plt.figure()
+        plt.hist(1000*duration)
+        plt.xlabel('Duration (ms)')
+        plt.figure()
+        plt.hist(distance)
+        plt.xlabel('Distance (cm)')
+        savefig(docs_dir, 'remodnav_saccades_hist.png',transparent=False)
+        plt.close()
+
+        plt.figure()
+        plt.scatter(1000*duration, distance)
+        plt.xlabel('Duration (ms)')
+        plt.ylabel('Distance (cm)')
+        savefig(docs_dir, 'remodnav_saccades_scatter.png',transparent=False)
+        plt.close()
+        
+
+
 
 if __name__ == "__main__":
     unittest.main()

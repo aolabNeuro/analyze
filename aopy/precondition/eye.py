@@ -248,7 +248,7 @@ def get_default_parameters(pursuit_velthresh=5.0,noise_factor=5.0,velthresh_star
         )
     return clf_params, preproc_params
 
-def classify_event_in_eye_trajectory(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate):
+def classify_eye_events(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate):
     """
         Classifies eye behavior based on a single trial eye trajectory using the REMoDNaV algorithm.
         
@@ -257,7 +257,7 @@ def classify_event_in_eye_trajectory(eye_trajectory, clf_params, preproc_params,
                                     Where 'nt' is the number of timepoints,
                                     'n_features' are the x,y coordinates for one eye. 
                                         Note: n_features shape must = 2.
-            clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
+            clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier. 
             preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
             screen_half_height (float): Half the height of the screen in cm.
             viewing_dist (float): The viewing distance in cm.
@@ -279,6 +279,13 @@ def classify_event_in_eye_trajectory(eye_trajectory, clf_params, preproc_params,
                         - 'peak_velocity': Peak velocity of the eye movement in degrees/second.
                         - 'med_velocity': Median velocity of the eye movement in degrees/second.
                         - 'avg_velocity': Average velocity of the eye movement in degrees/second.
+
+        Example:
+
+            Detecting saccades on the first 5 seconds of test data from beignet block 5974 (included in /tests/data/beignet)
+    
+            .. image:: _images/remodnav_saccades_hist.png
+            .. image:: _images/remodnav_saccades_scatter.png
     """
 
     def check_array_shape(eye_trajectory):
@@ -328,7 +335,7 @@ def detect_eye_events(eye_trajectory, event_label, clf_params, preproc_params, s
                 start_positions (ndarray): An array of start positions (x, y) for each event.
                 end_positions (ndarray): An array of end positions (x, y) for each event.
     """
-    events=classify_event_in_eye_trajectory(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    events=classify_eye_events(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
 
     times=[]
     start_positions = []
@@ -347,6 +354,8 @@ def get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_ev
     
     """
     Extracts event times and positions from eye movement data for a given session.
+
+    WRITE SOMETHING TO TELL PEOPLE WHAT LABELS THEY CAN USE. WHAT IS AN EVENT? YOU HAVE TO CHOOSE! WHAT ARE THE OPTIONS
     
     Args:
         preproc_dir (str): Base directory where file lives
@@ -428,91 +437,7 @@ def get_all_eye_events(preproc_dir, subject, te_id, date, start_events, end_even
     events=[]
 
     for eye_trajectory in eye_trajectories:
-        ev=classify_event_in_eye_trajectory(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+        ev=classify_eye_events(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
         events.append(ev)
     
     return events
-
-def get_saccade_trials (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
-    """
-        Extracts saccade event times and positions from preprocessed eye-tracking data.
-
-        Args:
-            preproc_dir (str): Base directory where file lives
-            subject (str): Subject name.
-            te_id (int): Block number of task entry object.
-            date (str): Date of the recording.
-            start_events (list): List of numeric codes representing the start of a trial.
-            end_events (list): List of numeric codes representing the end of a trial.
-            clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
-            preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
-            screen_half_height (float): Half the height of the screen in cm.
-            viewing_dist (float): The viewing distance in cm.
-            samplerate (int, optional): The sampling rate of the eye tracker in Hz. Default is 1000.
-
-        Returns:
-            start_end_times (start, end): 
-                List of arrays containing start and end times of saccades for each trial in seconds.
-            start_pos (start_x, start_y):
-                List of arrays containing start positions of saccades for each trial.
-            end_pos : (end_x, end_y):
-                List of arrays containing end positions of saccades for each trial.
-        """
-    times, start, end=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'SACC', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
-    return (times, start, end)
-
-def get_pursuit_trials (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
-    """
-        Extracts pursuit event times and positions from preprocessed eye-tracking data.
-
-        Args:
-            preproc_dir (str): Base directory where file lives
-            subject (str): Subject name.
-            te_id (int): Block number of task entry object.
-            date (str): Date of the recording.
-            start_events (list): List of numeric codes representing the start of a trial.
-            end_events (list): List of numeric codes representing the end of a trial.
-            clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
-            preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
-            screen_half_height (float): Half the height of the screen in cm.
-            viewing_dist (float): The viewing distance in cm.
-            samplerate (int, optional): The sampling rate of the eye tracker in Hz. Default is 1000.
-
-        Returns:
-            start_end_times (start, end): 
-                List of arrays containing start and end times of pursuits for each trial in seconds.
-            start_pos (start_x, start_y):
-                List of arrays containing start positions of pursuits for each trial.
-            end_pos : (end_x, end_y):
-                List of arrays containing end positions of pursuits for each trial.
-        """
-    times, start, end=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'PURS', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
-    return (times, start, end)
-
-def get_fixation_trials (preproc_dir, subject, te_id, date, start_events, end_events, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
-    """
-        Extracts fixation events times and positions from preprocessed eye-tracking data.
-
-        Args:
-            preproc_dir (str): Base directory where file lives
-            subject (str): Subject name.
-            te_id (int): Block number of task entry object. # change name to te_id
-            date (str): Date of the recording.
-            start_events (list): List of numeric codes representing the start of a trial.
-            end_events (list): List of numeric codes representing the end of a trial.
-            clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
-            preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
-            screen_half_height (float): Half the height of the screen in cm.
-            viewing_dist (float): The viewing distance in cm.
-            samplerate (int, optional): The sampling rate of the eye tracker in Hz. Default is 1000.
-
-        Returns:
-            start_end_times (start, end): 
-                List of arrays containing start and end times of fixations for each trial in seconds.
-            start_pos (start_x, start_y):
-                List of arrays containing start positions of fixations for each trial.
-            end_pos : (end_x, end_y):
-                List of arrays containing end positions of fixations for each trial.
-        """
-    times, start, end=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'FIXA', clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
-    return (times, start, end)
