@@ -574,16 +574,19 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244', cmap='bwr', 
-                           theta=0, ax=None, **kwargs):
+def plot_spatial_drive_map(data, elec_data=False, drive_type='ECoG244', interp=True, grid_size=(16,16), 
+                           cmap='bwr', theta=0, ax=None, **kwargs):
     '''
     Plot a 2D spatial map of data from a spatial electrode array.
 
     Args:
         data ((nch,) array): values from the spatial drive to plot in 2D
-        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        elec_data (bool, optional): if True, treat data as electrode data (i.e. nch == nelec), otherwise 
+            treat it as acquisition data (nch >= nelec). Defaults to False.
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         drive_type (str, optional): type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
+        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        grid_size ((2,) tuple, optional): size of the grid to interpolate to. Defaults to (16,16).
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
             e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
@@ -593,6 +596,8 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
 
     Returns:
         pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+
+    Updated in v0.9.1 - removed bad_elec argument, added elec_data argument
     '''
     
     if ax is None:
@@ -600,17 +605,15 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
     
     # Load the signal path files
     elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type, theta=theta)
+    if not elec_data:
+        data = data[acq_ch-1]
 
-    # Remove bad electrodes
-    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
-    data[bad_ch] = np.nan
-        
     # Interpolate or directly compute the map
     if interp:
         interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
-        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
+        data_map, xy = calc_data_map(data, elec_pos[:,0], elec_pos[:,1], grid_size, **interp_kwargs)
     else:
-        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
+        data_map = get_data_map(data, elec_pos[:,0], elec_pos[:,1])
         xy = [elec_pos[:,0], elec_pos[:,1]]
 
     # Plot
@@ -619,14 +622,15 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
     return im
 
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', 
+def plot_ECoG244_data_map(data, elec_data=False, interp=True, cmap='bwr', 
                           theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
     Args:
         data ((256,) array): values from the ECoG array to plot in 2D
-        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        elec_data (bool, optional): if True, treat data as electrode data (i.e. nch == nelec), otherwise
+            treat it as acquisition data (nch >= nelec). Defaults to False.
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
@@ -638,28 +642,33 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr',
     Returns:
         pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
 
+    Updated in v0.9.1 - removed bad_elec argument, added elec_data argument
+
     Examples:
 
         .. code-block:: python
 
             data = np.linspace(-1, 1, 256)
             missing = [0, 5, 25]
+            missing_ch = acq_ch[np.isin(elecs, missing)]-1
+            data[missing_ch] = np.nan
+
             plt.figure()
-            plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None)
+            plot_ECoG244_data_map(data, interp=False, cmap='bwr', ax=None)
             # Here the missing electrodes (in addition to the ones
             # undefined by the channel mapping) should be visible in the map.
 
             plt.figure()
-            plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None, nan_color=None)
+            plot_ECoG244_data_map(data, interp=False, cmap='bwr', ax=None, nan_color=None)
             # Now we make the missing electrodes transparent
 
             plt.figure()
-            plot_ECoG244_data_map(data, bad_elec=missing, interp=True, cmap='bwr', ax=None)
+            plot_ECoG244_data_map(data, interp=True, cmap='bwr', ax=None)
             # Missing electrodes should be filled in with linear interp.
 
     '''
-    return plot_spatial_drive_map(data, bad_elec=bad_elec, interp=interp, drive_type='ECoG244', 
-                                  cmap=cmap, theta=theta, ax=ax, **kwargs)
+    return plot_spatial_drive_map(data, elec_data=elec_data, interp=interp, grid_size=(16,16), 
+                                  drive_type='ECoG244', cmap=cmap, theta=theta, ax=ax, **kwargs)
 
 def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
     '''
@@ -2434,6 +2443,119 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
     params_file = as_file(config_dir.joinpath(filename))
     with params_file as f:
         overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)
+
+def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, theta, elec_data=True, 
+                                          interp=True, grid_size=(16,16), cmap='viridis', clim=None, 
+                                          colorbar=True, fontsize=12, color='w', 
+                                          recording_drive_type='ECoG244', stim_drive_type='Opto32', 
+                                          ax=None, **kwargs):
+    '''
+    Stimulation-specific version of :func:`plot_spatial_drive_map` that includes annotations for the stimulation site,
+    removes tick marks, despines the map, and adds an overlay of the stimulation channel and chamber sulci locations.
+
+    Args:
+        data (nch): data to plot
+        stim_site (int): stimulation site to annotate on the map
+        subject (str): subject name
+        chamber (str): chamber type (e.g. 'LM1')
+        theta (int): rotation of the chamber in degrees
+        elec_data (bool, optional): whether to treat data as per electrode (True) or per acquistion channel (False). Default True.
+        interp (bool, optional): whether to interpolate the data onto a grid. Default True
+        grid_size (tuple, optional): size of the grid to interpolate. Default (16, 16)
+        cmap (str, optional): colormap to use for plotting. Default 'viridis'.
+        clim (tuple, optional): 2-tuple of color limits (min, max) for the plot. Default None.
+        colorbar (bool, optional): whether to add a colorbar to the plot. Default True
+        fontsize (int, optional): font size for annotations. Default 12
+        color (str, optional): color for annotations. Default 'w'
+        recording_drive_type (str, optional): drive type of the recording. Default 'ECoG244'
+        stim_drive_type (str, optional): drive type of the stimulation. Default 'Opto32'
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to :func:`plot_spatial_drive_map`
+
+    Returns:
+        tuple: tuple containing:
+            - im (pyplot.Image): image object returned from pyplot.imshow. Useful for adding colorbars, etc.
+            - pcm (pyplot.Colorbar): colorbar object if colorbar is True, otherwise None
+
+    Examples:
+
+        .. code-block:: python
+
+            data = np.random.normal(0, 1, (240,))
+            stim_site = 7
+            plot_annotated_spatial_drive_map_stim(data, stim_site, 'beignet', 'lm1', 0, interp_method='cubic')
+
+        .. image:: _images/annotated_spatial_drive_map_stim.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    # Plot the spatial drive map
+    im = plot_spatial_drive_map(data, elec_data=elec_data, interp=interp, grid_size=grid_size, 
+                                drive_type=recording_drive_type, cmap=cmap,
+                                theta=theta, ax=ax, **kwargs)
+    if clim is not None:
+        im.set_clim(*clim)
+    sns.despine(left=True, bottom=True, ax=ax)
+    pcm = None
+    if colorbar:
+        pcm = plt.colorbar(im, ax=ax)
+    ax.set(xticks=[], yticks=[], xticklabels=[], yticklabels=[], xlabel='', ylabel='')
+    
+    # Add annotations
+    annotate_spatial_map_channels(acq_ch=[stim_site], fontsize=fontsize, color=color, 
+                                  drive_type=stim_drive_type, theta=theta, ax=ax)
+    overlay_sulci_on_spatial_map(subject, chamber, recording_drive_type, theta=theta, color=color, ax=ax)
+    return im, pcm
+    
+def plot_annotated_stim_drive_data(data, subject, chamber, theta, interp=False, 
+                                   stim_drive='Opto32', recording_drive='ECoG244', 
+                                   cmap='Blues', colorbar=True, color='k', 
+                                   nan_color='white', ax=None, **kwargs):
+    '''
+    Plot a spatial map of data for each stimulation site in a drive with the bounds 
+    and sulci overlayed of a recording drive shown for reference.
+
+    Args:
+        data (nch): data to plot
+        subject (str): subject name
+        chamber (str): chamber type (e.g. 'LM1')
+        theta (int): rotation of the chamber in degrees
+        interp (bool, optional): whether to interpolate the data onto a grid. Default False
+        stim_drive (str): drive type of the stimulation data. Default 'Opto32'
+        recording_drive (str): drive type of the recording used in the chamber. Default 'ECoG244'
+        cmap (str): colormap to use for plotting
+        colorbar (bool, optional): whether to add a colorbar to the plot. Default True
+        color (str): color for annotations. Default 'k'
+        nan_color (str): color to use for NaN values. Default 'white'
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to :func:`plot_spatial_drive_map`
+
+    Returns:
+        tuple: tuple containing:
+            - im (pyplot.Image): image object returned from pyplot.imshow. Useful for adding colorbars, etc.
+            - pcm (pyplot.Colorbar): colorbar object if colorbar is True, otherwise None
+
+    Examples:
+
+        .. code-block:: python
+        
+            data = np.random.normal(0, 1, (32,))
+            plot_annotated_stim_drive_data(data, 'beignet', 'lm1', 0)
+
+        .. image:: _images/annotated_stim_drive_data.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    im = plot_spatial_drive_map(data, elec_data=True, drive_type=stim_drive, interp=interp, 
+                                cmap=cmap, theta=theta, 
+                                nan_color=nan_color, ax=ax, **kwargs)
+    pcm = None
+    if colorbar:
+        pcm = plt.colorbar(im, ax=ax)
+    overlay_sulci_on_spatial_map(subject, chamber, recording_drive, theta=theta, color=color, ax=ax)
+    return im, pcm
 
 def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=None, **kwargs):
     """
