@@ -1,5 +1,6 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
 import unittest
+import aopy
 from aopy.data.base import load_preproc_eye_data
 from aopy.precondition.eye import *
 from aopy import visualization
@@ -627,6 +628,26 @@ class EyeTests(unittest.TestCase):
         savefig(docs_dir, 'remodnav_saccades_scatter.png',transparent=False)
         plt.close()
         
+    def test_get_eye_event_trials(self):
+        preproc_dir = data_dir
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        exp_data,exp_metadata=aopy.data.load_preproc_exp_data(preproc_dir,subject,te_id,date)
+        eye_data, eye_metadata=aopy.data.load_preproc_eye_data(preproc_dir,subject,te_id,date)
+
+        start_events=exp_metadata['event_sync_dict']['CURSOR_ENTER_TARGET']
+        end_events=exp_metadata['event_sync_dict']['REWARD']
+        samplerate = 1000
+        clf_params,preproc_params=get_default_parameters()
+        times,start_positions,end_positions=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'SACC', clf_params, preproc_params, 10.75, 28, samplerate)
+
+        print(len(times))
+        print(len(start_positions))
+        print(len(end_positions))
+
+        self.assertEqual(len(times)==len(start_positions)==len(end_positions),True)
+        self.assertEqual(len(times), 10)
 
 
 
