@@ -11,7 +11,6 @@ from .base import calc_rolling_average
 from .. import preproc
 from .. import postproc
 from ..data import load_bmi3d_task_codes
-
 '''
 Behavioral metrics 
 '''
@@ -493,4 +492,3 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
         traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[:, itrial])
     
     return traj_correlation
-

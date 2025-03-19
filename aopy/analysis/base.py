@@ -1437,7 +1437,7 @@ def get_tfr_feats(freqs, spec, bands, log=False, epsilon=1e-9):
 
     return np.squeeze(feats)
 
-def calc_tfr_mean(freqs, time, spec, band=(0, np.inf), window=(-np.inf, np.inf)):
+def calc_tfr_mean(freqs, time, spec, band=(0, 1e16), window=(-1e16, 1e16)):
     """
     Calculate the mean within a specific frequency band and time window.
     
@@ -1457,7 +1457,7 @@ def calc_tfr_mean(freqs, time, spec, band=(0, np.inf), window=(-np.inf, np.inf))
     
     return np.nanmean(spec[tf_idx], axis=(0, 1))
 
-def calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs, band=(0,np.inf), window=(-np.inf, np.inf),
+def calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs, band=(0,1e16), window=(-1e16, 1e16),
                                 alternative='greater', nan_policy='raise', alpha=0.05):
     """
     Compute band-specific Wilcoxon sign-rank test with false discovery-rate correction. Used for comparing 

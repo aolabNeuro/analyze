@@ -6,7 +6,6 @@ import os
 import numpy as np
 
 from ..data.bmi3d import load_ecube_data_chunked
-from ..precondition.eye import filter_eye
 from .. import precondition
 from .. import data as aodata
 from .. import utils
@@ -82,7 +81,7 @@ def parse_oculomatic(data_dir, files, samplerate=1000, max_memory_gb=1.0, debug=
         # mask_chunk = precondition.downsample(mask_chunk, analog_metadata['samplerate'], samplerate)
         # mask_chunk = mask_chunk > 0.5 # downsample takes a mean over boolean, this makes it back into a boolean
         mask_chunk = mask_chunk[::downsample_factor,:]
-        analog_chunk, _ = filter_eye(analog_chunk, analog_metadata['samplerate'], downsamplerate=samplerate, **filter_kwargs)
+        analog_chunk, _ = precondition.filter_eye(analog_chunk, analog_metadata['samplerate'], downsamplerate=samplerate, **filter_kwargs)
         chunk_len = analog_chunk.shape[0]
         downsample_data[n_samples:n_samples+chunk_len,:] = analog_chunk
         downsample_mask[n_samples:n_samples+chunk_len,:] = mask_chunk
