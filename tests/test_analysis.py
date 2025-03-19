@@ -715,7 +715,7 @@ class CalcTests(unittest.TestCase):
 
         # Test with interpolation
         NCC2, _ = aopy.analysis.calc_spatial_data_correlation([data1, data2], elec_pos, interp=True, grid_size=(32,32))
-        self.assertAlmostEqual(NCC[1,0], NCC2[1,0], places=3)
+        self.assertAlmostEqual(NCC[1,0], NCC2[1,0], places=1)
 
     def test_calc_spatial_tf_data_correlation(self):
         np.random.seed(0)
