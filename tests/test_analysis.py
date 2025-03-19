@@ -699,6 +699,46 @@ class CalcTests(unittest.TestCase):
         filename = 'calc_spatial_map_correlation.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
+    def test_calc_spatial_data_correlation(self):
+        np.random.seed(0)
+
+        # Test ECoG layout
+        elec_pos, _, _ = aopy.data.load_chmap('ECoG244')
+        data1 = np.random.normal(0,1,(elec_pos.shape[0], 1))
+        data2 = data1.copy()
+        print(data2.shape)
+
+        # Change a few indices in data2
+        data2[0:5] = 5
+        NCC, _ = aopy.analysis.calc_spatial_data_correlation([data1, data2], elec_pos)
+        self.assertLess(NCC[1,0], 1)
+
+        # Test with interpolation
+        NCC2, _ = aopy.analysis.calc_spatial_data_correlation([data1, data2], elec_pos, interp=True, grid_size=(32,32))
+        self.assertAlmostEqual(NCC[1,0], NCC2[1,0], places=3)
+
+    def test_calc_spatial_tf_data_correlation(self):
+        np.random.seed(0)
+
+        # Test ECoG layout
+        elec_pos, _, _ = aopy.data.load_chmap('ECoG244')
+        freqs = np.linspace(1, 100, 10)
+        time = np.linspace(0, 1, 20)
+        tf_elec_data1 = np.random.normal(0,1,(freqs.size, time.size, elec_pos.shape[0]))
+        tf_elec_data2 = tf_elec_data1.copy()
+        
+        # Change a few indices in data2 but only after 0.5 s
+        tf_elec_data2[:,time > 0.5,5] = 5
+        
+        ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos,
+                                                                window=(0.5, 1))
+        self.assertLess(ncc[1,0], 1)
+
+        ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos,
+                                                                window=(0, 0.5))
+        self.assertEqual(ncc[1,0], 1)
+
+
 class TFRStatsTests(unittest.TestCase):
 
     def test_calc_fdrc_ranktest(self):
