@@ -404,8 +404,8 @@ def load_emg_digital(data_dir, emg_data):
     Just a wrapper around load_ecube_data() and load_ecube_metadata()
 
     Args:
-        data_dir (str): base directory where ecube data is stored
-        emg_data (str): folder you want to load
+        data_dir (str): base directory where emg data is stored
+        emg_data (str): hdf file you want to load
 
     Returns:
         tuple: Tuple containing:
@@ -414,14 +414,19 @@ def load_emg_digital(data_dir, emg_data):
     '''
 
     emg_data, emg_metadata = load_bmi3d_hdf_table(data_dir, emg_data, 'data')
-    print(emg_metadata)
-    emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),)))
+    #emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),))).astype('int16')
+    if 'dtype' in emg_metadata.keys():
+        emg_data_reshape = emg_data.view((emg_metadata['dtype'], (len(emg_data.dtype),)))
+    else:
+        emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),)))
 
     digital_data = np.zeros((np.shape(emg_data_reshape)[0], 64))
     digital_data[:,0:16] = emg_data_reshape[:,-24:-8]
     div = np.std(digital_data,axis=0)
+    div[div==0] = 1
+    
     digital_data = (digital_data - np.mean(digital_data, axis=0)) / div
-
+    
     digital_data = utils.base.convert_analog_to_digital(digital_data, thresh=0.3)
 
     digital_data = utils.base.convert_channels_to_digital(digital_data)
@@ -2476,7 +2481,7 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
     '''
 
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
-
+    
     segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
                 for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
     trajectories = np.array(segments, dtype='object')

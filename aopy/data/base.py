@@ -159,7 +159,7 @@ def load_preproc_emg_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'emg')
     path = str(os.path.join(preproc_dir, subject))
-    data = load_hdf_group(path, filename, 'emg_data', cached=cached)
+    data = load_hdf_data(path, filename, '/emg_data', cached=cached)
     metadata = load_hdf_group(path, filename, 'emg_metadata', cached=cached)
 
     return data, metadata
@@ -565,6 +565,7 @@ def _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group="/"):
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
     full_data_name = os.path.join(data_group, data_name).replace("\\", "/")
+    
     if full_data_name not in hdf:
         raise ValueError('{} not found in file {}'.format(full_data_name, hdf_filename))
     _, data = _load_hdf_dataset(hdf[full_data_name], data_name)

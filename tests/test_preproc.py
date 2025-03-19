@@ -11,6 +11,8 @@ import numpy as np
 import unittest
 from pathlib import Path
 import datetime
+from aopy.preproc.wrappers import proc_emg
+
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -1001,13 +1003,17 @@ class TestPrepareExperiment(unittest.TestCase):
         self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 0)
 
-    def test_parse_bmi3d_v18(self):
-        files = {}
-        files['hdf'] = 'some exp hdf file.hdf'
-        files['emg'] = 'the emg file from that exp.hdf'
-        data, metadata = parse_bmi3d(data_dir, files)
+    def test_parse_bmi3d_v17(self):
+        
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        files = {'emg':'aj20250319_05_te2540_emg.hdf',
+                 'hdf':'aj20250319_05_te2540_exp.hdf'
+        }
+
+        data, metadata = parse_bmi3d(emg_data_dir, files)
+
         self.check_required_fields(data, metadata)
-        self.assertEqual(metadata['sync_protocol_version'], 18)
+        self.assertEqual(metadata['sync_protocol_version'], 17)
         self.assertEqual(len(data['preproc_errors']), 0)
 
     def test_parse_optitrack(self):
@@ -1471,7 +1477,16 @@ class ProcTests(unittest.TestCase):
         visualization.savefig(docs_dir, 'proc_lfp_comparison.png')
 
     def test_proc_emg(self):
-        raise ValueError("Test not implemented")
+
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        files = {'emg':'aj20250319_05_te2540_emg.hdf',
+                 'exp':'aj20250319_05_te2540_exp.hdf'
+        }
+
+        result_filename = 'test_proc_emg_out.hdf'
+
+        proc_emg(emg_data_dir, files, write_dir, result_filename, n_arrays=1, overwrite=True)
+
 
 class QualityTests(unittest.TestCase):
 
