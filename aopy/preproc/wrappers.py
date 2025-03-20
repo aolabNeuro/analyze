@@ -60,17 +60,20 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         print('processing eyetracking data...')
         exp_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'exp')
         eye_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'eye')
-        proc_eyetracking(
-            data_dir,
-            files,
-            preproc_dir,
-            exp_filename,
-            eye_filename,
-            overwrite=overwrite,
-        )
-        eye_data, eye_metadata = aodata.load_preproc_eye_data(preproc_dir_base, subject, te_id, date)
-        assert 'raw_data' in eye_data.keys(), "No eye data found"
-        assert eye_data['raw_data'].shape == (eye_metadata['n_samples'], eye_metadata['n_channels'])
+        if os.path.exists(os.path.join(preproc_dir, subject, eye_filename)):
+            proc_eyetracking(
+                data_dir,
+                files,
+                preproc_dir,
+                exp_filename,
+                eye_filename,
+                overwrite=overwrite,
+            )
+            eye_data, eye_metadata = aodata.load_preproc_eye_data(preproc_dir_base, subject, te_id, date)
+            assert 'raw_data' in eye_data.keys(), "No eye data found"
+            assert eye_data['raw_data'].shape == (eye_metadata['n_samples'], eye_metadata['n_channels'])
+        else:
+            print(f"Eyetracking data not found for {subject}, {te_id}, {date}. Skipping...")
     if 'broadband' in preproc_jobs:
         print('processing broadband data...')
         broadband_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'broadband')
@@ -99,16 +102,12 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
     if 'emg' in preproc_jobs:
         print('processing emg data...')
-        exp_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'exp')
         emg_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'emg')
-        _, exp_metadata = aodata.load_preproc_exp_data(preproc_dir_base, subject, te_id, date)
-
         proc_emg(
             data_dir, 
             files, 
             preproc_dir, 
             emg_filename, 
-            n_arrays=exp_metadata['n_emg_arrays'],
             overwrite=overwrite
         )
 
@@ -386,12 +385,10 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
         
     aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
 
-
-
-def proc_emg(data_dir, files, result_dir, result_filename, n_arrays=1, overwrite=False):
+def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
     Process emg data:
-        Loads 'broadband' hdf data 
+        Loads emg hdf data from bmi3d
     Saves emg data into the HDF datasets:
         emg_raw (nt, nch)
         emg_metadata (dict)
@@ -411,29 +408,12 @@ def proc_emg(data_dir, files, result_dir, result_filename, n_arrays=1, overwrite
             return
     elif os.path.exists(filepath):
         os.remove(filepath)
-
     
     if 'emg' in files:
         result_filepath = os.path.join(result_dir, result_filename)
-        
-        emg_data, emg_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['emg'], 'data')
-        #assert 'n_arrays' in emg_metadata.keys(), 'Missing n_arrays in metadata'
-        #Channels 0:64 Are EMG
-        #Need to add functionality to deal with different shaped EMG inputs
-
-        #emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),))).astype('int16')
-        if 'dtype' in emg_metadata.keys():
-            emg_data_reshape = emg_data.view((emg_metadata['dtype'], (len(emg_data.dtype),)))
-        else:
-            emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),)))
+        emg_data, emg_metadata = aodata.load_emg_data(data_dir, files['emg'])
+        emg_data -= np.mean(emg_data, axis=0, dtype=emg_metadata['dtype']) # remove DC offset
     
-        clck = emg_data_reshape[:,-24] # I think this should always grab the clock signal
-
-        max_idx = n_arrays*64
-        emg_data = emg_data_reshape[:,0:max_idx]
-
-    
-    #aodata.save_hdf(result_dir, result_filename, emg_data, "/emg_data", append=True)
     result_filepath = os.path.join(result_dir, result_filename)
     emg_hdf = h5py.File(result_filepath, 'w')
     dset = emg_hdf.create_dataset('emg_data', data=emg_data)

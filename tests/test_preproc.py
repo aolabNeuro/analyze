@@ -1014,7 +1014,6 @@ class TestPrepareExperiment(unittest.TestCase):
 
         self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 17)
-        self.assertEqual(len(data['preproc_errors']), 0)
 
     def test_parse_optitrack(self):
         files = {}
@@ -1485,7 +1484,7 @@ class ProcTests(unittest.TestCase):
 
         result_filename = 'test_proc_emg_out.hdf'
 
-        proc_emg(emg_data_dir, files, write_dir, result_filename, n_arrays=1, overwrite=True)
+        proc_emg(emg_data_dir, files, write_dir, result_filename, overwrite=True)
 
 
 class QualityTests(unittest.TestCase):

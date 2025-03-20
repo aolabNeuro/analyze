@@ -452,7 +452,7 @@ class BMI3DTaskEntry():
         Returns:
             list: preprocessed sources for this task entry
         '''
-        sources = ['exp']
+        sources = ['exp', 'eye']
         if 'quatt_bmi' in self.features:
             sources.append('emg')
         params = self.task_params

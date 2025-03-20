@@ -399,9 +399,9 @@ def load_ecube_digital(path, data_dir):
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'DigitalPanel')
     return data, metadata
 
-def load_emg_digital(data_dir, emg_data):
+def load_emg_data(data_dir, emg_data):
     '''
-    Just a wrapper around load_ecube_data() and load_ecube_metadata()
+    Loads emg data
 
     Args:
         data_dir (str): base directory where emg data is stored
@@ -409,26 +409,65 @@ def load_emg_digital(data_dir, emg_data):
 
     Returns:
         tuple: Tuple containing:
-            | **data (nt):** digital data, arranged as 64-bit numbers representing the 64 channels
-            | **metadata (dict):** metadata (see load_ecube_metadata() for details)
+            | **data (nt):** emg data
+            | **metadata (dict):** metadata from the emg file containing samplerate
+    '''
+    emg_data, emg_metadata = load_bmi3d_hdf_table(data_dir, emg_data, 'data')
+
+    # Reshape the data
+    if 'dtype' in emg_metadata:
+        dtype = emg_metadata['dtype']
+    else:
+        dtype = 'f8'
+        emg_metadata['dtype'] = dtype
+    if 'channels' in emg_metadata:
+        nch = len(emg_metadata['channels'])
+    else:
+        nch = 64
+        emg_metadata['channels'] = 1 + np.arange(nch)
+    emg_data_reshape = emg_data.view((dtype, (len(emg_data.dtype),)))
+    emg_data = emg_data_reshape[:,:nch]
+    return emg_data, emg_metadata
+
+def load_emg_analog(data_dir, emg_data):
+    '''
+    Loads emg analog data
+
+    Args:
+        data_dir (str): base directory where emg data is stored
+        emg_data (str): hdf file you want to load
+
+    Returns:
+        tuple: Tuple containing:
+            | **data (nt):** analog data
+            | **metadata (dict):** metadata from the emg file containing samplerate
     '''
 
     emg_data, emg_metadata = load_bmi3d_hdf_table(data_dir, emg_data, 'data')
-    #emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),))).astype('int16')
-    if 'dtype' in emg_metadata.keys():
-        emg_data_reshape = emg_data.view((emg_metadata['dtype'], (len(emg_data.dtype),)))
+    if 'dtype' in emg_metadata:
+        dtype = emg_metadata['dtype']
     else:
-        emg_data_reshape = emg_data.view(('f8', (len(emg_data.dtype),)))
-
-    digital_data = np.zeros((np.shape(emg_data_reshape)[0], 64))
-    digital_data[:,0:16] = emg_data_reshape[:,-24:-8]
-    div = np.std(digital_data,axis=0)
-    div[div==0] = 1
+        dtype = 'f8'
+        emg_metadata['dtype'] = dtype
+    emg_data_reshape = emg_data.view((dtype, (len(emg_data.dtype),)))
+    analog_data = emg_data_reshape[:,-24:-8] # AUX channels
+    return analog_data, emg_metadata
     
-    digital_data = (digital_data - np.mean(digital_data, axis=0)) / div
-    
-    digital_data = utils.base.convert_analog_to_digital(digital_data, thresh=0.3)
+def load_emg_digital(data_dir, emg_data):
+    '''
+    Loads and converts emg analog data to 64-bit digital data.
 
+    Args:
+        data_dir (str): base directory where emg data is stored
+        emg_data (str): hdf file you want to load
+
+    Returns:
+        tuple: Tuple containing:
+            | **data (nt):** digital data, arranged as 64-bit numbers
+            | **metadata (dict):** metadata from the emg file containing samplerate
+    '''
+    analog_data, emg_metadata = load_emg_analog(data_dir, emg_data)
+    digital_data = utils.base.convert_analog_to_digital(analog_data, thresh=0.5)
     digital_data = utils.base.convert_channels_to_digital(digital_data)
     
     return digital_data, emg_metadata
