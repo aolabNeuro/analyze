@@ -60,20 +60,17 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         print('processing eyetracking data...')
         exp_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'exp')
         eye_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'eye')
-        if os.path.exists(os.path.join(preproc_dir, subject, eye_filename)):
-            proc_eyetracking(
-                data_dir,
-                files,
-                preproc_dir,
-                exp_filename,
-                eye_filename,
-                overwrite=overwrite,
-            )
-            eye_data, eye_metadata = aodata.load_preproc_eye_data(preproc_dir_base, subject, te_id, date)
-            assert 'raw_data' in eye_data.keys(), "No eye data found"
-            assert eye_data['raw_data'].shape == (eye_metadata['n_samples'], eye_metadata['n_channels'])
-        else:
-            print(f"Eyetracking data not found for {subject}, {te_id}, {date}. Skipping...")
+        proc_eyetracking(
+            data_dir,
+            files,
+            preproc_dir,
+            exp_filename,
+            eye_filename,
+            overwrite=overwrite,
+        )
+        eye_data, eye_metadata = aodata.load_preproc_eye_data(preproc_dir_base, subject, te_id, date)
+        assert 'raw_data' in eye_data.keys(), "No eye data found"
+        assert eye_data['raw_data'].shape == (eye_metadata['n_samples'], eye_metadata['n_channels'])
     if 'broadband' in preproc_jobs:
         print('processing broadband data...')
         broadband_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'broadband')
@@ -259,9 +256,15 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         raise ValueError(f"File {exp_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
     
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
-    eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
-    eye_mask = eye_data['mask']
-    eye_data = eye_data['data']
+    try:
+        eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
+        eye_mask = eye_data['mask']
+        eye_data = eye_data['data']
+    except:
+        print("Could not parse eyetracking data. Returning empty data.")
+        eye_mask = None
+        eye_data = None
+        eye_metadata = {}
 
     try:
         # Calibrate the eye data
