@@ -221,12 +221,13 @@ def _parse_bmi3d_v1(data_dir, files):
     # Parse digital data
     digital_data = None
     if 'digital' in files:
-        digital_data, digital_metadata = aodata.load_preproc_digital_data(data_dir, files['digital'])
+        digital_data = aodata.load_hdf_data('', files['digital'], 'digital_data')
+        digital_metadata = aodata.load_hdf_group('', files['digital'], 'digital_metadata')
     elif 'ecube' in files:
         digital_data, digital_metadata = aodata.load_ecube_digital(data_dir, files['ecube'])
-    # elif 'emg' in files:
-    #     digital_data, digital_metadata = aodata.load_emg_digital(data_dir, files['emg'])
-
+    elif 'emg' in files:
+        digital_data, digital_metadata = aodata.load_emg_digital(data_dir, files['emg'])
+    
     if digital_data is not None: # sync_events and sync_clock
         digital_samplerate = digital_metadata['samplerate']        
 
@@ -245,7 +246,7 @@ def _parse_bmi3d_v1(data_dir, files):
                 data_dict['sync_clock'] = sync_clock
 
         # Mask and detect BMI3D computer events from ecube
-        if 'event_sync_dch' in metadata_dict:
+        if 'event_sync_dch' in metadata_dict and metadata_dict['event_sync_dch'] is not None:
             event_bit_mask = utils.convert_channels_to_mask(metadata_dict['event_sync_dch']) # 0xff0000
             ecube_sync_data = utils.extract_bits(digital_data, event_bit_mask)
             ecube_sync_timestamps, ecube_sync_events = utils.detect_edges(ecube_sync_data, digital_samplerate, 
@@ -295,14 +296,13 @@ def _parse_bmi3d_v1(data_dir, files):
 
         metadata_dict['digital_samplerate'] = digital_samplerate
 
-    # Parse analog data
+    #Parse analog data
     analog_data = None
     if 'analog' in files:
-        analog_data, analog_metadata = aodata.load_preproc_analog_data(data_dir, files['analog'])
+        analog_data = aodata.load_hdf_data('', files['analog'], 'analog_data')
+        analog_metadata = aodata.load_hdf_group('', files['analog'], 'analog_metadata')
     elif 'ecube' in files: 
         analog_data, analog_metadata = aodata.load_ecube_analog(data_dir, files['ecube'])
-    # elif 'emg' in files:
-    #    analog_data, analog_metadata = aodata.load_emg_analog(data_dir, files['emg'])
     
     if analog_data is not None:
         analog_samplerate = analog_metadata['samplerate']
