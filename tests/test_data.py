@@ -280,6 +280,43 @@ class BMI3DTests(unittest.TestCase):
         self.assertTrue(all(off_times - on_times)>0)
         self.assertTrue(any(np.diff(on_times)>30))
 
+    def test_load_emg_data(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        emg_data, emg_metadata = load_emg_data(emg_data_dir, filename)
+        self.assertEqual(emg_data.shape[1], 64)
+        self.assertEqual(emg_data.shape[0], 14720)
+
+        self.assertIn('samplerate', emg_metadata)
+        self.assertEqual(emg_metadata['samplerate'], 2048)
+        self.assertEqual(emg_metadata['n_channels'], 64)
+
+    def test_load_emg_analog(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        analog_data, analog_metadata = load_emg_analog(emg_data_dir, filename)
+        self.assertEqual(analog_data.shape[1], 16)
+        self.assertEqual(analog_data.shape[0], 14720)
+
+        self.assertIn('samplerate', analog_metadata)
+        self.assertEqual(analog_metadata['samplerate'], 2048)
+        self.assertEqual(analog_metadata['n_channels'], 16)
+
+    def test_load_emg_digital(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        digital_data, digital_metadata = load_emg_digital(emg_data_dir, filename)
+        self.assertEqual(digital_data.shape[0], 14720)
+        self.assertEqual(digital_data.ndim, 1)
+
+        self.assertIn('samplerate', digital_metadata)
+        self.assertEqual(digital_metadata['samplerate'], 2048)
+        self.assertEqual(digital_metadata['n_channels'], 16)
+
+
 class NeuropixelTest(unittest.TestCase):
     
     def test_load_neuropixel_data(self):
