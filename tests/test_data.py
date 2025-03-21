@@ -1048,8 +1048,21 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlabel('Reward trial #'); plt.ylabel('Time (sec)')
         plt.ylim(15,25); plt.legend()
         figname = 'tabulate_tracking_trial_segment_lengths_churro.png'
-        visualization.savefig(write_dir, figname)       
+        visualization.savefig(write_dir, figname)   
 
+    def test_tabulate_random(self):
+
+        subjects = ['Leo', 'Leo']
+        ids = [1957, 1959]
+        dates = ['2025-02-13', '2025-02-13']
+
+        df = wrapper_tabulate_random(data_dir, subjects, ids, dates, metadata = ['sequence_params'])
+        self.assertEqual(len(df), 66) #check correct length 
+        self.assertEqual(len(df.columns), 10+1)  #check correct number of columns
+        for loc in df['target_location']:
+            self.assertEqual(loc.shape[0], 3)
+            self.assertLess(np.linalg.norm(loc), 10)
+        
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
@@ -1383,6 +1396,8 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_ENTER_CORNER_TARGET': list(range(81, 85)),
                    'CORNER_TARGET_ON': list(range(17, 21)),
                    'CORNER_TARGET_OFF': list(range(33, 37)),
+                   'TARGET_ON': list(range(16,30)),
+                   'CURSOR_ENTER_TARGET': list(range(80,94)),
                    'REWARD': 48,
                    'DELAY_PENALTY': 66,
                    'TIMEOUT_PENALTY': 65,
