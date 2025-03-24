@@ -394,6 +394,21 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
+    Args:
+        data (nch): list of values
+        x_pos (nch): list of x positions
+        y_pos (nch): list of y positions
+        grid_size (2-tuple): number of points along each axis (width, height)
+        interp_method (str): method used for interpolation
+        threshold_dist (float): distance to neighbors before disregarding a point on the image
+        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
+            which will use the min and max of the x and y positions.
+
+    Returns:
+        tuple: tuple containing:
+            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
+            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
+            
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
@@ -431,21 +446,6 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
             plot_spatial_map(interp_map, xy[0], xy[1])
 
         .. image:: _images/posmap_calcmap_interp.png
-
-    Args:
-        data (nch): list of values
-        x_pos (nch): list of x positions
-        y_pos (nch): list of y positions
-        grid_size (tuple): number of points along each axis
-        interp_method (str): method used for interpolation
-        threshold_dist (float): distance to neighbors before disregarding a point on the image
-        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
-            which will use the min and max of the x and y positions.
-
-    Returns:
-        tuple: tuple containing:
-            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
-            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
     if extent is None:
@@ -581,11 +581,11 @@ def plot_spatial_drive_map(data, bad_elec=[], drive_type='ECoG244', interp=True,
     Plot a 2D spatial map of data from a spatial electrode array.
 
     Args:
-        data ((nch,) array): values from the spatial drive to plot in 2D
+        data ((nch,) array): data collected from a spatially organized drive (electrode array, e.g.) to plot in 2D
         bad_elec (list, optional): channels to remove from the plot. Defaults to [].
-        drive_type (str, optional): type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
-        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
-        grid_size ((2,) tuple, optional): size of the grid to interpolate to. Defaults to (16,16).
+        drive_type (str, optional): type of drive used for data recording. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
+        interp (bool, optional): flag to include 2D interpolation over channels with nan values. Default True.
+        grid_size ((2,) tuple, optional): size of the grid (w, h) to interpolate (if interp is True). Defaults to (16,16).
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
             e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
@@ -670,10 +670,10 @@ def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05,
     Plot multiple spatial maps on the same figure. Uses mpl_toolkits.axes_grid1.ImageGrid to create a grid of axes.
 
     Args:
-        maps (list): list of (nch,) maps to plot
+        maps (list): list of (nch,) list of values recorded from a spatial drive (e.g. electrode array) to plot
         nrows_ncols ((2,) tuple): number of rows and columns of subplots
         axsize ((2,) tuple): (width, height) size of each subplot in inches
-        clim ((2,) tuple, optional): (min, max) to set the c axis limits. Default None, show the whole range,
+        clim ((2,) tuple, optional): (min, max) to set the color axis limits. Default None, show the whole range,
             each image will be scaled independently.
         axes_pad (float, optional): padding between axes. Default 0.1
         label_mode (str, optional): label mode for ImageGrid {"L", "1", "all", None}. Default None.
