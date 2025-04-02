@@ -95,6 +95,10 @@ class NeuralDataPlottingTests(unittest.TestCase):
     def test_plot_ECoG244_data_map(self):
         data = np.linspace(-1, 1, 256)
         missing = [0, 5, 25]
+        elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+        missing_ch = acq_ch[np.isin(elecs, missing)]-1
+        data[missing_ch] = np.nan
+
         plt.figure()
         plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None)
         filename = 'posmap_244ch_no_interp.png'
@@ -110,6 +114,12 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_ECoG244_data_map(data, bad_elec=missing, interp=True, cmap='bwr', ax=None)
         filename = 'posmap_244ch.png'
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
+
+        plt.figure()
+        elec_data = np.arange(240)
+        plot_ECoG244_data_map(elec_data, elec_data=True)
+        filename = 'posmap_244ch_elec_data.png'
+        savefig(write_dir, filename) # No missing data
 
     def test_plot_spatial_drive_maps(self):
 
@@ -313,7 +323,29 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'angles_magnitudes.png'
         savefig(docs_dir, filename, transparent=False)
 
-    
+class StimPlottingWrapperTests(unittest.TestCase):
+
+    def test_plot_annotated_stim_drive_data(self):
+        np.random.seed(0)
+        data = np.random.normal(0, 1, (32,))
+
+        plt.figure()
+        plot_annotated_stim_drive_data(data, 'beignet', 'lm1', 0)
+
+        filename = 'annotated_stim_drive_data.png'
+        savefig(docs_dir, filename, transparent=False)
+
+    def test_plot_annotated_spatial_drive_map_stim(self):
+        np.random.seed(0)
+        data = np.random.normal(0, 1, (240,))
+        stim_site = 7
+
+        plt.figure()
+        plot_annotated_spatial_drive_map_stim(data, stim_site, 'beignet', 'lm1', 0, interp_method='cubic')
+
+        filename = 'annotated_spatial_drive_map_stim.png'
+        savefig(docs_dir, filename, transparent=False)
+
 class CurveFittingTests(unittest.TestCase):
     def test_plot_tuning_curves(self):
         filename = 'tuning_curves_plot.png'
