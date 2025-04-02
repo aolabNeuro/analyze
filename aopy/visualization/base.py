@@ -585,7 +585,8 @@ def plot_spatial_drive_map(data, elec_data=False, drive_type='ECoG244', interp=T
             treat it as acquisition data (nch >= nelec). Defaults to False.
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
         drive_type (str, optional): type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
-        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        interp (bool, optional): flag to include 2D interpolation of the result. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to True.
         grid_size ((2,) tuple, optional): size of the grid to interpolate to. Defaults to (16,16).
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
@@ -631,7 +632,8 @@ def plot_ECoG244_data_map(data, elec_data=False, interp=True, cmap='bwr',
         data ((256,) array): values from the ECoG array to plot in 2D
         elec_data (bool, optional): if True, treat data as electrode data (i.e. nch == nelec), otherwise
             treat it as acquisition data (nch >= nelec). Defaults to False.
-        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        interp (bool, optional): flag to include 2D interpolation of the result. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to True.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
             e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
@@ -2460,15 +2462,16 @@ def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, the
         chamber (str): chamber type (e.g. 'LM1')
         theta (int): rotation of the chamber in degrees
         elec_data (bool, optional): whether to treat data as per electrode (True) or per acquistion channel (False). Default True.
-        interp (bool, optional): whether to interpolate the data onto a grid. Default True
+        interp (bool, optional): whether to interpolate the data onto a grid. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to True.
         grid_size (tuple, optional): size of the grid to interpolate. Default (16, 16)
         cmap (str, optional): colormap to use for plotting. Default 'viridis'.
         clim (tuple, optional): 2-tuple of color limits (min, max) for the plot. Default None.
         colorbar (bool, optional): whether to add a colorbar to the plot. Default True
         fontsize (int, optional): font size for annotations. Default 12
         color (str, optional): color for annotations. Default 'w'
-        recording_drive_type (str, optional): drive type of the recording. Default 'ECoG244'
-        stim_drive_type (str, optional): drive type of the stimulation. Default 'Opto32'
+        recording_drive_type (str, optional): drive type of the recording. Default 'ECoG244'. See :func:`aopy.data.load_chmap` for options.
+        stim_drive_type (str, optional): drive type of the stimulation. Default 'Opto32'. See :func:`aopy.data.load_chmap` for options.
         ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
         kwargs (dict, optional): other keyword arguments to pass to :func:`plot_spatial_drive_map`
 
@@ -2509,7 +2512,7 @@ def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, the
     return im, pcm
     
 def plot_annotated_stim_drive_data(data, subject, chamber, theta, interp=False, 
-                                   stim_drive='Opto32', recording_drive='ECoG244', 
+                                   stim_drive_type='Opto32', recording_drive_type='ECoG244', 
                                    cmap='Blues', colorbar=True, color='k', 
                                    nan_color='white', ax=None, **kwargs):
     '''
@@ -2521,9 +2524,10 @@ def plot_annotated_stim_drive_data(data, subject, chamber, theta, interp=False,
         subject (str): subject name
         chamber (str): chamber type (e.g. 'LM1')
         theta (int): rotation of the chamber in degrees
-        interp (bool, optional): whether to interpolate the data onto a grid. Default False
-        stim_drive (str): drive type of the stimulation data. Default 'Opto32'
-        recording_drive (str): drive type of the recording used in the chamber. Default 'ECoG244'
+        interp (bool, optional): whether to interpolate the data onto a grid. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to False.
+        stim_drive_type (str): drive type of the stimulation data. Default 'Opto32'. See :func:`aopy.data.load_chmap` for options.
+        recording_drive_type (str): drive type of the recording used in the chamber. Default 'ECoG244'. See :func:`aopy.data.load_chmap` for options.
         cmap (str): colormap to use for plotting
         colorbar (bool, optional): whether to add a colorbar to the plot. Default True
         color (str): color for annotations. Default 'k'
@@ -2548,13 +2552,13 @@ def plot_annotated_stim_drive_data(data, subject, chamber, theta, interp=False,
     if ax is None:
         ax = plt.gca()
 
-    im = plot_spatial_drive_map(data, elec_data=True, drive_type=stim_drive, interp=interp, 
+    im = plot_spatial_drive_map(data, elec_data=True, drive_type=stim_drive_type, interp=interp, 
                                 cmap=cmap, theta=theta, 
                                 nan_color=nan_color, ax=ax, **kwargs)
     pcm = None
     if colorbar:
         pcm = plt.colorbar(im, ax=ax)
-    overlay_sulci_on_spatial_map(subject, chamber, recording_drive, theta=theta, color=color, ax=ax)
+    overlay_sulci_on_spatial_map(subject, chamber, recording_drive_type, theta=theta, color=color, ax=ax)
     return im, pcm
 
 def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=None, **kwargs):
