@@ -399,6 +399,86 @@ def load_ecube_digital(path, data_dir):
     metadata = load_ecube_metadata(os.path.join(path, data_dir), 'DigitalPanel')
     return data, metadata
 
+def load_emg_data(data_dir, emg_filename):
+    '''
+    Loads emg data
+
+    Args:
+        data_dir (str): base directory where emg data is stored
+        emg_filename (str): hdf file you want to load
+
+    Returns:
+        tuple: Tuple containing:
+            | **data (nt):** emg data
+            | **metadata (dict):** metadata from the emg file containing samplerate
+    '''
+    emg_data, emg_metadata = load_bmi3d_hdf_table(data_dir, emg_filename, 'data')
+
+    # Reshape the data
+    if 'dtype' in emg_metadata:
+        dtype = emg_metadata['dtype']
+    else:
+        dtype = 'f8'
+        emg_metadata['dtype'] = dtype
+    if 'n_ararys' in emg_metadata:
+        nch = emg_metadata['n_arrays']*64
+    else:
+        nch = 64
+        emg_metadata['n_arrays'] = 1
+    emg_metadata['n_channels'] = nch # the `channels` in emg_metadata includes AUX channels
+    emg_metadata['data_source'] = os.path.join(data_dir, emg_filename)
+    emg_data_reshape = emg_data.view((dtype, (len(emg_data.dtype),)))
+    emg_data = emg_data_reshape[:,:nch]
+    return emg_data, emg_metadata
+
+def load_emg_analog(data_dir, emg_filename):
+    '''
+    Loads emg analog data
+
+    Args:
+        data_dir (str): base directory where emg data is stored
+        emg_filename (str): hdf file you want to load
+
+    Returns:
+        tuple: Tuple containing:
+            | **data (nt):** analog data
+            | **metadata (dict):** metadata from the emg file containing samplerate
+    '''
+
+    emg_data, emg_metadata = load_bmi3d_hdf_table(data_dir, emg_filename, 'data')
+    if 'dtype' in emg_metadata:
+        dtype = emg_metadata['dtype']
+    else:
+        dtype = 'f8'
+        emg_metadata['dtype'] = dtype
+    emg_metadata['n_channels'] = 16
+    emg_metadata['data_source'] = os.path.join(data_dir, emg_filename)
+    emg_data_reshape = emg_data.view((dtype, (len(emg_data.dtype),)))
+    analog_data = emg_data_reshape[:,-24:-8] # AUX channels
+    return analog_data, emg_metadata
+    
+def load_emg_digital(data_dir, emg_filename):
+    '''
+    Loads and converts emg analog data to 64-bit digital data.
+
+    Args:
+        data_dir (str): base directory where emg data is stored
+        emg_filename (str): hdf file you want to load
+
+    Returns:
+        tuple: Tuple containing:
+            | **data (nt):** digital data, arranged as 64-bit numbers
+            | **metadata (dict):** metadata from the emg file containing samplerate
+    '''
+    analog_data, emg_metadata = load_emg_analog(data_dir, emg_filename)
+    digital_data = np.zeros((len(analog_data),64), dtype='bool')
+    digital_data[:,:analog_data.shape[1]] = utils.base.convert_analog_to_digital(analog_data, thresh=0.5)
+    digital_data = utils.base.convert_channels_to_digital(digital_data)
+        
+    emg_metadata['n_channels'] = 16
+    emg_metadata['data_source'] = os.path.join(data_dir, emg_filename)
+    return digital_data, emg_metadata
+
 def load_ecube_analog(path, data_dir, channels=None):
     '''
     Just a wrapper around load_ecube_data() and load_ecube_metadata()
@@ -2447,7 +2527,7 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
     '''
 
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
-
+    
     segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
                 for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
     trajectories = np.array(segments, dtype='object')

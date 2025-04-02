@@ -123,7 +123,7 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     threshold. It scales the analog to between 0 and 1 and uses thres as a 
 
     Args: 
-        analog_data (nt, nch): Time series array of analog data
+        analog_data (nt, 1): Time series array of analog data
         thresh (float, optional): Minimum threshold value to use in conversion
 
     Returns:
@@ -132,15 +132,15 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     # Scale data between 0 and 1 so that threshold is a percentange
     minval = np.min(analog_data)
     maxval = np.max(analog_data)
-
-    analog_data_scaled = (analog_data - minval)/(maxval - minval)
+    if maxval == minval:
+        analog_data_scaled = (analog_data - minval)
+    else:
+        analog_data_scaled = (analog_data - minval)/(maxval - minval)
 
     # Initialize digital_data
     digital_data = np.zeros(analog_data_scaled.shape, dtype='bool') # Default to zero
-
-    # Set any value greater than threshold to be 1
     digital_data[analog_data_scaled >= thresh] = 1
-
+    
     return digital_data
 
 def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True, 

@@ -20,6 +20,7 @@ from matplotlib import colors
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from mpl_toolkits.axes_grid1 import ImageGrid
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
 import seaborn as sns
@@ -393,6 +394,21 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
+    Args:
+        data (nch): list of values
+        x_pos (nch): list of x positions
+        y_pos (nch): list of y positions
+        grid_size (2-tuple): number of points along each axis (width, height)
+        interp_method (str): method used for interpolation
+        threshold_dist (float): distance to neighbors before disregarding a point on the image
+        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
+            which will use the min and max of the x and y positions.
+
+    Returns:
+        tuple: tuple containing:
+            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
+            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
+            
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
@@ -430,21 +446,6 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
             plot_spatial_map(interp_map, xy[0], xy[1])
 
         .. image:: _images/posmap_calcmap_interp.png
-
-    Args:
-        data (nch): list of values
-        x_pos (nch): list of x positions
-        y_pos (nch): list of y positions
-        grid_size (tuple): number of points along each axis
-        interp_method (str): method used for interpolation
-        threshold_dist (float): distance to neighbors before disregarding a point on the image
-        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
-            which will use the min and max of the x and y positions.
-
-    Returns:
-        tuple: tuple containing:
-            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
-            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
 
     '''
     if extent is None:
@@ -671,6 +672,98 @@ def plot_ECoG244_data_map(data, elec_data=False, interp=True, cmap='bwr',
     '''
     return plot_spatial_drive_map(data, elec_data=elec_data, interp=interp, grid_size=(16,16), 
                                   drive_type='ECoG244', cmap=cmap, theta=theta, ax=ax, **kwargs)
+
+def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05, label_mode="1",
+                            cbar_mode=None, **kwargs):
+    '''
+    Plot multiple spatial maps on the same figure. Uses mpl_toolkits.axes_grid1.ImageGrid to create a grid of axes.
+
+    Args:
+        maps (list): list of (nch,) list of values recorded from a spatial drive (e.g. electrode array) to plot
+        nrows_ncols ((2,) tuple): number of rows and columns of subplots
+        axsize ((2,) tuple): (width, height) size of each subplot in inches
+        clim ((2,) tuple, optional): (min, max) to set the color axis limits. Default None, show the whole range,
+            each image will be scaled independently.
+        axes_pad (float, optional): padding between axes. Default 0.1
+        label_mode (str, optional): label mode for ImageGrid {"L", "1", "all", None}. Default None.
+        cbar_mode (str, optional): colorbar mode for ImageGrid {"each", "single", None}. Default None.
+        **kwargs: additional keyword arguments to pass to :func:`~aopy.visualization.plot_spatial_drive_map`
+
+    Returns:
+        tuple: tuple containing:
+            - **fig (pyplot.Figure):** the created figure
+            - **axes (np.ndarray):** the created axes returned by ImageGrid
+            - **ims (list):** list of image handles
+            - **cbars (list):** list of colorbar handles
+
+    Examples:
+
+        Create some test maps (ECoG244, ECoG244 flipped, random, random flipped) and plot them in
+        different configurations. First, plot them in a 1x4 grid with a single colorbar.
+    
+        .. code-block:: python
+
+            im1 = np.arange(256).astype(float)
+            im2 = np.flip(im1)
+            im3 = im1.copy()
+            np.random.shuffle(im3)
+            im4 = np.flip(im3)
+            maps = [im1, im2, im3, im4]
+            plot_spatial_drive_maps(maps, (1,4), (2,2), cmap='viridis', clim=(0,255), label_mode="L")
+            plt.tight_layout()
+
+        .. image:: _images/spatial_drive_maps_1_4.png
+
+        Now plot them in a 2x2 grid with a single colorbar.
+
+        .. code-block:: python
+
+            plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), cbar_mode='single')
+            plt.tight_layout()
+
+        .. image:: _images/spatial_drive_maps_2_2_single_cbar.png
+
+        Last plot them in a 2x2 grid with a colorbar for each map. We need to change the horizontal spacing
+        to make the colorbars fit. We can also make adjustmests after plotting using the returned axes.
+
+        .. code-block:: python
+
+            fig, axes, ims, cbars = plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), label_mode=None, cbar_mode='each', axes_pad=(0.4,0.05))
+            axes[0].set_clim(127,255)
+            plt.tight_layout()
+
+        .. image:: _images/spatial_drive_maps_2_2.png
+    '''
+    n_maps = len(maps)
+
+    # Create a grid of axes
+    fig = plt.figure(figsize=(axsize[0] * nrows_ncols[1], axsize[1] * nrows_ncols[0]))
+    axes = ImageGrid(fig, 111, nrows_ncols=nrows_ncols, axes_pad=axes_pad, 
+                     label_mode="1" if label_mode is None else label_mode, cbar_mode=cbar_mode,
+                     cbar_pad=0.05)
+    
+    # Plot each map using the existing function
+    ims = []
+    cbars = []
+    for n in range(n_maps):
+        if np.count_nonzero(~np.isnan(maps[n])) == 0:
+            ims.append(None)
+            continue
+        
+        ax = axes[n] if n_maps > 1 else axes
+        im = plot_spatial_drive_map(maps[n], ax=ax, **kwargs)
+        if label_mode is None:
+            ax.set(xticks=[], yticks=[], xticklabels=[], yticklabels=[], xlabel='', ylabel='')
+        if cbar_mode == 'each':
+            cbars.append(ax.cax.colorbar(im))
+        if clim is not None:
+            im.set_clim(clim)
+        ims.append(im)
+
+    if cbar_mode == 'single':
+        cbars.append(axes.cbar_axes[0].colorbar(ims[0]))
+
+    return fig, axes, ims, cbars
 
 def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
     '''
