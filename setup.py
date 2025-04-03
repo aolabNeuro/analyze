@@ -28,12 +28,13 @@ install_requires = [
     'aolab-bmi3d>=1.0',
     'sympy',
     'ibllib',
-    'seaborn>=0.13.2'
+    'seaborn>=0.13.2',
+    'remodnav',
 ]
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.8.1",
+    version="0.9.1",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",

@@ -526,7 +526,7 @@ def get_trial_segments(events, times, start_events, end_events, repeating_start_
     segment_times = np.array([[t[0], t[-1]] for t in segment_times])
     return segments, segment_times
 
-def get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=False):
+def get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=False, return_idx=False):
     '''
     This function is similar to get_trial_segments() except it returns the timestamps of all events in event code.
     Trial align the event codes with corresponding event times.
@@ -536,13 +536,15 @@ def get_trial_segments_and_times(events, times, start_events, end_events, repeat
         times (nt): times vector
         start_events (list): set of start events to match
         end_events (list): set of end events to match
-        repeating_start_events (bool): whether the start events might occur multiple times within one segment. Otherwise always use the last start event within a segment. May lead to segments spanning multiple trials if used improperly. Default False.
-
+        repeating_start_events (bool, optional): whether the start events might occur multiple times within one segment. Otherwise always use the last start event within a segment. May lead to segments spanning multiple trials if used improperly. Default False.
+        return_idx (bool, optional): whether to return the indices into events and times corresponding to the segments
+        
     Returns:
         tuple: tuple containing:
             | **segments (list of list of events):** a segment of each trial
             | **times (list of list of times):** list of timestamps corresponding to each event in the event code
-
+            | **idx (list of list of indices, optional):** list of indices into events and times corresponding to each event in the event code
+    
     Note:
         - if there are multiple matching start or end events in a trial, the default is to only consider the first one. See examples for more detail.
 
@@ -605,10 +607,16 @@ def get_trial_segments_and_times(events, times, start_events, end_events, repeat
             print(times)
 
     '''
+    if np.shape(start_events) == ():
+        start_events = [start_events]
+    if np.shape(end_events) == ():
+        end_events = [end_events]
+        
     # Find the indices in events that correspond to start events
-    evt_start_idx = np.where(np.in1d(events, start_events))[0]
+    evt_start_idx = [i for i, evt in enumerate(events) if evt in start_events]
 
     # Extract segments for each start event
+    segment_idx = []
     segments = []
     segment_times = []
     prev_segment_last_evt_idx = 0
@@ -623,15 +631,20 @@ def get_trial_segments_and_times(events, times, start_events, end_events, repeat
         # Look forward for a matching end event
         while idx_end < len(events):
             if not repeating_start_events:
-                if np.in1d(events[idx_end], start_events):
+                if events[idx_end] in start_events:
                     break # start event must be followed by end event otherwise not valid
-            if np.in1d(events[idx_end], end_events):
+            if events[idx_end] in end_events:
+                segment_idx.append(list(range(idx_start, idx_end+1)))
                 segments.append(events[idx_start:idx_end+1])
                 segment_times.append(times[idx_start:idx_end+1])
                 prev_segment_last_evt_idx = idx_end
                 break
             idx_end += 1
-    return segments, segment_times
+
+    if return_idx:
+        return segments, segment_times, segment_idx    
+    else:
+        return segments, segment_times
 
 def get_data_segment(data, start_time, end_time, samplerate, channels=None):
     '''

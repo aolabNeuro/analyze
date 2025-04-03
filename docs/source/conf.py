@@ -18,16 +18,16 @@ autodoc_mock_imports = ['numpy', 'pandas', 'psutil', 'h5py', 'tables', 'sklearn'
                         'scipy', 'pywt', 'PIL', 'matplotlib', 'seaborn', 'statsmodels', 
                         'nitime', 'torch', 'yaml', 'tqdm', 'xarray',
                         'open-ephys-python-tools', 'open_ephys', 'importlib',
-                        'db', 'mpl_toolkits', 'sympy', 'ibldsp']
+                        'db', 'mpl_toolkits', 'sympy', 'ibldsp','remodnav']
 
 # -- Project information -----------------------------------------------------
 
 project = 'aopy'
-copyright = '2022, aolab'
+copyright = '2025, aolab'
 author = 'aolab'
 
 # The full version, including alpha/beta/rc tags
-release = '0.6'
+release = '0.9.0'
 
 
 # -- General configuration ---------------------------------------------------
