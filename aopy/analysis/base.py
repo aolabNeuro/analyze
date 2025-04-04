@@ -2043,6 +2043,79 @@ def calc_spatial_map_correlation(data_maps, align_maps=False):
 
     return NCC, shifts   
 
+def calc_spatial_data_correlation(elec_data, elec_pos, interp=False, grid_size=None, 
+                                  interp_method='cubic', align_maps=False):
+    '''
+    Wrapper around :func:`~aopy.analysis.calc_spatial_map_correlation` that interpolates electrode data 
+    onto a 2D map before computing correlation.
+
+    Args:
+        elec_data ((nmaps,) list): list of (nch,) spatial data arrays
+        elec_pos ((nch, 2) array): electrode positions for each channel
+        interp (bool): whether or not to interpolate data maps. Default False.
+        grid_size ((2,) tuple, optional): map size for interpolation, e.g. (16,16) for a 16x16 grid
+        interp_method (str): interpolation method to use. Default 'cubic'
+        align_maps (bool): Whether or not to align maps. Default False.
+
+    Returns:
+        tuple: tuple containing:
+            | **NCC (nmaps, nmaps):** normalized correlation coefficients
+            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+    '''
+    data_maps = []
+    for elec_data in elec_data:
+        if interp:
+            data_map, _ = visualization.calc_data_map(elec_data, elec_pos[:,0], elec_pos[:,1], 
+                                                    grid_size, interp_method=interp_method)
+        else:
+            data_map = visualization.get_data_map(elec_data, elec_pos[:,0], elec_pos[:,1])
+        data_maps.append(data_map)
+
+    return calc_spatial_map_correlation(data_maps, align_maps)
+
+def calc_spatial_tf_data_correlation(freqs, time, tf_elec_data, elec_pos, null_tf_elec_data=None,
+                                     band=(12,150), window=(0,1), alternative='greater', 
+                                     nan_policy='propogate', alpha=0.05, interp=False, 
+                                     grid_size=None, interp_method='cubic', align_maps=False):
+    '''
+    Wrapper around :func:`~aopy.analysis.calc_spatial_map_correlation` that averages over a given time-window
+    and frequency-band, then interpolates data onto a 2D map before computing correlation.
+    
+    Args:
+        freqs (nfreq): frequency axis
+        time (nt): time axis
+        tf_elec_data (list of (nt, nfreq, nch)): time-frequency data arrays
+        band (tuple): frequency band of interest, e.g. (12, 150), in Hz
+        window (tuple): time window of interest, e.g. (0, 1), in seconds
+        null_tf_elec_data (list of (nt, nfreq, nch), optional): time-frequency null data arrays to
+            compute significance. If None, no significance testing is performed.
+        alternative (str, optional): Hypothesis test alternative ('greater', 'less', 'two-sided'). Defaults to 'greater'.
+        nan_policy (str, optional): Handling of NaN values. Defaults to 'propogate'.
+        alpha (float, optional): Significance level. Defaults to 0.05.
+        interp (bool): whether or not to interpolate data maps. Default False.
+        grid_size ((2,) tuple, optional): map size for interpolation, e.g. (16,16) for a 16x16 grid
+        interp_method (str): interpolation method to use. Default 'cubic'
+        align_maps (bool): Whether or not to align maps. Default False.
+
+    Returns:
+        tuple: tuple containing:
+            | **NCC (nmaps, nmaps):** normalized correlation coefficients
+            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+    '''
+    band_data = []
+    for elec_data in tf_elec_data:
+        if null_tf_elec_data is None:
+            band_data.append(calc_tfr_mean(freqs, time, elec_data, band=band, window=window))
+        else:
+            diff, p = calc_tfr_mean_fdrc_ranktest(
+                freqs, time, elec_data, null_tf_elec_data, band=band, window=window,
+                                alternative=alternative, nan_policy=nan_policy, alpha=alpha)
+            diff[p > alpha] = 0.
+            band_data.append(diff)
+    
+    return calc_spatial_data_correlation(band_data, elec_pos, interp=interp, grid_size=grid_size,
+                                         interp_method=interp_method, align_maps=align_maps)
+
 def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
     '''
     Compute a confidence interval from samples, not the mean of samples
