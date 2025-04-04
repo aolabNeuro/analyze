@@ -2251,6 +2251,20 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
             | **pause_start_time (ntrial):** time at which the pause occurred
             | **pause_event (ntrial):** numeric code for the pause event
             | **trial_end_time (ntrial):** time at which the trial ended
+
+    Example:
+
+        .. code-block:: python
+            subject = 'churro'
+            start_date = '2025-03-03'
+            end_date = '2025-03-13'
+            entries = db.lookup_tracking_sessions(subject=subject, date=(date.fromisoformat(start_date), date.fromisoformat(end_date)))
+            subjects, te_ids, te_dates = db.list_entry_details(entries)
+
+            df = tabulate_behavior_data_tracking_task(preproc_dir, subjects, te_ids, te_dates)
+            display(df.head(8))
+
+        .. image:: _images/tabulate_behavior_data_tracking_task.png
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
