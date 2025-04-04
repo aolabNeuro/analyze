@@ -2229,6 +2229,7 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
             | **date (str):** date of recording
             | **event_codes (ntrial):** numeric code segments for each trial
             | **event_times (ntrial):** time segments for each trial
+            | **event_idx (ntrial):** index segments for each trial            
             | **reward (ntrial):** boolean values indicating whether each trial was rewarded
             | **penalty (ntrial):** boolean values indicating whether each trial was penalized
             | **%metadata_key% (ntrial):** requested metadata values for each key requested

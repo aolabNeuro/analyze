@@ -984,7 +984,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2023-02-25', '2023-02-25']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)  # no penalties in this session
         self.assertEqual(len(df), 42) # 21 total trials, duplicated
-        self.assertEqual(len(df.columns), 24+1+0) # no. of columns + auto-added sequence params + user-inputted metadata
+        self.assertEqual(len(df.columns), 8+0+18) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
 
         self.assertTrue(np.all(df['reward']))
         self.assertFalse(np.all(df['penalty']))
@@ -1023,7 +1023,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2023-10-02', '2023-10-02']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)
         self.assertEqual(len(df), 212)
-        self.assertEqual(len(df.columns), 24+1+0) # no. of columns + auto-added sequence params + user-inputted metadata
+        self.assertEqual(len(df.columns), 8+0+18) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
 
         # Check sequence params
         self.assertTrue(np.all([json.loads(params)['ramp']==0 for params in df['sequence_params']]))
