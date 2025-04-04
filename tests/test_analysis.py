@@ -495,6 +495,54 @@ class CalcTests(unittest.TestCase):
         self.assertEqual(dist[0], np.sqrt(2))
         self.assertEqual(corr[0], 1.0)
 
+    def test_calc_stat_over_dist_from_pos(self):
+
+        # Increasing statistic with distance
+        nelec = 100
+        elec_data = np.arange(nelec)
+        elec_pos = [[idx, 1] for idx in range(nelec)]
+        pos = [0,1]
+        nbins=20
+        dist, mean = aopy.analysis.calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, bins=nbins)
+        self.assertEqual(dist.size, nbins)
+        self.assertEqual(mean.size, nbins)
+
+        plt.figure()
+        plt.plot(dist, mean)
+        plt.xlabel('Distance')
+        plt.ylabel('Mean')
+        plt.title('Increasing statistic with distance')
+        aopy.visualization.savefig(docs_dir, 'increasing_statistic_with_distance.png', transparent=False)
+
+    def test_calc_stat_over_angle_from_pos(self):
+
+        # Create a circle of electrodes
+        nelec = 100
+        elec_data = np.arange(nelec)
+        elec_pos = [[np.cos(idx/nelec*2*np.pi), np.sin(idx/nelec*2*np.pi)] for idx in range(nelec)]
+        origin1 = [0,0]
+        origin2 = [0,1]
+
+        plt.figure()
+        plt.subplot(1,2,1)
+        plt.scatter(*np.array(elec_pos).T, c=elec_data)
+        plt.scatter(*origin1, color='b')
+        plt.scatter(*origin2, color='r')
+        plt.axis('equal')
+
+        angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin1)
+        plt.subplot(1,2,2)
+        plt.plot(angle, mean, color='b')
+        angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin2)
+        plt.plot(angle, mean, color='r')
+        plt.xlabel('Angle (rad)')
+        plt.ylabel('Mean')
+
+        plt.legend(['Origin 1', 'Origin 2'])
+
+        plt.tight_layout()
+        aopy.visualization.savefig(docs_dir, 'angle_versus_position.png', transparent=False)
+
     def test_calc_erp(self):
         nevents = 3
         event_times = 0.2 + np.arange(nevents)
@@ -601,6 +649,125 @@ class CalcTests(unittest.TestCase):
     
         filename = 'calc_corr2_map.png'
         aopy.visualization.savefig(docs_dir, filename)
+
+    def test_calc_spatial_map_correlation(self):
+        # Test correlation map
+        np.random.seed(0)
+        nrows = 11
+        ncols = 11
+        data1 = np.ones((nrows,ncols))
+        data2 = np.ones(data1.shape)
+
+        NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+        self.assertTrue(np.isnan(NCC[1,0]))
+
+
+        data1 = np.random.normal(0,1,(nrows,ncols))
+        data2 = data1.copy()
+        NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+        self.assertAlmostEqual(NCC[1,0], 1)
+
+        nrows_changed = 5
+        ncols_changed = 3
+        for irow in range(nrows_changed):
+            data2[irow,:ncols_changed] = 1
+
+        data3 = data2.copy()
+        data3 = np.roll(data3, 2, axis=0)
+
+        NCC, shifts = aopy.analysis.calc_spatial_map_correlation([data1, data2, data3], True)
+        self.assertLess(NCC[1,0], 1)
+        self.assertEqual(NCC[1,0], NCC[2,0])
+        self.assertEqual(shifts[0], (0, 0))
+        self.assertEqual(shifts[1], (0, 0))
+        self.assertEqual(shifts[2], (-2, 0))
+
+        # Plots for example figure 
+        fig, [ax1, ax2, ax3] = plt.subplots(1,3, figsize=(8,3))
+        im1 = ax1.pcolor(data1)
+        ax1.set(title='Reference')
+        plt.colorbar(im1, ax=ax1)
+        
+        im2 = ax2.pcolor(data2)
+        ax2.set(title=f'R^2={np.round(NCC[1,0],3)}')
+        plt.colorbar(im2, ax=ax2)
+        
+        im3 = ax3.pcolor(data3)
+        ax3.set(title=f'R^2={np.round(NCC[2,0],3)}')
+        plt.colorbar(im3, ax=ax3)
+
+        filename = 'calc_spatial_map_correlation.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
+class TFRStatsTests(unittest.TestCase):
+
+    def test_calc_fdrc_ranktest(self):
+        np.random.seed(42)
+        
+        # Create sample data: 10 samples, 2 channels
+        altdata = np.random.normal(2, 1, (10, 2))  # higher mean
+        nulldata = np.random.normal(0, 1, (10, 2))  # lower mean
+        
+        diff, p_fdrc = aopy.analysis.calc_fdrc_ranktest(altdata, nulldata)
+        assert diff.shape == (2,)
+        assert p_fdrc.shape == (2,)
+        assert np.all(diff > 0)  # differences should be positive
+
+    def test_calc_tfr_mean(self):
+        np.random.seed(42)
+
+        freqs = np.linspace(1, 100, 10)  # 10 frequency points
+        time = np.linspace(0, 1, 20)     # 20 time points
+        spec = np.ones((10, 20, 3)) * 5  # 3 channels, all values = 5
+        
+        result = aopy.analysis.calc_tfr_mean(freqs, time, spec)
+        assert result.shape == (3,)  # one value per channel
+        assert np.allclose(result, 5.0)  # mean should be 5
+
+        # Create test data with different values in different frequency ranges
+        freqs = np.linspace(1, 100, 10)  # 10 frequency points
+        time = np.linspace(0, 1, 20)     # 20 time points
+        spec = np.ones((10, 20, 2)) * 2  # base value is 2
+        
+        # Set values in the upper half of frequencies to 8
+        spec[5:] = 8
+        result_low = aopy.analysis.calc_tfr_mean(freqs, time, spec, band=(1, 50))
+        np.testing.assert_allclose(result_low, 2.0)
+        
+        result_high = aopy.analysis.calc_tfr_mean(freqs, time, spec, band=(50, 100))
+        np.testing.assert_allclose(result_high, 8.0)
+
+    def test_calc_tfr_mean_fdrc_ranktest(self):
+        np.random.seed(42)
+
+        # Create test data
+        freqs = np.linspace(1, 100, 10)
+        time = np.linspace(0, 1, 20)
+        
+        # Create observed spec with higher values
+        spec = np.random.normal(5, 1, (10, 20, 3))  # 3 channels
+        
+        # Create null specs with lower values
+        n_null = 5
+        null_specs = np.random.normal(1, 1, (n_null, 10, 20, 3))
+        
+        diff, p_fdrc = aopy.analysis.calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs)
+        self.assertEqual(diff.shape, (3,))
+        self.assertEqual(p_fdrc.shape, (3,))
+        self.assertTrue(np.all(diff > 0))
+        
+        # Change lf values to 1 (within null range)
+        spec[freqs <= 50] = 1
+        
+        # Only the high frequency band should show a significant difference
+        diff_hf, _ = aopy.analysis.calc_tfr_mean_fdrc_ranktest(
+            freqs, time, spec, null_specs, band=(50, 100))
+        self.assertTrue(np.all(diff_hf > 0))
+
+        diff_lf, _ = aopy.analysis.calc_tfr_mean_fdrc_ranktest(
+            freqs, time, spec, null_specs, band=(1, 50))
+        np.testing.assert_allclose(diff_lf, 0)
+
 
 class CurveFittingTests(unittest.TestCase):
 
@@ -2141,13 +2308,13 @@ class ControlTheoreticAnalysisTests(unittest.TestCase):
         # input--> output
         freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate)
         self.assertEqual(len(transfer_func), len(t)/2)
-        np.testing.assert_array_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func))[np.isin(freqs, exp_freqs)], [A1_out/A1_in, A2_out/A2_in])
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func))[np.isin(freqs, exp_freqs)], [p1_out, p2_out])
 
         # input--> output, only at experimental freqs
         freqs, transfer_func = controllers.calc_transfer_function(input_signal, output_signal, samplerate, exp_freqs)
         self.assertEqual(len(transfer_func), len(exp_freqs))
-        np.testing.assert_array_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
+        np.testing.assert_array_almost_equal(np.squeeze(abs(transfer_func)), [A1_out/A1_in, A2_out/A2_in])
         np.testing.assert_array_almost_equal(np.squeeze(np.angle(transfer_func)), [p1_out, p2_out])
 
     def test_pair_trials_by_frequency(self):

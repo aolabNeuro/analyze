@@ -1,5 +1,6 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
 import unittest
+import aopy
 from aopy.data.base import load_preproc_eye_data
 from aopy.precondition.eye import *
 from aopy import visualization
@@ -600,6 +601,53 @@ class EyeTests(unittest.TestCase):
         onset, duration, distance = detect_saccades(le_data_filt, samplerate, intersaccade_min=0.02)
         offset = np.array([o + d for o, d in zip(onset, duration)])
         self.assertTrue(np.all(onset[1:]-offset[:-1] > 0.02)) # intersaccade min
+
+
+    def test_detect_eye_events(self):
+        samplerate = 1000
+        eye_trajectory, _ = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=samplerate)
+        clf_params,preproc_params=get_default_parameters()
+
+        times, start_positions, end_positions = detect_eye_events(eye_trajectory, 'SACC', clf_params, preproc_params, 10.75, 28, samplerate)
+        duration= times[:,1]-times[:,0]
+        distance = np.linalg.norm(end_positions-start_positions, axis=1)
+
+        plt.figure()
+        plt.hist(1000*duration)
+        plt.xlabel('Duration (ms)')
+        plt.figure()
+        plt.hist(distance)
+        plt.xlabel('Distance (cm)')
+        savefig(docs_dir, 'remodnav_saccades_hist.png',transparent=False)
+        plt.close()
+
+        plt.figure()
+        plt.scatter(1000*duration, distance)
+        plt.xlabel('Duration (ms)')
+        plt.ylabel('Distance (cm)')
+        savefig(docs_dir, 'remodnav_saccades_scatter.png',transparent=False)
+        plt.close()
+        
+    def test_get_eye_event_trials(self):
+        preproc_dir = data_dir
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        exp_data,exp_metadata=aopy.data.load_preproc_exp_data(preproc_dir,subject,te_id,date)
+        eye_data, eye_metadata=aopy.data.load_preproc_eye_data(preproc_dir,subject,te_id,date)
+
+        start_events=exp_metadata['event_sync_dict']['CURSOR_ENTER_TARGET']
+        end_events=exp_metadata['event_sync_dict']['REWARD']
+        samplerate = 1000
+        clf_params,preproc_params=get_default_parameters()
+        times,start_positions,end_positions=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'SACC', clf_params, preproc_params, 10.75, 28, samplerate)
+
+        print(len(times))
+        print(len(start_positions))
+        print(len(end_positions))
+
+        self.assertEqual(len(times)==len(start_positions)==len(end_positions),True)
+        self.assertEqual(len(times), 10)
 
 
 

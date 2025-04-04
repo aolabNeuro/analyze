@@ -20,6 +20,7 @@ from matplotlib import colors
 from matplotlib import cm
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+from mpl_toolkits.axes_grid1 import ImageGrid
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
 import seaborn as sns
@@ -393,6 +394,21 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
     '''
     Turns scatter data into grid data by interpolating up to a given threshold distance.
 
+    Args:
+        data (nch): list of values
+        x_pos (nch): list of x positions
+        y_pos (nch): list of y positions
+        grid_size (2-tuple): number of points along each axis (width, height)
+        interp_method (str): method used for interpolation
+        threshold_dist (float): distance to neighbors before disregarding a point on the image
+        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
+            which will use the min and max of the x and y positions.
+
+    Returns:
+        tuple: tuple containing:
+            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
+            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
+            
     Example:
         Make a plot of a 10 x 10 grid of increasing values with some missing data.
         
@@ -431,24 +447,14 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
 
         .. image:: _images/posmap_calcmap_interp.png
 
-    Args:
-        data (nch): list of values
-        x_pos (nch): list of x positions
-        y_pos (nch): list of y positions
-        grid_size (tuple): number of points along each axis
-        interp_method (str): method used for interpolation
-        threshold_dist (float): distance to neighbors before disregarding a point on the image
-        extent (list): [xmin, xmax, ymin, ymax] to define the extent of the interpolated grid. Default None,
-            which will use the min and max of the x and y positions.
-
-    Returns:
-        tuple: tuple containing:
-            | *data_map (grid_size array, e.g. (16,16)):* map of the data on the given grid
-            | *xy (grid_size array, e.g. (16,16)):* new grid positions to use with this map
-
     '''
     if extent is None:
         extent = [np.min(x_pos), np.max(x_pos), np.min(y_pos), np.max(y_pos)]
+    if len(x_pos) != len(y_pos):
+        raise ValueError('x_pos and y_pos must have the same length!')
+    if len(data) != len(x_pos):
+        raise ValueError('Data and position must have the same length!')
+    data = np.squeeze(data)
 
     x_spacing = (extent[1] - extent[0]) / (grid_size[0] - 1)
     y_spacing = (extent[3] - extent[2]) / (grid_size[1] - 1)
@@ -531,10 +537,11 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     '''
     # Calculate the proper extents
-    if data_map.size > 1:
+    assert np.ndim(data_map) == 2, 'data_map must be 2D'
+    if np.size(data_map) > 1:
         extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
-        x_spacing = (extent[1] - extent[0]) / (data_map.shape[0] - 1)
-        y_spacing = (extent[3] - extent[2]) / (data_map.shape[1] - 1)
+        x_spacing = (extent[1] - extent[0]) / (np.shape(data_map)[1] - 1)
+        y_spacing = (extent[3] - extent[2]) / (np.shape(data_map)[0] - 1)
         extent = np.add(extent, [-x_spacing / 2, x_spacing / 2, -y_spacing / 2, y_spacing / 2])
     else:
         extent = [np.min(x) - 0.5, np.max(x) + 0.5, np.min(y) - 0.5, np.max(y) + 0.5]
@@ -568,16 +575,20 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     return image
 
-def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244', cmap='bwr', 
-                           theta=0, ax=None, **kwargs):
+def plot_spatial_drive_map(data, elec_data=False, drive_type='ECoG244', interp=True, grid_size=(16,16), 
+                           cmap='bwr', theta=0, ax=None, **kwargs):
     '''
     Plot a 2D spatial map of data from a spatial electrode array.
 
     Args:
         data ((nch,) array): values from the spatial drive to plot in 2D
-        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
+        elec_data (bool, optional): if True, treat data as electrode data (i.e. nch == nelec), otherwise 
+            treat it as acquisition data (nch >= nelec). Defaults to False.
         interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
-        drive_type (str, optional): type of drive. Defaults to 'ECoG244'.
+        drive_type (str, optional): type of drive. See :func:`~aopy.data.load_chmap` for options. Defaults to 'ECoG244'.
+        interp (bool, optional): flag to include 2D interpolation of the result. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to True.
+        grid_size ((2,) tuple, optional): size of the grid to interpolate to. Defaults to (16,16).
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
             e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
@@ -587,6 +598,8 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
 
     Returns:
         pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
+
+    Updated in v0.9.1 - removed bad_elec argument, added elec_data argument
     '''
     
     if ax is None:
@@ -594,17 +607,15 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
     
     # Load the signal path files
     elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type=drive_type, theta=theta)
+    if not elec_data:
+        data = data[acq_ch-1]
 
-    # Remove bad electrodes
-    bad_ch = acq_ch[np.isin(elecs, bad_elec)]-1
-    data[bad_ch] = np.nan
-        
     # Interpolate or directly compute the map
     if interp:
         interp_kwargs = {k: v for k, v in kwargs.items() if k in ['interp_method', 'threshold_dist']}
-        data_map, xy = calc_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1], (16, 16), **interp_kwargs)
+        data_map, xy = calc_data_map(data, elec_pos[:,0], elec_pos[:,1], grid_size, **interp_kwargs)
     else:
-        data_map = get_data_map(data[acq_ch-1], elec_pos[:,0], elec_pos[:,1])
+        data_map = get_data_map(data, elec_pos[:,0], elec_pos[:,1])
         xy = [elec_pos[:,0], elec_pos[:,1]]
 
     # Plot
@@ -613,15 +624,17 @@ def plot_spatial_drive_map(data, bad_elec=[], interp=True, drive_type='ECoG244',
     return im
 
 
-def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr', 
+def plot_ECoG244_data_map(data, elec_data=False, interp=True, cmap='bwr', 
                           theta=0, ax=None, **kwargs):
     '''
     Plot a spatial map of data from an ECoG244 electrode array from the Viventi lab.
 
     Args:
         data ((256,) array): values from the ECoG array to plot in 2D
-        bad_elec (list, optional): channels to remove from the plot. Defaults to [].
-        interp (bool, optional): flag to include 2D interpolation of the result. Defaults to True.
+        elec_data (bool, optional): if True, treat data as electrode data (i.e. nch == nelec), otherwise
+            treat it as acquisition data (nch >= nelec). Defaults to False.
+        interp (bool, optional): flag to include 2D interpolation of the result. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to True.
         cmap (str, optional): matplotlib colormap to use in image. Defaults to 'bwr'.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, 
             e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
@@ -632,28 +645,125 @@ def plot_ECoG244_data_map(data, bad_elec=[], interp=True, cmap='bwr',
     Returns:
         pyplot.Image: image returned by pyplot.imshow. Use to add colorbar, etc.
 
+    Updated in v0.9.1 - removed bad_elec argument, added elec_data argument
+
     Examples:
 
         .. code-block:: python
 
             data = np.linspace(-1, 1, 256)
             missing = [0, 5, 25]
+            missing_ch = acq_ch[np.isin(elecs, missing)]-1
+            data[missing_ch] = np.nan
+
             plt.figure()
-            plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None)
+            plot_ECoG244_data_map(data, interp=False, cmap='bwr', ax=None)
             # Here the missing electrodes (in addition to the ones
             # undefined by the channel mapping) should be visible in the map.
 
             plt.figure()
-            plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None, nan_color=None)
+            plot_ECoG244_data_map(data, interp=False, cmap='bwr', ax=None, nan_color=None)
             # Now we make the missing electrodes transparent
 
             plt.figure()
-            plot_ECoG244_data_map(data, bad_elec=missing, interp=True, cmap='bwr', ax=None)
+            plot_ECoG244_data_map(data, interp=True, cmap='bwr', ax=None)
             # Missing electrodes should be filled in with linear interp.
 
     '''
-    return plot_spatial_drive_map(data, bad_elec=bad_elec, interp=interp, drive_type='ECoG244', 
-                                  cmap=cmap, theta=theta, ax=ax, **kwargs)
+    return plot_spatial_drive_map(data, elec_data=elec_data, interp=interp, grid_size=(16,16), 
+                                  drive_type='ECoG244', cmap=cmap, theta=theta, ax=ax, **kwargs)
+
+def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05, label_mode="1",
+                            cbar_mode=None, **kwargs):
+    '''
+    Plot multiple spatial maps on the same figure. Uses mpl_toolkits.axes_grid1.ImageGrid to create a grid of axes.
+
+    Args:
+        maps (list): list of (nch,) list of values recorded from a spatial drive (e.g. electrode array) to plot
+        nrows_ncols ((2,) tuple): number of rows and columns of subplots
+        axsize ((2,) tuple): (width, height) size of each subplot in inches
+        clim ((2,) tuple, optional): (min, max) to set the color axis limits. Default None, show the whole range,
+            each image will be scaled independently.
+        axes_pad (float, optional): padding between axes. Default 0.1
+        label_mode (str, optional): label mode for ImageGrid {"L", "1", "all", None}. Default None.
+        cbar_mode (str, optional): colorbar mode for ImageGrid {"each", "single", None}. Default None.
+        **kwargs: additional keyword arguments to pass to :func:`~aopy.visualization.plot_spatial_drive_map`
+
+    Returns:
+        tuple: tuple containing:
+            - **fig (pyplot.Figure):** the created figure
+            - **axes (np.ndarray):** the created axes returned by ImageGrid
+            - **ims (list):** list of image handles
+            - **cbars (list):** list of colorbar handles
+
+    Examples:
+
+        Create some test maps (ECoG244, ECoG244 flipped, random, random flipped) and plot them in
+        different configurations. First, plot them in a 1x4 grid with a single colorbar.
+    
+        .. code-block:: python
+
+            im1 = np.arange(256).astype(float)
+            im2 = np.flip(im1)
+            im3 = im1.copy()
+            np.random.shuffle(im3)
+            im4 = np.flip(im3)
+            maps = [im1, im2, im3, im4]
+            plot_spatial_drive_maps(maps, (1,4), (2,2), cmap='viridis', clim=(0,255), label_mode="L")
+            plt.tight_layout()
+
+        .. image:: _images/spatial_drive_maps_1_4.png
+
+        Now plot them in a 2x2 grid with a single colorbar.
+
+        .. code-block:: python
+
+            plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), cbar_mode='single')
+            plt.tight_layout()
+
+        .. image:: _images/spatial_drive_maps_2_2_single_cbar.png
+
+        Last plot them in a 2x2 grid with a colorbar for each map. We need to change the horizontal spacing
+        to make the colorbars fit. We can also make adjustmests after plotting using the returned axes.
+
+        .. code-block:: python
+
+            fig, axes, ims, cbars = plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), label_mode=None, cbar_mode='each', axes_pad=(0.4,0.05))
+            axes[0].set_clim(127,255)
+            plt.tight_layout()
+
+        .. image:: _images/spatial_drive_maps_2_2.png
+    '''
+    n_maps = len(maps)
+
+    # Create a grid of axes
+    fig = plt.figure(figsize=(axsize[0] * nrows_ncols[1], axsize[1] * nrows_ncols[0]))
+    axes = ImageGrid(fig, 111, nrows_ncols=nrows_ncols, axes_pad=axes_pad, 
+                     label_mode="1" if label_mode is None else label_mode, cbar_mode=cbar_mode,
+                     cbar_pad=0.05)
+    
+    # Plot each map using the existing function
+    ims = []
+    cbars = []
+    for n in range(n_maps):
+        if np.count_nonzero(~np.isnan(maps[n])) == 0:
+            ims.append(None)
+            continue
+        
+        ax = axes[n] if n_maps > 1 else axes
+        im = plot_spatial_drive_map(maps[n], ax=ax, **kwargs)
+        if label_mode is None:
+            ax.set(xticks=[], yticks=[], xticklabels=[], yticklabels=[], xlabel='', ylabel='')
+        if cbar_mode == 'each':
+            cbars.append(ax.cax.colorbar(im))
+        if clim is not None:
+            im.set_clim(clim)
+        ims.append(im)
+
+    if cbar_mode == 'single':
+        cbars.append(axes.cbar_axes[0].colorbar(ims[0]))
+
+    return fig, axes, ims, cbars
 
 def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
     '''
@@ -1631,7 +1741,7 @@ def plot_tuning_curves(fit_params, mean_fr, targets, n_subplot_cols=5, ax=None):
     if not axinput:
         fig.tight_layout()
         
-def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='k', box_width=0.5, ax=None):
+def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='k', box_width=0.5, label_xticks=True, ax=None):
     '''
     This function creates a boxplot for each column of input data. If the input data has NaNs, they are ignored.
 
@@ -1641,6 +1751,7 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='
         trendline (bool): If a line should be used to connect boxplots
         facecolor (color): Color of the box faces. Can be any input that pyplot interprets as a color.
         linecolor (color): Color of the connecting lines.
+        label_xticks(bool): If the values of 'plt_xaxis' should be used to label the xticks. If multiple boxplots are plotted on the same figure this should be set to False.
         ax (axes handle): Axes to plot
 
     Examples:
@@ -1696,7 +1807,8 @@ def plot_boxplots(data, plt_xaxis, trendline=True, facecolor='gray', linecolor='
             boxprops=dict(facecolor=facecolor, color=linecolor), capprops=dict(color=linecolor),
             whiskerprops=dict(color=linecolor), flierprops=dict(color=facecolor, markeredgecolor=facecolor),
             medianprops=dict(color=linecolor))
-    ax.set_xticklabels(plt_xaxis)
+    if label_xticks:
+        ax.set_xticklabels(plt_xaxis)
 
 def advance_plot_color(ax, n):
     '''
@@ -2397,7 +2509,7 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
     Args:
         subject (str): subject name
         chamber (str): chamber type
-        drive_type (str): drive type
+        drive_type (str): drive type of the spatial map. See :func:`~aopy.data.load_chmap` for options. 
         theta (int, optional): rotation of the image in degrees. Default is 0.
         center (2-tuple): coordinates where the drive is centered on the brain (in mm). Default (0,0).
         alpha (float, optional): transparency of the image. Default is 0.5.
@@ -2426,3 +2538,285 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
     params_file = as_file(config_dir.joinpath(filename))
     with params_file as f:
         overlay_image_on_spatial_map(f, drive_type, theta=theta, center=center, alpha=alpha, **kwargs)
+
+def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, theta, elec_data=True, 
+                                          interp=True, grid_size=(16,16), cmap='viridis', clim=None, 
+                                          colorbar=True, fontsize=12, color='w', 
+                                          recording_drive_type='ECoG244', stim_drive_type='Opto32', 
+                                          ax=None, **kwargs):
+    '''
+    Stimulation-specific version of :func:`plot_spatial_drive_map` that includes annotations for the stimulation site,
+    removes tick marks, despines the map, and adds an overlay of the stimulation channel and chamber sulci locations.
+
+    Args:
+        data (nch): data to plot
+        stim_site (int): stimulation site to annotate on the map
+        subject (str): subject name
+        chamber (str): chamber type (e.g. 'LM1')
+        theta (int): rotation of the chamber in degrees
+        elec_data (bool, optional): whether to treat data as per electrode (True) or per acquistion channel (False). Default True.
+        interp (bool, optional): whether to interpolate the data onto a grid. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to True.
+        grid_size (tuple, optional): size of the grid to interpolate. Default (16, 16)
+        cmap (str, optional): colormap to use for plotting. Default 'viridis'.
+        clim (tuple, optional): 2-tuple of color limits (min, max) for the plot. Default None.
+        colorbar (bool, optional): whether to add a colorbar to the plot. Default True
+        fontsize (int, optional): font size for annotations. Default 12
+        color (str, optional): color for annotations. Default 'w'
+        recording_drive_type (str, optional): drive type of the recording. Default 'ECoG244'. See :func:`aopy.data.load_chmap` for options.
+        stim_drive_type (str, optional): drive type of the stimulation. Default 'Opto32'. See :func:`aopy.data.load_chmap` for options.
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to :func:`plot_spatial_drive_map`
+
+    Returns:
+        tuple: tuple containing:
+            - im (pyplot.Image): image object returned from pyplot.imshow. Useful for adding colorbars, etc.
+            - pcm (pyplot.Colorbar): colorbar object if colorbar is True, otherwise None
+
+    Examples:
+
+        .. code-block:: python
+
+            data = np.random.normal(0, 1, (240,))
+            stim_site = 7
+            plot_annotated_spatial_drive_map_stim(data, stim_site, 'beignet', 'lm1', 0, interp_method='cubic')
+
+        .. image:: _images/annotated_spatial_drive_map_stim.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    # Plot the spatial drive map
+    im = plot_spatial_drive_map(data, elec_data=elec_data, interp=interp, grid_size=grid_size, 
+                                drive_type=recording_drive_type, cmap=cmap,
+                                theta=theta, ax=ax, **kwargs)
+    if clim is not None:
+        im.set_clim(*clim)
+    sns.despine(left=True, bottom=True, ax=ax)
+    pcm = None
+    if colorbar:
+        pcm = plt.colorbar(im, ax=ax)
+    ax.set(xticks=[], yticks=[], xticklabels=[], yticklabels=[], xlabel='', ylabel='')
+    
+    # Add annotations
+    annotate_spatial_map_channels(acq_ch=[stim_site], fontsize=fontsize, color=color, 
+                                  drive_type=stim_drive_type, theta=theta, ax=ax)
+    overlay_sulci_on_spatial_map(subject, chamber, recording_drive_type, theta=theta, color=color, ax=ax)
+    return im, pcm
+    
+def plot_annotated_stim_drive_data(data, subject, chamber, theta, interp=False, 
+                                   stim_drive_type='Opto32', recording_drive_type='ECoG244', 
+                                   cmap='Blues', colorbar=True, color='k', 
+                                   nan_color='white', ax=None, **kwargs):
+    '''
+    Plot a spatial map of data for each stimulation site in a drive with the bounds 
+    and sulci overlayed of a recording drive shown for reference.
+
+    Args:
+        data (nch): data to plot
+        subject (str): subject name
+        chamber (str): chamber type (e.g. 'LM1')
+        theta (int): rotation of the chamber in degrees
+        interp (bool, optional): whether to interpolate the data onto a grid. See :func:`~aopy.visualization.calc_data_map` 
+            for options. Defaults to False.
+        stim_drive_type (str): drive type of the stimulation data. Default 'Opto32'. See :func:`aopy.data.load_chmap` for options.
+        recording_drive_type (str): drive type of the recording used in the chamber. Default 'ECoG244'. See :func:`aopy.data.load_chmap` for options.
+        cmap (str): colormap to use for plotting
+        colorbar (bool, optional): whether to add a colorbar to the plot. Default True
+        color (str): color for annotations. Default 'k'
+        nan_color (str): color to use for NaN values. Default 'white'
+        ax (pyplot.Axes, optional): axes on which to plot. Default current axis.
+        kwargs (dict, optional): other keyword arguments to pass to :func:`plot_spatial_drive_map`
+
+    Returns:
+        tuple: tuple containing:
+            - im (pyplot.Image): image object returned from pyplot.imshow. Useful for adding colorbars, etc.
+            - pcm (pyplot.Colorbar): colorbar object if colorbar is True, otherwise None
+
+    Examples:
+
+        .. code-block:: python
+        
+            data = np.random.normal(0, 1, (32,))
+            plot_annotated_stim_drive_data(data, 'beignet', 'lm1', 0)
+
+        .. image:: _images/annotated_stim_drive_data.png
+    '''
+    if ax is None:
+        ax = plt.gca()
+
+    im = plot_spatial_drive_map(data, elec_data=True, drive_type=stim_drive_type, interp=interp, 
+                                cmap=cmap, theta=theta, 
+                                nan_color=nan_color, ax=ax, **kwargs)
+    pcm = None
+    if colorbar:
+        pcm = plt.colorbar(im, ax=ax)
+    overlay_sulci_on_spatial_map(subject, chamber, recording_drive_type, theta=theta, color=color, ax=ax)
+    return im, pcm
+
+def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=None, **kwargs):
+    """
+    Plots a 3D plane centered at the origin.
+
+    Args:
+        plane (4-tuple or (3,3) or (4,4) matrix): Specifies how the plane is transformed:
+            - If shape (3,3) or (4,4): Treated as a transformation matrix for rotating the plane z=0.
+            - If shape (4,): Treated as plane equation coefficients (A, B, C, D) for Ax + By + Cz + D = 0.
+        gain (float, optional): Scaling factor for the plane's size. Default is 1.0. Recommend using exp_gain from metadata.
+        color (str, optional): Color of the plane. Default is 'grey'.
+        alpha (float, optional): Transparency of the plane, where 1 is opaque and 0 is fully transparent. Default is 0.15.
+        resolution (int, optional): Number of subdivisions for the plane. Higher values increase smoothness. Default is 100.
+        ax (mpl_toolkits.mplot3d.Axes3D): The Matplotlib 3D axis on which to plot the plane.
+
+    Raises:
+        ValueError: If 'plane' does not have a valid shape (expected (3,3), (4,4), or (4,)).
+
+    Note:
+        - When 'plane' is a transformation matrix, only the upper-left (3,3) submatrix is used.
+        - When 'plane' is a plane equation (A, B, C, D), the function solves for z using z = (-A * x - B * y - D) / C.
+
+    Examples:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+            import numpy as np
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+            # Example using a transformation matrix (identity)
+            plane = np.eye(3)  
+            plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
+
+            # Example using a plane equation Ax + By + Cz + D = 0
+            plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
+            plot_plane(plane_eq, gain=1.0, color='red', alpha=0.5, ax=ax)
+
+            plt.show()
+
+        .. image:: _images/plot_plane_example.png
+    """
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    
+    xy_range = np.linspace(-10*gain, 10*gain, resolution)
+    x, y = np.meshgrid(xy_range, xy_range)
+    
+    # If plane is described as a transformation matrix:
+    if plane.shape in [(3,3),(4,4)]:
+        coords = np.column_stack((x.ravel(), y.ravel(), np.zeros_like(x.ravel())))
+        rotated_coords = coords @ plane[:3, :3]
+        x, y, z = rotated_coords.T.reshape(3, *x.shape)
+    
+    # If plane is described as an equation:
+    elif plane.shape == (4,):
+        A,B,C,D = plane
+        z = (-A * x - B * y - D) / C
+        
+    else:
+        raise ValueError(f"Invalid mapping shape {plane.shape}. Expected (3,3) or (4,4) \
+                         for transformation matrices, or (4,) for plane equations.")
+        
+    ax.plot_surface(x, y, z, alpha=alpha, color=color)
+
+def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
+    """
+    Plots a 3D sphere on a specified 3D Matplotlib axis. If no axis is specified, opens a new figure with a single 3D axis.
+
+    Args:
+        location (tuple or list): Coordinates of the sphere's center, specified as (x, y, z).
+        color (str, optional): Color of the sphere. Default is 'gray'.
+        radius (float, optional): Radius of the sphere. Default is 4.
+        resolution (int, optional): Number of subdivisions for the sphere's surface. Higher values 
+            result in a smoother appearance but may reduce performance. Default is 20.
+        alpha (float, optional): Transparency of the sphere, where 1 is opaque and 0 is fully 
+            transparent. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
+        ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the sphere.
+
+
+    Examples:
+        To plot a semi-transparent blue sphere with a radius of 1 at the origin:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            plot_sphere(location=(0, 1, 2), color='blue', radius=5, resolution=30, alpha=0.5, ax=ax)
+
+        .. image:: _images/plot_sphere_example.png
+    """
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    
+    # Generate points in spherical coordinates
+    phi = np.linspace(0, 2 * np.pi, resolution) # azimuthal angle
+    theta = np.linspace(0, np.pi, resolution) # polar angle
+    
+    # Translate to cartesian coordinates
+    x = radius * np.outer(np.cos(phi), np.sin(theta)) + location[0]
+    y = radius * np.outer(np.sin(phi), np.sin(theta)) + location[1]
+    z = radius * np.outer(np.ones(np.size(phi)), np.cos(theta)) + location[2]
+    
+    # Plot sphere
+    ax.plot_surface(x, y, z, color=color, alpha=alpha, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)
+
+def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
+    """
+    Plots multiple targets as spheres in 3D space.
+
+    Args:
+        target_locations (list of tuples or lists): List of (x, y, z) coordinates specifying the 
+            centers of the target spheres.
+        colors (list of str or None, optional): List of colors for the targets. If not provided, all 
+            targets will default to black. Must match the number of unique targets.
+        target_radius (float, optional): Radius of each target sphere. Default is 1.
+        resolution (int, optional): Resolution of the spheres (passed to 'plot_sphere'). Default is 20.
+        alpha (float, optional): Transparency of the spheres, where 1 is opaque. Default is 1.
+        bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
+        ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the targets.
+
+    Raises:
+        ValueError: If 'colors' is less than the number of unique targets.
+
+    Examples:
+        To visualize three targets with different colors and sizes:
+
+        .. code-block:: python
+
+            import matplotlib.pyplot as plt
+            from mpl_toolkits.mplot3d import Axes3D
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+
+            target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
+            colors = ['red', 'blue', 'green']
+            plot_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+
+            plt.show()
+            
+        .. image:: _images/plot_3D_targets.png
+    """
+    
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+    if colors==None:
+        colors = ['gray'] * len(np.unique(target_locations))
+    if not (len(colors) >= len(np.unique(target_locations))):
+        raise ValueError(f"Not enough colors ({len(colors)}) provided for \
+                              number of targets ({len(np.unique(target_locations))}).")
+        
+    unique_targets = set(tuple(target) for target in target_locations)
+    for t,target in enumerate(unique_targets):
+        plot_sphere(target, color=colors[t], radius=target_radius, resolution=resolution, alpha=alpha, ax=ax, **kwargs)
+    if bounds is not None: set_bounds(bounds, ax)

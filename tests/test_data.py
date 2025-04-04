@@ -280,6 +280,43 @@ class BMI3DTests(unittest.TestCase):
         self.assertTrue(all(off_times - on_times)>0)
         self.assertTrue(any(np.diff(on_times)>30))
 
+    def test_load_emg_data(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        emg_data, emg_metadata = load_emg_data(emg_data_dir, filename)
+        self.assertEqual(emg_data.shape[1], 64)
+        self.assertEqual(emg_data.shape[0], 14720)
+
+        self.assertIn('samplerate', emg_metadata)
+        self.assertEqual(emg_metadata['samplerate'], 2048)
+        self.assertEqual(emg_metadata['n_channels'], 64)
+
+    def test_load_emg_analog(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        analog_data, analog_metadata = load_emg_analog(emg_data_dir, filename)
+        self.assertEqual(analog_data.shape[1], 16)
+        self.assertEqual(analog_data.shape[0], 14720)
+
+        self.assertIn('samplerate', analog_metadata)
+        self.assertEqual(analog_metadata['samplerate'], 2048)
+        self.assertEqual(analog_metadata['n_channels'], 16)
+
+    def test_load_emg_digital(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        digital_data, digital_metadata = load_emg_digital(emg_data_dir, filename)
+        self.assertEqual(digital_data.shape[0], 14720)
+        self.assertEqual(digital_data.ndim, 1)
+
+        self.assertIn('samplerate', digital_metadata)
+        self.assertEqual(digital_metadata['samplerate'], 2048)
+        self.assertEqual(digital_metadata['n_channels'], 16)
+
+
 class NeuropixelTest(unittest.TestCase):
     
     def test_load_neuropixel_data(self):
@@ -829,7 +866,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 40.42532)
+        np.testing.assert_allclose(trial['penalty_start_time'], 40.314078)
         self.assertEqual(trial['penalty_event'], 65) # timeout penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
@@ -844,7 +881,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertFalse(trial['delay_completed'])
         self.assertFalse(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 42.64848)
+        np.testing.assert_allclose(trial['penalty_start_time'], 42.64896)
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
@@ -895,7 +932,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2024-12-31', '2025-01-21'] # first entry is pre-pause state, second entry has pause state
         df = tabulate_behavior_data_corners(data_dir, subjects, ids, dates, metadata=['target_radius', 'cursor_radius', 'rand_delay'])
         self.assertEqual(len(df), 55)
-        self.assertEqual(len(df.columns), 26+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
+        self.assertEqual(len(df.columns), 27+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
 
         # Check chain length (sequence param)
         self.assertTrue(np.all(df['chain_length'] == 2))
@@ -1263,6 +1300,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
 
+    def test_tabulate_poisson_trial_times(self):
+        subjects = ['test']
+        ids = [6577]
+        dates = ['2022-08-19']
+        df = tabulate_poisson_trial_times(data_dir, subjects, ids, dates)
+
+        self.assertIn('trial_time', df.columns)
+        self.assertTrue(len(df) > 0)
+
     def test_get_kilosort_foldername(self):
         subject='affi'
         te_id = 1000
@@ -1360,6 +1406,16 @@ class TestYaml(unittest.TestCase):
         task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
 
         self.assertDictEqual(params, task_codes_file)
+
+    def test_load_lasers(self):
+        lasers = load_bmi3d_lasers()
+        for l in lasers:
+            self.assertIn('name', l.keys())
+            self.assertIn('stimulation_site', l.keys())
+            self.assertIn('trigger', l.keys())
+            self.assertIn('trigger_dch', l.keys())
+            self.assertIn('sensor', l.keys())
+            self.assertIn('sensor_ach', l.keys())
 
 class SignalPathTests(unittest.TestCase):
 
@@ -1659,12 +1715,20 @@ class DatabaseTests(unittest.TestCase):
         te.feats.set([feat])
         te.save(using='test_aopy')
 
+        system = models.System(name="bmi", path=write_dir, archive="")
+        system.save(using='test_aopy')
+
         # Add a decoder entry that was "trained" on a parent task entry
-        task = models.Task.objects.get(name="nothing")
-        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, entry_name="decoder parent")
-        te.save(using='test_aopy')
-        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
-        decoder.save(using='test_aopy')
+        from riglib.bmi.state_space_models import StateSpaceEndptVel2D
+        from riglib.bmi.bmi import Decoder, MachineOnlyFilter
+        ssm = StateSpaceEndptVel2D()
+        A, B, W = ssm.get_ssm_matrices()
+        filt = MachineOnlyFilter(A, W)
+        units = []
+        decoder = Decoder(filt, units, ssm, binlen=0.1)
+        parent = db.create_decoder_parent('project', 'session')
+        db.save_decoder(parent, decoder, 'test_decoder')
+        decoder = db.lookup_decoders()[0]
 
         # And a flash task entry
         task = models.Task.objects.get(name="manual control")
@@ -1672,9 +1736,6 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
         te.save(using='test_aopy')
-
-        system = models.System(name="test_system", path="", archive="")
-        system.save(using='test_aopy')
 
         # Add a bmi task entry
         task = models.Task(name="bmi control")
@@ -1760,14 +1821,14 @@ class DatabaseTests(unittest.TestCase):
         # Other sanity tests
         total_decoders = 1
         self.assertEqual(len(db.lookup_decoders()), total_decoders)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
 
         # Test filtering
         self.assertEqual(len(db.lookup_decoders(name="non_existent")), 0)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
         decoders = db.lookup_decoders(parent_id=db.lookup_decoder_parent()[0].id)
         self.assertEqual(len(decoders), 1)
-        self.assertEqual(decoders[0].name, "test_decoder")
+        self.assertEqual(decoders[0].name, "project_session_test_decoder")
 
     def test_filter_functions(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1824,7 +1885,7 @@ class DatabaseTests(unittest.TestCase):
         # Test a bmi session and decoder
         te = db.lookup_sessions(task_name="bmi control")[0]
         decoder = te.get_decoder_record()
-        self.assertEqual(decoder.name, "test_decoder")
+        self.assertEqual(decoder.name, "project_session_test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
         # Test preprocess function

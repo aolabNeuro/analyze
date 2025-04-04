@@ -95,6 +95,10 @@ class NeuralDataPlottingTests(unittest.TestCase):
     def test_plot_ECoG244_data_map(self):
         data = np.linspace(-1, 1, 256)
         missing = [0, 5, 25]
+        elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+        missing_ch = acq_ch[np.isin(elecs, missing)]-1
+        data[missing_ch] = np.nan
+
         plt.figure()
         plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None)
         filename = 'posmap_244ch_no_interp.png'
@@ -110,6 +114,36 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plot_ECoG244_data_map(data, bad_elec=missing, interp=True, cmap='bwr', ax=None)
         filename = 'posmap_244ch.png'
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
+
+        plt.figure()
+        elec_data = np.arange(240)
+        plot_ECoG244_data_map(elec_data, elec_data=True)
+        filename = 'posmap_244ch_elec_data.png'
+        savefig(write_dir, filename) # No missing data
+
+    def test_plot_spatial_drive_maps(self):
+
+        im1 = np.arange(256).astype(float)
+        im2 = np.flip(im1)
+        im3 = im1.copy()
+        np.random.shuffle(im3)
+        im4 = np.flip(im3)
+        maps = [im1, im2, im3, im4]
+        plot_spatial_drive_maps(maps, (1,4), (2,2), cmap='viridis', clim=(0,255), label_mode="L")
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_1_4.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), cbar_mode='single')
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_2_2_single_cbar.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        fig, axes, ims, cbars = plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), label_mode=None, cbar_mode='each', axes_pad=(0.4,0.05))
+        ims[3].set_clim(127,255)
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_2_2.png'
+        savefig(docs_dir, filename, transparent=False)
 
     def test_annotate_spatial_map(self):
         plt.figure()
@@ -289,7 +323,29 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'angles_magnitudes.png'
         savefig(docs_dir, filename, transparent=False)
 
-    
+class StimPlottingWrapperTests(unittest.TestCase):
+
+    def test_plot_annotated_stim_drive_data(self):
+        np.random.seed(0)
+        data = np.random.normal(0, 1, (32,))
+
+        plt.figure()
+        plot_annotated_stim_drive_data(data, 'beignet', 'lm1', 0)
+
+        filename = 'annotated_stim_drive_data.png'
+        savefig(docs_dir, filename, transparent=False)
+
+    def test_plot_annotated_spatial_drive_map_stim(self):
+        np.random.seed(0)
+        data = np.random.normal(0, 1, (240,))
+        stim_site = 7
+
+        plt.figure()
+        plot_annotated_spatial_drive_map_stim(data, stim_site, 'beignet', 'lm1', 0, interp_method='cubic')
+
+        filename = 'annotated_spatial_drive_map_stim.png'
+        savefig(docs_dir, filename, transparent=False)
+
 class CurveFittingTests(unittest.TestCase):
     def test_plot_tuning_curves(self):
         filename = 'tuning_curves_plot.png'
@@ -541,6 +597,29 @@ class KinematicsPlottingTests(unittest.TestCase):
             plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
             savefig(write_dir, filename)
 
+    def test_color_targets_3D(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
+        colors = ['red', 'blue', 'green']
+        color_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+
+        filename = 'color_targets_3D.png'
+        savefig(docs_dir, filename)
+
+    def test_plot_sphere(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        plot_sphere(location=(0, 1, 2), color='blue', radius=5, resolution=30, alpha=0.5, ax=ax)
+
+        filename = 'plot_sphere_example.png'
+        savefig(docs_dir, filename)
+
     def test_plot_trajectories(self):
 
         # Test with two known trajectories
@@ -684,6 +763,23 @@ class KinematicsPlottingTests(unittest.TestCase):
         filename = 'gradient_trajectories_3d.png'
         savefig(docs_dir, filename, transparent=False)
         plt.close()
+
+    def test_plot_plane(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Example using a transformation matrix (identity)
+        plane = np.eye(3)  
+        plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
+
+        # Example using a plane equation Ax + By + Cz + D = 0
+        plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
+        plot_plane(plane_eq, gain=1.0, color='red', alpha=0.5, ax=ax)
+
+        filename = 'plot_plane_example.png'
+        savefig(docs_dir, filename)
         
     def test_get_color_gradient_RGB(self):
         npts = 200
@@ -884,8 +980,8 @@ class TestEyePlots(unittest.TestCase):
         te_id = 5974
         date = '2022-07-01'
         preproc_dir = data_dir
-        exp_data, exp_metadata = aopy.data.bmi3d.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        eye_data, eye_metadata = aopy.data.bmi3d.load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        exp_data, exp_metadata = aopy.data.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = aopy.data.load_preproc_eye_data(preproc_dir, subject, te_id, date)
 
         eye_raw = eye_data['raw_data']
         eye_samplerate = eye_metadata['samplerate']
@@ -915,6 +1011,13 @@ class TestDecoderPlots(unittest.TestCase):
 
         bmi3d.plot_decoder_summary(decoder)
         filename = 'decoder_weights.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        with open(os.path.join(data_dir, 'test_decoder_emg.pkl'), 'rb') as file:
+            decoder = pickle.load(file, fix_imports=False)
+
+        bmi3d.plot_decoder_summary(decoder, drive_type='EMG_GR08MM1305')
+        filename = 'decoder_weights_emg.png'
         savefig(docs_dir, filename, transparent=False)
 
 if __name__ == "__main__":
