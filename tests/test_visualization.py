@@ -599,13 +599,26 @@ class KinematicsPlottingTests(unittest.TestCase):
 
     def test_color_targets_3D(self):
         from mpl_toolkits.mplot3d import Axes3D
+        import seaborn as sns
+
+        targets = np.array([
+            [0., 0., 0.],
+            [0., 10., 0.],
+            [7.0711, 7.0711, 0.],
+            [10., 0., 0.],
+            [7.0711, -7.0711, 0.],
+            [0., -10., 0.],
+            [-7.0711, -7.0711, 0.],
+            [-10., 0., 0.],
+            [-7.0711, 7.0711, 0.]
+        ])
 
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
+        ax.set_zlim3d([-10, 10])
 
-        target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
-        colors = ['red', 'blue', 'green']
-        color_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+        colors = sns.color_palette(n_colors=len(targets))
+        aopy.visualization.color_targets_3D(targets, target_idx=np.arange(len(targets)), target_radius=1, colors=colors, ax=ax)
 
         filename = 'color_targets_3D.png'
         savefig(docs_dir, filename)

@@ -2232,3 +2232,52 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
         return decoding_accuracy, time_axis, cm
     else:
         return decoding_accuracy, time_axis
+    
+def simulate_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=100):
+    """
+    Simulates reach trajectories from a given origin to a list of target points in 3D space.
+    The function calculates the trajectories as straight lines from the origin to each target.
+
+    Args:
+        targets (numpy.ndarray or list of lists/tuples): A list or array of target points
+            in 3D space (each entry is a 3D coordinate).
+        origin (list or tuple, optional): The origin point from which the trajectories
+            are simulated. Default is [0.0, 0.0, 0.0].
+        resolution (int, optional): The number of points used to render each trajectory.
+            Default is 100.
+
+    Returns:
+        numpy.ndarray: An array of simulated trajectories, each being a series of points
+            from the origin to the corresponding target.
+            
+    .. code-block:: python
+
+        subject = 'MCP015'
+        entries = db.lookup_mc_sessions(subject=subject)
+        subjects, ids, dates = db.list_entry_details(entries)
+        df = aopy.data.tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, 
+                                                         metadata=['target_radius', 'session'])
+        target_radius = df['target_radius'][0]
+        target_indices = np.unique(df['target_idx'])
+        target_locations = aopy.data.bmi3d.get_target_locations(preproc_dir, subject,
+                                                                te_id, dates[0], target_indices)
+
+        ideal_trajectories = simulate_trajectories(target_locations[1:], target_locations[0])
+        
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        aopy.visualization.color_trajectories(ideal_trajectories, target_idx, colors)
+        
+
+    """
+
+    max_dist = np.max(targets - origin)
+    num_points = int(max_dist * resolution)
+    
+    trajectories = []
+    
+    for target in targets:
+        traj = np.linspace(origin, target, num_points)
+        trajectories.append(traj)
+        
+    return np.array(trajectories)
