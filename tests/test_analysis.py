@@ -738,6 +738,15 @@ class CalcTests(unittest.TestCase):
                                                                 window=(0, 0.5))
         self.assertEqual(ncc[1,0], 1)
 
+        # Test with null data
+        tf_elec_null = np.random.normal(0,10,(20, freqs.size, time.size, elec_pos.shape[0]))      
+        ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos, 
+                                                                null_tf_elec_data=tf_elec_null, window=(0.5, 1))
+        self.assertTrue(np.isnan(ncc[1,0]))
+
+        ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos, 
+                                                                null_tf_elec_data=tf_elec_null, window=(0, 0.5))
+        self.assertEqual(ncc[1,0], 1)
 
 class TFRStatsTests(unittest.TestCase):
 
@@ -752,6 +761,13 @@ class TFRStatsTests(unittest.TestCase):
         assert diff.shape == (2,)
         assert p_fdrc.shape == (2,)
         assert np.all(diff > 0)  # differences should be positive
+
+        # Test null hypothesis
+        altdata = np.random.normal(0, 1, (10, 2))  # same mean
+        nulldata = np.random.normal(0, 1, (10, 2))  # same mean
+
+        diff, p_fdrc = aopy.analysis.calc_fdrc_ranktest(altdata, nulldata)
+        self.assertTrue(np.all(p_fdrc > 0.05))  # p-values should be high
 
     def test_calc_tfr_mean(self):
         np.random.seed(42)

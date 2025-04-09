@@ -2075,7 +2075,7 @@ def calc_spatial_data_correlation(elec_data, elec_pos, interp=False, grid_size=N
 
 def calc_spatial_tf_data_correlation(freqs, time, tf_elec_data, elec_pos, null_tf_elec_data=None,
                                      band=(12,150), window=(0,1), alternative='greater', 
-                                     nan_policy='propogate', alpha=0.05, interp=False, 
+                                     nan_policy='propagate', alpha=0.05, interp=False, 
                                      grid_size=None, interp_method='cubic', align_maps=False):
     '''
     Wrapper around :func:`~aopy.analysis.calc_spatial_map_correlation` that averages over a given time-window
@@ -2090,7 +2090,7 @@ def calc_spatial_tf_data_correlation(freqs, time, tf_elec_data, elec_pos, null_t
         null_tf_elec_data (list of (nt, nfreq, nch), optional): time-frequency null data arrays to
             compute significance. If None, no significance testing is performed.
         alternative (str, optional): Hypothesis test alternative ('greater', 'less', 'two-sided'). Defaults to 'greater'.
-        nan_policy (str, optional): Handling of NaN values. Defaults to 'propogate'.
+        nan_policy (str, optional): Handling of NaN values. Defaults to 'propagate'.
         alpha (float, optional): Significance level. Defaults to 0.05.
         interp (bool): whether or not to interpolate data maps. Default False.
         grid_size ((2,) tuple, optional): map size for interpolation, e.g. (16,16) for a 16x16 grid
@@ -2110,7 +2110,7 @@ def calc_spatial_tf_data_correlation(freqs, time, tf_elec_data, elec_pos, null_t
             diff, p = calc_tfr_mean_fdrc_ranktest(
                 freqs, time, elec_data, null_tf_elec_data, band=band, window=window,
                                 alternative=alternative, nan_policy=nan_policy, alpha=alpha)
-            diff[p > alpha] = 0.
+            diff[p > alpha] = np.nan
             band_data.append(diff)
     
     return calc_spatial_data_correlation(band_data, elec_pos, interp=interp, grid_size=grid_size,
