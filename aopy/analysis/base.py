@@ -2362,3 +2362,42 @@ def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000
         trajectories.append(traj)
         
     return np.array(trajectories)
+
+def get_centered_endpoints(hand_traj):
+    """
+    Extracts the final point from each trajectory, calculates the mean 
+    endpoint position, and centers all endpoints by subtracting the mean.
+
+    Args:
+        hand_traj (list of numpy.ndarray): A list of 2D or 3D hand trajectories, where each 
+            trajectory is represented as a NumPy array of shape (N, D), with N time steps 
+            and D spatial dimensions.
+
+    Returns:
+        numpy.ndarray: An array of shape (M, D), where M is the number of trajectories, and 
+        each row represents a centered endpoint.
+
+    Example:
+    
+        .. code-block:: python
+
+        # Example trajectories (3D)
+        traj1 = np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2]])  # Ends at (2,2,2)
+        traj2 = np.array([[0, 0, 0], [1, 0, 1], [3, 1, 3]])  # Ends at (3,1,3)
+        traj3 = np.array([[0, 0, 0], [0, 1, 1], [1, 2, 3]])  # Ends at (1,2,3)
+
+        hand_traj = [traj1, traj2, traj3]
+        endpoints = aopy.analysis.get_centered_endpoints(hand_traj)
+        
+        ax = plt.figure(figsize = (3,3)).add_subplot(projection='3d')
+        ax.scatter(endpoints[:,0],endpoints[:,1],endpoints[:,2], s=30, color='k')
+        
+        .. image:: _images/get_centered_endpoints.png
+        
+    """
+    
+    endpoints = np.vstack([traj[-1] for traj in hand_traj])
+    origin = np.mean(endpoints, axis=0)
+    centered_points = endpoints - origin
+    
+    return centered_points
