@@ -1012,12 +1012,12 @@ def color_targets(target_locations, target_idx, colors, target_radius, bounds=No
         .. image:: _images/color_targets.png
     '''
     
-    assert len(target_locations) == len(target_idx), "Locations must be the same length as indices"
+    assert len(target_locations) == len(target_idx), "Target locations must be the same length as target indices"
     target_locations = np.array(np.array(target_locations).tolist())
     target_idx = np.array(np.array(target_idx).tolist())
     loc_idx = np.concatenate((np.expand_dims(target_idx, 1), target_locations), axis=1)
     loc_idx = np.unique(loc_idx, axis=0)
-    assert len(colors) >= len(np.unique(target_idx)), "Not enough colors for unique indices"
+    assert len(colors) >= len(np.unique(target_idx)), "Not enough colors for unique target indices"
     for row in loc_idx:
         idx = row[0].astype(int)
         loc = row[1:]
@@ -2769,13 +2769,14 @@ def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds
     ax.plot_surface(x, y, z, color=color, alpha=alpha, **kwargs)
     if bounds is not None: set_bounds(bounds, ax)
 
-def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
+def color_targets_3D(target_locations, target_idx, colors, target_radius=1, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
     """
     Plots multiple targets as spheres in 3D space.
 
     Args:
         target_locations (list of tuples or lists): List of (x, y, z) coordinates specifying the 
             centers of the target spheres.
+        target_idx ((ntargets,) array): array of indices for each target, used to determine color.
         colors (list of str or None, optional): List of colors for the targets. If not provided, all 
             targets will default to black. Must match the number of unique targets.
         target_radius (float, optional): Radius of each target sphere. Default is 1.
@@ -2784,9 +2785,6 @@ def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, a
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds.
         ax (mpl_toolkits.mplot3d.Axes3D, optional): The Matplotlib 3D axis on which to plot the targets.
 
-    Raises:
-        ValueError: If 'colors' is less than the number of unique targets.
-
     Examples:
         To visualize three targets with different colors and sizes:
 
@@ -2794,13 +2792,26 @@ def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, a
 
             import matplotlib.pyplot as plt
             from mpl_toolkits.mplot3d import Axes3D
+            import seaborn as sns
+
+            targets = np.array([
+                [0., 0., 0.],
+                [0., 10., 0.],
+                [7.0711, 7.0711, 0.],
+                [10., 0., 0.],
+                [7.0711, -7.0711, 0.],
+                [0., -10., 0.],
+                [-7.0711, -7.0711, 0.],
+                [-10., 0., 0.],
+                [-7.0711, 7.0711, 0.]
+            ])
 
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
+            ax.set_zlim3d([-10, 10])
 
-            target_locations = np.array([(0, 0, 0), (2, 2, 2), (-3, -3, -3)])
-            colors = ['red', 'blue', 'green']
-            plot_targets_3D(target_locations, colors, target_radius=1.5, alpha=0.7, ax=ax)
+            colors = sns.color_palette(n_colors=len(targets))
+            aopy.visualization.color_targets_3D(targets, target_idx=np.arange(len(targets)), target_radius=1, colors=colors, ax=ax)
 
             plt.show()
             
@@ -2812,11 +2823,17 @@ def color_targets_3D(target_locations, colors, target_radius=1, resolution=20, a
         ax = fig.add_subplot(111, projection='3d')
     if colors==None:
         colors = ['gray'] * len(np.unique(target_locations))
-    if not (len(colors) >= len(np.unique(target_locations))):
-        raise ValueError(f"Not enough colors ({len(colors)}) provided for \
-                              number of targets ({len(np.unique(target_locations))}).")
         
-    unique_targets = set(tuple(target) for target in target_locations)
-    for t,target in enumerate(unique_targets):
-        plot_sphere(target, color=colors[t], radius=target_radius, resolution=resolution, alpha=alpha, ax=ax, **kwargs)
+    assert len(target_locations) == len(target_idx), "Target locations must be the same length as target indices."
+    target_locations = np.array(np.array(target_locations).tolist())
+    target_idx = np.array(np.array(target_idx).tolist())
+    loc_idx = np.concatenate((np.expand_dims(target_idx, 1), target_locations), axis=1)
+    loc_idx = np.unique(loc_idx, axis=0)
+    assert len(colors) >= len(np.unique(target_idx)), "Not enough colors for unique target indices."
+    
+    for row in loc_idx:
+        idx = row[0].astype(int)
+        loc = row[1:]
+        plot_sphere(loc, color=colors[idx], radius=target_radius, resolution=resolution, alpha=alpha, ax=ax)
+        
     if bounds is not None: set_bounds(bounds, ax)

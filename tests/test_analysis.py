@@ -209,6 +209,35 @@ class misc_tests(unittest.TestCase):
                                      np.round(np.vstack([M,M]) @ task_subspace.T, 10))
         np.testing.assert_allclose(projected_data.shape, np.vstack([data2D, data2D]).shape)
 
+    def test_simulate_ideal_trajectories(self):
+        from mpl_toolkits.mplot3d import Axes3D
+        import seaborn as sns
+
+        targets = np.array([
+            [0., 0., 0.],
+            [0., 10., 0.],
+            [7.0711, 7.0711, 0.],
+            [10., 0., 0.],
+            [7.0711, -7.0711, 0.],
+            [0., -10., 0.],
+            [-7.0711, -7.0711, 0.],
+            [-10., 0., 0.],
+            [-7.0711, 7.0711, 0.]
+        ])
+
+        trajectories = aopy.analysis.simulate_ideal_trajectories(targets)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_zlim3d([-10, 10])
+
+        colors = sns.color_palette(n_colors=len(targets))
+        aopy.visualization.color_targets_3D(targets, target_idx=np.arange(len(targets)), target_radius=1, colors=colors, ax=ax)
+        aopy.visualization.color_trajectories(trajectories, labels=np.arange(len(targets)), colors=colors)
+
+        filename = 'simulate_ideal_trajectories.png'
+        savefig(docs_dir, filename)
+
 class TestTuning(unittest.TestCase):
 
     def test_convert_target_to_direction(self):
