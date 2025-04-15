@@ -400,34 +400,36 @@ class BMI3DTaskEntry():
         '''
         return featname in self.features
 
-    def get_task_param(self, paramname):
+    def get_task_param(self, paramname, default=None):
         '''
         Get a specific task parameter
 
         Args:
             paramname (str): name of the parameter to get
+            default (object, optional): default value to return if the parameter is not found. Defaults to None.
 
         Returns:
             object: parameter value
         '''
         params = self.task_params
         if paramname not in params:
-            return None
+            return default
         return params[paramname]
     
-    def get_sequence_param(self, paramname):
+    def get_sequence_param(self, paramname, default=None):
         '''
         Get a specific sequence parameter
 
         Args:
             paramname (str): name of the parameter to get
+            default (object, optional): default value to return if the parameter is not found. Defaults to None.
 
         Returns:
             object: parameter value
         '''
         params = self.sequence_params
         if paramname not in params:
-            return None
+            return default
         return params[paramname]
 
     def get_raw_files(self, system_subfolders=None):
