@@ -1956,9 +1956,9 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(df['id_copy'].sum(), df['te_id'].sum())
         self.assertTrue(all(df['test'] == 'test'))
 
-    def test_get_aba_sessions(self):
+    def test_get_aba_perturbation_sessions(self):
         sessions = db.lookup_mc_sessions()
-        names = db.get_aba_sessions(sessions)
+        names = db.get_aba_perturbation_sessions(sessions)
         self.assertCountEqual(names, ['a', 'b', 'aprime'])
 
     def test_get_aba_perturbation_days(self):

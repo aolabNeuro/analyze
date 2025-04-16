@@ -900,7 +900,7 @@ def add_metadata_columns(df, sessions, column_names, apply_fns):
         for entry in (sessions):
             df.loc[df['te_id'] == entry.id, col] = fn(entry)
 
-def get_aba_sessions(day_entries):
+def get_aba_perturbation_sessions(day_entries):
     '''
     Given a list of task entries, returns a list of session names
     that follow an ABA block design. The sessions must be on the same 
@@ -957,7 +957,7 @@ def get_aba_perturbation_days(entries):
     aba_days = []
     aba_sessions = []
     for d in days:
-        aba = get_aba_sessions(d)
+        aba = get_aba_perturbation_sessions(d)
         if len(aba) > 0:
             aba_days.append(d[0].date)
             aba_sessions.append(aba)
