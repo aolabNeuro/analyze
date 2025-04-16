@@ -546,7 +546,7 @@ class BMI3DTaskEntry():
         Returns:
             bool: True if the task entry has a non-identity mapping matrix
         '''
-        return not np.all(np.isclose(self.get_exp_mapping, np.eye(3)))
+        return not np.all(np.isclose(self.get_exp_mapping(), np.eye(3)))
 
 
 class BMI3DDecoder():
