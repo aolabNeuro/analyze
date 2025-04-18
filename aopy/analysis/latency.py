@@ -616,7 +616,9 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
         modality (str): type of data being inputted ("lfp", "spikes", etc.)
         bin_width (float): bin width of input activity, or 1./samplerate for lfp data
         nlevels (int): number of levels at which to test accllr performance. 
-        parallel (bool): if True, run the computations across channels in parallel.
+        parallel (bool or mp.pool.Pool): whether to use parallel processing. Can optionally be a pool object
+            to use an existing pool. If True, a new pool is created with the number of CPUs available. If False,
+            computation is done serially.
 
     Returns:
         tuple: tuple containing:
@@ -628,9 +630,15 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
     nch = data_altcond.shape[1]
     ntrials = data_altcond.shape[2]
     
-    # Run accllr on the test datasets    
-    if parallel:
+    # Create a parallel pool if requested
+    pool = None
+    if parallel is True: # create a parallel pool
         pool = mp.Pool(min(mp.cpu_count(), nch))
+    elif type(parallel) is mp.pool.Pool: # use an existing pool
+        pool = parallel
+
+    # Run accllr on the test datasets    
+    if pool is not None:
         
         # call apply_async() without callback
         result_objects = [pool.apply_async(calc_accllr_st_single_ch, 
@@ -645,8 +653,10 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
         selection_time_altcond = np.array(selection_time_altcond)
         roc_auc = np.squeeze(roc_auc)
         roc_se = np.squeeze(roc_se)
+        
+        if parallel is True:
+            pool.close()
 
-        pool.close()
     else:
         selection_time_altcond = np.zeros((nch, ntrials))*np.nan
         roc_auc = np.zeros((nch,))*np.nan
@@ -719,8 +729,10 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
             channels. Default None.
         noise_sd_step (float, optional): standard deviation step size to take when adding noise to ch data. 
             Default 1.
-        parallel (bool, optional): if True, run the computations across channels in parallel. Default True.
-
+        parallel (bool or mp.pool.Pool): whether to use parallel processing. Can optionally be a pool object
+            to use an existing pool. If True, a new pool is created with the number of CPUs available. If False,
+            computation is done serially across channels.
+            
     Returns:
         tuple: tuple containing:
             | **selection_time (nch, ntrials):** time (in s) at which each trial 
