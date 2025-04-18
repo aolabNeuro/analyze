@@ -827,9 +827,6 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
         raise ValueError("Please specify only one of acq_idx or acq_ch.")
     if acq_idx is not None:
         acq_ch = np.array(acq_idx)+1 # Change from index to ch numbers
-        print("Annotating acquisition indices")
-    else:
-        print("Annotating acquisition channel numbers")
 
     # Get channel map (overwrite acq_ch if it was supplied to get the correct shape acq_ch)
     elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type, acq_ch, theta)
