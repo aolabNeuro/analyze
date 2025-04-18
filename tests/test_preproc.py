@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 import datetime
 from aopy.preproc.wrappers import proc_emg
+import shutil
 
 
 test_dir = os.path.dirname(__file__)
