@@ -7,7 +7,7 @@ import numpy as np
 import warnings
 import unittest
 import scipy
-
+import multiprocessing as mp
 import os
 import matplotlib.pyplot as plt
 from scipy import signal
@@ -1387,6 +1387,16 @@ class LatencyTests(unittest.TestCase):
         filename = 'accllr_test_data_match_selectivity.png'
         aopy.visualization.savefig(docs_dir, filename)
         plt.close()
+
+        # Test parallelization
+        result_sequential = latency.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate,
+                                                parallel=False)
+        pool = mp.Pool(processes=2)
+        result_parallel = latency.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'lfp', 1./samplerate,
+                                                parallel=pool)
+        pool.close()
+        for output_1, output_2 in zip(result_sequential, result_parallel):
+            np.testing.assert_allclose(output_1, output_2)
 
     def test_prepare_erp(self):
         npts = 100
