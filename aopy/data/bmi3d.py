@@ -817,7 +817,7 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
     return data, samplerate
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', return_nan=False, **kwargs):
     '''
     Return all kinds of kinematics from preprocessed data. Caches the data for faster loading. 
 
@@ -844,7 +844,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         tuple: tuple containing:
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
-    '''
+    '''   
     if 'eye' in datatype:
         eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
@@ -853,19 +853,32 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             eye_data = eye_data['eye_closed_mask']
         elif 'calibrated_data' in eye_data.keys():
             eye_data = eye_data['calibrated_data']
+        elif return_nan: # If true, return a nan value in the place of the eye data
+            eye_data = np.array([np.nan])
         else:
             raise ValueError(f"No calibrated eye data for {te_id}")
         
-        time = np.arange(len(eye_data))/eye_metadata['samplerate']
-        raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
+        if ~np.isnan(eye_data.all()): # If eye data isn't all nans, preprocess
+            time = np.arange(len(eye_data))/eye_metadata['samplerate']
+            raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
 
-        time = np.arange(len(raw_kinematics))/samplerate
-        if preproc is not None:
-            kinematics, samplerate = preproc(raw_kinematics, samplerate)
+            time = np.arange(len(raw_kinematics))/samplerate
+            if preproc is not None:
+                kinematics, samplerate = preproc(raw_kinematics, samplerate)
+            else:
+                kinematics = raw_kinematics
         else:
-            kinematics = raw_kinematics
+            kinematics=np.nan
     else:
-        kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
+        if return_nan:
+            try:
+                kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
+                                               samplerate, preproc=preproc, **kwargs)
+            except:
+                kinematics, samplerate = np.nan, np.nan
+
+        else:
+            kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
                                                samplerate, preproc=preproc, **kwargs)
 
     return kinematics, samplerate
