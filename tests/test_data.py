@@ -1013,18 +1013,18 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'tabulate_tracking_trial_segment_lengths_churro.png'
         visualization.savefig(write_dir, figname)   
 
-    def test_tabulate_random(self):
+    def test_tabulate_behavior_data_random_targets(self):
 
         subjects = ['Leo', 'Leo']
         ids = [1957, 1959]
         dates = ['2025-02-13', '2025-02-13']
 
-        df = wrapper_tabulate_random(data_dir, subjects, ids, dates, metadata = ['sequence_params'])
+        df = tabulate_behavior_data_random_targets(data_dir, subjects, ids, dates, metadata = ['sequence_params'])
         self.assertEqual(len(df), 66) #check correct length 
-        self.assertEqual(len(df.columns), 10+1)  #check correct number of columns
+        self.assertEqual(len(df.columns), 18+1)  #check correct number of columns
         for loc in df['target_location']:
-            self.assertEqual(loc.shape[0], 3)
-            self.assertLess(np.linalg.norm(loc), 10)
+            self.assertEqual(loc.shape[0], 3) #3 coordinates per target location 
+            self.assertLess(np.linalg.norm(loc), 10) #values in target location should be less than 10 
         
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]

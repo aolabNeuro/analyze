@@ -2242,12 +2242,11 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
-def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[], 
+def tabulate_behavior_data_random_targets(preproc_dir, subjects, ids, dates, metadata=[], 
                                       df=None):
     '''
     Wrapper around tabulate_behavior_data() specifically for random target location experiments. 
-    Uses the task event names (b'TARGET_ON' and b'TRIAL_END', specifically) or corresponding codes
-    to find start and end times for experiments.
+    Uses the task event names (b'TARGET_ON' and b'TRIAL_END', specifically) to find start and end times for experiments.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -2255,9 +2254,7 @@ def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[],
         ids (list of int): Block number of Task entry object for each recording
         dates (list of str): Date for each recording
         metadata (list, optional): list of metadata keys that should be included in the df
-        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-        event_code_type: (str, optional): type of event codes to use. Defaults to 'code'. Other
-        choice is 'event'.
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None. 
 
     Returns:
         pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
@@ -2269,7 +2266,15 @@ def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[],
             | **%metadata_key% (ntrial):** requested metadata values for each key requested
             | **target_idx (ntrial): ** target index for each trial within a unique data session
             | **target_loc (ntrial): ** target locations (x,y,z) for each trial 
-'''
+            | **prev_trial_end_time (ntrial): **time at which previous trial ended
+            | **trial_end_time (ntrial): ** time at which trial ended 
+            | **target on (ntrial): ** time at which target appears 
+            | **reach completed (ntrial): **boolean indicating whether reach was completed 
+            | **cursor_enter_target(ntrial): **time at which cursor enters target
+            | **reward_start_time (ntrial): **time of reward 
+            | **penalty_start_time (ntrial): **penalty start time (if applicable)
+            | **penalty_event(ntrial): ** event description of penalty 
+    '''
     # Set up how to tabulate based on event_code_type.
     #event_code_type == 'event':
     trial_end_codes = [b'TRIAL_END', b'PAUSE']
@@ -2307,8 +2312,44 @@ def wrapper_tabulate_random(preproc_dir, subjects, ids, dates, metadata=[],
     
     new_df['target_idx'] = np.array(target_idx).flatten() #convert to list 
     new_df['target_location'] = target_loc
+    new_df['target_on'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['reach_completed'] = False
+    new_df['cursor_enter_target'] = np.nan
+    new_df['prev_trial_end_time'] = np.nan
+
+    for i in range(len(new_df)):
+        event_codes = new_df.loc[i,'event_codes'] #each row of event codes
+        event_times = new_df.loc[i, 'event_times'] #each row of event times 
+        
+        new_df.loc[i, 'target_on'] = event_times[np.isin(event_codes, b'TARGET_ON')] #populate target on 
+
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]: #populate trial end times 
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0. 
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        #trial initiated if cursor enters target 
+        reach_times = event_times[np.isin(event_codes, b'CURSOR_ENTER_TARGET')]
+        new_df.loc[i, 'reach_completed'] = len(reach_times) > 0 
+        if new_df.loc[i, 'reach_completed']:
+            new_df.loc[i, 'cursor_enter_target'] = reach_times[0]
+        #populate reward times
+        reward_codes = [b'REWARD']
+        reward_times = event_times[np.isin(event_codes, reward_codes)]
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+        #populate penalty times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        pcode = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = pcode[0]
     
-    return new_df
+    df = pd.concat([df, new_df], ignore_index = True)
+    return df
 
 def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
                        debug=True, df=None, **kwargs):
