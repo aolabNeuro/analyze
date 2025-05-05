@@ -1033,6 +1033,16 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(write_dir, figname)
 
+        # Test return_nan arg
+        subjects = [self.subject, self.subject]
+        ids = [0, 0]
+        dates = [self.date, self.date]
+
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        kin_nan = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
+        self.assertTrue(np.isnan(kin_nan[0]))
+
     def test_tabulate_features(self):
         preproc_dir = data_dir
         subject = 'affi'
