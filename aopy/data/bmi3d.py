@@ -876,20 +876,16 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
     '''
     Helper function to return one segment of kinematics
     '''
-    if return_nan:
-        try:
-            kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
-            assert kinematics is not None
-
-            return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
-        except:
-            return [np.nan]
-    else: 
+    try:
         kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
         assert kinematics is not None
-
         return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
-
+    except Exception as e:
+        if return_nan:
+            return [np.nan]
+        else:
+            raise e
+            
 def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None, 
                            end_time=None, datatype='lfp_power', preproc=None, **kwargs):
     '''
