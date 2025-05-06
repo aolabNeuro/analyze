@@ -750,21 +750,14 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
     # Fetch the relevant BMI3D data
     if datatype in ['hand', 'user_raw', 'manual_input']:
         warnings.warn("Raw hand position is not recommended for analysis. Use 'user_world' instead for 3D world coordinate inputs.")
-        try:
-            data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
-        except KeyError:
-            data_cycles = exp_data['task']['manual_input']
+        data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
     elif datatype == 'user_world':
         # 3d user input converted to world coordinates
         if 'exp_gain' in exp_metadata:
             scale = exp_metadata['scale']
         else:
             scale = np.sign(exp_metadata['scale'])
-        try:
-            hand_position = exp_data['clean_hand_position']
-        except KeyError:
-            hand_position = exp_data['task']['manual_input']
-        data_cycles = postproc.bmi3d.convert_raw_to_world_coords(hand_position, exp_metadata['rotation'], 
+        data_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
     elif datatype == 'cursor':
         data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
@@ -778,11 +771,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         else:
             scale = np.sign(exp_metadata['scale'])
             exp_gain = np.abs(exp_metadata['scale'])
-        try:
-            hand_position = exp_data['clean_hand_position']
-        except KeyError:
-            hand_position = exp_data['task']['manual_input']
-        user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(hand_position, exp_metadata['rotation'], 
+        user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
         if 'exp_rotation' in exp_metadata:
             exp_rotation = exp_metadata['exp_rotation']
