@@ -817,7 +817,7 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
     return data, samplerate
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', return_nan=False, **kwargs):
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
     '''
     Return all kinds of kinematics from preprocessed data. Caches the data for faster loading. 
 
@@ -853,45 +853,42 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             eye_data = eye_data['eye_closed_mask']
         elif 'calibrated_data' in eye_data.keys():
             eye_data = eye_data['calibrated_data']
-        elif return_nan: # If true, return a nan value in the place of the eye data
-            eye_data = np.array([np.nan])
         else:
             raise ValueError(f"No calibrated eye data for {te_id}")
         
-        if ~np.isnan(eye_data.all()): # If eye data isn't all nans, preprocess
-            time = np.arange(len(eye_data))/eye_metadata['samplerate']
-            raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
+        time = np.arange(len(eye_data))/eye_metadata['samplerate']
+        raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
 
-            time = np.arange(len(raw_kinematics))/samplerate
-            if preproc is not None:
-                kinematics, samplerate = preproc(raw_kinematics, samplerate)
-            else:
-                kinematics = raw_kinematics
+        time = np.arange(len(raw_kinematics))/samplerate
+        if preproc is not None:
+            kinematics, samplerate = preproc(raw_kinematics, samplerate)
         else:
-            kinematics=np.nan
+            kinematics = raw_kinematics
+
     else:
-        if return_nan:
-            try:
-                kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
-                                               samplerate, preproc=preproc, **kwargs)
-            except:
-                kinematics, samplerate = np.nan, np.nan
-
-        else:
-            kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
+        kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
                                                samplerate, preproc=preproc, **kwargs)
 
     return kinematics, samplerate
 
 def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
-                          preproc=None, datatype='cursor', **kwargs):
+                          preproc=None, datatype='cursor', return_nan=False, **kwargs):
     '''
     Helper function to return one segment of kinematics
     '''
-    kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
-    assert kinematics is not None
+    if return_nan:
+        try:
+            kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
+            assert kinematics is not None
 
-    return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
+            return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
+        except:
+            return [np.nan]
+    else: 
+        kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
+        assert kinematics is not None
+
+        return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
 
 def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None, 
                            end_time=None, datatype='lfp_power', preproc=None, **kwargs):

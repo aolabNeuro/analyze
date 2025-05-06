@@ -1034,13 +1034,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         visualization.savefig(write_dir, figname)
 
         # Test return_nan arg
-        subjects = [self.subject, self.subject]
-        ids = [0, 0]
-        dates = [self.date, self.date]
-
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        df['te_id'] = 0
+        print('\n')
+        print(df)
+        print('\n')
         kin_nan = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
+                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000, return_nan=True)
         self.assertTrue(np.isnan(kin_nan[0]))
 
     def test_tabulate_features(self):
