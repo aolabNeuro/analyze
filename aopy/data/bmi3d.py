@@ -924,7 +924,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         tuple: tuple containing:
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
-    '''
+    '''   
     if 'eye' in datatype:
         eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
@@ -944,6 +944,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             kinematics, samplerate = preproc(raw_kinematics, samplerate)
         else:
             kinematics = raw_kinematics
+
     else:
         kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
                                                samplerate, preproc=preproc, **kwargs)
@@ -951,14 +952,40 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
     return kinematics, samplerate
 
 def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
-                          preproc=None, datatype='cursor', **kwargs):
+                          preproc=None, datatype='cursor', return_nan=False, **kwargs):
     '''
-    Helper function to return one segment of kinematics
-    '''
-    kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
-    assert kinematics is not None
+    Helper function to return one segment of kinematics.
 
-    return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        start_time (float): start of a trial
+        end_time (float): end of a trial
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
+        preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
+            a smoothing function or an estimate of velocity from position
+        datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
+        return_nan (bool, optional): If True, a nan value will be returned when data can not be loaded for any reason. If False, an exception will be raised when data can not be loaded. Defaults to False.
+        kwargs: additional keyword arguments to pass to get_kinematics
+    
+    Returns:
+        tuple: tuple containing:
+            | **trajectories (ntrial):** array of filtered cursor trajectories for each trial
+            | **trial_segments (ntrial):** array of numeric code segments for each trial  
+
+    '''
+    try:
+        kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
+        assert kinematics is not None
+        return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
+    except Exception as e:
+        print(f"Warning! Unable to load data from te {te_id}")
+        if return_nan:
+            return [np.nan]
+        else:
+            raise e
 
 def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None, 
                            end_time=None, datatype='lfp_power', preproc=None, **kwargs):
