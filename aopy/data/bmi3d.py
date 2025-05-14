@@ -901,6 +901,7 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
         assert kinematics is not None
         return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
     except Exception as e:
+        print(f"Warning! Unable to load data from te {te_id}")
         if return_nan:
             return [np.nan]
         else:
