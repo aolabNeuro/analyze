@@ -2024,7 +2024,6 @@ def calc_spatial_map_correlation(data_maps, align_maps=False):
     flat_maps = []
     for idx in range(len(data_maps)):
         data_map = data_maps[idx].copy()
-        data_map[np.isnan(data_maps[idx])] = 0 # replace NaNs with 0s so correlation doesn't output NaN
         if align_maps:        
             # Align to first map
             shift = (0,0)
@@ -2037,6 +2036,12 @@ def calc_spatial_map_correlation(data_maps, align_maps=False):
             shifts.append((0,0))
         flat_maps.append(data_map.ravel())
             
+    # remove NaNs so correlation doesn't output NaN
+    mask = np.any(np.isnan(flat_maps), axis=0)
+    if np.sum(mask) > 0:
+        warnings.warn(f'Removing {np.sum(mask)} NaN values in data maps')
+        flat_maps = np.array(flat_maps)[:,~mask]
+
     # Compute correlation
     flat_maps /= np.linalg.norm(flat_maps, axis=1, keepdims=True)
     NCC = np.corrcoef(flat_maps)

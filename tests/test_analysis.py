@@ -747,7 +747,7 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(NCC[1,0], NCC2[1,0], places=1)
 
     def test_calc_spatial_tf_data_correlation(self):
-        np.random.seed(0)
+        np.random.seed()
 
         # Test ECoG layout
         elec_pos, _, _ = aopy.data.load_chmap('ECoG244')
@@ -757,7 +757,7 @@ class CalcTests(unittest.TestCase):
         tf_elec_data2 = tf_elec_data1.copy()
         
         # Change a few indices in data2 but only after 0.5 s
-        tf_elec_data2[:,time > 0.5,5] = 5
+        tf_elec_data2[:,time > 0.5,:5] = 20
         
         ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos,
                                                                 window=(0.5, 1))
@@ -765,17 +765,18 @@ class CalcTests(unittest.TestCase):
 
         ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos,
                                                                 window=(0, 0.5))
-        self.assertEqual(ncc[1,0], 1)
+        self.assertAlmostEqual(ncc[1,0], 1)
 
         # Test with null data
         tf_elec_null = np.random.normal(0,10,(20, freqs.size, time.size, elec_pos.shape[0]))      
+        tf_elec_data1[:,time > 0.5,:5] = 20
         ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos, 
                                                                 null_tf_elec_data=tf_elec_null, window=(0.5, 1))
-        self.assertTrue(np.isnan(ncc[1,0]))
+        self.assertAlmostEqual(ncc[1,0], 1)
 
         ncc, _ = aopy.analysis.calc_spatial_tf_data_correlation(freqs, time, [tf_elec_data1, tf_elec_data2], elec_pos, 
                                                                 null_tf_elec_data=tf_elec_null, window=(0, 0.5))
-        self.assertEqual(ncc[1,0], 1)
+        self.assertTrue(np.isnan(ncc[1,0]))
 
 class TFRStatsTests(unittest.TestCase):
 
