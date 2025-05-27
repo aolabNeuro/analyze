@@ -1965,10 +1965,16 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
 
 def calc_spatial_map_correlation(data_maps, align_maps=False):
     '''
-    Generate a correlation matrix between all pairs of input data maps. If specified, it also aligns the input
-    maps. Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the datamaps
-    and alignment should not be used. This function replaces input NaN values with 0 to calculate the correlation
-    matrix. Data maps are normalized by their magnitude prior to computing correlation.
+    Generate a correlation matrix between all pairs of input data maps. If specified, it also 
+    aligns the input maps. Alignment is done using :func:`~aopy.analysis.align_spatial_maps` which 
+    finds the location of the peak of the 2D correlation function. Here, we calculate the 1D
+    correlation between flattened versions of the input data maps. This function removes datapoints
+    along the second axis if any map contains NaN values at that location. Data maps are normalized 
+    by their magnitude prior to computing correlation.
+
+    Note: 
+        If shifts are unexpectedly high, there is likely not high enough correlation between the 
+        datamaps and alignment should not be used.
 
     Args:
         data_maps ((nmaps,) list): list of (ncol, nrow) spatial data arrays
@@ -2024,7 +2030,6 @@ def calc_spatial_map_correlation(data_maps, align_maps=False):
     flat_maps = []
     for idx in range(len(data_maps)):
         data_map = data_maps[idx].copy()
-        data_map[np.isnan(data_maps[idx])] = 0 # replace NaNs with 0s so correlation doesn't output NaN
         if align_maps:        
             # Align to first map
             shift = (0,0)
@@ -2037,6 +2042,12 @@ def calc_spatial_map_correlation(data_maps, align_maps=False):
             shifts.append((0,0))
         flat_maps.append(data_map.ravel())
             
+    # remove NaNs so correlation doesn't output NaN
+    mask = np.any(np.isnan(flat_maps), axis=0)
+    if np.sum(mask) > 0:
+        warnings.warn(f'Removing {np.sum(mask)} NaN values in data maps')
+        flat_maps = np.array(flat_maps)[:,~mask]
+
     # Compute correlation
     flat_maps /= np.linalg.norm(flat_maps, axis=1, keepdims=True)
     NCC = np.corrcoef(flat_maps)
