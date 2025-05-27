@@ -1965,10 +1965,16 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
 
 def calc_spatial_map_correlation(data_maps, align_maps=False):
     '''
-    Generate a correlation matrix between all pairs of input data maps. If specified, it also aligns the input
-    maps. Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the datamaps
-    and alignment should not be used. This function replaces input NaN values with 0 to calculate the correlation
-    matrix. Data maps are normalized by their magnitude prior to computing correlation.
+    Generate a correlation matrix between all pairs of input data maps. If specified, it also 
+    aligns the input maps. Alignment is done using :func:`~aopy.analysis.align_spatial_maps` which 
+    finds the location of the peak of the 2D correlation function. Here, we calculate the 1D
+    correlation between flattened versions of the input data maps. This function removes datapoints
+    along the second axis if any map contains NaN values at that location. Data maps are normalized 
+    by their magnitude prior to computing correlation.
+
+    Note: 
+        If shifts are unexpectedly high, there is likely not high enough correlation between the 
+        datamaps and alignment should not be used.
 
     Args:
         data_maps ((nmaps,) list): list of (ncol, nrow) spatial data arrays
