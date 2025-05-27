@@ -7,7 +7,7 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 install_requires = [
-    'numpy<2.0',
+    'numpy',
     'xarray',
     'pandas',
     'psutil',

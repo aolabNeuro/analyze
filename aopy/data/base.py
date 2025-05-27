@@ -110,7 +110,7 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     for file in contents:
         try:
             filename = os.path.basename(file)
-            te_id = int(re.match(f"preproc_{date}_{subject}_(\d*)_{data_source}.hdf$", filename).group(1))
+            te_id = int(re.match(f"preproc_{date}_{subject}_(\\d*)_{data_source}.hdf$", filename).group(1))
         except AttributeError:
             return []
         ids.append(te_id)
