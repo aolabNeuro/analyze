@@ -838,8 +838,10 @@ datetime utils
 def get_consecutive_days(dates):
     '''
     Find consecutive days in a list of dates.
+
     Args:
         dates (list of datetime): list of dates to check for consecutive days
+        
     Returns:
         list of lists: each sublist contains a list of consecutive dates
     '''
