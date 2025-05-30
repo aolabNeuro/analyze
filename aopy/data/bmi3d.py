@@ -2495,7 +2495,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             possible_stim_sites = [laser['stimulation_site'] for laser in lasers]
             possible_triggers = [laser['trigger'] for laser in lasers]
             possible_sensors = [laser['sensor'] for laser in lasers]
-            idx = np.array([n in exp_metadata.keys() and exp_metadata[n] != '' for n in possible_stim_sites])
+            idx = [(n in exp_metadata.keys()) and (str(exp_metadata[n]) != '') for n in possible_stim_sites]
             laser_triggers = np.array(possible_triggers)[idx]
             laser_sensors = np.array(possible_sensors)[idx]
             stim_sites = np.array(possible_stim_sites)[idx]
