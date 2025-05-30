@@ -2547,8 +2547,13 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
 
             # Concatenate with existing dataframe
-            df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
-    
+            try:
+                df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+            except:
+                print(f"Problem concatenating entry {subject} {date} {te}")
+                traceback.print_exc()
+                continue
+
     return df
 
 def tabulate_poisson_trial_times(preproc_dir, subjects, ids, dates, metadata=[], 
