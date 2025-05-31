@@ -1004,6 +1004,12 @@ class TestPrepareExperiment(unittest.TestCase):
         self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 0)
 
+        files['hdf'] = 'vrc020250410_02_te2677.hdf'
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 0)
+        self.assertIn('clean_hand_position', data.keys())
+
     def test_parse_bmi3d_v17(self):
         
         emg_data_dir = os.path.join(data_dir, 'quatt_emg')
@@ -1015,6 +1021,7 @@ class TestPrepareExperiment(unittest.TestCase):
 
         self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 17)
+
 
     def test_parse_optitrack(self):
         files = {}

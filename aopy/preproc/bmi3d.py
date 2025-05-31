@@ -421,6 +421,9 @@ def _prepare_bmi3d_v0(data, metadata):
         preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
         data['task'] = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
         
+    if isinstance(data['task'], np.ndarray) and 'manual_input' in data['task'].dtype.names:
+        data['clean_hand_position'] = data['task']['manual_input']
+
     metadata['preproc_errors'] = preproc_errors
     return data, metadata
 
