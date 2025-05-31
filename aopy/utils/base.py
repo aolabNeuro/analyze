@@ -3,7 +3,7 @@
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import sys
 import math
@@ -830,3 +830,33 @@ def generate_poisson_timestamps(mu, max_time, min_time=0., refractory_period=0.)
     event_times += min_time
     event_times = event_times[event_times < max_time]
     return event_times
+
+'''
+datetime utils
+'''
+
+def get_consecutive_days(dates):
+    '''
+    Find consecutive days in a list of dates.
+
+    Args:
+        dates (list of datetime): list of dates to check for consecutive days
+        
+    Returns:
+        list of lists: each sublist contains a list of consecutive dates
+    '''
+    if not dates:
+        return []
+
+    consecutive_dates = []
+    temp_consec_dates = [dates[0]]
+    for i in range(1, len(dates)):
+        if dates[i] - dates[i-1] == timedelta(days=1):
+            temp_consec_dates.append(dates[i])
+        else:
+            if len(temp_consec_dates) > 1:
+                consecutive_dates.append(temp_consec_dates)
+            temp_consec_dates = [dates[i]]
+    if len(temp_consec_dates) > 1:
+        consecutive_dates.append(temp_consec_dates)
+    return consecutive_dates

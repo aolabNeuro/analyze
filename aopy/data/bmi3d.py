@@ -2499,15 +2499,9 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             laser_triggers = np.array(possible_triggers)[idx]
             laser_sensors = np.array(possible_sensors)[idx]
             stim_sites = np.array(possible_stim_sites)[idx]
-
-        print('laser_triggers:', laser_triggers)
-        print('laser_sensors:', laser_sensors)
             
         for stim_idx in range(len(laser_triggers)):
             try:
-                print('laser_trigger:', laser_triggers[stim_idx])
-                print('laser_sensor:', laser_sensors[stim_idx])
-
                 trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
                     preproc_dir, subject, te, date, debug=debug, laser_trigger=laser_triggers[stim_idx], 
                     laser_sensor=laser_sensors[stim_idx], **kwargs)
