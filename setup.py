@@ -42,8 +42,14 @@ setuptools.setup(
     url="https://github.com/aolabNeuro/analyze",
     packages=setuptools.find_namespace_packages(),
     include_package_data=True,
+    python_requires='>=3.8',
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Operating System :: OS Independent"
     ],
     install_requires=install_requires,

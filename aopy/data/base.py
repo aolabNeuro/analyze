@@ -523,11 +523,17 @@ def _load_hdf_dataset(dataset, name):
     if '_json' in name:
         import json
         name = name.replace('_json', '')
+        # Handle bytes vs string for JSON decoding
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
         data = json.loads(data)
-    try:
-        data = data.decode('utf-8')
-    except:
-        pass
+    # Handle bytes objects for Python 3 compatibility
+    elif isinstance(data, bytes):
+        try:
+            data = data.decode('utf-8')
+        except UnicodeDecodeError:
+            # If UTF-8 decoding fails, try with other common encodings or keep as bytes
+            pass
     return name, data
 
 def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/", cached=False):
@@ -1183,12 +1189,32 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
         if objects.shape[0] == 1:
             for iobject in objects[0]:
                 string_unicode = f[iobject]
-                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                # Check if the data is a bytes object (for newer h5py versions)
+                if hasattr(string_unicode, 'dtype') and np.issubdtype(string_unicode.dtype, np.uint16):
+                    # Traditional MATLAB Unicode handling
+                    temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                else:
+                    # Modern approach for bytes objects
+                    try:
+                        temp_string = string_unicode[()].tobytes().decode('utf-16')
+                    except (AttributeError, UnicodeDecodeError):
+                        # Fall back to the original method if the modern approach fails
+                        temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
                 strings.append(temp_string)
         else:
             for iobject in objects:  
                 string_unicode = f[iobject[0]]
-                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                # Check if the data is a bytes object (for newer h5py versions)
+                if hasattr(string_unicode, 'dtype') and np.issubdtype(string_unicode.dtype, np.uint16):
+                    # Traditional MATLAB Unicode handling
+                    temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                else:
+                    # Modern approach for bytes objects
+                    try:
+                        temp_string = string_unicode[()].tobytes().decode('utf-16')
+                    except (AttributeError, UnicodeDecodeError):
+                        # Fall back to the original method if the modern approach fails
+                        temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
                 strings.append(temp_string)
     
     return strings
