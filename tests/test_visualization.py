@@ -597,6 +597,27 @@ class KinematicsPlottingTests(unittest.TestCase):
             plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
             savefig(write_dir, filename)
 
+    def test_plot_colored_targets(self):
+
+        target_locations = np.array([[0,0], [5,5]])
+        target_radius = 1.0
+        plt.figure()
+        plot_colored_targets(target_locations, target_radius)
+        savefig(write_dir, 'colored_targets.png')
+
+        # Test with colors
+        colors = ['red', 'blue']
+        plt.figure()
+        plot_colored_targets(target_locations, target_radius, colors)
+        savefig(write_dir, 'colored_targets_colors.png')
+
+        # Test with bounds
+        bounds = (-10, 10, -10, 10)
+        plt.figure()
+        plot_colored_targets(target_locations, target_radius, bounds=bounds)
+        savefig(write_dir, 'colored_targets_bounds.png')
+        
+
     def test_color_targets_3D(self):
         from mpl_toolkits.mplot3d import Axes3D
         import seaborn as sns
