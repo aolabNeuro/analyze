@@ -1130,7 +1130,7 @@ def plot_circles(circle_positions, circle_radius, circle_color='b', bounds=None,
     if bounds is not None: set_bounds(bounds, ax)
 
 def plot_colored_targets(target_locations, target_radius, colors=None, bounds=(-10,10,-10,10), alpha=0.2):
-    """Plot circular targets at specified locations with different colors.
+    """Plot circular targets at specified locations with different colors. 
 
     Args:
         target_locations (np.ndarray): Array of target coordinates, shape (n_targets, 2)
@@ -1147,11 +1147,15 @@ def plot_colored_targets(target_locations, target_radius, colors=None, bounds=(-
 
             locs = np.array([[0,0], [5,5]])
             plot_colored_targets(locs, 1.0)
+
+            #Tips: You could specify a different color for center target by defining a color palette like this
+            colors = ['gainsboro'] + list(sns.color_palette(n_colors=len(locs)-1)) 
+            plot_colored_targets(locs, 1.0, colors)
         
         .. image:: _images/plot_colored_targets.png
     """
     if colors is None:
-        colors = sns.color_palette(n_colors=len(target_locations))
+        colors = sns.color_palette(n_colors=len(target_locations)) 
     for i, target_loc in enumerate(target_locations):
         plot_circles(
             [target_loc],
