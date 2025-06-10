@@ -110,7 +110,7 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     for file in contents:
         try:
             filename = os.path.basename(file)
-            te_id = int(re.match(f"preproc_{date}_{subject}_(\d*)_{data_source}.hdf$", filename).group(1))
+            te_id = int(re.match(f"preproc_{date}_{subject}_(\\d*)_{data_source}.hdf$", filename).group(1))
         except AttributeError:
             return []
         ids.append(te_id)
@@ -523,11 +523,17 @@ def _load_hdf_dataset(dataset, name):
     if '_json' in name:
         import json
         name = name.replace('_json', '')
+        # Handle bytes vs string for JSON decoding
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
         data = json.loads(data)
-    try:
-        data = data.decode('utf-8')
-    except:
-        pass
+    # Handle bytes objects for Python 3 compatibility
+    elif isinstance(data, bytes):
+        try:
+            data = data.decode('utf-8')
+        except UnicodeDecodeError:
+            # If UTF-8 decoding fails, try with other common encodings or keep as bytes
+            pass
     return name, data
 
 def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/", cached=False):

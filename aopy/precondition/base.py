@@ -347,8 +347,8 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf
         samplerate (float): Sampling rate [Hz]
         threshold (nch): Threshold that input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. 
         above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
-        wf_length (float): Length of waveforms to output :math:`[\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\mu s`
-        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\mu s]`. Defaults to 200 :math:`\mu s`  
+        wf_length (float): Length of waveforms to output :math:`[\\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\\mu s`
+        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\\mu s]`. Defaults to 200 :math:`\\mu s`  
         
     Returns: 
         tuple: Tuple containing:
@@ -406,8 +406,8 @@ def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above
         threshold (float): Threshold that input data must cross to indicate a spike for each channel.
         chunksize (int): Chunk size to process data by chunk
         above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
-        wf_length (float): Length of waveforms to output :math:`[\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\mu s`
-        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\mu s]`. Defaults to 200 :math:`\mu s`  
+        wf_length (float): Length of waveforms to output :math:`[\\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\\mu s`
+        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\\mu s]`. Defaults to 200 :math:`\\mu s`  
         
     Returns: 
         tuple: Tuple containing:
@@ -488,12 +488,12 @@ def filter_spike_times_fast(spike_times, refractory_period=100):
     '''
     This function takes spike times and filters them to remove spikes within the refractory period of the preceding spike. This function always assumes the first threshold crossing is a good spike.
     Note: This function will remove spikes that are in the refractory period of the preceding spike even if the the preceding spike is in the refractory period of its preceding spike even though that spike shouldn't be removed.
-    For example if the refractory period is set to 100 :math:`\mu s` and there are spikes at 50 :math:`\mu s`, 125 :math:`\mu s`, and 200 :math:`\mu s`, the spikes at 125 :math:`\mu s` and 200 :math:`\mu s` will be removed even though only the 125 :math:`\mu s` spike should be removed.
+    For example if the refractory period is set to 100 :math:`\\mu s` and there are spikes at 50 :math:`\\mu s`, 125 :math:`\\mu s`, and 200 :math:`\\mu s`, the spikes at 125 :math:`\\mu s` and 200 :math:`\\mu s` will be removed even though only the 125 :math:`\\mu s` spike should be removed.
     If the refractory period is small enough this shouldn't be a problem. For more thorough spike time filter use aopy.precondition.filter_spike_times although it takes ~50x longer.
 
     Args:
         spike_times (nspikes): 1D array of spike times.
-        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\mu s]`. Defaults to 100 :math:`\mu s`.
+        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\\mu s]`. Defaults to 100 :math:`\\mu s`.
 
     Returns: 
         tuple: A tuple containing:
@@ -517,7 +517,7 @@ def filter_spike_times(spike_times, refractory_period=100):
 
     Args:
         spike_times (nspikes): 1D array of spike times.
-        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\mu s]`. Defaults to 100 :math:`\mu s` .
+        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\\mu s]`. Defaults to 100 :math:`\\mu s` .
 
     Returns: 
         tuple: A tuple containing:
