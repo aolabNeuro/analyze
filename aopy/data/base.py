@@ -1189,32 +1189,12 @@ def load_matlab_cell_strings(data_dir, hdf_filename, object_name):
         if objects.shape[0] == 1:
             for iobject in objects[0]:
                 string_unicode = f[iobject]
-                # Check if the data is a bytes object (for newer h5py versions)
-                if hasattr(string_unicode, 'dtype') and np.issubdtype(string_unicode.dtype, np.uint16):
-                    # Traditional MATLAB Unicode handling
-                    temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
-                else:
-                    # Modern approach for bytes objects
-                    try:
-                        temp_string = string_unicode[()].tobytes().decode('utf-16')
-                    except (AttributeError, UnicodeDecodeError):
-                        # Fall back to the original method if the modern approach fails
-                        temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
                 strings.append(temp_string)
         else:
             for iobject in objects:  
                 string_unicode = f[iobject[0]]
-                # Check if the data is a bytes object (for newer h5py versions)
-                if hasattr(string_unicode, 'dtype') and np.issubdtype(string_unicode.dtype, np.uint16):
-                    # Traditional MATLAB Unicode handling
-                    temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
-                else:
-                    # Modern approach for bytes objects
-                    try:
-                        temp_string = string_unicode[()].tobytes().decode('utf-16')
-                    except (AttributeError, UnicodeDecodeError):
-                        # Fall back to the original method if the modern approach fails
-                        temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
+                temp_string = ''.join(chr(i) for i in string_unicode[:].flatten())
                 strings.append(temp_string)
     
     return strings
