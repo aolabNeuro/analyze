@@ -61,7 +61,7 @@ def convert_raw_to_world_coords(manual_input, rotation, offset, scale=1):
 
         .. image:: _images/test_get_bmi3d_mc_input.png
     '''
-    from built_in_tasks.manualcontrolmultitasks import rotations
+    from built_in_tasks.rotation_matrices import rotations
     bmi3d_space_input = np.dot((manual_input + offset), scale * rotations[rotation][:3,:3])
 
     return bmi3d_space_input[:,[0,2,1]] # return (right-handed) world coordinates
@@ -109,7 +109,7 @@ def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, 
         mapping was correctly learned.
 
     '''
-    from built_in_tasks.manualcontrolmultitasks import exp_rotations
+    from built_in_tasks.rotation_matrices import exp_rotations
     perturbation_rotation = R.from_euler('xyz', [x_rot, y_rot, z_rot], degrees=True).as_matrix()
     bmi3d_mapping = exp_gain * np.dot(exp_rotations[exp_rotation][:3,:3], perturbation_rotation)
     
@@ -134,7 +134,7 @@ def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', 
     Returns:
         list: list of mappings from centered world coordinates to screen coordinates   
     '''
-    from built_in_tasks.manualcontrolmultitasks import exp_rotations
+    from built_in_tasks.rotation_matrices import exp_rotations
     mappings = []
     for perturbation in np.arange(start, stop+step, step):
         perturbation_rotation = R.from_euler(bmi3d_axis, perturbation, degrees=True).as_matrix()
