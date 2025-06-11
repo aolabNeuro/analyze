@@ -773,6 +773,10 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             exp_gain = np.abs(exp_metadata['scale'])
         user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
+        if 'baseline_rotation' in exp_metadata:
+            baseline_rotation = exp_metadata['baseline_rotation']
+        else:
+            baseline_rotation = 'none'
         if 'exp_rotation' in exp_metadata:
             exp_rotation = exp_metadata['exp_rotation']
         else:
@@ -787,7 +791,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             y_rot = exp_metadata['pertubation_rotation']
         else:
             y_rot = 0
-        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain)
+        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
         data_cycles = np.dot(user_world_cycles, exp_mapping)
     elif datatype in ['user', 'intended_cursor']:
         if datatype == 'user':
