@@ -2481,7 +2481,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
         try:
             exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
-            print(f"Entry {subject} {date} {te} could not be loaded.")
+            print(f"Entry {subject} {date} {te} could not be loaded. Skipping.")
             traceback.print_exc()
             continue
 
@@ -2506,7 +2506,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
                     preproc_dir, subject, te, date, debug=debug, laser_trigger=laser_triggers[stim_idx], 
                     laser_sensor=laser_sensors[stim_idx], **kwargs)
             except:
-                print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
+                print(f"Problem extracting stimulation trials from entry {subject} {date} {te}. Skipping.")
                 traceback.print_exc()
                 continue
 
@@ -2544,7 +2544,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             try:
                 df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
             except:
-                print(f"Problem concatenating entry {subject} {date} {te}")
+                print(f"Problem concatenating entry {subject} {date} {te}. Skipping.")
                 traceback.print_exc()
                 continue
 
