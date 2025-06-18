@@ -750,7 +750,7 @@ def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05,
             ims.append(None)
             continue
         
-        ax = axes[n] if n_maps > 1 else axes
+        ax = axes.axes_all[n]
         im = plot_spatial_drive_map(maps[n], ax=ax, **kwargs)
         if label_mode is None:
             ax.set(xticks=[], yticks=[], xticklabels=[], yticklabels=[], xlabel='', ylabel='')

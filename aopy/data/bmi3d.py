@@ -2485,7 +2485,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
         try:
             exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
-            print(f"Entry {subject} {date} {te} could not be loaded.")
+            print(f"Entry {subject} {date} {te} could not be loaded. Skipping.")
             traceback.print_exc()
             continue
 
@@ -2499,7 +2499,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             possible_stim_sites = [laser['stimulation_site'] for laser in lasers]
             possible_triggers = [laser['trigger'] for laser in lasers]
             possible_sensors = [laser['sensor'] for laser in lasers]
-            idx = np.array([n in exp_metadata.keys() and exp_metadata[n] != '' for n in possible_stim_sites])
+            idx = [(n in exp_metadata.keys()) and (str(exp_metadata[n]) != '') for n in possible_stim_sites]
             laser_triggers = np.array(possible_triggers)[idx]
             laser_sensors = np.array(possible_sensors)[idx]
             stim_sites = np.array(possible_stim_sites)[idx]
@@ -2510,7 +2510,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
                     preproc_dir, subject, te, date, debug=debug, laser_trigger=laser_triggers[stim_idx], 
                     laser_sensor=laser_sensors[stim_idx], **kwargs)
             except:
-                print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
+                print(f"Problem extracting stimulation trials from entry {subject} {date} {te}. Skipping.")
                 traceback.print_exc()
                 continue
 
@@ -2545,8 +2545,13 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
 
             # Concatenate with existing dataframe
-            df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
-    
+            try:
+                df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+            except:
+                print(f"Problem concatenating entry {subject} {date} {te}. Skipping.")
+                traceback.print_exc()
+                continue
+
     return df
 
 def tabulate_poisson_trial_times(preproc_dir, subjects, ids, dates, metadata=[], 
