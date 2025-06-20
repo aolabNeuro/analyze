@@ -1818,31 +1818,19 @@ class NeuropixelTests(unittest.TestCase):
         save_dir = Path(data_dir)/'test'
         result_filename = save_dir / filename
 
-        # Preprocess data from port 1
+        # Preprocess data from port 1 and port 2
         port_number = 1
-        _, _, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename)
-        aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/metadata', append=True)
-        spikes1, metadata1 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
-        waveforms1  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
-        self.assertIn('0', spikes1)
-        self.assertIn('0', waveforms1)
-        self.assertIn('1', spikes1)
-        self.assertIn('1', waveforms1)
-        self.assertIn('sync_timestamps', metadata1)
-        self.assertIn('spike_pos', metadata1)
-
-        # Preprocess data from port 2
-        port_number = 2
-        _, _, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename)
-        aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/metadata', append=True)
-        spikes2, metadata2 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
-        waveforms2  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
-        self.assertIn('0', spikes2)
-        self.assertIn('0', waveforms2)
-        self.assertIn('1', spikes2)
-        self.assertIn('1', waveforms2)
-        self.assertIn('sync_timestamps', metadata2)
-        self.assertIn('spike_pos', metadata2)
+        for port_number in [1,2]:
+            _, _, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/metadata', append=True)
+            spikes, metadata = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+            waveforms  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+            self.assertIn('0', spikes)
+            self.assertIn('0', waveforms)
+            self.assertIn('1', spikes)
+            self.assertIn('1', waveforms)
+            self.assertIn('sync_timestamps', metadata)
+            self.assertIn('spike_pos', metadata)
 
         result_filename.unlink() # delete preprocessed file
         
@@ -1852,6 +1840,7 @@ class NeuropixelTests(unittest.TestCase):
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
         
+        # Test for ap data
         datatype = 'ap'
         filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'ap')
         result_filename = save_dir / filename
@@ -1864,6 +1853,7 @@ class NeuropixelTests(unittest.TestCase):
             self.assertIn('sync_timestamps', metadata)
             result_filename.unlink() # delete preprocessed file
 
+        # Test for lfp data
         datatype = 'lfp'
         filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'lfp')
         result_filename = save_dir / filename
