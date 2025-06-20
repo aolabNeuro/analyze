@@ -1809,7 +1809,44 @@ class NeuropixelTests(unittest.TestCase):
         np.testing.assert_(np.all(data.shape == destriped_data.shape))
         del destriped_data # delete memmap file to completely delete the file later
         save_path.unlink()
-          
+        
+    def test_preproc_spikes(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        kilosort_dir = Path(data_dir)/'kilosort'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
+        save_dir = Path(data_dir)/'test'
+        result_filename = save_dir / filename
+
+        # Preprocess data from port 1
+        port_number = 1
+        _, _, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename)
+        aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/metadata', append=True)
+        spikes1, metadata1 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        waveforms1  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        self.assertIn('0', spikes1)
+        self.assertIn('0', waveforms1)
+        self.assertIn('1', spikes1)
+        self.assertIn('1', waveforms1)
+        self.assertIn('sync_timestamps', metadata1)
+        self.assertIn('spike_pos', metadata1)
+
+        # Preprocess data from port 2
+        port_number = 2
+        _, _, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename)
+        aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/metadata', append=True)
+        spikes2, metadata2 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        waveforms2  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        self.assertIn('0', spikes2)
+        self.assertIn('0', waveforms2)
+        self.assertIn('1', spikes2)
+        self.assertIn('1', waveforms2)
+        self.assertIn('sync_timestamps', metadata2)
+        self.assertIn('spike_pos', metadata2)
+
+        result_filename.unlink() # delete preprocessed file
+        
+        
 class LaserTests(unittest.TestCase):
 
     def test_calibrate_gain(self):
