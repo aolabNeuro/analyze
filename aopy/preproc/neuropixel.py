@@ -7,7 +7,11 @@ import glob
 
 import numpy as np
 from ibldsp.voltage import destripe_lfp
+import h5py
+from .. import preproc
 
+from pathlib import Path
+from ..precondition import calc_ks_waveforms
 from ..utils import extract_barcodes_from_times, get_first_last_times, sync_timestamp_offline, convert_port_number
 from .. import data as aodata
 
@@ -282,3 +286,94 @@ def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_g
         tmp = destripe_lfp((lfp_data[ibatch*batch_size:(ibatch+1)*batch_size, :]*bit_volts).T/1e6, sample_rate)*1e6
         lfp_destriped[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp/bit_volts).T.astype(dtype)
         lfp_destriped.flush()
+
+
+def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename,node_idx=0,ex_idx=0,version='kilosort4'):
+    
+    '''
+    Prerocess neuropixel data saved by openephys. Computes syncronized timestamps, Extract spikes and waveforms.
+        
+    Args:
+        datadir (str): data directory where the data files are located
+        np_recorddir (str): data folder where neuropixels data for a specific task id is saved
+        ecube_files (str): data folder where ecube data for a specific task id is saved
+        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
+        port_number (int): port number which a probe is connected to. natural number from 1 to 4.
+        result_filename (str): where to store the processed result
+        node_idx (int, optional): record node index. this is usually 0.
+        ex_idx (int, optional): experiment index. this is usually 0.
+        version (str, optional): kilosort version, 'kilosort4' or 'kilosort2.5' is permitted
+
+    Returns:
+        tuple: tuple containing:
+            | **spike_group (dict):** spike times for each drive
+            | **waveform_group (dict):** spike waveforms for each drive
+            | **metadata (dict):**  dictionary of exp metadata
+    '''  
+    
+    # Load data and metadata
+    datatype = 'ap'
+    data_object, metadata = aodata.load_neuropixel_data(datadir,np_recorddir,datatype=datatype,node_idx=node_idx,ex_idx=ex_idx,port_number=port_number)
+    data = data_object.samples
+    metadata['samplerate'] = int(metadata.pop('sample_rate'))
+
+    # Syncronize timestamps in neuropixels to timestamps in ecube
+    raw_timestamp = np.arange(data.shape[0])/metadata['samplerate']
+    on_times_np, off_times_np = aodata.get_neuropixel_digital_input_times(datadir,np_recorddir,datatype=datatype,port_number=port_number)
+    on_times_ecube, off_times_ecube = aodata.get_ecube_digital_input_times(datadir,ecube_files,ch=-1)
+    sync_timestamps,_ = preproc.sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,off_times_ecube,bar_duration=0.0185,verbose=True)
+
+    # Preprocess spike data
+    metadata['kilosort_version'] = version
+    if version == 'kilosort4':
+        kilosort_output_dir = Path(kilosort_dir)/np_recorddir.split('/')[-1]/f'port{port_number}'/'kilosort4'
+    elif version == 'kilosort2.5':
+        kilosort_output_dir = Path(kilosort_dir)/np_recorddir.split('/')[-1]/f'port{port_number}'/'kilosort_output'
+    else:
+        raise ValueError('Wrong kilosort version. Choose kilosort4 or kilosort2.5')
+
+    # synchronize spike times detected by kilosort with ecube timestamps
+    spike_indices = np.load(kilosort_output_dir/'spike_times.npy')
+    spike_times = spike_indices/metadata['samplerate']
+    sync_spike_times, _ = preproc.sync_neuropixel_ecube(spike_times,on_times_np,off_times_np,on_times_ecube,off_times_ecube,bar_duration=0.0185)
+
+    # classify spikes into clusters
+    spike_clusters = np.load(kilosort_output_dir/'spike_clusters.npy')
+    sync_unit_times = preproc.classify_ks_unit(sync_spike_times, spike_clusters)
+    
+    # spike waveforms
+    unit_times = preproc.classify_ks_unit(spike_times, spike_clusters) # Must be not-sync data
+    templates = np.load(kilosort_output_dir/'templates.npy')
+    channel_pos = np.stack([metadata['xpos'],metadata['ypos']]).T
+    if version == 'kilosort4':
+        drift_corrected_data = np.memmap(kilosort_output_dir/'temp_wh.dat', dtype='int16', shape=data.shape)
+    elif version == 'kilosort2.5':
+        drift_corrected_data = np.memmap(kilosort_output_dir.parent/'temp_wh.dat', dtype='int16', shape=data.shape)
+    unit_waveforms, _, unit_pos = calc_ks_waveforms(drift_corrected_data, metadata['samplerate'], unit_times, templates, channel_pos, waveforms_nch=1)
+    
+    # Save kilosort label in metadata
+    ks_label = np.genfromtxt(kilosort_output_dir/'cluster_KSLabel.tsv',skip_header=1,dtype=h5py.special_dtype(vlen=str))
+    ks_label = np.array(ks_label, dtype=h5py.special_dtype(vlen=str))
+    
+    # save all data into hdf file
+    hdf = h5py.File(result_filename, 'a', track_order=True)
+    spike_group = hdf.create_group(f'drive{port_number}/spikes', track_order=True)
+    waveform_group = hdf.create_group(f'drive{port_number}/waveforms', track_order=True)
+
+    for iunit in np.unique(spike_clusters):
+        spike_group.create_dataset(f'{iunit}',data=sync_unit_times[f'{iunit}'])
+        waveform_group.create_dataset(f'{iunit}',data=unit_waveforms[f'{iunit}'])
+    hdf.close()
+
+    # organize metadata
+    metadata['n_samples'] = data.shape[0]
+    metadata['n_channels'] = metadata.pop('num_channels')
+    metadata['microvoltsperbit'] = metadata.pop('bit_volts')
+    metadata['voltsperbit'] = list(1e-6*np.array(metadata['microvoltsperbit']))
+    metadata['ap_samplerate'] = 1/(sync_timestamps[1]-sync_timestamps[0])
+    metadata['sync_timestamps'] = sync_timestamps    
+    metadata['unique_label'] = np.unique(spike_clusters)
+    metadata['spike_pos'] = {unit_number: unit_pos[f'{unit_number}'].tolist() for unit_number in unit_pos.keys()}
+    metadata['ks_label'] = ks_label
+    
+    return spike_group, waveform_group, metadata
