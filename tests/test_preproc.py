@@ -1846,6 +1846,36 @@ class NeuropixelTests(unittest.TestCase):
 
         result_filename.unlink() # delete preprocessed file
         
+    def test_preproc_ts(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+        
+        datatype = 'ap'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'ap')
+        result_filename = save_dir / filename
+        for port_number in [1,2]:
+            _, metadata = proc_neuropixel_ts(data_dir,np_recorddir,ecube_files,kilosort_dir,datatype, port_number, result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/ap_metadata', append=True)
+            ap_data, metadata = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=port_number)
+            self.assertEqual(ap_data.shape[1], metadata['n_channels'])
+            self.assertIn('ap_samplerate', metadata)
+            self.assertIn('sync_timestamps', metadata)
+            result_filename.unlink() # delete preprocessed file
+
+        datatype = 'lfp'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'lfp')
+        result_filename = save_dir / filename
+        for port_number in [1,2]:
+            _, metadata = proc_neuropixel_ts(data_dir,np_recorddir,ecube_files,kilosort_dir,datatype, port_number, result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/lfp_metadata', append=True)
+            lfp_data, metadata = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=port_number)
+            self.assertEqual(lfp_data.shape[1], metadata['n_channels'])
+            self.assertIn('lfp_samplerate', metadata)
+            self.assertIn('sync_timestamps', metadata)
+            result_filename.unlink() # delete preprocessed file
+        
         
 class LaserTests(unittest.TestCase):
 
