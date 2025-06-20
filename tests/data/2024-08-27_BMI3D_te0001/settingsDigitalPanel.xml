@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<SETTINGS>
+	<INFO>
+		<VERSION>v0.4.0</VERSION>
+		<DATE>2024-08-27T09:19:14-0700</DATE>
+		<MACHINE>ecube</MACHINE>
+		<FILE_HEADER>
+			<TIMESTAMP datatype="uint64" unit="nanoseconds" />
+		</FILE_HEADER>
+		<FILE_FORMAT>flat binary</FILE_FORMAT>
+	</INFO>
+	<SIGNALCHAIN>
+		<PROCESSOR>
+			<DATA_INFO>
+				<SOURCE>DigitalPanel</SOURCE>
+				<SAMPLERATE>25000.000000</SAMPLERATE>
+				<DATA_TYPE>bool</DATA_TYPE>
+				<DATA_CHANNELS written_as="uint64" digital_high_value="1">64</DATA_CHANNELS>
+			</DATA_INFO>
+			<CHANNEL_INFO>
+				<CHANNEL name="DIN1" input="1" bitmask="0x0000000000000001" voltslogichigh="2.0" />
+				<CHANNEL name="DIN2" input="2" bitmask="0x0000000000000002" voltslogichigh="2.0" />
+				<CHANNEL name="DIN3" input="3" bitmask="0x0000000000000004" voltslogichigh="2.0" />
+				<CHANNEL name="DIN4" input="4" bitmask="0x0000000000000008" voltslogichigh="2.0" />
+				<CHANNEL name="DIN5" input="5" bitmask="0x0000000000000010" voltslogichigh="2.0" />
+				<CHANNEL name="DIN6" input="6" bitmask="0x0000000000000020" voltslogichigh="2.0" />
+				<CHANNEL name="DIN7" input="7" bitmask="0x0000000000000040" voltslogichigh="2.0" />
+				<CHANNEL name="DIN8" input="8" bitmask="0x0000000000000080" voltslogichigh="2.0" />
+				<CHANNEL name="DIN9" input="9" bitmask="0x0000000000000100" voltslogichigh="2.0" />
+				<CHANNEL name="DIN10" input="10" bitmask="0x0000000000000200" voltslogichigh="2.0" />
+				<CHANNEL name="DIN11" input="11" bitmask="0x0000000000000400" voltslogichigh="2.0" />
+				<CHANNEL name="DIN12" input="12" bitmask="0x0000000000000800" voltslogichigh="2.0" />
+				<CHANNEL name="DIN13" input="13" bitmask="0x0000000000001000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN14" input="14" bitmask="0x0000000000002000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN15" input="15" bitmask="0x0000000000004000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN16" input="16" bitmask="0x0000000000008000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN17" input="17" bitmask="0x0000000000010000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN18" input="18" bitmask="0x0000000000020000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN19" input="19" bitmask="0x0000000000040000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN20" input="20" bitmask="0x0000000000080000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN21" input="21" bitmask="0x0000000000100000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN22" input="22" bitmask="0x0000000000200000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN23" input="23" bitmask="0x0000000000400000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN24" input="24" bitmask="0x0000000000800000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN25" input="25" bitmask="0x0000000001000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN26" input="26" bitmask="0x0000000002000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN27" input="27" bitmask="0x0000000004000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN28" input="28" bitmask="0x0000000008000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN29" input="29" bitmask="0x0000000010000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN30" input="30" bitmask="0x0000000020000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN31" input="31" bitmask="0x0000000040000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN32" input="32" bitmask="0x0000000080000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN33" input="33" bitmask="0x0000000100000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN34" input="34" bitmask="0x0000000200000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN35" input="35" bitmask="0x0000000400000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN36" input="36" bitmask="0x0000000800000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN37" input="37" bitmask="0x0000001000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN38" input="38" bitmask="0x0000002000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN39" input="39" bitmask="0x0000004000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN40" input="40" bitmask="0x0000008000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN41" input="41" bitmask="0x0000010000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN42" input="42" bitmask="0x0000020000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN43" input="43" bitmask="0x0000040000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN44" input="44" bitmask="0x0000080000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN45" input="45" bitmask="0x0000100000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN46" input="46" bitmask="0x0000200000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN47" input="47" bitmask="0x0000400000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN48" input="48" bitmask="0x0000800000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN49" input="49" bitmask="0x0001000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN50" input="50" bitmask="0x0002000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN51" input="51" bitmask="0x0004000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN52" input="52" bitmask="0x0008000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN53" input="53" bitmask="0x0010000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN54" input="54" bitmask="0x0020000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN55" input="55" bitmask="0x0040000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN56" input="56" bitmask="0x0080000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN57" input="57" bitmask="0x0100000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN58" input="58" bitmask="0x0200000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN59" input="59" bitmask="0x0400000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN60" input="60" bitmask="0x0800000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN61" input="61" bitmask="0x1000000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN62" input="62" bitmask="0x2000000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN63" input="63" bitmask="0x4000000000000000" voltslogichigh="2.0" />
+				<CHANNEL name="DIN64" input="64" bitmask="0x8000000000000000" voltslogichigh="2.0" />
+			</CHANNEL_INFO>
+		</PROCESSOR>
+	</SIGNALCHAIN>
+</SETTINGS>
