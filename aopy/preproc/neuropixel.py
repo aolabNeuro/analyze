@@ -112,7 +112,7 @@ def parse_ksdata_entries(kilosort_dir, concat_data_dir):
         np.save(os.path.join(task_save_path, 'spike_clusters_entry'), spike_clusters[ientry_idx])
         np.save(os.path.join(task_save_path, 'ks_label'), ks_label.astype('str'))
         
-def concat_neuropixel(np_datadir, kilosort_dir, subject, te_ids, date, port_number, max_memory_gb = 0.1):
+def concat_neuropixels(np_datadir, kilosort_dir, subject, te_ids, date, port_number, concat_number =1, max_memory_gb = 0.1):
     '''
     Concatenate continuous.dat files of different sessions specified by multiple task ids (te_ids)
     The concatenated data is saved into a port folder of the kilosort preproc directory
@@ -124,6 +124,7 @@ def concat_neuropixel(np_datadir, kilosort_dir, subject, te_ids, date, port_numb
         te_ids (list): list of task ids to concatenate
         date (str): date of recording (ex. '2023-04-14')
         port_number (int): port number which a probe connected to. natural number from 1 to 4.
+        concat_number (int): the nubmer of concatenation used to make a folder to save concatenated data
         max_memory_gb (float): max memory used to load binary data at one time
         
     Returns:
@@ -134,64 +135,62 @@ def concat_neuropixel(np_datadir, kilosort_dir, subject, te_ids, date, port_numb
     concat_path = []
     for task_id in te_ids:
         task_path = f'{date}_Neuropixel_{subject}_te{task_id}'
-    concat_path.append(task_path)
-
+        concat_path.append(task_path)
     assert len(concat_path) > 0, "No Data to Concatenate"
 
     dtype = 'int16'
-    for idx_t, task_group in enumerate(concat_path):
-        savedir_name = f'{date}_Neuropixel_{subject}_concat{idx_t+1}' # Directory name to save concatenated data
-        savedir_path = Path(kilosort_dir) / savedir_name / f'port{port_number}'
+    savedir_name = f'{date}_Neuropixel_{subject}_concat{concat_number}' # Directory name to save concatenated data
+    savedir_path = Path(kilosort_dir) / savedir_name / f'port{port_number}'
 
-        if not os.path.exists(savedir_path):
-            os.makedirs(savedir_path)
+    if not os.path.exists(savedir_path):
+        os.makedirs(savedir_path)
 
-        print('\n', 'Working in ', savedir_path)
+    print('\n', 'Working in ', savedir_path)
 
-        datasize_entry = []
-        file_path = []
-        for idx, np_recorddir in enumerate(task_group):
-            print(f'Processing {np_recorddir}')
+    datasize_entry = []
+    file_path = []
+    for idx, np_recorddir in enumerate(concat_path):
+        print(f'Processing {np_recorddir}')
 
-            _,metadata = aodata.load_neuropixel_data(np_datadir, np_recorddir, 'ap', port_number = port_number)
-            nch = metadata['num_channels']
+        _,metadata = aodata.load_neuropixel_data(np_datadir, np_recorddir, 'ap', port_number = port_number)
+        nch = metadata['num_channels']
 
-            probe_dir = convert_port_number(port_number)
-            data_path = os.path.join(np_datadir, np_recorddir)
-            continuous_data_path = glob.glob(os.path.join(data_path,f'**/*{probe_dir}/continuous.dat'),recursive=True)[0]
+        probe_dir = convert_port_number(port_number)
+        data_path = os.path.join(np_datadir, np_recorddir)
+        continuous_data_path = glob.glob(os.path.join(data_path,f'**/*{probe_dir}/continuous.dat'),recursive=True)[0]
 
-            data = np.memmap(continuous_data_path, dtype = dtype)
+        data = np.memmap(continuous_data_path, dtype = dtype)
 
-            file_path.append(np_recorddir)
-            datasize_entry.append(int(data.shape[0]/nch))
-  
-            # Save data (concatentate data)
-            chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / nch)
-            nchunk = int(np.ceil(data.shape[0]/chunksize))
-                
-            for ichunk in range(nchunk):
-                if ichunk != nchunk-1:                    
-                    data_reshape = data[ichunk*chunksize*nch:(ichunk+1)*chunksize*nch].reshape(-1,nch)
-                else:
-                    data_reshape = data[ichunk*chunksize*nch:].reshape(-1,nch)
-                        
-                if (idx == 0) & (ichunk == 0):
-                    save_filename = 'continuous.dat'
-                    f = open(os.path.join(savedir_path,save_filename), 'wb') # save
-                    data_reshape.tofile(f)
-                    f.close()
-                else:
-                    f = open(os.path.join(savedir_path,save_filename), 'a') # append
-                    data_reshape.tofile(f)
-                    f.close()
+        file_path.append(np_recorddir)
+        datasize_entry.append(int(data.shape[0]/nch))
 
-        # Save channel position as mat file for kilosort
-        pos = {'xpos': metadata['xpos'],'ypos':metadata['ypos']}
-        savemat(os.path.join(savedir_path, 'channel_pos.mat'), pos)
-                          
-        # Save datasize and filename of each entry to parse data after spike sorting
-        np.save(os.path.join(savedir_path, 'datasize_entry'), np.array(datasize_entry))
-        np.save(os.path.join(savedir_path, 'task_path'), np.array(file_path))
+        # Save data (concatentate data)
+        chunksize = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / nch)
+        nchunk = int(np.ceil(data.shape[0]/chunksize))
+
+        for ichunk in range(nchunk):
+            if ichunk != nchunk-1:                 
+                data_reshape = data[ichunk*chunksize*nch:(ichunk+1)*chunksize*nch].reshape(-1,nch)
+            else:
+                data_reshape = data[ichunk*chunksize*nch:].reshape(-1,nch)
+
+            if (idx == 0) & (ichunk == 0):
+                save_filename = 'continuous.dat'
+                f = open(os.path.join(savedir_path,save_filename), 'wb') # save
+                data_reshape.tofile(f)
+                f.close()
+            else:
+                f = open(os.path.join(savedir_path,save_filename), 'a') # append
+                data_reshape.tofile(f)
+                f.close()
+
+    # Save channel position as mat file for kilosort
+    pos = {'xpos': metadata['xpos'],'ypos':metadata['ypos']}
+    savemat(os.path.join(savedir_path, 'channel_pos.mat'), pos)
+
+    # Save datasize and filename of each entry to parse data after spike sorting
+    np.save(os.path.join(savedir_path, 'datasize_entry'), np.array(datasize_entry))
+    np.save(os.path.join(savedir_path, 'task_path'), np.array(file_path))
 
 def sync_ts_data_timestamps(data, sync_timestamps):
     '''
