@@ -1722,40 +1722,37 @@ class NeuropixelTests(unittest.TestCase):
         self.assertEqual(sync_timestamps[raw_first_barcode_on_idx], barcode_ontimes_ecube[0])
         self.assertEqual(sync_timestamps[raw_last_barcode_on_idx], barcode_ontimes_ecube[-1])
         
-    def test_concat_neuropixel_within_day(self):
+    def test_concat_neuropixels(self):
         # test for concat_neuropixel_within_day
         date = '2023-06-27'
         subject = 'test'
         np_recorddir1 = f'{date}_Neuropixel_{subject}_te0001'
         np_recorddir2 = f'{date}_Neuropixel_{subject}_te0002'
-        kilosort_dir = os.path.join(data_dir, 'kilosort')
-        concat_dataname = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
-        ch_config_dir = os.path.join(data_dir, 'channel_config_np')
-        
+        kilosort_dir = Path(data_dir)/'kilosort'
+        te_ids = ['0001','0002']
+        port_number = 1
+
         # concatenate data
-        _ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1)
+        concat_neuropixels(data_dir, kilosort_dir, subject, te_ids, date, port_number, max_memory_gb = 0.1)
         
         # load each data
-        data1, _ = load_neuropixel_data(data_dir, np_recorddir1,'ap',port_number=1)
+        data1, _ = load_neuropixel_data(data_dir, np_recorddir1, 'ap', port_number=1)
         sample_size1 = data1.samples.shape[0]
-        data2, _ = load_neuropixel_data(data_dir, np_recorddir2,'ap',port_number=1)
+        data2, _ = load_neuropixel_data(data_dir, np_recorddir2, 'ap', port_number=1)
 
         # Check if the second part in con data is equal to the data2
-        kilosort_dir = os.path.join(data_dir, 'kilosort')
-        concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
-        con_data = np.memmap(os.path.join(concat_data_dir,'continuous.dat'), dtype='int16') # load continuous.dat file
+        savedir_name = f'{date}_Neuropixel_{subject}_concat1'
+        concat_data_dir = Path(kilosort_dir) / savedir_name / f'port{port_number}'
+
+        con_data = np.memmap(concat_data_dir/'continuous.dat', dtype='int16') # load continuous.dat file
         con_data = con_data.reshape(-1,384)
         self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
         self.assertTrue(np.all(con_data[sample_size1:sample_size1+10,:] == data2.samples[:10,:]))
-        
-        # Check removing bad task id
-        #_ = concat_neuropixel_within_day(data_dir, kilosort_dir, subject, date, ch_config_dir=ch_config_dir, port_number=1, bad_taskid=['0001'])
 
-        concat_dataname = f'{date}_Neuropixel_ks_{subject}2_bottom_port1'
-        concat_data_dir = os.path.join(kilosort_dir, concat_dataname)
-        con_data = np.memmap(os.path.join(concat_data_dir,'continuous.dat'), dtype='int16') # load continuous.dat file
-        con_data = con_data.reshape(-1,384) 
-        self.assertTrue(np.all(con_data[:10,:] == data2.samples[:10,:]))
+        # delte relevant files
+        del con_data
+        for item in concat_data_dir.iterdir():
+            item.unlink()
             
     def test_parse_and_load_ksdata(self):
         date = '2023-03-26'
