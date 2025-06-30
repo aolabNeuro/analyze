@@ -288,7 +288,8 @@ def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_g
 
 def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename,node_idx=0,ex_idx=0,version='kilosort4'):
     '''
-    Prerocess neuropixel data saved by openephys. Computes syncronized timestamps, Extract spikes and waveforms.
+    Preprocess neuropixels data saved by openephys. Kilosort must be performed before this functions.
+    Synchronize spikes detected by kilosort with ecube's timestamps. Extract waveforms from drift corrected ap band data.
         
     Args:
         datadir (str): data directory where the data files are located
@@ -377,11 +378,12 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
 
 def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,port_number,result_filename,delete_file=True,node_idx=0,ex_idx=0,max_memory_gb=1.):
     '''
-    Prerocess neuropixel time series data saved by openephys.
-    LFP data is destriped, low-pass filtered with 500 Hz, and then downsampled to 1000 Hz
-    For AP data, whitened data preprocessed by kilosort is used. This whitened data is already drift corrected by kilosort.
-    The whitened data is multipled by inverse whitened matrix, band-pass filtered between 300-5000, then downsampled to 10000 Hz.
-    Finally synchronization with ecube time stamps is performed
+    Prerocess neuropixels time-series data saved by openephys. 
+    To use this function when datatype is 'ap', kilosort must be applied before this function.
+    lfp data is destriped, low-pass filtered with 500 Hz, and then downsampled to 1000 Hz
+    For ap data, the drift corrected whitened data computed by kilosort is used
+    The whitened data is multipled by inverse whitened matrix, band-pass filtered between 300-5000, then downsampled to 10k Hz.
+    Both ap and lfp time-series data are synchronized with ecube timestamps.
         
     Args:
         datadir (str): data directory where the data files are located
