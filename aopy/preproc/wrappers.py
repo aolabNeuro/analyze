@@ -11,9 +11,11 @@ from .base import *
 from .bmi3d import parse_bmi3d
 from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
+from .neuropixel import proc_neuropixel_spikes, proc_neuropixel_ts
 from .. import postproc
 from .. import data as aodata
 from aopy.utils.base import detect_edges
+import glob
 
 '''
 proc_* wrappers
@@ -135,6 +137,7 @@ def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
         result_filename (str): where to store the processed result
         overwrite (bool): whether to remove existing processed files if they exist
 
@@ -175,6 +178,7 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
         result_filename (str): where to store the processed result
         overwrite (bool): whether to remove existing processed files if they exist
 
@@ -318,6 +322,7 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
         result_filename (str): where to store the processed result
         overwrite (bool, optional): whether to remove existing processed files if they exist
         max_memory_gb (float, optional): max memory used to load binary data at one time
@@ -346,10 +351,93 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
         # Append the broadband metadata to the file
         aodata.save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
 
-def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1., filter_kwargs={}):
+def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, filter_kwargs={}):
+    '''
+    Process spike data:
+        neuropixels: synchronize spike times with ecube. Extract waveforms from drift corrected data. 
+
+    Saves spike times and waveforms into the HDF datasets:
+        spikes (HDF5 group (dict)) : spike times for each drive
+        waveforms (HDF5 group (dict)) : spike times for each drive
+        metadata (dict)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
+        result_filename (str): where to store the processed result
+        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "spikes" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+
+    # Preprocess neural data into lfp   
+    if 'neuropixels' in files:
+        np_recorddir = files['neuropixels']
+        ecube_files = files['ecube']
+        
+        nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
+
+        for iport in range(nport):
+            iport += 1
+            _,_, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,iport,filepath,version='kilosort4')
+    aodata.save_hdf(result_dir, result_filename, metadata, f'drive{iport}/metadata', append=True)
+
+def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
+    '''
+    Process ap data
+        neuropixels: filter data between 300-5k, downsample to 10k, synchronize timestamps with ecube. Drift correction is applied
+    Saves ap data into the HDF datasets:
+        ap_data (nt, nch)
+        ap_metadata (dict)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
+        result_filename (str): where to store the processed result
+        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        max_memory_gb (float, optional): max memory used to load binary data at one time
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "ap_data" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+
+    # Preprocess neural data into lfp   
+    if 'neuropixels' in files:
+        np_recorddir = files['neuropixels']
+        ecube_files = files['ecube']
+        datatype = 'ap'
+        
+        nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
+        
+        for iport in range(nport):
+            iport += 1
+            _, metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath)
+            aodata.save_hdf(result_dir, result_filename, metadata, f'drive{iport}/ap_metadata', append=True)
+
+def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
     Process lfp data:
         Loads 'broadband' hdf data or 'ecube' headstage data and metadata
+        neuropixels: low-pass filter data with 500Hz, downsample to 1k, synchronize timestamps with ecube. Destriping is applied
     Saves lfp data into the HDF datasets:
         lfp_data (nt, nch)
         lfp_metadata (dict)
@@ -357,7 +445,9 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
         result_filename (str): where to store the processed result
+        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
         overwrite (bool, optional): whether to remove existing processed files if they exist
         max_memory_gb (float, optional): max memory used to load binary data at one time
         filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
@@ -385,7 +475,16 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
 
         _, lfp_metadata = aodata.filter_lfp_from_ecube(ecube_filepath, result_filepath, dtype='int16', 
                                                 max_memory_gb=max_memory_gb, **filter_kwargs)
+    elif 'neuropixels' in files:
+        np_recorddir = files['neuropixels']
+        ecube_files = files['ecube']
+        datatype = 'lfp'
+        nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
         
+        for iport in range(nport):
+            iport += 1
+            _, lfp_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath)
+
     aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
 
 def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
@@ -399,6 +498,7 @@ def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
     Args:
         data_dir (str): where the data files are located
         files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
         result_filename (str): where to store the processed result
         overwrite (bool, optional): whether to remove existing processed files if they exist
     '''  
