@@ -1416,9 +1416,9 @@ class ProcTests(unittest.TestCase):
         files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
-        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
+        result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
 
-        proc_spikes(data_dir, files, save_dir, filename, kilosort_dir=kilosort_dir, overwrite=True)
+        proc_spikes(data_dir, files, save_dir, result_filename, kilosort_dir=kilosort_dir, overwrite=True)
 
         spikes1, metadata1 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
         waveforms1  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
@@ -1437,6 +1437,10 @@ class ProcTests(unittest.TestCase):
         self.assertIn('1', waveforms2)
         self.assertIn('sync_timestamps', metadata2)
         self.assertIn('spike_pos', metadata2)
+
+        # Delete the file because its size is big
+        result_hdffile = save_dir / result_filename
+        result_hdffile.unlink()
 
     def test_proc_ap(self):
         # Test proc from ap data in neuropixels
@@ -1459,6 +1463,10 @@ class ProcTests(unittest.TestCase):
         self.assertEqual(ap_data2.shape[1], ap_metadata2['n_channels'])
         self.assertIn('ap_samplerate', ap_metadata2)
         self.assertIn('sync_timestamps', ap_metadata2)
+
+        # Delete the file because its size is big
+        result_hdffile = save_dir / result_filename
+        result_hdffile.unlink()
 
     def test_proc_lfp(self):
 
@@ -1522,6 +1530,10 @@ class ProcTests(unittest.TestCase):
         self.assertEqual(lfp_data2.shape[1], lfp_metadata2['n_channels'])
         self.assertIn('lfp_samplerate', lfp_metadata2)
         self.assertIn('sync_timestamps', lfp_metadata2)
+
+        # Delete the file because its size is big
+        result_hdffile = save_dir / result_filename
+        result_hdffile.unlink()
 
         # Compare the two files
         ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
