@@ -351,7 +351,7 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
         # Append the broadband metadata to the file
         aodata.save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
 
-def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, filter_kwargs={}):
+def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False):
     '''
     Process spike data:
         neuropixels: synchronize spike times with ecube. Extract waveforms from drift corrected data. 
@@ -390,7 +390,7 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
         for iport in range(nport):
             iport += 1
             _,_, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,iport,filepath,version='kilosort4')
-    aodata.save_hdf(result_dir, result_filename, metadata, f'drive{iport}/metadata', append=True)
+            aodata.save_hdf(result_dir, result_filename, metadata, f'drive{iport}/metadata', append=True)
 
 def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
@@ -430,8 +430,9 @@ def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, ove
         
         for iport in range(nport):
             iport += 1
-            _, metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath)
-            aodata.save_hdf(result_dir, result_filename, metadata, f'drive{iport}/ap_metadata', append=True)
+            _, ap_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath,
+                                                max_memory_gb = max_memory_gb)
+            aodata.save_hdf(result_dir, result_filename, ap_metadata, f'drive{iport}/ap_metadata', append=True)
 
 def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
@@ -469,12 +470,16 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
 
         _, lfp_metadata = aodata.filter_lfp_from_broadband(broadband_filepath, result_filepath, dtype='int16', 
                                                     max_memory_gb=max_memory_gb, **filter_kwargs)
-    elif 'ecube' in files:
+        aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+
+    elif 'ecube' in files and 'neuropixels' not in files:
         ecube_filepath = os.path.join(data_dir, files['ecube'])
         result_filepath = os.path.join(result_dir, result_filename)
 
         _, lfp_metadata = aodata.filter_lfp_from_ecube(ecube_filepath, result_filepath, dtype='int16', 
                                                 max_memory_gb=max_memory_gb, **filter_kwargs)
+        aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+
     elif 'neuropixels' in files:
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
@@ -483,9 +488,10 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
         
         for iport in range(nport):
             iport += 1
-            _, lfp_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath)
-
-    aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+            _, lfp_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath,
+                                                 max_memory_gb = max_memory_gb)
+            aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{iport}/lfp_metadata', append=True)
+    
 
 def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
     '''

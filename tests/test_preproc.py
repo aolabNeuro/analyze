@@ -1410,6 +1410,56 @@ class ProcTests(unittest.TestCase):
         # Overwrite
         proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
 
+    def test_proc_spikes(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
+
+        proc_spikes(data_dir, files, save_dir, filename, kilosort_dir=kilosort_dir, overwrite=True)
+
+        spikes1, metadata1 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        waveforms1  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        self.assertIn('0', spikes1)
+        self.assertIn('0', waveforms1)
+        self.assertIn('1', spikes1)
+        self.assertIn('1', waveforms1)
+        self.assertIn('sync_timestamps', metadata1)
+        self.assertIn('spike_pos', metadata1)
+
+        spikes2, metadata2 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+        waveforms2  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+        self.assertIn('0', spikes2)
+        self.assertIn('0', waveforms2)
+        self.assertIn('1', spikes2)
+        self.assertIn('1', waveforms2)
+        self.assertIn('sync_timestamps', metadata2)
+        self.assertIn('spike_pos', metadata2)
+
+    def test_proc_ap(self):
+        # Test proc from ap data in neuropixels
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+
+        datatype = 'ap'
+        result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', datatype)
+
+        proc_ap(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=1.)
+        ap_data1, ap_metadata1 = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        ap_data2, ap_metadata2 = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+
+        self.assertEqual(ap_data1.shape[1], ap_metadata1['n_channels'])
+        self.assertIn('ap_samplerate', ap_metadata1)
+        self.assertIn('sync_timestamps', ap_metadata1)
+        self.assertEqual(ap_data2.shape[1], ap_metadata2['n_channels'])
+        self.assertIn('ap_samplerate', ap_metadata2)
+        self.assertIn('sync_timestamps', ap_metadata2)
+
     def test_proc_lfp(self):
 
         # Test proc from ecube
@@ -1451,6 +1501,27 @@ class ProcTests(unittest.TestCase):
         self.assertEqual(lfp_data.shape[1], 8)
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
         self.assertEqual(lfp_metadata['samplerate'], 1000)
+
+        # Test proc from lfp data in neuropixels
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+
+        datatype = 'lfp'
+        result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', datatype)
+
+        proc_lfp(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=1.)
+        lfp_data1, lfp_metadata1 = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        lfp_data2, lfp_metadata2 = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+
+        self.assertEqual(lfp_data1.shape[1], lfp_metadata1['n_channels'])
+        self.assertIn('lfp_samplerate', lfp_metadata1)
+        self.assertIn('sync_timestamps', lfp_metadata1)
+        self.assertEqual(lfp_data2.shape[1], lfp_metadata2['n_channels'])
+        self.assertIn('lfp_samplerate', lfp_metadata2)
+        self.assertIn('sync_timestamps', lfp_metadata2)
 
         # Compare the two files
         ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
