@@ -286,7 +286,6 @@ def destripe_lfp_batch(lfp_data, save_path, sample_rate, bit_volts, max_memory_g
         lfp_destriped[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp/bit_volts).T.astype(dtype)
         lfp_destriped.flush()
 
-
 def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename,node_idx=0,ex_idx=0,version='kilosort4'):
     '''
     Prerocess neuropixel data saved by openephys. Computes syncronized timestamps, Extract spikes and waveforms.
@@ -296,7 +295,7 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
         np_recorddir (str): data folder where neuropixels data for a specific task id is saved
         ecube_files (str): data folder where ecube data for a specific task id is saved
         kilosort_dir (str): data folder where preprocessed data of kilosort is saved
-        port_number (int): port number which a probe is connected to. natural number from 1 to 4.
+        port_number (int): port number which a probe is connected to. This number corresponds to drive number.
         result_filename (str): where to store the processed result
         node_idx (int, optional): record node index. this is usually 0.
         ex_idx (int, optional): experiment index. this is usually 0.
@@ -304,8 +303,8 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
 
     Returns:
         tuple: tuple containing:
-            | **spike_group (dict):** spike times for each drive
-            | **waveform_group (dict):** spike waveforms for each drive
+            | **spike_group (HDF5 group):** spike times for each drive saved like nested dictionary (ex. drive1/spikes)
+            | **waveform_group (HDF5 group):** spike waveforms for each drive saved like a nested dictionary (ex. drive1/waveforms)
             | **metadata (dict):**  dictionary of exp metadata
     '''  
     
@@ -321,7 +320,7 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
     on_times_ecube, off_times_ecube = aodata.get_ecube_digital_input_times(datadir,ecube_files,ch=-1)
     sync_timestamps,_ = preproc.sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,off_times_ecube,bar_duration=0.0185,verbose=True)
 
-    # Preprocess spike data
+    # Path for the kilosort directory
     metadata['kilosort_version'] = version
     if version == 'kilosort4':
         kilosort_output_dir = Path(kilosort_dir)/np_recorddir.split('/')[-1]/f'port{port_number}'/'kilosort4'
@@ -330,16 +329,16 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
     else:
         raise ValueError('Wrong kilosort version. Choose kilosort4 or kilosort2.5')
 
-    # synchronize spike times detected by kilosort with ecube timestamps
+    # Synchronize spike times detected by kilosort with ecube timestamps
     spike_indices = np.load(kilosort_output_dir/'spike_times.npy')
     spike_times = spike_indices/metadata['samplerate']
     sync_spike_times, _ = preproc.sync_neuropixel_ecube(spike_times,on_times_np,off_times_np,on_times_ecube,off_times_ecube,bar_duration=0.0185)
 
-    # classify spikes into clusters
+    # Classify spikes into clusters
     spike_clusters = np.load(kilosort_output_dir/'spike_clusters.npy')
     sync_unit_times = preproc.classify_ks_unit(sync_spike_times, spike_clusters)
     
-    # spike waveforms
+    # Extract spike waveforms from drift corrected ap band data
     unit_times = preproc.classify_ks_unit(spike_times, spike_clusters) # Must be not-sync data
     templates = np.load(kilosort_output_dir/'templates.npy')
     channel_pos = np.stack([metadata['xpos'],metadata['ypos']]).T
@@ -349,11 +348,11 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
         drift_corrected_data = np.memmap(kilosort_output_dir.parent/'temp_wh.dat', dtype='int16', shape=data.shape)
     unit_waveforms, _, unit_pos = calc_ks_waveforms(drift_corrected_data, metadata['samplerate'], unit_times, templates, channel_pos, waveforms_nch=1)
     
-    # Save kilosort label in metadata
+    # Save kilosort labels in metadata
     ks_label = np.genfromtxt(kilosort_output_dir/'cluster_KSLabel.tsv',skip_header=1,dtype=h5py.special_dtype(vlen=str))
     ks_label = np.array(ks_label, dtype=h5py.special_dtype(vlen=str))
     
-    # save all data into hdf file
+    # Save synchonized spike times and waveforms into hdf file
     hdf = h5py.File(result_filename, 'a', track_order=True)
     spike_group = hdf.create_group(f'drive{port_number}/spikes', track_order=True)
     waveform_group = hdf.create_group(f'drive{port_number}/waveforms', track_order=True)
@@ -363,7 +362,7 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
         waveform_group.create_dataset(f'{iunit}',data=unit_waveforms[f'{iunit}'])
     hdf.close()
 
-    # organize metadata
+    # Organize metadata
     metadata['n_samples'] = data.shape[0]
     metadata['n_channels'] = metadata.pop('num_channels')
     metadata['microvoltsperbit'] = metadata.pop('bit_volts')
@@ -376,8 +375,7 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
     
     return spike_group, waveform_group, metadata
 
-
-def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype, port_number,result_filename, delete_file=True, node_idx=0,ex_idx=0, max_memory_gb=1.):
+def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,port_number,result_filename,delete_file=True,node_idx=0,ex_idx=0,max_memory_gb=1.):
     '''
     Prerocess neuropixel time series data saved by openephys.
     LFP data is destriped, low-pass filtered with 500 Hz, and then downsampled to 1000 Hz
@@ -407,7 +405,7 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype, p
     if (datatype != 'ap')&(datatype != 'lfp'):
         raise ValueError(f"Unknown datatype {datatype}")
         
-    # Load data
+    # Load data and metadata
     data_object, metadata = aodata.load_neuropixel_data(datadir,np_recorddir,datatype=datatype,node_idx=node_idx,ex_idx=ex_idx,port_number=port_number)
     data = data_object.samples
     metadata['samplerate'] = int(metadata.pop('sample_rate'))
@@ -434,15 +432,15 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype, p
 
     print('-'*50)
     if datatype == 'lfp':
+
         # Destripe LFP
         lfp_destriped_path = kilosort_portdir / 'lfp_destriped.dat'
-
         print(f'Destriping LFP data')
         destripe_lfp_batch(data, lfp_destriped_path, metadata['samplerate'], metadata['microvoltsperbit'][0], max_memory_gb=max_memory_gb)
         lfp_destriped = np.memmap(lfp_destriped_path, dtype=np.int16, shape=data.shape)
 
-        print(f'Filtering and synchronizing LFP data')
         # Process data in each channel to save memory
+        print(f'Filtering and synchronizing LFP data')
         for ich in range(metadata['n_channels']):
             # filter_lfp applies both filtering and downsampling
             data_filt, _ = filter_lfp(lfp_destriped[:,ich], metadata['samplerate'], lfp_samplerate=down_samplerate, low_cut=500., buttord=4)
@@ -450,23 +448,24 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype, p
             if ich == 0:
                 dset = hdf.create_dataset(f'drive{port_number}/{datatype}_data', (sync_data.shape[0], metadata['n_channels']), dtype=np.int16)
             dset[:,ich] = np.squeeze(sync_data)
-            
+        
+        # Delete files created by destripe_lfp_batch
         if delete_file:
             del lfp_destriped
             lfp_destriped_path.unlink()
 
     elif datatype == 'ap':
+
         # Multiply inverse whitening matrix to whitened spike band time series
         inverse_mat_path = kilosort_portdir / 'kilosort4' / 'whitening_mat_inv.npy'
         inverse_mat = np.load(inverse_mat_path)   
         inv_temp_wh_path = kilosort_portdir / 'inv_temp_wh.dat'
-
         print(f'Multiplyng inverse matrix by whitened ap data')
         multiply_mat_batch(data, inverse_mat, inv_temp_wh_path, scale = 1/200, max_memory_gb=max_memory_gb)
         inv_temp_wh = np.memmap(inv_temp_wh_path, dtype=np.int16, shape=data.shape)
 
-        print(f'Filtering and synchronizing AP data')
         # Process data in each channel to save memory
+        print(f'Filtering and synchronizing AP data')
         for ich in range(metadata['n_channels']):
             # filter_spikes only applies filtering, not downsampling
             tmp = filter_spikes(inv_temp_wh[:,ich], metadata['samplerate'], low_pass=300, high_pass=5000, buttord=4)
@@ -476,12 +475,12 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype, p
                 dset = hdf.create_dataset(f'drive{port_number}/{datatype}_data', (sync_data.shape[0], metadata['n_channels']), dtype=np.int16)
             dset[:,ich] = np.squeeze(sync_data)
         
+        # Delete files created by multiply_mat_batch
         if delete_file:
             del inv_temp_wh
             inv_temp_wh_path.unlink()
 
     metadata['sync_timestamps'] = sync_timestamps_new
-
     hdf.close()
 
     # Organize metadata
