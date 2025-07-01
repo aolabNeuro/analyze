@@ -2337,8 +2337,9 @@ def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000
             target_locations = aopy.data.bmi3d.get_target_locations(preproc_dir, subject,
                                                                     te_id, dates[0], target_indices)
 
-            ideal_trajectories = simulate_ideal_trajectories(target_locations[1:], target_locations[0])
+            ideal_trajectories = aopy.base.simulate_ideal_trajectories(target_locations[1:], target_locations[0])
             
+            colors = sns.color_palette(n_colors=len(target_indices))
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
             aopy.visualization.color_trajectories(ideal_trajectories, target_idx, colors)
@@ -2363,15 +2364,16 @@ def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000
         
     return np.array(trajectories)
 
-def get_centered_endpoints(hand_traj):
+def get_endpoints(hand_traj, include_start=True, center=True):
     """
-    Extracts the final point from each trajectory, calculates the mean 
-    endpoint position, and centers all endpoints by subtracting the mean.
+    Extracts the endpoint(s) of each trajectory.
 
     Args:
         hand_traj (list of numpy.ndarray): A list of 2D or 3D hand trajectories, where each 
             trajectory is represented as a NumPy array of shape (N, D), with N time steps 
             and D spatial dimensions.
+        include_start (boolean): Whether or not to include the first point of the trajectory.
+            Default is True.
 
     Returns:
         numpy.ndarray: An array of shape (M, D), where M is the number of trajectories, and 
@@ -2387,17 +2389,24 @@ def get_centered_endpoints(hand_traj):
         traj3 = np.array([[0, 0, 0], [0, 1, 1], [1, 2, 3]])  # Ends at (1,2,3)
 
         hand_traj = [traj1, traj2, traj3]
-        endpoints = aopy.analysis.get_centered_endpoints(hand_traj)
+        endpoints = aopy.analysis.get_endpoints(hand_traj)
         
         ax = plt.figure(figsize = (3,3)).add_subplot(projection='3d')
         ax.scatter(endpoints[:,0],endpoints[:,1],endpoints[:,2], s=30, color='k')
         
-        .. image:: _images/get_centered_endpoints.png
+        .. image:: _images/get_endpoints.png
         
     """
+
+    if include_start:
+        starts = np.vstack([traj[0] for traj in hand_traj])
+        ends = np.vstack([traj[-1] for traj in hand_traj])
+        endpoints = np.vstack([starts, ends])
+    else:
+        endpoints = np.vstack([traj[-1] for traj in hand_traj])
     
-    endpoints = np.vstack([traj[-1] for traj in hand_traj])
-    origin = np.mean(endpoints, axis=0)
-    centered_points = endpoints - origin
+    if center:
+        origin = np.nanmean(endpoints, axis=0)
+        endpoints = endpoints - origin
     
-    return centered_points
+    return endpoints

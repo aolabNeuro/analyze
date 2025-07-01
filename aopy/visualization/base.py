@@ -2654,7 +2654,7 @@ def plot_annotated_stim_drive_data(data, subject, chamber, theta, interp=False,
     overlay_sulci_on_spatial_map(subject, chamber, recording_drive_type, theta=theta, color=color, ax=ax)
     return im, pcm
 
-def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=None, **kwargs):
+def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, bounds=None, ax=None, **kwargs):
     """
     Plots a 3D plane centered at the origin.
 
@@ -2666,6 +2666,7 @@ def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=Non
         color (str, optional): Color of the plane. Default is 'grey'.
         alpha (float, optional): Transparency of the plane, where 1 is opaque and 0 is fully transparent. Default is 0.15.
         resolution (int, optional): Number of subdivisions for the plane. Higher values increase smoothness. Default is 100.
+        bounds (tuple, optional): Cutoff point for the edges of the plane, formatted (x_min, x_max, y_min, y_max, z_min, z_max).
         ax (mpl_toolkits.mplot3d.Axes3D): The Matplotlib 3D axis on which to plot the plane.
 
     Raises:
@@ -2688,7 +2689,7 @@ def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=Non
 
             # Example using a transformation matrix (identity)
             plane = np.eye(3)  
-            plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
+            plot_plane(plane, gain=1.0, color='blue', alpha=0.3, bounds=(-10,10,-10,10,-10,10), ax=ax)
 
             # Example using a plane equation Ax + By + Cz + D = 0
             plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
@@ -2701,26 +2702,35 @@ def plot_plane(plane, gain=1.0, color='grey', alpha=0.15, resolution=100, ax=Non
     if ax is None:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-    
-    xy_range = np.linspace(-10*gain, 10*gain, resolution)
-    x, y = np.meshgrid(xy_range, xy_range)
-    
-    # If plane is described as a transformation matrix:
-    if plane.shape in [(3,3),(4,4)]:
+
+    # Determine x and y limits
+    if bounds is not None:
+        x_min, x_max, y_min, y_max, z_min, z_max = bounds
+        x_range = np.linspace(x_min, x_max, resolution)
+        y_range = np.linspace(y_min, y_max, resolution)
+    else:
+        x_range = y_range = np.linspace(-10 * gain, 10 * gain, resolution)
+        z_min, z_max = -np.inf, np.inf  # No bounds on z
+
+    x, y = np.meshgrid(x_range, y_range)
+
+    if plane.shape in [(3, 3), (4, 4)]:
         coords = np.column_stack((x.ravel(), y.ravel(), np.zeros_like(x.ravel())))
         rotated_coords = coords @ plane[:3, :3]
         x, y, z = rotated_coords.T.reshape(3, *x.shape)
-    
-    # If plane is described as an equation:
+
     elif plane.shape == (4,):
-        A,B,C,D = plane
+        A, B, C, D = plane
+        if np.isclose(C, 0):
+            raise ValueError("Plane has undefined z for some x/y values (C ≈ 0).")
         z = (-A * x - B * y - D) / C
-        
     else:
-        raise ValueError(f"Invalid mapping shape {plane.shape}. Expected (3,3) or (4,4) \
-                         for transformation matrices, or (4,) for plane equations.")
-        
-    ax.plot_surface(x, y, z, alpha=alpha, color=color)
+        raise ValueError(f"Invalid plane shape {plane.shape}. Expected (3,3), (4,4), or (4,)")
+
+    # Mask z values outside bounds
+    z_masked = np.ma.masked_outside(z, z_min, z_max)
+
+    ax.plot_surface(x, y, z_masked, alpha=alpha, color=color)
 
 def plot_sphere(location, color='gray', radius=4, resolution=20, alpha=1, bounds=None, ax=None, **kwargs):
     """

@@ -238,8 +238,8 @@ class misc_tests(unittest.TestCase):
         filename = 'simulate_ideal_trajectories.png'
         savefig(docs_dir, filename)
 
-    def test_get_centered_endpoints(self):
-        traj1 = np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2]])  # Ends at (2,2,2)
+    def test_get_endpoints(self):
+        traj1 = np.array([[0, 1, 2], [1, 1, 1], [2, 2, 2]])  # Ends at (2,2,2)
         traj2 = np.array([[0, 0, 0], [1, 0, 1], [3, 1, 3]])  # Ends at (3,1,3)
         traj3 = np.array([[0, 0, 0], [0, 1, 1], [1, 2, 3]])  # Ends at (1,2,3)
 
@@ -248,6 +248,8 @@ class misc_tests(unittest.TestCase):
         
         ax = plt.figure(figsize = (3,3)).add_subplot(projection='3d')
         ax.scatter(endpoints[:,0],endpoints[:,1],endpoints[:,2], s=30, color='k')
+        aopy.visualization.plot_trajectories(hand_traj, ax)
+        
         aopy.visualization.savefig(docs_dir, 'get_centered_endpoints.png', transparent=False)
 
 class TestTuning(unittest.TestCase):
