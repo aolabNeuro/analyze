@@ -25,7 +25,6 @@ from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
 import seaborn as sns
 from scipy.interpolate import griddata
-from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 from scipy import signal
 from scipy.stats import zscore
@@ -473,7 +472,7 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
 
     # Construct kd-tree, functionality copied from scipy.interpolate
     tree = cKDTree(xy)
-    xi = _ndim_coords_from_arrays((np.reshape(xq, -1), np.reshape(yq, -1)))
+    xi = np.column_stack((np.reshape(xq, -1), np.reshape(yq, -1)))
     dists, indexes = tree.query(xi)
 
     # Mask values with distances over the threshold with NaNs
