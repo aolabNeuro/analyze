@@ -66,7 +66,7 @@ def convert_raw_to_world_coords(manual_input, rotation, offset, scale=1):
 
     return bmi3d_space_input[:,[0,2,1]] # return (right-handed) world coordinates
 
-def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, exp_gain=1):
+def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, exp_gain=1, baseline_rotation='none'):
     '''
     Returns the mapping :math:`M` that transforms 3D centered user input from world to screen coordinates.
     World coordinates (x: right/left, y: up/down, z: forward/backward) and screen coordinates
@@ -109,13 +109,13 @@ def get_world_to_screen_mapping(exp_rotation='none', x_rot=0, y_rot=0, z_rot=0, 
         mapping was correctly learned.
 
     '''
-    from built_in_tasks.rotation_matrices import exp_rotations
+    from built_in_tasks.rotation_matrices import baseline_rotations, exp_rotations
     perturbation_rotation = R.from_euler('xyz', [x_rot, y_rot, z_rot], degrees=True).as_matrix()
-    bmi3d_mapping = exp_gain * np.dot(exp_rotations[exp_rotation][:3,:3], perturbation_rotation)
+    bmi3d_mapping = exp_gain * np.linalg.multi_dot((baseline_rotations[baseline_rotation][:3,:3], exp_rotations[exp_rotation][:3,:3], perturbation_rotation))
     
     return bmi3d_mapping[[0, 2, 1], :][:, [0, 2, 1]] # return mapping in right-handed coordinates
 
-def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='none', exp_gain=1):
+def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', exp_rotation='none', exp_gain=1, baseline_rotation='none'):
     '''
     Returns the mappings :math:`M` that transform 3D centered user input from world to screen coordinates 
     for an incremental rotation experiment. World coordinates (x: right/left, y: up/down, z: forward/backward) 
@@ -134,11 +134,11 @@ def get_incremental_world_to_screen_mappings(start, stop, step, bmi3d_axis='y', 
     Returns:
         list: list of mappings from centered world coordinates to screen coordinates   
     '''
-    from built_in_tasks.rotation_matrices import exp_rotations
+    from built_in_tasks.rotation_matrices import baseline_rotations, exp_rotations
     mappings = []
     for perturbation in np.arange(start, stop+step, step):
         perturbation_rotation = R.from_euler(bmi3d_axis, perturbation, degrees=True).as_matrix()
-        mapping = exp_gain * np.dot(exp_rotations[exp_rotation][:3,:3], perturbation_rotation)
+        mapping = exp_gain * np.linalg.multi_dot((baseline_rotations[baseline_rotation][:3,:3], exp_rotations[exp_rotation][:3,:3], perturbation_rotation))
         mappings.append(mapping[[0, 2, 1], :][:, [0, 2, 1]]) # return mappings in right-handed coordinates
 
     return mappings
