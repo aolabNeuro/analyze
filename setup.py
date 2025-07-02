@@ -7,7 +7,7 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 install_requires = [
-    'numpy<2.0',
+    'numpy',
     'xarray',
     'pandas',
     'psutil',
@@ -34,7 +34,7 @@ install_requires = [
 
 setuptools.setup(
     name="aolab-aopy",
-    version="0.9.1",
+    version="0.9.2",
     author="aoLab",
     author_email="aorsborn@uw.edu",
     description="python code repository for aoLab @UW",
@@ -42,8 +42,14 @@ setuptools.setup(
     url="https://github.com/aolabNeuro/analyze",
     packages=setuptools.find_namespace_packages(),
     include_package_data=True,
+    python_requires='>=3.8',
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Operating System :: OS Independent"
     ],
     install_requires=install_requires,

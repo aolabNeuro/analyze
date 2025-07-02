@@ -25,7 +25,6 @@ from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 import matplotlib.font_manager as fm
 import seaborn as sns
 from scipy.interpolate import griddata
-from scipy.interpolate.interpnd import _ndim_coords_from_arrays
 from scipy.spatial import cKDTree
 from scipy import signal
 from scipy.stats import zscore
@@ -473,7 +472,7 @@ def calc_data_map(data, x_pos, y_pos, grid_size, interp_method='nearest', thresh
 
     # Construct kd-tree, functionality copied from scipy.interpolate
     tree = cKDTree(xy)
-    xi = _ndim_coords_from_arrays((np.reshape(xq, -1), np.reshape(yq, -1)))
+    xi = np.column_stack((np.reshape(xq, -1), np.reshape(yq, -1)))
     dists, indexes = tree.query(xi)
 
     # Mask values with distances over the threshold with NaNs
@@ -750,7 +749,7 @@ def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05,
             ims.append(None)
             continue
         
-        ax = axes[n] if n_maps > 1 else axes
+        ax = axes.axes_all[n]
         im = plot_spatial_drive_map(maps[n], ax=ax, **kwargs)
         if label_mode is None:
             ax.set(xticks=[], yticks=[], xticklabels=[], yticklabels=[], xlabel='', ylabel='')
@@ -827,9 +826,6 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
         raise ValueError("Please specify only one of acq_idx or acq_ch.")
     if acq_idx is not None:
         acq_ch = np.array(acq_idx)+1 # Change from index to ch numbers
-        print("Annotating acquisition indices")
-    else:
-        print("Annotating acquisition channel numbers")
 
     # Get channel map (overwrite acq_ch if it was supplied to get the correct shape acq_ch)
     elec_pos, acq_ch, elecs = aodata.load_chmap(drive_type, acq_ch, theta)
@@ -2062,13 +2058,13 @@ def plot_channel_summary(chdata, samplerate, nperseg=None, noverlap=None, trange
     sg_pcm = ax[1].pcolormesh(t_sg,f_sg,10*log_sgram,vmin=cmap_lim[0],vmax=cmap_lim[1],shading='auto')
     ax[1].set_ylim(*frange)
     sg_cb = plt.colorbar(sg_pcm,ax=ax[1])
-    sg_cb.ax.set_ylabel('dB$\mu$')
+    sg_cb.ax.set_ylabel('dB$\\mu$')
     sgn_pcm = ax[2].pcolormesh(t_sg,f_sg,zscore(log_sgram,axis=-1),vmin=-3,vmax=3,shading='auto',cmap='bwr')
     ax[2].set_ylim(*frange)
     sgn_cb = plt.colorbar(sgn_pcm,ax=ax[2])
-    sgn_cb.ax.set_ylabel('z-scored dB$\mu$')
+    sgn_cb.ax.set_ylabel('z-scored dB$\\mu$')
     ax[0].set_xlim(*trange)
-    ax[0].set_ylabel('amp. ($\mu V$)')
+    ax[0].set_ylabel('amp. ($\\mu V$)')
     ax[1].set_ylabel('freq. (Hz)')
     ax[2].set_ylabel('freq. (Hz)')
     ax[2].set_xlabel('time (s)')

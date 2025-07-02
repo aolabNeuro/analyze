@@ -495,6 +495,61 @@ class TestNeuropixel(unittest.TestCase):
         self.assertEqual(probe_dir, 'Neuropix-PXI-100.ProbeA-AP')
         probe_dir = convert_port_number(2)
         self.assertEqual(probe_dir, 'Neuropix-PXI-100.ProbeB-AP')
-        
+
+class TestConsecutiveDays(unittest.TestCase):
+
+    def test_multiple_consecutive_groups(self):
+        dates = [
+            datetime(2023, 1, 1),
+            datetime(2023, 1, 2),
+            datetime(2023, 1, 3),
+            datetime(2023, 1, 5),
+            datetime(2023, 1, 7),
+            datetime(2023, 1, 8),
+            datetime(2023, 1, 9)
+        ]
+        result = get_consecutive_days(dates)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], [datetime(2023, 1, 1), datetime(2023, 1, 2), datetime(2023, 1, 3)])
+        self.assertEqual(result[1], [datetime(2023, 1, 7), datetime(2023, 1, 8), datetime(2023, 1, 9)])
+
+    def test_no_consecutive_days(self):
+        dates = [
+            datetime(2023, 1, 1),
+            datetime(2023, 1, 3),
+            datetime(2023, 1, 5)
+        ]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [])
+
+    def test_all_consecutive_days(self):
+        dates = [datetime(2023, 1, i) for i in range(1, 6)]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [dates])
+
+    def test_single_date(self):
+        dates = [datetime(2023, 1, 1)]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [])
+
+    def test_empty_input(self):
+        result = get_consecutive_days([])
+        self.assertEqual(result, [])
+
+    def test_exactly_two_consecutive_days(self):
+        dates = [datetime(2023, 1, 1), datetime(2023, 1, 2)]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [dates])
+
+    def test_unsorted_input(self):
+        dates = [
+            datetime(2023, 1, 3),
+            datetime(2023, 1, 1),
+            datetime(2023, 1, 2)
+        ]
+        sorted_dates = sorted(dates)
+        result = get_consecutive_days(sorted_dates)
+        self.assertEqual(result, [[datetime(2023, 1, 1), datetime(2023, 1, 2), datetime(2023, 1, 3)]])
+
 if __name__ == "__main__":
     unittest.main()

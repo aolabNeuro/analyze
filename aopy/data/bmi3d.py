@@ -773,6 +773,10 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             exp_gain = np.abs(exp_metadata['scale'])
         user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
+        if 'baseline_rotation' in exp_metadata:
+            baseline_rotation = exp_metadata['baseline_rotation']
+        else:
+            baseline_rotation = 'none'
         if 'exp_rotation' in exp_metadata:
             exp_rotation = exp_metadata['exp_rotation']
         else:
@@ -787,7 +791,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
             y_rot = exp_metadata['pertubation_rotation']
         else:
             y_rot = 0
-        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain)
+        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
         data_cycles = np.dot(user_world_cycles, exp_mapping)
     elif datatype in ['user', 'intended_cursor']:
         if datatype == 'user':
@@ -924,7 +928,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
         tuple: tuple containing:
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
-    '''
+    '''   
     if 'eye' in datatype:
         eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
         if datatype == 'eye_raw':
@@ -944,6 +948,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             kinematics, samplerate = preproc(raw_kinematics, samplerate)
         else:
             kinematics = raw_kinematics
+
     else:
         kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
                                                samplerate, preproc=preproc, **kwargs)
@@ -951,14 +956,40 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
     return kinematics, samplerate
 
 def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
-                          preproc=None, datatype='cursor', **kwargs):
+                          preproc=None, datatype='cursor', return_nan=False, **kwargs):
     '''
-    Helper function to return one segment of kinematics
-    '''
-    kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
-    assert kinematics is not None
+    Helper function to return one segment of kinematics.
 
-    return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        start_time (float): start of a trial
+        end_time (float): end of a trial
+        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
+        preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
+            a smoothing function or an estimate of velocity from position
+        datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
+        return_nan (bool, optional): If True, a nan value will be returned when data can not be loaded for any reason. If False, an exception will be raised when data can not be loaded. Defaults to False.
+        kwargs: additional keyword arguments to pass to get_kinematics
+    
+    Returns:
+        tuple: tuple containing:
+            | **trajectories (ntrial):** array of filtered cursor trajectories for each trial
+            | **trial_segments (ntrial):** array of numeric code segments for each trial  
+
+    '''
+    try:
+        kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
+        assert kinematics is not None
+        return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
+    except Exception as e:
+        print(f"Warning! Unable to load data from te {te_id}")
+        if return_nan:
+            return [np.nan]
+        else:
+            raise e
 
 def get_extracted_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, start_time=None, 
                            end_time=None, datatype='lfp_power', preproc=None, **kwargs):
@@ -2454,7 +2485,7 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
         try:
             exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
         except:
-            print(f"Entry {subject} {date} {te} could not be loaded.")
+            print(f"Entry {subject} {date} {te} could not be loaded. Skipping.")
             traceback.print_exc()
             continue
 
@@ -2468,24 +2499,18 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
             possible_stim_sites = [laser['stimulation_site'] for laser in lasers]
             possible_triggers = [laser['trigger'] for laser in lasers]
             possible_sensors = [laser['sensor'] for laser in lasers]
-            idx = np.array([n in exp_metadata.keys() and exp_metadata[n] != '' for n in possible_stim_sites])
+            idx = [(n in exp_metadata.keys()) and (str(exp_metadata[n]) != '') for n in possible_stim_sites]
             laser_triggers = np.array(possible_triggers)[idx]
             laser_sensors = np.array(possible_sensors)[idx]
             stim_sites = np.array(possible_stim_sites)[idx]
-
-        print('laser_triggers:', laser_triggers)
-        print('laser_sensors:', laser_sensors)
             
         for stim_idx in range(len(laser_triggers)):
             try:
-                print('laser_trigger:', laser_triggers[stim_idx])
-                print('laser_sensor:', laser_sensors[stim_idx])
-
                 trial_times, trial_widths, trial_gains, trial_powers = preproc.bmi3d.get_laser_trial_times(
                     preproc_dir, subject, te, date, debug=debug, laser_trigger=laser_triggers[stim_idx], 
                     laser_sensor=laser_sensors[stim_idx], **kwargs)
             except:
-                print(f"Problem extracting stimulation trials from entry {subject} {date} {te}")
+                print(f"Problem extracting stimulation trials from entry {subject} {date} {te}. Skipping.")
                 traceback.print_exc()
                 continue
 
@@ -2520,8 +2545,13 @@ def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation
 
 
             # Concatenate with existing dataframe
-            df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
-    
+            try:
+                df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+            except:
+                print(f"Problem concatenating entry {subject} {date} {te}. Skipping.")
+                traceback.print_exc()
+                continue
+
     return df
 
 def tabulate_poisson_trial_times(preproc_dir, subjects, ids, dates, metadata=[], 
