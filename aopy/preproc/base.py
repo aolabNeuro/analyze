@@ -272,7 +272,7 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
         timestamps (nt,): The timestamp (in seconds) for each data point in data.
         samplerate (float): The desired output sampling rate in Hz.
         upsamplerate (float, optional): The upsampling rate to use for interpolation. 
-            Defaults to 100 times the samplerate.
+            Defaults to the samplerate.
         append_time (float, optional): The amount of extra time to add at the end 
             of the timeseries, in seconds. Defaults to 0.
         kwargs (dict, optional): arguments to include in interpolation function
@@ -284,13 +284,14 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
         f"have the same number of cycles ({len(data)} vs {len(timestamps)})")
 
     if upsamplerate is None:
-        upsamplerate = samplerate * 10
+        upsamplerate = samplerate
 
     assert upsamplerate >= samplerate, "Upsamplerate must be greater than or equal to samplerate"
 
     time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
     data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False, **kwargs)
     if upsamplerate > samplerate:
+        data_time, _ = precondition.filter_kinematics(data_time, upsamplerate, low_cut=samplerate/2) # 4th order low-pass butterworth filter
         data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 

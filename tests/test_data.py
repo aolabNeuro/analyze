@@ -643,7 +643,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot cycle count
         ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
-        self.assertEqual(len(ts_data), 7031)
+        self.assertEqual(len(ts_data), 7030)
         self.assertEqual(samplerate, 120)
         time = np.arange(len(ts_data))/samplerate
         plt.figure()

@@ -842,11 +842,6 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
     Return interpolated task data. Wraps :func:`~aopy.data.bmi3d.get_interp_task_data` but 
     caches the data for faster loading.
 
-    Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
-        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
-        same samplerate.
-
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
@@ -903,20 +898,15 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype='curs
     '''
     Return all kinds of kinematics from preprocessed data. Caches the data for faster loading. 
 
-    Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
-        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
-        same samplerate.
-
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
+        samplerate (float): the desired samplerate of the data in Hz.
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.   
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
         kwargs: additional keyword arguments to pass to get_interp_task_data 
 
     Raises:
@@ -935,7 +925,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype='curs
         # Define a preproc function for eye data
         low_cut = kwargs.get('low_cut', 200.0)
         buttord = kwargs.get('buttord', 4)
-        savgol_window_ms = kwargs.pop('savgol_window_ms', 200)
+        savgol_window_ms = kwargs.pop('savgol_window_ms', 20)
         filter = True
         def preproc(kin, fs):
             if filter:
@@ -968,7 +958,7 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype='curs
         # Apply a filter to task data
         low_cut = kwargs.get('low_cut', 15.0)
         buttord = kwargs.get('buttord', 4)
-        savgol_window_ms = kwargs.pop('savgol_window_ms', 200)
+        savgol_window_ms = kwargs.pop('savgol_window_ms', 50)
         def preproc(kin, fs):
             return precondition.filter_kinematics(kin, fs,
             low_cut=low_cut, buttord=buttord,
