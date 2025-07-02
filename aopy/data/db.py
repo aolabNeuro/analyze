@@ -522,10 +522,14 @@ class BMI3DTaskEntry():
         '''
         return self.record
     
-    def get_exp_mapping(self):
+    def get_exp_mapping(self, raw=False):
         '''
         Get the experiment mapping matrix for this task entry that maps from world to
         screen coordinates. Only useful for manual control experiments.
+
+        Args:
+            raw (bool, optional): if True, return the mapping in BMI3D coordinates (x,z,y). 
+                Only useful for debugging. Defaults to False.
 
         Returns:
             np.ndarray: 3x3 mapping matrix
@@ -535,9 +539,15 @@ class BMI3DTaskEntry():
         x_rot = self.get_task_param('perturbation_rotation_x', 0)
         y_rot = self.get_task_param('pertubation_rotation', 0)
         z_rot = self.get_task_param('perturbation_rotation_z', 0)
+        baseline_rotation = self.get_task_param('baseline_rotation', 'none')
+
+        mapping = postproc.bmi3d.get_world_to_screen_mapping(
+            exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
         
-        return postproc.bmi3d.get_world_to_screen_mapping(
-            exp_rotation, x_rot, y_rot, z_rot, exp_gain)
+        if raw:
+            return mapping[[0, 2, 1], :][:, [0, 2, 1]]
+        else:
+            return mapping
 
     def has_exp_perturbation(self):
         '''
