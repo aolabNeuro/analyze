@@ -322,6 +322,10 @@ class FilterTests(unittest.TestCase):
         fname = 'filter_kinematics.png'
         savefig(docs_dir, fname)
 
+        fn = lambda x: precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=1, norm=False)[0]
+        HelperFunctions.test_filter(fn, fs=fs, T=5, freq=[1,3,30], a=[5, 2, 0.5], noise=0.2)
+        fname = 'filter_kinematics_speed.png'
+        savefig(docs_dir, fname)
 
 class SpikeDetectionTests(unittest.TestCase):
         

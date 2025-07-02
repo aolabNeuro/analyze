@@ -785,7 +785,8 @@ def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, butt
     b, a = butter(buttord, window, btype='bandpass', fs=samplerate)
     return filtfilt(b, a, broadband_data, axis=0)
 
-def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
+def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4, 
+                      deriv=0, savgol_window_ms=200, norm=False):
     '''
     Low-pass filter kinematics data to below 15 Hz by default. 
     Filter parameters taken from Bradberry, et al., 2009 
@@ -796,6 +797,11 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
         samplerate (float): sampling rate of the raw data
         low_cut (float, optional): cutoff frequency for low-pass filter. Defaults to 15 Hz
         buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
+        deriv (int, optional): apply a derivative to the data using Savitzky-Golay filter.
+            Default is 0, no derivative.
+        savgol_window_ms (float, optional): window length for Savitzky-Golay filter in milliseconds.
+            Default is 200 ms. If the window length is too small, it will be set to 3 samples.
+        norm (bool, optional): if True, return the norm of the filtered data. Default is False.
 
     Returns:
         tuple: tuple containing:
@@ -832,4 +838,13 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
     filtered_data = filtfilt(b, a, kinematic_data, axis=0)
+    if deriv > 0:
+        window_length = int(np.ceil(savgol_window_ms * samplerate / 1000.)) | 1
+        if window_length < 3:
+            print("Warning: Savitzky-Golay filter window length is too small, setting to 3")
+            window_length = 3
+        filtered_data = signal.savgol_filter(filtered_data, window_length=window_length, 
+                                             delta=1./samplerate, polyorder=3, deriv=deriv, axis=0)
+    if norm:
+        filtered_data = np.linalg.norm(filtered_data, axis=1)
     return filtered_data, samplerate
