@@ -835,6 +835,23 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
             ax['C'].set_ylabel('PSD')
 
         .. image:: _images/filter_kinematics.png
+
+        Apply a derivative to obtain velocity or acceleration:
+
+        .. code-block:: python
+
+            x, t = utils.generate_test_signal(2, fs, [10, 100], [1, 0.5], 0.2)
+            x_filt_pos, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=0)
+            x_filt_vel, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=1)
+
+            plt.figure()
+            plt.plot(t, x, label='Original signal')
+            plt.plot(t, x_filt_pos, label='Filtered position')
+            plt.plot(t, x_filt_vel, label='Filtered velocity')
+            plt.xlabel('time (seconds)')
+            plt.legend()
+        
+        .. image:: _images/filter_kinematics_speed.png
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
     filtered_data = filtfilt(b, a, kinematic_data, axis=0)
