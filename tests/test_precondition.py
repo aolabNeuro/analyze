@@ -335,14 +335,17 @@ class FilterTests(unittest.TestCase):
         # Compare to a simple derivative of the filtered position
         x_filt_pos_deriv = utils.derivative(t, x_filt_pos, norm=False)
 
-        plt.figure(figsize=(5, 6))
-        plt.subplot(3,1,1)
+        plt.figure(figsize=(5, 4))
+        plt.subplot(2,1,1)
         plt.plot(t, x, label='Original signal')
         plt.plot(t, x_filt_pos, label='Filtered position')
-        plt.subplot(3,1,2)
+        plt.ylabel('Position (cm)')
+        plt.legend()
+        plt.subplot(2,1,2)
         plt.plot(t, x_filt_vel, label='Filtered velocity')
         plt.plot(t, x_filt_pos_deriv, label='Filtered position derivative')
         plt.xlabel('time (seconds)')
+        plt.ylabel('Velocity (cm/s)')
         plt.legend()
         
         fname = 'filter_kinematics_speed.png'
@@ -356,7 +359,9 @@ class FilterTests(unittest.TestCase):
         plt.plot(t, x_filt_acc, label='Filtered acceleration')
         plt.plot(t, x_filt_pos_deriv_deriv, label='Filtered position 2nd derivative')
         plt.xlabel('time (seconds)')
+        plt.ylabel('Acceleration (cm/s^2)')
         plt.legend()
+        plt.tight_layout()
         
         fname = 'filter_kinematics_accel.png'
         savefig(docs_dir, fname, transparent=False)

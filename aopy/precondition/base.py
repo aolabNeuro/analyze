@@ -801,6 +801,7 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
             Default is 0, no derivative.
         savgol_window_ms (float, optional): window length for Savitzky-Golay filter in milliseconds.
             Default is 50 ms. If the window length is too small, it will be set to 3 samples.
+        savgol_polyorder (int, optional): polynomial order for Savitzky-Golay filter. Default is 3.
         norm (bool, optional): if True, return the norm of the filtered data. Default is False.
 
     Returns:
@@ -852,14 +853,17 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
             # Compare to a simple derivative of the filtered position
             x_filt_pos_deriv = utils.derivative(t, x_filt_pos, norm=False)
 
-            plt.figure(figsize=(5, 6))
-            plt.subplot(3,1,1)
+            plt.figure(figsize=(5, 4))
+            plt.subplot(2,1,1)
             plt.plot(t, x, label='Original signal')
             plt.plot(t, x_filt_pos, label='Filtered position')
-            plt.subplot(3,1,2)
+            plt.ylabel('Position (cm)')
+            plt.legend()
+            plt.subplot(2,1,2)
             plt.plot(t, x_filt_vel, label='Filtered velocity')
             plt.plot(t, x_filt_pos_deriv, label='Filtered position derivative')
             plt.xlabel('time (seconds)')
+            plt.ylabel('Velocity (cm/s)')
             plt.legend()
             
         .. image:: _images/filter_kinematics_speed.png
@@ -874,7 +878,9 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
             plt.plot(t, x_filt_acc, label='Filtered acceleration')
             plt.plot(t, x_filt_pos_deriv_deriv, label='Filtered position 2nd derivative')
             plt.xlabel('time (seconds)')
+            plt.ylabel('Acceleration (cm/s^2)')
             plt.legend()
+            plt.tight_layout()
 
         .. image:: _images/filter_kinematics_accel.png
         
