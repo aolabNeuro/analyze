@@ -840,18 +840,45 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
 
         .. code-block:: python
 
-            x, t = utils.generate_test_signal(2, fs, [10, 100], [1, 0.5], 0.2)
+            subject = 'test'
+            id = 8461
+            date = '2023-02-25'
+            exp_data, exp_metadata = aopy.data.base.load_preproc_exp_data(data_dir, subject, id, date)
+            x = aopy.data.get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=fs)[30*fs:35*fs,1]
+            t = np.arange(len(x)) / fs
             x_filt_pos, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=0)
             x_filt_vel, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=1)
 
-            plt.figure()
+            # Compare to a simple derivative of the filtered position
+            x_filt_pos_deriv = utils.derivative(t, x_filt_pos, norm=False)
+
+            plt.figure(figsize=(5, 6))
+            plt.subplot(3,1,1)
             plt.plot(t, x, label='Original signal')
             plt.plot(t, x_filt_pos, label='Filtered position')
+            plt.subplot(3,1,2)
             plt.plot(t, x_filt_vel, label='Filtered velocity')
+            plt.plot(t, x_filt_pos_deriv, label='Filtered position derivative')
             plt.xlabel('time (seconds)')
             plt.legend()
-        
+            
         .. image:: _images/filter_kinematics_speed.png
+
+        .. code-block:: python
+
+            # Test acceleration
+            x_filt_acc, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=2)
+            x_filt_pos_deriv_deriv = utils.derivative(t, x_filt_pos_deriv, norm=False)
+            
+            plt.figure(figsize=(5, 3))
+            plt.plot(t, x_filt_acc, label='Filtered acceleration')
+            plt.plot(t, x_filt_pos_deriv_deriv, label='Filtered position 2nd derivative')
+            plt.xlabel('time (seconds)')
+            plt.legend()
+
+        .. image:: _images/filter_kinematics_accel.png
+        
+
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
     filtered_data = filtfilt(b, a, kinematic_data, axis=0)
