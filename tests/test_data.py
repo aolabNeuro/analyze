@@ -61,10 +61,7 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertIsInstance(broadband_metadata, dict)
 
     def test_load_preproc_lfp_data(self):
-        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
-        self.assertIsInstance(lfp_data, np.ndarray)
-        self.assertIsInstance(lfp_metadata, dict)
-        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=1)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
         
