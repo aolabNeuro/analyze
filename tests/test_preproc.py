@@ -1413,7 +1413,7 @@ class ProcTests(unittest.TestCase):
     def test_proc_spikes(self):
         np_recorddir = '2024-08-27_Neuropixel_test_te0001'
         ecube_files = '2024-08-27_BMI3D_te0001'
-        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        files = {'ecube_neuropixels': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
         result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
@@ -1446,7 +1446,7 @@ class ProcTests(unittest.TestCase):
         # Test proc from ap data in neuropixels
         np_recorddir = '2024-08-27_Neuropixel_test_te0001'
         ecube_files = '2024-08-27_BMI3D_te0001'
-        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        files = {'ecube_neuropixels': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
 
@@ -1478,11 +1478,12 @@ class ProcTests(unittest.TestCase):
         proc_lfp(data_dir, files, write_dir, ecube_result_filename, max_memory_gb=0.0001, overwrite=True)
 
         contents = get_hdf_dictionary(write_dir, ecube_result_filename)
-        self.assertIn('lfp_data', contents)
-        self.assertIn('lfp_metadata', contents)
+        print(contents['drive1'])
+        self.assertIn('lfp_data', contents['drive1'])
+        self.assertIn('lfp_metadata', contents['drive1'])
 
-        lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, ecube_result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'drive1/lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, ecube_result_filename, 'drive1/lfp_metadata')
 
         approx_n_samples = int(ecube_metadata['n_samples']*lfp_metadata['samplerate']/ecube_metadata['samplerate'])
 
@@ -1499,11 +1500,11 @@ class ProcTests(unittest.TestCase):
         proc_lfp(data_dir, files, write_dir, bb_result_filename, max_memory_gb=0.0001, overwrite=True)
 
         contents = get_hdf_dictionary(write_dir, bb_result_filename)
-        self.assertIn('lfp_data', contents)
-        self.assertIn('lfp_metadata', contents)
+        self.assertIn('lfp_data', contents['drive1'])
+        self.assertIn('lfp_metadata', contents['drive1'])
 
-        lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, bb_result_filename, 'drive1/lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'drive1/lfp_metadata')
 
         self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
         self.assertEqual(lfp_data.shape[1], 8)
@@ -1513,7 +1514,7 @@ class ProcTests(unittest.TestCase):
         # Test proc from lfp data in neuropixels
         np_recorddir = '2024-08-27_Neuropixel_test_te0001'
         ecube_files = '2024-08-27_BMI3D_te0001'
-        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        files = {'ecube_neuropixels': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
 
@@ -1536,9 +1537,9 @@ class ProcTests(unittest.TestCase):
         result_hdffile.unlink()
 
         # Compare the two files
-        ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
-        bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+        ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'drive1/lfp_data')
+        bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'drive1/lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'drive1/lfp_metadata')
 
         ch = 0
 

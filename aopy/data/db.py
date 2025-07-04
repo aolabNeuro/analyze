@@ -462,6 +462,7 @@ class BMI3DTaskEntry():
         if 'neuropixels' in self.features:
             sources.append('spike')
             sources.append('lfp')
+            sources.append('ap')
         
         return sources
     

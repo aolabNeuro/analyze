@@ -20,7 +20,7 @@ import glob
 '''
 proc_* wrappers
 '''
-def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs, overwrite=False, **kwargs):
+def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs, kilosort_dir=None, overwrite=False, **kwargs):
     '''
     Preprocess a single recording, given a list of raw data files, into a series of hdf records with the same prefix.
     Args:
@@ -86,6 +86,32 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         broadband_data, broadband_metadata = aodata.load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
         assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
         files['broadband'] = broadband_filename # for proc_lfp()
+    if 'spikes' in preproc_jobs:
+        print('processing spike data...')
+        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+        proc_spikes(
+            data_dir,
+            files,
+            preproc_dir,
+            ap_filename,
+            kilosort_dir=kilosort_dir,
+            overwrite=overwrite,
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+        )
+    if 'ap' in preproc_jobs:
+        print('processing ap band data...')
+        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'ap')
+        proc_ap(
+            data_dir,
+            files,
+            preproc_dir,
+            ap_filename,
+            kilosort_dir=kilosort_dir,
+            overwrite=overwrite,
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+        )
+        ap_data, ap_metadata = aodata.load_preproc_ap_data(preproc_dir_base, subject, te_id, date, drive_number=1)
+        assert ap_data.shape == (ap_metadata['n_samples'], ap_metadata['n_channels'])
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
         lfp_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'lfp')
@@ -94,10 +120,11 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             files,
             preproc_dir,
             lfp_filename,
+            kilosort_dir=kilosort_dir,
             overwrite=overwrite,
             filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
         )
-        lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
+        lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date, drive_number=1)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
     if 'emg' in preproc_jobs:
         print('processing emg data...')
@@ -380,17 +407,19 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
     elif os.path.exists(filepath):
         os.remove(filepath)
 
+    idrive = 0
     # Preprocess neural data into lfp   
     if 'neuropixels' in files:
         np_recorddir = files['neuropixels']
-        ecube_files = files['ecube']
+        ecube_files = files['ecube_neuropixels']
         
         nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
 
         for iport in range(nport):
-            iport += 1
+            idrive += 1
+            iport += 1 # Note that idrive is not always the same as iport when you do neuropixels with other recordings
             _,_, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,iport,filepath,version='kilosort4')
-            aodata.save_hdf(result_dir, result_filename, metadata, f'drive{iport}/metadata', append=True)
+            aodata.save_hdf(result_dir, result_filename, metadata, f'drive{idrive}/metadata', append=True)
 
 def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
@@ -420,19 +449,21 @@ def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, ove
     elif os.path.exists(filepath):
         os.remove(filepath)
 
+    idrive = 0
     # Preprocess neural data into lfp   
     if 'neuropixels' in files:
         np_recorddir = files['neuropixels']
-        ecube_files = files['ecube']
+        ecube_files = files['ecube_neuropixels']
         datatype = 'ap'
         
         nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
         
         for iport in range(nport):
-            iport += 1
+            idrive += 1
+            iport += 1 # Note that idrive is not always the same as iport when you do neuropixels with other recordings
             _, ap_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath,
                                                 max_memory_gb = max_memory_gb)
-            aodata.save_hdf(result_dir, result_filename, ap_metadata, f'drive{iport}/ap_metadata', append=True)
+            aodata.save_hdf(result_dir, result_filename, ap_metadata, f'drive{idrive}/ap_metadata', append=True)
 
 def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
@@ -463,34 +494,38 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
     elif os.path.exists(filepath):
         os.remove(filepath)
 
+    idrive = 0
     # Preprocess neural data into lfp   
     if 'broadband' in files:
+        idrive += 1
         broadband_filepath = os.path.join(result_dir, files['broadband'])
         result_filepath = os.path.join(result_dir, result_filename)
 
-        _, lfp_metadata = aodata.filter_lfp_from_broadband(broadband_filepath, result_filepath, dtype='int16', 
+        _, lfp_metadata = aodata.filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=idrive, dtype='int16', 
                                                     max_memory_gb=max_memory_gb, **filter_kwargs)
-        aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+        aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
 
-    elif 'ecube' in files and 'neuropixels' not in files:
+    elif 'ecube' in files:
+        idrive += 1
         ecube_filepath = os.path.join(data_dir, files['ecube'])
         result_filepath = os.path.join(result_dir, result_filename)
 
-        _, lfp_metadata = aodata.filter_lfp_from_ecube(ecube_filepath, result_filepath, dtype='int16', 
+        _, lfp_metadata = aodata.filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=idrive, dtype='int16', 
                                                 max_memory_gb=max_memory_gb, **filter_kwargs)
-        aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+        aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
 
-    elif 'neuropixels' in files:
+    if 'neuropixels' in files:
         np_recorddir = files['neuropixels']
-        ecube_files = files['ecube']
+        ecube_files = files['ecube_neuropixels']
         datatype = 'lfp'
         nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
         
         for iport in range(nport):
-            iport += 1
+            idrive += 1
+            iport += 1 # Note that idrive is not always the same as iport when you do neuropixels with other recordings
             _, lfp_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath,
                                                  max_memory_gb = max_memory_gb)
-            aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{iport}/lfp_metadata', append=True)
+            aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
     
 
 def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):

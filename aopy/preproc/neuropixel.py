@@ -486,7 +486,7 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,po
     hdf.close()
 
     # Organize metadata
-    metadata['n_samples'] = n_samples
+    metadata['n_samples'] = sync_data.shape[0] # shchronization changes the shape of data
     metadata['down_samplerate'] = down_samplerate
     metadata[f'{datatype}_samplerate'] = 1/(sync_timestamps[1]-sync_timestamps[0])
     
