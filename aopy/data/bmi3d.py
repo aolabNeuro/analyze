@@ -198,7 +198,7 @@ def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadb
 
     return dset, metadata
 
-def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=None, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from a given broadband signal file into an hdf file.
 
@@ -234,7 +234,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
 
     # Create an hdf dataset
     lfp_hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = lfp_hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+    dset = lfp_hdf.create_dataset(f'drive{drive_number}/lfp_data', (lfp_samples, n_channels), dtype=dtype)
 
     # Figure out how much data we can load at once
     max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
@@ -276,7 +276,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
     
     return dset, lfp_metadata
 
-def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=None, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from an eCube recording file.
 
@@ -321,7 +321,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
 
     # Create an hdf dataset
     hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+    dset = hdf.create_dataset(f'drive{drive_number}/lfp_data', (lfp_samples, n_channels), dtype=dtype)
 
     # Filter broadband data into LFP directly into the hdf file
     n_lfp_samples = 0
