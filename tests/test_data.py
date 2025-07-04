@@ -762,7 +762,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
-        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
+        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
+                                          trial_start_codes, trial_end_codes, drive_number=1)
         self.assertEqual(len(lfp_segs), 9)
         self.assertEqual(lfp_segs[0].shape, (0, 8)) # fake lfp data has 8 channels and 0 samples
 
@@ -771,7 +772,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_end_codes = [REWARD, TRIAL_END]
         time_before = 0.1
         time_after = 0.4
-        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, time_before, time_after)
+        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
+                                      trial_start_codes, trial_end_codes, time_before, time_after, drive_number=1)
         self.assertEqual(lfp_aligned.shape, ((time_before+time_after)*1000, 8, 9))
 
     def test_get_target_locations(self):
@@ -1154,12 +1156,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Note: the data we're reading is only 1s long, so mostly these will be nans
         ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'], 
-                               trigger_times, time_before, time_after, datatype='lfp')
+                               trigger_times, time_before, time_after, drive_number=1, datatype='lfp')
         
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [TRIAL_END]
         ts_data_single_file = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
-                                              trial_start_codes, trial_end_codes, time_before, time_after)
+                                              trial_start_codes, trial_end_codes, time_before, time_after, drive_number=1)
      
         print(ts_data_single_file.shape)
 
@@ -1167,7 +1169,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test getting a single channel
         ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'],
-                                 trigger_times, time_before, time_after, datatype='lfp', channels=[0])
+                                 trigger_times, time_before, time_after, drive_number=1, datatype='lfp', channels=[0])
 
         self.assertEqual(ts_data.shape[1], 1)
 
@@ -1183,14 +1185,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Only consider completed trials
         df = df[df['reach_completed']]
         ts_seg, samplerate = tabulate_ts_segments(write_dir, df['subject'], df['te_id'], df['date'], 
-                                                  df['go_cue_time'], df['reach_end_time'])
+                                                  df['go_cue_time'], df['reach_end_time'], drive_number=1)
 
         self.assertEqual(len(df), len(ts_seg))
         
         trial_start_codes = [CENTER_TARGET_OFF]
         trial_end_codes = CURSOR_ENTER_PERIPHERAL_TARGET + [TRIAL_END]
-        ts_seg_single_file, _ = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
-                                              trial_start_codes, trial_end_codes, trial_filter=lambda t: TRIAL_END not in t)
+        ts_seg_single_file, _ = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, 
+                                                 trial_end_codes, drive_number=1, trial_filter=lambda t: TRIAL_END not in t)
 
         self.assertEqual(len(ts_seg_single_file), len(ts_seg))
         for i in range(len(ts_seg)):
