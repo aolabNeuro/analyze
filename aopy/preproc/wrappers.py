@@ -410,11 +410,14 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
     # Check if record_headstage is True or False
     record_headstage_key = 'record_headstage'
     metadata_group = 'exp_metadata'
-    record_headstage = aodata.load_hdf_data(result_dir, result_filename, record_headstage_key, metadata_group, cached=True)
+    tmp = result_filename.split('_')[:-1]
+    exp_filename = "_".join(tmp) + '_exp.hdf'
+    record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
 
     idrive = 0
     # Preprocess neural data into lfp   
-    if 'neuropixels' in files and record_headstage is False:
+    if 'neuropixels' in files and not record_headstage:
+        print(1)
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
         
@@ -457,11 +460,13 @@ def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, ove
     # Check if record_headstage is True or False
     record_headstage_key = 'record_headstage'
     metadata_group = 'exp_metadata'
-    record_headstage = aodata.load_hdf_data(result_dir, result_filename, record_headstage_key, metadata_group, cached=True)
+    tmp = result_filename.split('_')[:-1]
+    exp_filename = "_".join(tmp) + '_exp.hdf'
+    record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
 
     idrive = 0
     # Preprocess neural data into lfp   
-    if 'neuropixels' in files and record_headstage is False:
+    if 'neuropixels' in files and not record_headstage:
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
         datatype = 'ap'
@@ -507,7 +512,12 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
     # Check if record_headstage is True or False
     record_headstage_key = 'record_headstage'
     metadata_group = 'exp_metadata'
-    record_headstage = aodata.load_hdf_data(result_dir, result_filename, record_headstage_key, metadata_group, cached=True)
+    tmp = result_filename.split('_')[:-1]
+    exp_filename = "_".join(tmp) + '_exp.hdf'
+    try:
+        record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
+    except:
+        record_headstage = True # For previous recording where there is no 'record_headstage' key
 
     idrive = 0
     # Preprocess neural data into lfp   
@@ -520,7 +530,8 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
                                                     max_memory_gb=max_memory_gb, **filter_kwargs)
         aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
 
-    elif 'ecube' in files and record_headstage is True:
+    elif 'ecube' in files and record_headstage:
+        print(1)
         idrive += 1
         ecube_filepath = os.path.join(data_dir, files['ecube'])
         result_filepath = os.path.join(result_dir, result_filename)
@@ -529,7 +540,8 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
                                                 max_memory_gb=max_memory_gb, **filter_kwargs)
         aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
 
-    if 'neuropixels' in files and record_headstage is False:
+    if 'neuropixels' in files and not record_headstage:
+        print(2)
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
         datatype = 'lfp'

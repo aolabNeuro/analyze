@@ -1413,7 +1413,7 @@ class ProcTests(unittest.TestCase):
     def test_proc_spikes(self):
         np_recorddir = '2024-08-27_Neuropixel_test_te0001'
         ecube_files = '2024-08-27_BMI3D_te0001'
-        files = {'ecube_neuropixels': ecube_files, 'neuropixels':np_recorddir}
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
         result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
@@ -1446,7 +1446,7 @@ class ProcTests(unittest.TestCase):
         # Test proc from ap data in neuropixels
         np_recorddir = '2024-08-27_Neuropixel_test_te0001'
         ecube_files = '2024-08-27_BMI3D_te0001'
-        files = {'ecube_neuropixels': ecube_files, 'neuropixels':np_recorddir}
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
 
@@ -1514,7 +1514,7 @@ class ProcTests(unittest.TestCase):
         # Test proc from lfp data in neuropixels
         np_recorddir = '2024-08-27_Neuropixel_test_te0001'
         ecube_files = '2024-08-27_BMI3D_te0001'
-        files = {'ecube_neuropixels': ecube_files, 'neuropixels':np_recorddir}
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
 
