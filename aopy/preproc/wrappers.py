@@ -531,7 +531,6 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
         aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
 
     elif 'ecube' in files and record_headstage:
-        print(1)
         idrive += 1
         ecube_filepath = os.path.join(data_dir, files['ecube'])
         result_filepath = os.path.join(result_dir, result_filename)
@@ -541,7 +540,6 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
         aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
 
     if 'neuropixels' in files and not record_headstage:
-        print(2)
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
         datatype = 'lfp'
