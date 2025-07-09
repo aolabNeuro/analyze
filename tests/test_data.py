@@ -486,11 +486,17 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         files = {}
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        files['ecube'] = 'fake ecube data'
-        cls.subject = 'test'
-        cls.te_id = 3498
-        cls.date = '2021-12-13'
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+
+        # Reduce the file size so we can upload it to github
+        # headstage_data, metadata = load_ecube_headstages(data_dir, files['ecube'])
+        # headstage_data = headstage_data[:,:16] * metadata['voltsperbit'] # reduce to 16 channels
+        # filename = utils.save_test_signal_ecube(headstage_data, data_dir, 1, datasource='Headstages')
+
+        cls.subject = 'beignet'
+        cls.te_id = 5974
+        cls.date = '2022-07-01'
         preproc_dir = os.path.join(write_dir, cls.subject)
         preproc.proc_single(data_dir, files, preproc_dir, cls.subject, cls.te_id, cls.date, ['exp', 'eye', 'lfp'], overwrite=True)
 
@@ -1074,10 +1080,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test return_nan arg
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
-        df['te_id'] = 0
-        print('\n')
-        print(df)
-        print('\n')
+        df['te_id'] = 0 
         kin_nan = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                             preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000, return_nan=True)
         self.assertTrue(np.isnan(kin_nan[0]))
