@@ -994,7 +994,7 @@ class TestPrepareExperiment(unittest.TestCase):
         self.check_required_fields(data, metadata)
         files['ecube'] = '2023-12-29_BMI3D_te13154'
         data, metadata = parse_bmi3d(data_dir, files) # with ecube data
-        #self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
+        self.assertEqual(len(data['sync_events']), len(data['bmi3d_events']))
         self.check_required_fields(data, metadata)
 
     def test_parse_bmi3d_v16(self):

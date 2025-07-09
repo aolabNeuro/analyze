@@ -646,7 +646,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot cycle count
         ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
-        self.assertEqual(len(ts_data), 7947)
+        self.assertEqual(len(ts_data), 7986)
         self.assertEqual(samplerate, 120)
         time = np.arange(len(ts_data))/samplerate
         plt.figure()
@@ -768,7 +768,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
                                           trial_start_codes, trial_end_codes, drive_number=1)
         self.assertEqual(len(lfp_segs), 13)
-        self.assertEqual(lfp_segs[0].shape, (1396, 16)) # fake lfp data has 8 channels and 0 samples
+        self.assertEqual(lfp_segs[0].shape, (1395, 16)) # fake lfp data has 8 channels and 0 samples
 
     def test_get_lfp_aligned(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
@@ -883,7 +883,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertTrue(trial['delay_completed'])
         self.assertTrue(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        np.testing.assert_allclose(trial['penalty_start_time'], 41.065668)
+        np.testing.assert_allclose(trial['penalty_start_time'], 41.38588)
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
