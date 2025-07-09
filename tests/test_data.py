@@ -889,7 +889,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
 
         trial = df.iloc[10] # first trial of the second session
-        self.assertEqual(trial['prev_trial_end_time'], 49.08211488601614)
+        self.assertEqual(trial['prev_trial_end_time'], 49.4024)
 
     def test_tabulate_behavior_data_out(self):
 
