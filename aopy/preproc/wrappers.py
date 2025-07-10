@@ -6,13 +6,14 @@
 import os
 from importlib.metadata import version
 import datetime
-
+import h5py
 from .base import *
 from .bmi3d import parse_bmi3d
 from .oculomatic import parse_oculomatic
 from .optitrack import parse_optitrack
 from .. import postproc
 from .. import data as aodata
+from aopy.utils.base import detect_edges
 
 '''
 proc_* wrappers
@@ -96,6 +97,16 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
+    if 'emg' in preproc_jobs:
+        print('processing emg data...')
+        emg_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'emg')
+        proc_emg(
+            data_dir, 
+            files, 
+            preproc_dir, 
+            emg_filename, 
+            overwrite=overwrite
+        )
 
 def proc_exp(data_dir, files, result_dir, result_filename, overwrite=False, save_res=True):
     '''
@@ -245,9 +256,15 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         raise ValueError(f"File {exp_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
     
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
-    eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
-    eye_mask = eye_data['mask']
-    eye_data = eye_data['data']
+    try:
+        eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
+        eye_mask = eye_data['mask']
+        eye_data = eye_data['data']
+    except:
+        print("Could not parse eyetracking data. Returning empty data.")
+        eye_mask = None
+        eye_data = None
+        eye_metadata = {}
 
     try:
         # Calibrate the eye data
@@ -370,3 +387,39 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
                                                 max_memory_gb=max_memory_gb, **filter_kwargs)
         
     aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
+
+def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
+    '''
+    Process emg data:
+        Loads emg hdf data from bmi3d
+    Saves emg data into the HDF datasets:
+        emg_raw (nt, nch)
+        emg_metadata (dict)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "emg_data" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+    
+    if 'emg' in files:
+        result_filepath = os.path.join(result_dir, result_filename)
+        emg_data, emg_metadata = aodata.load_emg_data(data_dir, files['emg'])
+        emg_data -= np.mean(emg_data, axis=0, dtype=emg_metadata['dtype']) # remove DC offset
+    
+    result_filepath = os.path.join(result_dir, result_filename)
+    emg_hdf = h5py.File(result_filepath, 'w')
+    dset = emg_hdf.create_dataset('emg_data', data=emg_data)
+    emg_hdf.close()
+
+    aodata.save_hdf(result_dir, result_filename, emg_metadata, "/emg_metadata", append=True)

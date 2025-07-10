@@ -124,7 +124,7 @@ def detect_bad_ch_outliers(data, nbins=10000, thr=0.05, numsd=5.0, debug=False, 
             test_data[5, 150] = 30
             bad_ch = quality.detect_bad_ch_outliers(test_data, nbins=10000, thr=0.05, numsd=5.0, debug=True, verbose=False)
 
-        .. image:: _images/detect_bad_trials.png
+        .. image:: _images/detect_bad_ch_outliers.png
     '''
     
     assert thr > 0 and thr < 1, "Threshold must be between 0 and 1"

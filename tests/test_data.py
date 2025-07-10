@@ -280,6 +280,43 @@ class BMI3DTests(unittest.TestCase):
         self.assertTrue(all(off_times - on_times)>0)
         self.assertTrue(any(np.diff(on_times)>30))
 
+    def test_load_emg_data(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        emg_data, emg_metadata = load_emg_data(emg_data_dir, filename)
+        self.assertEqual(emg_data.shape[1], 64)
+        self.assertEqual(emg_data.shape[0], 14720)
+
+        self.assertIn('samplerate', emg_metadata)
+        self.assertEqual(emg_metadata['samplerate'], 2048)
+        self.assertEqual(emg_metadata['n_channels'], 64)
+
+    def test_load_emg_analog(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        analog_data, analog_metadata = load_emg_analog(emg_data_dir, filename)
+        self.assertEqual(analog_data.shape[1], 16)
+        self.assertEqual(analog_data.shape[0], 14720)
+
+        self.assertIn('samplerate', analog_metadata)
+        self.assertEqual(analog_metadata['samplerate'], 2048)
+        self.assertEqual(analog_metadata['n_channels'], 16)
+
+    def test_load_emg_digital(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        digital_data, digital_metadata = load_emg_digital(emg_data_dir, filename)
+        self.assertEqual(digital_data.shape[0], 14720)
+        self.assertEqual(digital_data.ndim, 1)
+
+        self.assertIn('samplerate', digital_metadata)
+        self.assertEqual(digital_metadata['samplerate'], 2048)
+        self.assertEqual(digital_metadata['n_channels'], 16)
+
+
 class NeuropixelTest(unittest.TestCase):
     
     def test_load_neuropixel_data(self):
@@ -895,7 +932,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2024-12-31', '2025-01-21'] # first entry is pre-pause state, second entry has pause state
         df = tabulate_behavior_data_corners(data_dir, subjects, ids, dates, metadata=['target_radius', 'cursor_radius', 'rand_delay'])
         self.assertEqual(len(df), 55)
-        self.assertEqual(len(df.columns), 27+1+3) # no. of columns + auto-added sequence params + user-inputted metadata
+        self.assertEqual(len(df.columns), 8+3+20) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
 
         # Check chain length (sequence param)
         self.assertTrue(np.all(df['chain_length'] == 2))
@@ -947,6 +984,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2023-02-25', '2023-02-25']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)  # no penalties in this session
         self.assertEqual(len(df), 42) # 21 total trials, duplicated
+        self.assertEqual(len(df.columns), 8+0+18) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
+
         self.assertTrue(np.all(df['reward']))
         self.assertFalse(np.all(df['penalty']))
         self.assertTrue(np.all(df['trial_initiated']))
@@ -984,6 +1023,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2023-10-02', '2023-10-02']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)
         self.assertEqual(len(df), 212)
+        self.assertEqual(len(df.columns), 8+0+18) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
 
         # Check sequence params
         self.assertTrue(np.all([json.loads(params)['ramp']==0 for params in df['sequence_params']]))
@@ -1045,6 +1085,16 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         visualization.plot_trajectories(kin, bounds=bounds)
         figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(write_dir, figname)
+
+        # Test return_nan arg
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        df['te_id'] = 0
+        print('\n')
+        print(df)
+        print('\n')
+        kin_nan = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000, return_nan=True)
+        self.assertTrue(np.isnan(kin_nan[0]))
 
     def test_tabulate_features(self):
         preproc_dir = data_dir
@@ -1276,6 +1326,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
 
+    def test_tabulate_poisson_trial_times(self):
+        subjects = ['test']
+        ids = [6577]
+        dates = ['2022-08-19']
+        df = tabulate_poisson_trial_times(data_dir, subjects, ids, dates)
+
+        self.assertIn('trial_time', df.columns)
+        self.assertTrue(len(df) > 0)
+
     def test_get_kilosort_foldername(self):
         subject='affi'
         te_id = 1000
@@ -1361,7 +1420,11 @@ class TestYaml(unittest.TestCase):
                    'TRIAL_END': 239,
                    'TRIAL_START': 2,
                    'CURSOR_ENTER_TARGET': 80,
+                   'CURSOR_ENTER_TARGET_RAMP_UP': 81,
+                   'CURSOR_ENTER_TARGET_RAMP_DOWN': 82,
                    'CURSOR_LEAVE_TARGET': 96,
+                   'CURSOR_LEAVE_TARGET_RAMP_UP': 97,
+                   'CURSOR_LEAVE_TARGET_RAMP_DOWN': 98,
                    'OTHER_PENALTY': 79,
                    'PAUSE_START': 128,
                    'PAUSE_END': 129}
@@ -1375,6 +1438,16 @@ class TestYaml(unittest.TestCase):
         task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
 
         self.assertDictEqual(params, task_codes_file)
+
+    def test_load_lasers(self):
+        lasers = load_bmi3d_lasers()
+        for l in lasers:
+            self.assertIn('name', l.keys())
+            self.assertIn('stimulation_site', l.keys())
+            self.assertIn('trigger', l.keys())
+            self.assertIn('trigger_dch', l.keys())
+            self.assertIn('sensor', l.keys())
+            self.assertIn('sensor_ach', l.keys())
 
 class SignalPathTests(unittest.TestCase):
 

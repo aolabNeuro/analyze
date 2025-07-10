@@ -26,7 +26,15 @@ Examples:
 
 .. toctree::
 
+    examples/data_transforms.ipynb
+
+.. toctree::
+
     examples/neuropixel_example.ipynb
+
+.. toctree::
+
+    examples/example_extract_features.ipynb
 
 .. toctree::
 

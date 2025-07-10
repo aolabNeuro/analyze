@@ -11,6 +11,9 @@ import numpy as np
 import unittest
 from pathlib import Path
 import datetime
+from aopy.preproc.wrappers import proc_emg
+import shutil
+
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -1001,6 +1004,25 @@ class TestPrepareExperiment(unittest.TestCase):
         self.check_required_fields(data, metadata)
         self.assertEqual(metadata['sync_protocol_version'], 0)
 
+        files['hdf'] = 'vrc020250410_02_te2677.hdf'
+        data, metadata = parse_bmi3d(data_dir, files)
+        self.check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 0)
+        self.assertIn('clean_hand_position', data.keys())
+
+    def test_parse_bmi3d_v17(self):
+        
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        files = {'emg':'aj20250319_05_te2540_emg.hdf',
+                 'hdf':'aj20250319_05_te2540_exp.hdf'
+        }
+
+        data, metadata = parse_bmi3d(emg_data_dir, files)
+
+        self.check_required_fields(data, metadata)
+        self.assertEqual(metadata['sync_protocol_version'], 17)
+
+
     def test_parse_optitrack(self):
         files = {}
         files['optitrack'] = 'Take 2021-04-06 11_47_54 (1312).csv'
@@ -1461,6 +1483,18 @@ class ProcTests(unittest.TestCase):
         plt.tight_layout()
         visualization.savefig(docs_dir, 'proc_lfp_comparison.png')
 
+    def test_proc_emg(self):
+
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        files = {'emg':'aj20250319_05_te2540_emg.hdf',
+                 'exp':'aj20250319_05_te2540_exp.hdf'
+        }
+
+        result_filename = 'test_proc_emg_out.hdf'
+
+        proc_emg(emg_data_dir, files, write_dir, result_filename, overwrite=True)
+
+
 class QualityTests(unittest.TestCase):
 
     def setUp(self):
@@ -1775,7 +1809,64 @@ class NeuropixelTests(unittest.TestCase):
         np.testing.assert_(np.all(data.shape == destriped_data.shape))
         del destriped_data # delete memmap file to completely delete the file later
         save_path.unlink()
-          
+        
+    def test_preproc_spikes(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        kilosort_dir = Path(data_dir)/'kilosort'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
+        save_dir = Path(data_dir)/'test'
+        result_filename = save_dir / filename
+
+        # Preprocess data from port 1 and port 2
+        port_number = 1
+        for port_number in [1,2]:
+            _, _, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/metadata', append=True)
+            spikes, metadata = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+            waveforms  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+            self.assertIn('0', spikes)
+            self.assertIn('0', waveforms)
+            self.assertIn('1', spikes)
+            self.assertIn('1', waveforms)
+            self.assertIn('sync_timestamps', metadata)
+            self.assertIn('spike_pos', metadata)
+
+        result_filename.unlink() # delete preprocessed file
+        
+    def test_preproc_ts(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+        
+        # Test for ap data
+        datatype = 'ap'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'ap')
+        result_filename = save_dir / filename
+        for port_number in [1,2]:
+            _, metadata = proc_neuropixel_ts(data_dir,np_recorddir,ecube_files,kilosort_dir,datatype, port_number, result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/ap_metadata', append=True)
+            ap_data, metadata = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=port_number)
+            self.assertEqual(ap_data.shape[1], metadata['n_channels'])
+            self.assertIn('ap_samplerate', metadata)
+            self.assertIn('sync_timestamps', metadata)
+            result_filename.unlink() # delete preprocessed file
+
+        # Test for lfp data
+        datatype = 'lfp'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'lfp')
+        result_filename = save_dir / filename
+        for port_number in [1,2]:
+            _, metadata = proc_neuropixel_ts(data_dir,np_recorddir,ecube_files,kilosort_dir,datatype, port_number, result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/lfp_metadata', append=True)
+            lfp_data, metadata = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=port_number)
+            self.assertEqual(lfp_data.shape[1], metadata['n_channels'])
+            self.assertIn('lfp_samplerate', metadata)
+            self.assertIn('sync_timestamps', metadata)
+            result_filename.unlink() # delete preprocessed file
+        
+        
 class LaserTests(unittest.TestCase):
 
     def test_calibrate_gain(self):
