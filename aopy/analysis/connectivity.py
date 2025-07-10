@@ -290,7 +290,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
             pool.close()
 
     else:
-        for ch in tqdm(range(erp.shape[1])):
+        for ch in range(erp.shape[1]):
 
             freqs, time, coh_avg, angle_avg = calc_connectivity_coh(
                 data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step,

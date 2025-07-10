@@ -661,7 +661,7 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
         selection_time_altcond = np.zeros((nch, ntrials))*np.nan
         roc_auc = np.zeros((nch,))*np.nan
         roc_se = np.zeros((nch,))*np.nan
-        for ich in tqdm(range(nch), desc="AccLLR wrapper", leave=False):
+        for ich in range(nch):
             (selection_time_altcond[ich,:], roc_auc[ich], 
              roc_se[ich]) = calc_accllr_st_single_ch(data_altcond[:,ich,:], data_nullcond[:,ich,:], 
                                                      lowpass_altcond[:,ich,:], lowpass_nullcond[:,ich,:],
