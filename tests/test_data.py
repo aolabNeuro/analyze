@@ -1066,6 +1066,23 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertEqual(loc.shape[0], 3) #3 coordinates per target location 
             self.assertLess(np.linalg.norm(loc), 10) #values in target location should be less than 10 
         
+        # Visualization check 
+        example_reaches = df[-5:] #last 5 reaches in the earlier dataframe
+        example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
+                                               example_reaches['date'], example_reaches['target_on'], 
+                                               example_reaches['cursor_enter_target'], datatype = 'cursor')
+        ex_targets = example_reaches['target_location'].to_numpy()
+        bounds = [-5,5,-5,5,-5,5]
+        default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        colors = default_colors[:len(ex_targets)]
+        ax = plt.axes(projection = '3d')
+        for idx, path in enumerate(example_traj):
+            ax.plot(*path.T)
+            visualization.plot_sphere(ex_targets[idx], color = colors[idx], radius = 0.5, 
+                                      bounds = bounds, ax = ax)
+        figname = 'tabulate_random.png' # should look very similar to get_trial_aligned_trajectories.png
+        visualization.savefig(write_dir, figname)
+    
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
@@ -1409,8 +1426,6 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_ENTER_CORNER_TARGET': list(range(81, 85)),
                    'CORNER_TARGET_ON': list(range(17, 21)),
                    'CORNER_TARGET_OFF': list(range(33, 37)),
-                   'TARGET_ON': list(range(16,30)),
-                   'CURSOR_ENTER_TARGET': list(range(80,94)),
                    'REWARD': 48,
                    'DELAY_PENALTY': 66,
                    'TIMEOUT_PENALTY': 65,
