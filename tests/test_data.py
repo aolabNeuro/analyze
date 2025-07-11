@@ -34,11 +34,12 @@ class LoadPreprocTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         files = {}
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        files['ecube'] = 'fake ecube data'
-        cls.id = 3498
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+
         cls.subject = 'fake_subject'
-        cls.date = '2021-12-13'
+        cls.id = 5974
+        cls.date = '2022-07-01'
         
         cls.id2 = '0000'
         cls.subject2 = 'test'
