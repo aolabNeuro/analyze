@@ -1075,13 +1075,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         bounds = [-5,5,-5,5,-5,5] #equal bounds to make visualization appear as spheres
         default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
         colors = default_colors[:len(ex_targets)] #match colors from the trajectories
-        ax = plt.axes(projection = '3d')
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection = '3d')
         for idx, path in enumerate(example_traj):
             ax.plot(*path.T)
             visualization.plot_sphere(ex_targets[idx], color = colors[idx], radius = 0.5, 
                                       bounds = bounds, ax = ax)
         figname = 'tabulate_behavior_random_targets.png' 
-        visualization.savefig(docs_dir, figname)
+        visualization.savefig(docs_dir, figname, transparent = False)
     
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
