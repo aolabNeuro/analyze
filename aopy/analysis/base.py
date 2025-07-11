@@ -21,11 +21,15 @@ from scipy.stats import wilcoxon
 from statsmodels.stats.multitest import fdrcorrection
 import nitime.algorithms as tsa
 import pywt
+import multiprocessing as mp
+from tqdm.auto import tqdm
+from functools import partial
 
 from .. import visualization
 from .. import utils
 from .. import preproc
 from .. import precondition
+from . import tuning
 
 '''
 Correlation / dimensionality analysis
@@ -2373,3 +2377,264 @@ def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000
         trajectories.append(traj)
         
     return np.array(trajectories)
+
+def calc_statistic_random_trials(data, n_trials=300, statistic=partial(np.mean, axis=0)):
+    '''
+    Calculate a distribution of a statistic across groups of trials of the data.
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on
+        n_trials (int): number of trials to use in each bootstrap
+        statistic (function): function to calculate the statistic on the data. Should
+            take the form `f(x) = y` where `x` is a 2D array of shape (n_trials, nch)
+            and `y` is a 1D array of shape (nch). Default is np.mean(x, axis=0).
+    
+    Returns:
+        (len(data)//ntrials, nch) array: distributions of the statistic across divisions of the data.
+
+    Examples:
+
+        .. code-block:: python
+
+            elec_pos, _, _ = aopy.data.load_chmap()
+            n_elec = len(elec_pos)
+            total_trials = 1600
+            n_trials = 50
+            np.random.seed()
+            data = 0.5*np.ones((total_trials,n_elec))
+            data += np.random.normal(0.5, size=(total_trials,n_elec))
+            data[:,n_elec//4:n_elec//2] += 0.1
+
+            dists = aopy.analysis.calc_statistic_random_trials(data, n_trials=n_trials)
+            self.assertEqual(np.shape(dists), (len(data)//n_trials, n_elec))
+
+            # Test that the distribution means are close to the original data mean
+            mean = np.mean(data, axis=0)
+            dists_mean = np.mean(dists, axis=0)
+            dists_std = np.std(dists, axis=0)
+            for i in range(n_elec):
+                self.assertAlmostEqual(mean[i], dists_mean[i], delta=0.1)
+            clim = (np.min(dists_mean), np.max(dists_mean))
+
+            plt.figure(figsize=(5,2), dpi=300)
+            plt.subplot(1,3,1)
+            im = aopy.visualization.plot_spatial_drive_map(mean, 
+                                            elec_data=True, cmap='Grays')
+            im.set_clim(*clim)
+            plt.axis('off')
+            plt.colorbar(im, shrink=0.5)
+            plt.title('data mean')
+
+            plt.subplot(1,3,2)
+            im = aopy.visualization.plot_spatial_drive_map(dists_mean, 
+                                            elec_data=True, cmap='Grays')
+            im.set_clim(*clim)
+            plt.axis('off')
+            plt.colorbar(im, shrink=0.5)
+            plt.title('dist means')
+
+            plt.subplot(1,3,3)
+            im = aopy.visualization.plot_spatial_drive_map(dists_std, 
+                                            elec_data=True, cmap='Grays')
+            plt.axis('off')
+            plt.colorbar(im, shrink=0.5)
+            plt.title('dist std')
+
+        .. image:: _images/calc_statistic_random_trials.png
+    '''
+    all_trials = np.arange(len(data))
+    np.random.shuffle(all_trials)
+    n_div = len(data)//n_trials
+    if n_div < 1:
+        raise ValueError(f"Not enough trials in data ({len(data)}) to perform the calculation with n_trials ({n_trials}).")
+    trials = np.reshape(all_trials[:n_div*n_trials], (n_div, n_trials))
+
+    dist = []
+    for k in range(n_div):
+        try:
+            dist.append(statistic(data[trials[k]]))
+        except KeyError:
+            dist.append(statistic(data.iloc[trials[k]].reset_index(drop=True)))
+
+    return np.array(dist)
+
+def _calc_statistic_random_trials(args):
+    '''
+    Helper function to unpack arguments for parallel processing.
+    '''
+    return calc_statistic_random_trials(*args)
+
+def calc_trial_bootstraps(data, n_trials=300, n_bootstraps=30, 
+                          statistic=partial(np.mean, axis=0), parallel=False):
+    '''
+    Repeatedly call :func:`~aopy.analysis.calc_statistic_random_trials` to generate
+    statistics over groups of trials.
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on
+        n_trials (int): number of trials to use in each bootstrap
+        n_bootstraps (int): number of bootstrap trials to perform
+        statistic (function): function to calculate the statistic on the data. Should
+            take the form `f(x) = y` where `x` is a 2D array of shape (n_trials, nch)
+            and `y` is a 1D array of shape (nch). Default is np.mean(x, axis=0).
+        parallel (bool or mp.pool.Pool, optional): Whether to run the bootstraps in parallel.
+            If True, uses a multiprocessing pool with 10 workers. If a Pool is provided,
+            it will use that pool instead. If False, runs the bootstraps sequentially.
+
+    Returns:
+        (n_bootstraps, len(data)//n_trials, nch) array: multiple bootstraps of distributions
+            of the statistic applied to divisions of the data.
+    '''
+    assert n_bootstraps > 0, "must have at least 1 bootstrap"
+    assert n_trials > 0, "must have at least 1 trial"
+    assert len(data) >= n_trials, "data must have at least as many trials as n_trials"
+    assert callable(statistic), "statistic must be a callable function"
+
+    args_list = [(data, n_trials, statistic)] * n_bootstraps
+
+    pool = None
+    if parallel is True:
+        pool = mp.Pool(mp.cpu_count() // 2)  # use half of the available cores
+    elif type(parallel) is mp.pool.Pool: # use an existing pool
+        pool = parallel
+    
+    if pool:
+        results = list(tqdm(pool.imap(_calc_statistic_random_trials, args_list), 
+                            total=n_bootstraps, desc="Bootstraps"))
+        if parallel is True:
+            pool.close()
+    else:
+        results = []
+        for args in tqdm(args_list, desc="Bootstraps"):
+            results.append(calc_statistic_random_trials(*args))
+
+    return np.array(results)
+
+def compare_conditions_bootstrap_spatial_corr_no_shuffle(
+        data, elec_pos, labels, n_trials=300, n_bootstraps=30, 
+        statistic=partial(np.mean, axis=0), parallel=False):
+    '''
+    Compare multiple conditions using bootstrapping. Two comparisons are made:
+        1. The spatial correlation of the distributions of the statistic across conditions.
+        2. The d-prime value for each channel pooled across bootstraps and comparing
+           across conditions.
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on
+        elec_pos ((nch, 2) array): electrode positions for each channel
+        labels (ntrials,): labels for each trial, used to group trials by condition
+        n_trials (int): number of trials to use in each bootstrap
+        n_bootstraps (int): number of bootstrap trials to perform
+        statistic (function): function to calculate the statistic on the data. 
+
+    Returns:
+        tuple: tuple containing:
+            | **cond_dists (n_cond, n_bootstraps, len(data)//n_trials, nch):** bootstraps distributions for each condition
+            | **conditions (n_cond):** unique conditions in the labels
+            | **corr_mats (n_bootstraps, n_cond*n_cond, n_cond*n_cond, nch):** list of spatial correlation matrices for each bootstrap
+            | **dprime (nch):** d-prime value for each channel pooled across bootstraps and comparing across conditions
+    '''
+    conditions = np.unique(labels)
+    if len(conditions) < 2:
+        raise ValueError("At least two conditions are required for comparison")
+    
+    cond_dists = []
+    for cond in conditions:
+        try:
+            data_cond = data[labels == cond]
+        except KeyError:
+            data_cond = data.iloc[labels == cond].reset_index(drop=True)
+
+        if len(data_cond) < n_trials:
+            raise ValueError(f"Condition {cond} has less than {n_trials} trials")
+
+        dist = calc_trial_bootstraps(data_cond, n_trials=n_trials, n_bootstraps=n_bootstraps,
+                                     statistic=statistic, parallel=parallel)
+        
+        cond_dists.append(dist)
+
+    # Compare spatial correlation
+    corr_mats = []
+    for i in range(n_bootstraps):
+        dists = [cd[i] for cd in cond_dists]
+        cmp = calc_spatial_data_correlation(np.concatenate(dists), 
+                                            elec_pos, interp=False)[0]
+        corr_mats.append(cmp)
+
+    # d-prime pooled across bootstraps
+    dprime = tuning.calc_dprime(*[np.concatenate(cd) for cd in cond_dists])
+
+    return cond_dists, conditions, corr_mats, dprime
+
+def compare_conditions_bootstrap_spatial_corr(
+        data, elec_pos, labels, n_trials=300, n_bootstraps=30, n_shuffle=0, 
+        statistic=partial(np.mean, axis=0), parallel=False):
+    '''
+    Compare multiple conditions using bootstrapping and shuffling. 
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on
+        elec_pos ((nch, 2) array): electrode positions for each channel
+        labels (ntrials,): labels for each trial, used to group trials by condition
+        n_trials (int): number of trials to use in each bootstrap
+        n_bootstraps (int): number of bootstrap trials to perform
+        n_shuffle (int): number of times to shuffle the labels to create a null distribution
+        statistic (function): function to calculate the statistic on the data.
+
+    Returns:
+        tuple: tuple containing:
+            | **means (nch):** mean of the statistic across conditions
+            | **observed_dists (n_cond, n_bootstraps, len(data)//n_trials, nch):** bootstraps distributions for each condition
+            | **conditions (n_cond):** unique conditions in the labels
+            | **observed_corr (n_bootstraps, n_cond*n_cond, n_cond*n_cond, nch):** list of spatial correlation matrices for each bootstrap
+            | **observed_dprime (nch):** d-prime value for each channel pooled across bootstraps and comparing across conditions
+        
+        if n_shuffle > 0:
+            | **shuff_dists_dist (n_shuffle, n_cond, n_bootstraps, len(data)//n_trials, nch):** shuffled distributions for each condition
+            | **shuff_corr_dist (n_shuffle, n_bootstraps, n_cond*n_cond, n_cond*n_cond, nch):** shuffled spatial correlation matrices
+            | **shuff_dprime_dist (n_shuffle, nch):** shuffled d-prime   
+    '''
+    conditions = np.unique(labels)
+    if len(conditions) < 2:
+        raise ValueError("At least two conditions are required for comparison")
+    if parallel is True:
+        parallel = mp.Pool(mp.cpu_count() // 2)  # use half of the available cores
+    if n_shuffle > 0:
+        shuff_pbar = tqdm(total=n_shuffle, desc="Shuffles")
+
+    # Calculate means using the minimum number of trials across conditions
+    min_n_trials = min([np.sum(labels == cond) for cond in conditions])
+    means, _, _, _ = compare_conditions_bootstrap_spatial_corr_no_shuffle(
+        data, elec_pos, labels, n_trials=min_n_trials, n_bootstraps=1, 
+        statistic=statistic, parallel=parallel
+    )
+
+    # Calculate observed distributions
+    observed_dists, _, observed_corr, observed_dprime = \
+        compare_conditions_bootstrap_spatial_corr_no_shuffle(
+            data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
+            statistic=statistic, parallel=parallel
+        )
+    
+    if n_shuffle == 0:
+        return np.squeeze(means), observed_dists, conditions, observed_corr, observed_dprime
+
+    # Calculate shuffled distributions
+    shuff_labels = labels.copy()
+    shuff_dists_dist = []
+    shuff_corr_dist = []
+    shuff_dprime_dist = []
+    for n in range(n_shuffle):
+        np.random.shuffle(shuff_labels)
+        shuff_dists, _, shuff_corr, shuff_dprime = \
+            compare_conditions_bootstrap_spatial_corr_no_shuffle(
+                data, elec_pos, shuff_labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
+                statistic=statistic, parallel=parallel
+            )
+        shuff_dists_dist.append(shuff_dists)
+        shuff_corr_dist.append(shuff_corr)
+        shuff_dprime_dist.append(shuff_dprime)
+        shuff_pbar.update()
+        
+    return np.squeeze(means), observed_dists, conditions, observed_corr, observed_dprime, \
+        shuff_dists_dist, shuff_corr_dist, shuff_dprime_dist
