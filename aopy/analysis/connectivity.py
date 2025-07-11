@@ -168,7 +168,8 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
         return freqs, time, stim_coh, stim_angle, pair
 
 def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_idx, window=None,
-                              n=0.06, step=0.03, bw=25, zscore=False, ref=True, parallel=False, imaginary=True, **kwargs):
+                              n=0.06, step=0.03, bw=25, zscore=False, ref=True, parallel=False, 
+                              verbose=True, imaginary=True, **kwargs):
     '''
     Map of coherence at every channel to the given stimulation channels. Input ERP data must include
     at least `n` seconds before and after events. Coherence is averaged across stimulation channels 
@@ -190,6 +191,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
         parallel (bool or mp.pool.Pool): whether to use parallel processing. Can optionally be a pool object
             to use an existing pool. If True, a new pool is created with the number of CPUs available. If False,
             computation is done serially (the default).
+        verbose (bool): if True, show a progress bar (default True).
         imaginary (bool): if True, compute imaginary coherence (the default).
     
     Returns:
@@ -250,7 +252,8 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
     assert time_after >= n, "time_after must be greater than or equal to n"
 
     n, p, k = precondition.convert_taper_parameters(n, bw)
-    print(f"using {k} tapers for tfcoh")
+    if verbose: 
+        print(f"using {k} tapers for tfcoh")
     
     if window is None:
         window = (0, n)
@@ -282,7 +285,10 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
                           for ch in range(erp.shape[1])]
 
         # result_objects is a list of pool.ApplyResult objects
-        results = [r.get() for r in result_objects]
+        if verbose:
+            results = list(tqdm((r.get() for r in result_objects), total=erp.shape[1], leave=False))
+        else:
+            results = [r.get() for r in result_objects]
         freqs, time, coh_all, angle_all = zip(*results)
         freqs = freqs[0]
         time = time[0]
@@ -290,7 +296,11 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
             pool.close()
 
     else:
-        for ch in range(erp.shape[1]):
+        if verbose:
+            iterator = tqdm(range(erp.shape[1]), leave=False)
+        else:
+            iterator = range(erp.shape[1])
+        for ch in iterator:
 
             freqs, time, coh_avg, angle_avg = calc_connectivity_coh(
                 data_altcond[:,[ch],:], data_altcond[:,stim_ch_idx,:], n, p, k, samplerate, step,
