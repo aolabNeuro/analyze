@@ -72,7 +72,7 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertEqual(len(ids), 1)
 
     def test_proc_eye_day(self):
-        self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
+        #self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])

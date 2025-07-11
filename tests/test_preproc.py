@@ -1387,9 +1387,9 @@ class ProcTests(unittest.TestCase):
 
     def test_proc_single(self):
         files = {}
-        files['ecube'] = 'fake ecube data'
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        proc_single(data_dir, files, write_dir, 'test', 3498, '2021-12-13', ['exp', 'eye', 'broadband', 'lfp'], overwrite=True)
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+        proc_single(data_dir, files, write_dir, 'test', 5974, '2022-07-01', ['exp', 'eye', 'broadband', 'lfp'], overwrite=True)
 
     def test_proc_broadband(self):
         files = {'ecube': "short headstage test"}
