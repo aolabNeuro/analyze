@@ -198,7 +198,7 @@ def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadb
 
     return dset, metadata
 
-def filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=None, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from a given broadband signal file into an hdf file.
 
@@ -276,7 +276,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=
     
     return dset, lfp_metadata
 
-def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=None, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from an eCube recording file.
 

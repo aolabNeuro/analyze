@@ -1478,7 +1478,6 @@ class ProcTests(unittest.TestCase):
         proc_lfp(data_dir, files, write_dir, ecube_result_filename, max_memory_gb=0.0001, overwrite=True)
 
         contents = get_hdf_dictionary(write_dir, ecube_result_filename)
-        print(contents['drive1'])
         self.assertIn('lfp_data', contents['drive1'])
         self.assertIn('lfp_metadata', contents['drive1'])
 

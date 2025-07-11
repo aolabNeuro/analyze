@@ -331,7 +331,11 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
         raise ValueError('Wrong kilosort version. Choose kilosort4 or kilosort2.5')
 
     # Synchronize spike times detected by kilosort with ecube timestamps
-    spike_indices = np.load(kilosort_output_dir/'spike_times.npy')
+    try:
+        spike_path = kilosort_output_dir/'spike_times.npy'
+        spike_indices = np.load(spike_path)
+    except:
+        raise ValueError(f'Spike file {spike_path} is not found. Please run kilosort first.')
     spike_times = spike_indices/metadata['samplerate']
     sync_spike_times, _ = preproc.sync_neuropixel_ecube(spike_times,on_times_np,off_times_np,on_times_ecube,off_times_ecube,bar_duration=0.0185)
 
@@ -459,8 +463,12 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,po
     elif datatype == 'ap':
 
         # Multiply inverse whitening matrix to whitened spike band time series
-        inverse_mat_path = kilosort_portdir / 'kilosort4' / 'whitening_mat_inv.npy'
-        inverse_mat = np.load(inverse_mat_path)   
+        try:
+            inverse_mat_path = kilosort_portdir / 'kilosort4' / 'whitening_mat_inv.npy'
+            inverse_mat = np.load(inverse_mat_path)   
+        except:
+            raise ValueError(f'inv_matrix {inverse_mat_path} is not found. Please run kilosort first.')
+        
         inv_temp_wh_path = kilosort_portdir / 'inv_temp_wh.dat'
         print(f'Multiplyng inverse matrix by whitened ap data')
         multiply_mat_batch(data, inverse_mat, inv_temp_wh_path, scale = 1/200, max_memory_gb=max_memory_gb)

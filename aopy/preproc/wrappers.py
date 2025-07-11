@@ -86,18 +86,6 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         broadband_data, broadband_metadata = aodata.load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
         assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
         files['broadband'] = broadband_filename # for proc_lfp()
-    if 'spikes' in preproc_jobs:
-        print('processing spike data...')
-        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
-        proc_spikes(
-            data_dir,
-            files,
-            preproc_dir,
-            ap_filename,
-            kilosort_dir=kilosort_dir,
-            overwrite=overwrite,
-            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
-        )
     if 'ap' in preproc_jobs:
         print('processing ap band data...')
         ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'ap')
@@ -126,6 +114,18 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date, drive_number=1)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
+    if 'spikes' in preproc_jobs:
+        print('processing spike data...')
+        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+        proc_spikes(
+            data_dir,
+            files,
+            preproc_dir,
+            ap_filename,
+            kilosort_dir=kilosort_dir,
+            overwrite=overwrite,
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+        )
     if 'emg' in preproc_jobs:
         print('processing emg data...')
         emg_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'emg')
@@ -367,8 +367,18 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
     elif os.path.exists(filepath):
         os.remove(filepath) # maybe bad, since it deletes everything, not just broadband data
 
+    # Check if record_headstage is True or False
+    record_headstage_key = 'record_headstage'
+    metadata_group = 'exp_metadata'
+    tmp = result_filename.split('_')[:-1]
+    exp_filename = "_".join(tmp) + '_exp.hdf'
+    try:
+        record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
+    except:
+        record_headstage = True # For previous recording where there is no 'record_headstage' key
+
     # Copy the broadband data into an HDF dataset
-    if 'ecube' in files:
+    if 'ecube' in files and record_headstage:
         
         # Process the binary data
         data_filepath = os.path.join(data_dir, files['ecube'])
@@ -415,8 +425,8 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
     record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
 
     idrive = 0
-    # Preprocess neural data into lfp   
-    if 'neuropixels' in files and not record_headstage:
+    # Preprocess neural data into spikes   
+    if 'neuropixels' in files:
         print(1)
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
@@ -466,7 +476,7 @@ def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, ove
 
     idrive = 0
     # Preprocess neural data into lfp   
-    if 'neuropixels' in files and not record_headstage:
+    if 'neuropixels' in files:
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
         datatype = 'ap'
@@ -539,7 +549,7 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
                                                 max_memory_gb=max_memory_gb, **filter_kwargs)
         aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
 
-    if 'neuropixels' in files and not record_headstage:
+    if 'neuropixels' in files:
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
         datatype = 'lfp'
