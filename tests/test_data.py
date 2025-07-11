@@ -643,7 +643,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot cycle count
         ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
-        self.assertEqual(len(ts_data), 7031)
+        self.assertEqual(len(ts_data), 7030)
         self.assertEqual(samplerate, 120)
         time = np.arange(len(ts_data))/samplerate
         plt.figure()
@@ -1063,7 +1063,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Only consider completed reaches
         df = df[df['reach_completed']]
         kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
+                                      datatype='cursor', samplerate=1000)
 
         self.assertEqual(len(df), len(kin))
 
@@ -1071,7 +1071,24 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         bounds = [-10, 10, -10, 10]
         visualization.plot_trajectories(kin, bounds=bounds)
         figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
-        visualization.savefig(write_dir, figname)
+        visualization.savefig(docs_dir, figname, transparent=False)
+
+        # Test speed and acceleration
+        dst = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                      deriv=0, norm=True, datatype='cursor', samplerate=1000)
+        spd = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                      deriv=1, norm=True, datatype='cursor', samplerate=1000)
+        acc = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                      deriv=2, norm=True, datatype='cursor', samplerate=1000)
+        plt.figure()
+        visualization.plot_timeseries(dst[0], 1000)
+        visualization.plot_timeseries(spd[0], 1000)
+        visualization.plot_timeseries(acc[0], 1000)
+        plt.legend(['distance', 'speed', 'acceleration'])
+        plt.xlabel('time from go cue (s)')
+        plt.ylabel('kinematics (cm)')
+        figname = 'tabulate_kinematics_derivative.png' # should look very similar to get_trial_aligned_trajectories.png
+        visualization.savefig(docs_dir, figname, transparent=False)
 
         # Test return_nan arg
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
@@ -1080,7 +1097,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         print(df)
         print('\n')
         kin_nan = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000, return_nan=True)
+                            datatype='cursor', samplerate=1000, return_nan=True)
         self.assertTrue(np.isnan(kin_nan[0]))
 
     def test_tabulate_features(self):
