@@ -2474,6 +2474,11 @@ def tabulate_behavior_data_random_targets(preproc_dir, subjects, ids, dates, met
             | **reward_start_time (ntrial): **time of reward 
             | **penalty_start_time (ntrial): **penalty start time (if applicable)
             | **penalty_event(ntrial): ** event description of penalty 
+    
+        Visualization of 5 reaches with targets. 
+
+        .. image:: _images/tabulate_behavior_random_targets.png
+
     '''
     # Set up how to tabulate based on event_code_type.
     #event_code_type == 'event':

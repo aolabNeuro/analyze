@@ -1072,16 +1072,16 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
                                                example_reaches['date'], example_reaches['target_on'], 
                                                example_reaches['cursor_enter_target'], datatype = 'cursor')
         ex_targets = example_reaches['target_location'].to_numpy()
-        bounds = [-5,5,-5,5,-5,5]
+        bounds = [-5,5,-5,5,-5,5] #equal bounds to make visualization appear as spheres
         default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
-        colors = default_colors[:len(ex_targets)]
+        colors = default_colors[:len(ex_targets)] #match colors from the trajectories
         ax = plt.axes(projection = '3d')
         for idx, path in enumerate(example_traj):
             ax.plot(*path.T)
             visualization.plot_sphere(ex_targets[idx], color = colors[idx], radius = 0.5, 
                                       bounds = bounds, ax = ax)
-        figname = 'tabulate_random.png' # should look very similar to get_trial_aligned_trajectories.png
-        visualization.savefig(write_dir, figname)
+        figname = 'tabulate_behavior_random_targets.png' 
+        visualization.savefig(docs_dir, figname)
     
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
