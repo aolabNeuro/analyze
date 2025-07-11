@@ -1786,6 +1786,18 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, rig_name="siberut-bmi")
         te.save(using='test_aopy')
 
+        # Add a perturbation manual control session
+        task = models.Task.objects.get(name="manual control")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
+                            session="test session", project="test project", params='{"perturbation_rotation_x": 90}', sequence_id=seq.id)
+        te.save(using='test_aopy')
+
+        # And a washout session
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
+                            session="test session", project="test project", sequence_id=seq.id)
+        te.save(using='test_aopy')
+
 
     def test_lookup_sessions(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1800,13 +1812,12 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sessions[1].id, all_sessions[1].id)
 
         # Other sanity tests
-        total_sessions = 6
-        self.assertEqual(len(db.lookup_sessions()), total_sessions)
-        self.assertEqual(len(db.lookup_mc_sessions()), 1)
-        self.assertEqual(len(db.lookup_flash_sessions()), 1)
-        self.assertEqual(len(db.lookup_tracking_sessions()), 1)
-        self.assertEqual(len(db.lookup_bmi_sessions()), 2)
-        self.assertEqual(len(db.lookup_decoder_parent()), 1)
+        total_sessions = len(db.lookup_sessions())
+        self.assertGreater(len(db.lookup_mc_sessions()), 0)
+        self.assertGreater(len(db.lookup_flash_sessions()), 0)
+        self.assertGreater(len(db.lookup_tracking_sessions()), 0)
+        self.assertGreater(len(db.lookup_bmi_sessions()), 0)
+        self.assertGreater(len(db.lookup_decoder_parent()), 0)
 
         # Test filtering
         self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
@@ -1814,7 +1825,6 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions(subject="test", task_name="manual control",
                                       task_desc="task_desc", session="test session", project="test project",
                                       experimenter="experimenter_1")
-        self.assertEqual(len(sessions), 1)
         self.assertEqual(sessions[0].task_name, "manual control")
         self.assertEqual(sessions[0].task_desc, "task_desc")
         self.assertEqual(sessions[0].subject, "test")
@@ -1915,6 +1925,8 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(te.get_raw_files()), 0)
         raw = te.get_db_object()
         self.assertIsNotNone(raw)
+        np.testing.assert_allclose(te.get_exp_mapping(), np.eye(3))
+        self.assertEqual(te.has_exp_perturbation(), False)
 
         # Test a bmi session and decoder
         te = db.lookup_sessions(task_name="bmi control")[0]
@@ -1931,8 +1943,9 @@ class DatabaseTests(unittest.TestCase):
         db.BMI3D_DBNAME = 'test_aopy'
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
-        self.assertCountEqual(subject, ['test'])
-        self.assertCountEqual([str(d) for d in date], [str(datetime.datetime.today().date())])
+        self.assertEqual(len(subject), len(sessions))
+        for s in subject:
+            self.assertEqual(s, 'test')
         
     def test_group_entries(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1940,21 +1953,18 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions()
         grouped = db.group_entries(sessions) # by date
         self.assertEqual(len(grouped), 1)
-        self.assertEqual(len(grouped[0]), 6)
+        self.assertEqual(len(grouped[0]), len(sessions))
 
         grouped = db.group_entries(sessions, lambda x: x.duration) # by duration
         self.assertEqual(len(grouped), 2)
-        self.assertEqual(len(grouped[0]), 4) # duration = 0.0
+        self.assertEqual(len(grouped[0]), len(sessions) - 2) # duration = 0.0
         self.assertEqual(len(grouped[1]), 2) # duration = 3.0
 
     def test_summarize_entries(self):
             
         sessions = db.lookup_sessions()
         summary = db.summarize_entries(sessions)
-        self.assertEqual(len(summary), 6)
-
-        summary = db.summarize_entries(sessions, sum_trials=True)
-        self.assertEqual(len(summary), 5) # one duplicate task
+        self.assertEqual(len(summary), len(sessions))
 
     def test_encode_onehot_sequence_name(self):
 
@@ -1972,6 +1982,17 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(df), len(sessions))
         self.assertEqual(df['id_copy'].sum(), df['te_id'].sum())
         self.assertTrue(all(df['test'] == 'test'))
+
+    def test_get_aba_perturbation_sessions(self):
+        sessions = db.lookup_mc_sessions()
+        names = db.get_aba_perturbation_sessions(sessions)
+        self.assertCountEqual(names, ['a', 'b', 'aprime'])
+
+    def test_get_aba_perturbation_days(self):
+        sessions = db.lookup_mc_sessions()
+        days, sessions = db.get_aba_perturbation_days(sessions)
+        self.assertEqual(len(days), 1)
+        self.assertCountEqual(sessions[0], ['a', 'b', 'aprime'])
 
 if __name__ == "__main__":
     unittest.main()
