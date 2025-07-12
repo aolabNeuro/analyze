@@ -217,7 +217,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
         MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
 
     Note:
-        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_lfp` wrapper.
     '''
     lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
 
@@ -295,7 +295,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
         MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
 
     Note:
-        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_lfp` wrapper.
     '''
     lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
 
@@ -343,6 +343,76 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
     lfp_metadata.update(filter_kwargs)
     
     return dset, lfp_metadata
+
+def filter_ap_from_broadband(broadband_filepath, result_filepath, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    '''
+    Filters action potential (AP) band data from a given broadband signal file into an hdf file.
+
+    Args:
+        broadband_filepath (str): Path to the input broadband signal file.
+        result_filepath (str): Path to save the filtered AP data.
+        mean_subtract (bool, optional): Whether to subtract the mean from the filtered AP signal.
+                                        Default is True.
+        dtype (str, optional): Data type for the filtered AP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **filter_kwargs: Additional keyword arguments to customize the filtering process.
+                        These arguments will be passed to the filtering function.
+
+    Raises:
+        IOError: If the input broadband file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_ap` wrapper.
+    '''
+    metadata = base.load_hdf_group('', broadband_filepath, 'broadband_metadata')
+    samplerate = metadata['samplerate']
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
+    if 'low_pass' not in filter_kwargs:
+        filter_kwargs['low_pass'] = 300
+    if 'high_pass' not in filter_kwargs:
+        filter_kwargs['high_pass'] = 10000
+    if 'buttord' not in filter_kwargs:
+        filter_kwargs['buttord'] = 3
+
+    # Create an hdf dataset
+    ap_hdf = h5py.File(result_filepath, 'a')
+    dset = ap_hdf.create_dataset('ap_data', (n_samples, n_channels), dtype=dtype)
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
+    channel_chunksize = max(min(n_channels, max_samples // n_samples), 1)
+    time_chunksize = min(n_samples, max_samples // channel_chunksize)
+    print(f"{channel_chunksize} channels and {time_chunksize} samples in each chunk")
+    
+    # Load the broadband dataset
+    bb_hdf = h5py.File(broadband_filepath, 'r')
+    if 'broadband_data' not in bb_hdf:
+        raise ValueError(f'broadband_data not found in file {broadband_filepath}')
+    bb_data = bb_hdf['broadband_data']
+    
+    # Filter broadband data into AP directly into the hdf file
+    n_samples_read = 0
+    while n_samples_read < n_samples:
+        n_ch = 0
+        while n_ch < n_channels:
+            broadband_chunk = bb_data[n_samples_read:n_samples_read+time_chunksize, n_ch:n_ch+channel_chunksize]
+            ap_chunk = precondition.filter_ap(broadband_chunk, samplerate, **filter_kwargs)
+            assert ap_chunk.shape == broadband_chunk.shape
+            dset[n_samples_read:n_samples_read+time_chunksize,n_ch:n_ch+channel_chunksize] = ap_chunk
+            n_ch += channel_chunksize
+        n_samples_read += time_chunksize
+        
+    bb_hdf.close()
+
+    # Append the ap metadata to the file
+    ap_metadata = metadata
+    ap_metadata['samplerate'] = samplerate
+    ap_metadata['n_samples'] = n_samples
+    ap_metadata.update(filter_kwargs)
+    
+    return dset, ap_metadata
 
 def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''

@@ -388,6 +388,42 @@ def proc_lfp(data_dir, files, result_dir, result_filename, overwrite=False, max_
         
     aodata.save_hdf(result_dir, result_filename, lfp_metadata, "/lfp_metadata", append=True)
 
+def proc_ap(data_dir, files, result_dir, result_filename, overwrite=False, max_memory_gb=1., filter_kwargs={}):
+    '''
+    Process ap band data:
+        Loads 'broadband' hdf data or 'ecube' headstage data and metadata
+    Saves ap band data into the HDF datasets:
+        ap_data (nt, nch)
+        ap_metadata (dict)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_filename (str): where to store the processed result
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        max_memory_gb (float, optional): max memory used to load binary data at one time
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_ap`
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "ap_data" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+
+    # Preprocess neural data into ap   
+    if 'broadband' in files:
+        broadband_filepath = os.path.join(result_dir, files['broadband'])
+        result_filepath = os.path.join(result_dir, result_filename)
+
+        _, ap_metadata = aodata.filter_ap_from_broadband(broadband_filepath, result_filepath, dtype='int16', 
+                                                    max_memory_gb=max_memory_gb, **filter_kwargs)
+        
+    aodata.save_hdf(result_dir, result_filename, ap_metadata, "/ap_metadata", append=True)
+
 def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
     Process emg data:

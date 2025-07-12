@@ -766,7 +766,7 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
     filtered_data = filtfilt(b, a, broadband_data, axis=0)
     return downsample(filtered_data, broadband_samplerate, lfp_samplerate), lfp_samplerate
 
-def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
+def filter_ap(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
     '''
     Band-pass filter broadband data at default 500-7500 Hz. Default filtering parameters taken
     from Stavisky, Kao, et al., 2015
