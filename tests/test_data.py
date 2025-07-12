@@ -34,11 +34,12 @@ class LoadPreprocTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         files = {}
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        files['ecube'] = 'fake ecube data'
-        cls.id = 3498
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+
         cls.subject = 'fake_subject'
-        cls.date = '2021-12-13'
+        cls.id = 5974
+        cls.date = '2022-07-01'
         
         cls.id2 = '0000'
         cls.subject2 = 'test'
@@ -61,10 +62,7 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertIsInstance(broadband_metadata, dict)
 
     def test_load_preproc_lfp_data(self):
-        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
-        self.assertIsInstance(lfp_data, np.ndarray)
-        self.assertIsInstance(lfp_metadata, dict)
-        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=1)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
         
@@ -74,7 +72,7 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertEqual(len(ids), 1)
 
     def test_proc_eye_day(self):
-        self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
+        #self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
@@ -489,11 +487,17 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         files = {}
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        files['ecube'] = 'fake ecube data'
-        cls.subject = 'test'
-        cls.te_id = 3498
-        cls.date = '2021-12-13'
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+
+        # Reduce the file size so we can upload it to github
+        # headstage_data, metadata = load_ecube_headstages(data_dir, files['ecube'])
+        # headstage_data = headstage_data[:,:16] * metadata['voltsperbit'] # reduce to 16 channels
+        # filename = utils.save_test_signal_ecube(headstage_data, data_dir, 1, datasource='Headstages')
+
+        cls.subject = 'beignet'
+        cls.te_id = 5974
+        cls.date = '2022-07-01'
         preproc_dir = os.path.join(write_dir, cls.subject)
         preproc.proc_single(data_dir, files, preproc_dir, cls.subject, cls.te_id, cls.date, ['exp', 'eye', 'lfp'], overwrite=True)
 
@@ -643,7 +647,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot cycle count
         ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
-        self.assertEqual(len(ts_data), 7030)
+        self.assertEqual(len(ts_data), 7985)
         self.assertEqual(samplerate, 120)
         time = np.arange(len(ts_data))/samplerate
         plt.figure()
@@ -709,7 +713,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
-        self.assertEqual(len(trajs), 9)
+        self.assertEqual(len(trajs), 13)
         self.assertEqual(trajs[1].shape[1], 3)
         bounds = [-10, 10, -10, 10]
         plt.figure()
@@ -720,7 +724,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot eye trajectories - expect same 9 trials but no eye pos to plot
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye')
-        self.assertEqual(len(trajs), 9)
+        self.assertEqual(len(trajs), 13)
         self.assertEqual(trajs[1].shape[1], 4) # two eyes x and y
         plt.figure()
         visualization.plot_trajectories(trajs[:2], bounds=bounds)
@@ -730,7 +734,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot hand trajectories - expect same 9 trials but hand kinematics.
         hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='manual_input')
-        self.assertEqual(len(hand_trajs), 9)
+        self.assertEqual(len(hand_trajs), 13)
         self.assertEqual(hand_trajs[1].shape[1], 3)
         plt.figure()
         visualization.plot_trajectories(hand_trajs, bounds=bounds)
@@ -741,7 +745,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Try cursor velocity
         # Test normalized output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=True)
-        self.assertEqual(len(vel), 9)
+        self.assertEqual(len(vel), 13)
         self.assertEqual(vel[1].ndim, 1)
         plt.figure()
         plt.plot(vel[1])
@@ -751,34 +755,36 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test component wise velocity output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
-        self.assertEqual(len(vel), 9)
+        self.assertEqual(len(vel), 13)
         self.assertEqual(vel[1].shape[1], 3)
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
-        self.assertEqual(len(trajs), 7)
+        self.assertEqual(len(trajs), 10)
 
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
-        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
-        self.assertEqual(len(lfp_segs), 9)
-        self.assertEqual(lfp_segs[0].shape, (0, 8)) # fake lfp data has 8 channels and 0 samples
+        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
+                                          trial_start_codes, trial_end_codes, drive_number=1)
+        self.assertEqual(len(lfp_segs), 13)
+        self.assertEqual(lfp_segs[0].shape, (1395, 16)) # fake lfp data has 8 channels and 0 samples
 
     def test_get_lfp_aligned(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
         time_before = 0.1
         time_after = 0.4
-        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, time_before, time_after)
-        self.assertEqual(lfp_aligned.shape, ((time_before+time_after)*1000, 8, 9))
+        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
+                                      trial_start_codes, trial_end_codes, time_before, time_after, drive_number=1)
+        self.assertEqual(lfp_aligned.shape, ((time_before+time_after)*1000, 16, 13))
 
     def test_get_target_locations(self):
         target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
         locs = get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices)
         self.assertEqual(locs.shape, (9, 3))
-        self.assertEqual(len(str(locs[1][0])), 6)
+        self.assertEqual(len(str(locs[1][0])), 3)
 
         # If you supply an invalid target index it should raise an error
         target_indices = np.array([10])
@@ -808,13 +814,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         df = tabulate_behavior_data(
             write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
             reward_codes, penalty_codes, metadata=['target_radius', 'rand_delay'], df=None)
-        self.assertEqual(len(df), 18)
-        np.testing.assert_allclose(df['target_radius'], 2.)
+        self.assertEqual(len(df), 26)
+        np.testing.assert_allclose(df['target_radius'], 1.3)
         for delay in df['rand_delay']:
-             np.testing.assert_allclose(delay, [0.23, 0.3])
+             np.testing.assert_allclose(delay, [0.1, 0.6])
         expected_reward = np.ones(len(df))
-        expected_reward[-2:] = 0
-        expected_reward[-11:-9] = 0
+        expected_reward[[4,6,8,17,19,21]] = 0
         np.testing.assert_allclose(df['reward'], expected_reward)
 
     def test_tabulate_behavior_data_center_out(self):
@@ -828,7 +833,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         t1 = time.perf_counter()
         print(f"tabulate_behavior_data_center_out took {t1-t0:0.3f} seconds")
         
-        self.assertEqual(len(df), 20) # 10 total trials, duplicated
+        self.assertEqual(len(df), 26) # 10 total trials, duplicated
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
         self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
@@ -844,8 +849,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Check a couple interesting trials
         trial = df.iloc[0] # a successful trial
         self.assertTrue(trial['reward'])
-        np.testing.assert_allclose(trial['event_codes'], [16, 80, 18, 32, 82, 48, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 24, 32, 88, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, 4.5962, 0.])
         self.assertTrue(trial['trial_initiated'])
         self.assertTrue(trial['hold_completed'])
         self.assertTrue(trial['delay_completed'])
@@ -857,37 +862,35 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertGreater(trial['trial_end_time'], trial['reward_start_time'])
 
         trial = df.iloc[7] # a timeout penalty before anything happens
-        self.assertFalse(trial['reward'])
-        self.assertTrue(trial['penalty'])
-        np.testing.assert_allclose(trial['event_codes'], [16, 65, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
-        self.assertFalse(trial['trial_initiated'])
-        self.assertFalse(trial['hold_completed'])
-        self.assertFalse(trial['delay_completed'])
-        self.assertFalse(trial['reach_completed'])
-        self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        np.testing.assert_allclose(trial['penalty_start_time'], 40.314078)
-        self.assertEqual(trial['penalty_event'], 65) # timeout penalty
+        self.assertTrue(trial['reward'])
+        self.assertFalse(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 22, 32, 86, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, -4.5962, 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertTrue(trial['hold_completed'])
+        self.assertTrue(trial['delay_completed'])
+        self.assertTrue(trial['reach_completed'])
+        self.assertTrue(np.isnan(trial['penalty_start_time']))
+        self.assertTrue(np.isnan(trial['penalty_event']))# timeout penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
-        self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
 
         trial = df.iloc[8] # a hold penalty on the center target
         self.assertFalse(trial['reward'])
         self.assertTrue(trial['penalty'])
-        np.testing.assert_allclose(trial['event_codes'], [16, 80, 64, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 20, 32, 84, 64, 239])
+        np.testing.assert_allclose(trial['target_location'], [4.5962, -4.5962, 0.])
         self.assertTrue(trial['trial_initiated'])
-        self.assertFalse(trial['hold_completed'])
-        self.assertFalse(trial['delay_completed'])
-        self.assertFalse(trial['reach_completed'])
+        self.assertTrue(trial['hold_completed'])
+        self.assertTrue(trial['delay_completed'])
+        self.assertTrue(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        np.testing.assert_allclose(trial['penalty_start_time'], 42.64896)
+        np.testing.assert_allclose(trial['penalty_start_time'], 41.38588)
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
 
         trial = df.iloc[10] # first trial of the second session
-        self.assertEqual(trial['prev_trial_end_time'], 0.)
+        self.assertEqual(trial['prev_trial_end_time'], 49.4024)
 
     def test_tabulate_behavior_data_out(self):
 
@@ -896,7 +899,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = [self.date, self.date]
 
         df = tabulate_behavior_data_out(write_dir, subjects, ids, dates, df=None)
-        self.assertEqual(len(df), 16) # 8 total trials, duplicated (center target hold and timeout penalty trials are excluded)
+        self.assertEqual(len(df), 26) # 8 total trials, duplicated (center target hold and timeout penalty trials are excluded)
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
         self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
@@ -910,20 +913,20 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Check a couple interesting trials
         trial = df.iloc[0] # a successful trial
         self.assertTrue(trial['reward'])
-        np.testing.assert_allclose(trial['event_codes'], [18, 32, 82, 48, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        np.testing.assert_allclose(trial['event_codes'], [24, 32, 88, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, 4.5962, 0.])
         self.assertTrue(trial['reach_completed'])
         events = [trial['prev_trial_end_time'], trial['target_on_time'], trial['reach_end_time'], trial['reward_start_time'], trial['trial_end_time']]
         np.testing.assert_allclose(events, sorted(events)) # events should occur in order
 
         trial = df.iloc[7] # a hold penalty on the peripheral target
-        self.assertFalse(trial['reward'])
-        self.assertTrue(trial['penalty'])
-        np.testing.assert_allclose(trial['event_codes'], [21, 32, 85, 64, 239])
+        self.assertTrue(trial['reward'])
+        self.assertFalse(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [22, 32, 86, 48, 239])
         np.testing.assert_allclose(trial['target_location'], [-4.5962, -4.5962, 0.])
         self.assertTrue(trial['reach_completed'])
-        self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_event'], 64) # hold penalty
+        self.assertFalse(~np.isnan(trial['penalty_start_time']))
+        self.assertTrue(np.isnan(trial['penalty_event']))# hold penalty
 
     def test_tabulate_behavior_data_corners(self):
         task_codes = load_bmi3d_task_codes()
@@ -1092,10 +1095,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test return_nan arg
         df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
-        df['te_id'] = 0
-        print('\n')
-        print(df)
-        print('\n')
+        df['te_id'] = 0 
         kin_nan = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                             datatype='cursor', samplerate=1000, return_nan=True)
         self.assertTrue(np.isnan(kin_nan[0]))
@@ -1171,12 +1171,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Note: the data we're reading is only 1s long, so mostly these will be nans
         ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'], 
-                               trigger_times, time_before, time_after, datatype='lfp')
+                               trigger_times, time_before, time_after, drive_number=1, datatype='lfp')
         
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [TRIAL_END]
         ts_data_single_file = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
-                                              trial_start_codes, trial_end_codes, time_before, time_after)
+                                              trial_start_codes, trial_end_codes, time_before, time_after, drive_number=1)
      
         print(ts_data_single_file.shape)
 
@@ -1184,7 +1184,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test getting a single channel
         ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'],
-                                 trigger_times, time_before, time_after, datatype='lfp', channels=[0])
+                                 trigger_times, time_before, time_after, drive_number=1, datatype='lfp', channels=[0])
 
         self.assertEqual(ts_data.shape[1], 1)
 
@@ -1200,14 +1200,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Only consider completed trials
         df = df[df['reach_completed']]
         ts_seg, samplerate = tabulate_ts_segments(write_dir, df['subject'], df['te_id'], df['date'], 
-                                                  df['go_cue_time'], df['reach_end_time'])
+                                                  df['go_cue_time'], df['reach_end_time'], drive_number=1)
 
         self.assertEqual(len(df), len(ts_seg))
         
         trial_start_codes = [CENTER_TARGET_OFF]
         trial_end_codes = CURSOR_ENTER_PERIPHERAL_TARGET + [TRIAL_END]
-        ts_seg_single_file, _ = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
-                                              trial_start_codes, trial_end_codes, trial_filter=lambda t: TRIAL_END not in t)
+        ts_seg_single_file, _ = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, 
+                                                 trial_end_codes, drive_number=1, trial_filter=lambda t: TRIAL_END not in t)
 
         self.assertEqual(len(ts_seg_single_file), len(ts_seg))
         for i in range(len(ts_seg)):

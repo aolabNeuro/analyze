@@ -198,7 +198,7 @@ def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadb
 
     return dset, metadata
 
-def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from a given broadband signal file into an hdf file.
 
@@ -234,7 +234,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
 
     # Create an hdf dataset
     lfp_hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = lfp_hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+    dset = lfp_hdf.create_dataset(f'drive{drive_number}/lfp_data', (lfp_samples, n_channels), dtype=dtype)
 
     # Figure out how much data we can load at once
     max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
@@ -276,7 +276,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
     
     return dset, lfp_metadata
 
-def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from an eCube recording file.
 
@@ -321,7 +321,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
 
     # Create an hdf dataset
     hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+    dset = hdf.create_dataset(f'drive{drive_number}/lfp_data', (lfp_samples, n_channels), dtype=dtype)
 
     # Filter broadband data into LFP directly into the hdf file
     n_lfp_samples = 0
@@ -1144,7 +1144,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     return trajectories[success_trials], trial_segments[success_trials]
 
 def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           trial_filter=lambda x:True):
+                           drive_number=None, trial_filter=lambda x:True):
     '''
     Loads lfp segments (different length for each trial) from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -1168,7 +1168,7 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
 
     '''
     data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=drive_number)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1184,7 +1184,7 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
 
 
 def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           time_before, time_after, trial_filter=lambda x:True):
+                           time_before, time_after, drive_number=None, trial_filter=lambda x:True):
     '''
     Loads lfp data (same length for each trial) from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -1208,7 +1208,7 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
 
     '''
     data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=drive_number)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1224,7 +1224,7 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
     return trial_aligned_data[:,:,success_trials]
 
 def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_before, time_after,
-                      channels=None, datatype='lfp'):
+                      drive_number=None, channels=None, datatype='lfp'):
     '''
     Simple wrapper around load_hdf_ts_trial for lfp or broadband data.
     
@@ -1245,13 +1245,25 @@ def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_befo
             | **samplerate (float):** sampling rate of the returned data
     '''
     data_group='/'
-    data_name=f'{datatype}_data'
-    metadata_group=f'{datatype}_metadata'
     samplerate_key='samplerate'
     if datatype == 'lfp':
         samplerate_key='lfp_samplerate'
     filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
+
+    group_names = base.list_root_groups(preproc_dir, filename)
+    if drive_number:
+        data_name=f'drive{drive_number}/{datatype}_data'
+        metadata_group=f'drive{drive_number}/{datatype}_metadata'
+                
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+        
+        data_name=f'{datatype}_data'
+        metadata_group=f'{datatype}_metadata'
 
     try:
         samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
@@ -1264,7 +1276,7 @@ def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_befo
     return data, samplerate
 
 def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
-                        channels=None, datatype='lfp'):
+                        drive_number=None, channels=None, datatype='lfp'):
     '''
     Simple wrapper around load_hdf_ts_segment for lfp or broadband data.
     
@@ -1285,13 +1297,25 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
             | **samplerate (float):** sampling rate of the returned data
     '''
     data_group='/'
-    data_name=f'{datatype}_data'
-    metadata_group=f'{datatype}_metadata'
     samplerate_key='samplerate'
     if datatype == 'lfp':
         samplerate_key='lfp_samplerate'
     filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
+    group_names = base.list_root_groups(preproc_dir, filename)
+
+    if drive_number:
+        data_name=f'drive{drive_number}/{datatype}_data'
+        metadata_group=f'drive{drive_number}/{datatype}_metadata'
+                
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+        
+        data_name=f'{datatype}_data'
+        metadata_group=f'{datatype}_metadata'
 
     try:
         samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
@@ -2955,7 +2979,7 @@ def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_t
                               datatype, samplerate=samplerate, steps=steps, preproc=preproc, **kwargs)
 
 def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_before, time_after, 
-                     channels=None, datatype='lfp'):
+                     drive_number=None, channels=None, datatype='lfp'):
     '''
     Grab rectangular timeseries data from trials across arbitrary preprocessed files.
     
@@ -2981,7 +3005,7 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
     # Get the first trial
     segment_1, samplerate = get_ts_data_trial(
         preproc_dir, subjects[0], te_ids[0], dates[0], trigger_times[0], 
-        time_before, time_after, channels=channels, datatype=datatype
+        time_before, time_after, drive_number=drive_number, channels=channels, datatype=datatype
     )
         
     # Construct the tensor using the first trial as a template
@@ -2996,14 +3020,14 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
     for s, t, d, tr in list(zip(subjects, te_ids, dates, trigger_times))[1:]:
         segments[:,:,idx] = get_ts_data_trial(preproc_dir, s, t, d, tr, 
                                               time_before, time_after, 
-                                              channels=channels, datatype=datatype)[0]
+                                              drive_number=drive_number, channels=channels, datatype=datatype)[0]
         idx += 1
         
     return segments, samplerate
 
 # Also, tabulate_ts_data has some errors in the docstring!
 def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_times,
-                         channels=None, datatype='lfp'):
+                         drive_number=None, channels=None, datatype='lfp'):
     '''
     Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
     
@@ -3029,7 +3053,7 @@ def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_
     segments = []
     for s, t, d, st, et in list(zip(subjects, te_ids, dates, start_times, end_times)):
         segment, samplerate = get_ts_data_segment(preproc_dir, s, t, d, st, et, 
-                                                  channels=channels, datatype=datatype)
+                                                  drive_number=drive_number, channels=channels, datatype=datatype)
         segments.append(segment)
         
     return segments, samplerate
