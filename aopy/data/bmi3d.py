@@ -2475,9 +2475,34 @@ def tabulate_behavior_data_random_targets(preproc_dir, subjects, ids, dates, met
             | **penalty_start_time (ntrial): **penalty start time (if applicable)
             | **penalty_event(ntrial): ** event description of penalty 
     
-        Visualization of 5 reaches with targets. 
+        Examples:
+            
+            Visualization of 5 reaches to random targets. 
 
-        .. image:: _images/tabulate_behavior_random_targets.png
+           .. code-block:: python
+           
+               subjects = ['Leo', 'Leo']
+               ids = [1957, 1959]
+               dates = ['2025-02-13', '2025-02-13']
+
+               df = tabulate_behavior_data_random_targets(data_dir, subjects, ids, dates, metadata = ['sequence_params'])
+               example_reaches = df[-5:] #last 5 reaches in the earlier dataframe
+               example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
+                                               example_reaches['date'], example_reaches['target_on'], 
+                                               example_reaches['cursor_enter_target'], datatype = 'cursor')
+               ex_targets = example_reaches['target_location'].to_numpy()
+               bounds = [-5,5,-5,5,-5,5] #equal bounds to make visualization appear as spheres
+               default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+               colors = default_colors[:len(ex_targets)] #match colors from the trajectories
+               
+               fig = plt.figure()
+               ax = fig.add_subplot(111, projection = '3d')
+               for idx, path in enumerate(example_traj):
+                   ax.plot(*path.T)
+                   visualization.plot_sphere(ex_targets[idx], color = colors[idx], radius = 0.5, 
+                                      bounds = bounds, ax = ax)
+
+            .. image:: _images/tabulate_behavior_random_targets.png
 
     '''
     # Set up how to tabulate based on event_code_type.
