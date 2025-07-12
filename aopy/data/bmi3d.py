@@ -834,21 +834,13 @@ def get_velocity_segments(*args, norm=True, **kwargs):
             | **velocities (ntrial):** array of velocity estimates for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
     '''
-    def preproc(pos, fs):
-        time = np.arange(pos.shape[0])/fs
-        return derivative(time, pos, norm=norm), fs
-    return get_kinematic_segments(*args, **kwargs, preproc=preproc)
+    return get_kinematic_segments(*args, **kwargs, deriv=1, norm=norm)
 
 @lru_cache(maxsize=1)
 def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, step=1, preproc=None, **kwargs):
     '''
     Return interpolated task data. Wraps :func:`~aopy.data.bmi3d.get_interp_task_data` but 
     caches the data for faster loading.
-
-    Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
-        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
-        same samplerate.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -901,24 +893,20 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
     return data, samplerate
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype='cursor', 
+                   deriv=0, norm=False, **kwargs):
     '''
     Return all kinds of kinematics from preprocessed data. Caches the data for faster loading. 
-
-    Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
-        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
-        same samplerate.
 
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
+        samplerate (float): the desired samplerate of the data in Hz.
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.   
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
         kwargs: additional keyword arguments to pass to get_interp_task_data 
 
     Raises:
@@ -929,34 +917,60 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''   
-    if 'eye' in datatype:
+    eye_filename = base.get_preprocessed_filename(subject, te_id, date, 'eye')
+    eye_filepath = os.path.join(preproc_dir, subject, eye_filename)
+    if 'eye' in datatype and os.path.exists(eye_filepath):
         eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        
+        # Define a preproc function for eye data
+        low_cut = kwargs.get('low_cut', 200.0)
+        buttord = kwargs.get('buttord', 4)
+        savgol_window_ms = kwargs.pop('savgol_window_ms', 20)
+        filter = True
+        def preproc(kin, fs):
+            if filter:
+                filtered, fs = precondition.filter_kinematics(kin, fs,
+                    low_cut=low_cut, buttord=buttord,
+                    deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm, **kwargs)
+            if samplerate < fs:
+                return precondition.downsample(filtered, fs, samplerate), samplerate
+            elif samplerate > fs:
+                time = np.arange(len(filtered))/fs
+                interp, _ = interp_timestamps2timeseries(time, kin, samplerate)
+                return interp, samplerate
+            else:
+                return filtered, fs
+
+        # Preprocess eye data based on the datatype
         if datatype == 'eye_raw':
             eye_data = eye_data['raw_data']
         elif datatype == 'eye_closed_mask':
             eye_data = eye_data['eye_closed_mask']
+            filter = False # no filtering for eye closed mask
         elif 'calibrated_data' in eye_data.keys():
             eye_data = eye_data['calibrated_data']
         else:
             raise ValueError(f"No calibrated eye data for {te_id}")
-        
-        time = np.arange(len(eye_data))/eye_metadata['samplerate']
-        raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
-
-        time = np.arange(len(raw_kinematics))/samplerate
-        if preproc is not None:
-            kinematics, samplerate = preproc(raw_kinematics, samplerate)
-        else:
-            kinematics = raw_kinematics
+        kinematics, samplerate = preproc(eye_data, eye_metadata['samplerate'])
 
     else:
+
+        # Apply a filter to task data
+        low_cut = kwargs.get('low_cut', 15.0)
+        buttord = kwargs.get('buttord', 4)
+        savgol_window_ms = kwargs.pop('savgol_window_ms', 50)
+        def preproc(kin, fs):
+            return precondition.filter_kinematics(kin, fs,
+            low_cut=low_cut, buttord=buttord,
+            deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm, **kwargs)
+        
         kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
                                                samplerate, preproc=preproc, **kwargs)
-
+        
     return kinematics, samplerate
 
 def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
-                          preproc=None, datatype='cursor', return_nan=False, **kwargs):
+                          datatype='cursor', deriv=0, norm=False, return_nan=False, **kwargs):
     '''
     Helper function to return one segment of kinematics.
 
@@ -968,9 +982,9 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
         start_time (float): start of a trial
         end_time (float): end of a trial
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
-            a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
         return_nan (bool, optional): If True, a nan value will be returned when data can not be loaded for any reason. If False, an exception will be raised when data can not be loaded. Defaults to False.
         kwargs: additional keyword arguments to pass to get_kinematics
     
@@ -981,7 +995,8 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
 
     '''
     try:
-        kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
+        kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype, 
+                                                deriv=deriv, norm=norm, **kwargs)
         assert kinematics is not None
         return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
     except Exception as e:
@@ -1062,7 +1077,7 @@ def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=No
                            end_time=end_time, datatype='decoder_state', preproc=preproc, **kwargs)
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           trial_filter=lambda x:True, preproc=None, datatype='cursor',
+                           trial_filter=lambda x:True, datatype='cursor', deriv=0, norm=False,
                            samplerate=1000, **kwargs):
     '''
     Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
@@ -1094,9 +1109,9 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         trial_end_codes (list): list of numeric codes representing the end of a trial
         trial_filter (fn, optional): function mapping trial segments to boolean values. Any trials
             for which the filter returns False will not be included in the output
-        preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
-            a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
         kwargs: additional keyword arguments to pass to get_kinematics
     
@@ -1109,7 +1124,8 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         The sampling rate of the returned data might be different from the requested sampling rate if the
         preprocessing function does any modification to the length of the data.
 
-    Modified September 2023 to include optional sampling rate argument     
+    Modified September 2023 to include optional sampling rate argument 
+    Modified July 2025 to include optional deriv and norm arguments    
     '''
     data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     event_codes = data['events']['code']
@@ -1117,7 +1133,8 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
                                                                   trial_start_codes, trial_end_codes)
     segments = [
-        _get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, **kwargs)[0] 
+        _get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, datatype, 
+                               deriv=deriv, norm=norm, **kwargs)[0] 
         for t in trial_times
     ]
     trajectories = np.array(segments, dtype='object')
@@ -2651,9 +2668,11 @@ def tabulate_poisson_trial_times(preproc_dir, subjects, ids, dates, metadata=[],
     return df
 
 def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
-                            samplerate=1000, preproc=None, datatype='cursor', **kwargs):
+                            samplerate=1000, deriv=0, norm=False, datatype='cursor', **kwargs):
     '''
-    Grab kinematics data from trials across arbitrary preprocessed files.
+    Grab kinematics data from trials across arbitrary preprocessed files. Before segmenting,
+    filters data using :func:`~aopy.preproc.filter_kinematics` (default 15 Hz low-pass) and
+    optionally applies a derivate to the data to get velocity, acceleration, or jerk.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -2663,18 +2682,57 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
         start_times (list of float): times in the recording at which the desired segments starts
         end_times (list of float): times in the recording at which the desired segments ends
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to tabulate. Defaults to 'cursor'.  
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
         kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.get_kinematic_segment`  
 
     Returns:
         (ntrial,): list of tensors of (nt, nch) kinematics from each trial
+
+    Examples:
+
+        .. code-block:: python
+
+            subjects = ['test']
+            ids = [3498]
+            dates = ['2021-12-13']
+
+            df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+            
+            # Only consider completed reaches
+            df = df[df['reach_completed']]
+            kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        datatype='cursor', samplerate=1000)
+
+            plt.figure()
+            bounds = [-10, 10, -10, 10]
+            visualization.plot_trajectories(kin, bounds=bounds)
+            
+        .. image:: _images/tabulate_kinematics.png
+            
+        .. code-block:: python
+
+            dst = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        deriv=0, norm=True, datatype='cursor', samplerate=1000)
+            spd = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        deriv=1, norm=True, datatype='cursor', samplerate=1000)
+            acc = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        deriv=2, norm=True, datatype='cursor', samplerate=1000)
+            plt.figure()
+            visualization.plot_timeseries(dst[0], 1000)
+            visualization.plot_timeseries(spd[0], 1000)
+            visualization.plot_timeseries(acc[0], 1000)
+            plt.legend(['distance', 'speed', 'acceleration'])
+            plt.xlabel('time from go cue (s)')
+            plt.ylabel('kinematics (cm)')
+
+        .. image:: _images/tabulate_kinematics_derivative.png
     '''
 
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
-    
-    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
+    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, datatype, 
+                                       deriv=deriv, norm=norm, **kwargs)[0] 
                 for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
     trajectories = np.array(segments, dtype='object')
     return trajectories

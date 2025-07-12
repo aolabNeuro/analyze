@@ -347,8 +347,8 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf
         samplerate (float): Sampling rate [Hz]
         threshold (nch): Threshold that input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. 
         above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
-        wf_length (float): Length of waveforms to output :math:`[\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\mu s`
-        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\mu s]`. Defaults to 200 :math:`\mu s`  
+        wf_length (float): Length of waveforms to output :math:`[\\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\\mu s`
+        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\\mu s]`. Defaults to 200 :math:`\\mu s`  
         
     Returns: 
         tuple: Tuple containing:
@@ -406,8 +406,8 @@ def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above
         threshold (float): Threshold that input data must cross to indicate a spike for each channel.
         chunksize (int): Chunk size to process data by chunk
         above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
-        wf_length (float): Length of waveforms to output :math:`[\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\mu s`
-        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\mu s]`. Defaults to 200 :math:`\mu s`  
+        wf_length (float): Length of waveforms to output :math:`[\\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\\mu s`
+        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\\mu s]`. Defaults to 200 :math:`\\mu s`  
         
     Returns: 
         tuple: Tuple containing:
@@ -488,12 +488,12 @@ def filter_spike_times_fast(spike_times, refractory_period=100):
     '''
     This function takes spike times and filters them to remove spikes within the refractory period of the preceding spike. This function always assumes the first threshold crossing is a good spike.
     Note: This function will remove spikes that are in the refractory period of the preceding spike even if the the preceding spike is in the refractory period of its preceding spike even though that spike shouldn't be removed.
-    For example if the refractory period is set to 100 :math:`\mu s` and there are spikes at 50 :math:`\mu s`, 125 :math:`\mu s`, and 200 :math:`\mu s`, the spikes at 125 :math:`\mu s` and 200 :math:`\mu s` will be removed even though only the 125 :math:`\mu s` spike should be removed.
+    For example if the refractory period is set to 100 :math:`\\mu s` and there are spikes at 50 :math:`\\mu s`, 125 :math:`\\mu s`, and 200 :math:`\\mu s`, the spikes at 125 :math:`\\mu s` and 200 :math:`\\mu s` will be removed even though only the 125 :math:`\\mu s` spike should be removed.
     If the refractory period is small enough this shouldn't be a problem. For more thorough spike time filter use aopy.precondition.filter_spike_times although it takes ~50x longer.
 
     Args:
         spike_times (nspikes): 1D array of spike times.
-        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\mu s]`. Defaults to 100 :math:`\mu s`.
+        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\\mu s]`. Defaults to 100 :math:`\\mu s`.
 
     Returns: 
         tuple: A tuple containing:
@@ -517,7 +517,7 @@ def filter_spike_times(spike_times, refractory_period=100):
 
     Args:
         spike_times (nspikes): 1D array of spike times.
-        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\mu s]`. Defaults to 100 :math:`\mu s` .
+        refractory_period (float): Length of time after a spike is detected before another spike can be detected :math:`[\\mu s]`. Defaults to 100 :math:`\\mu s` .
 
     Returns: 
         tuple: A tuple containing:
@@ -785,7 +785,8 @@ def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, butt
     b, a = butter(buttord, window, btype='bandpass', fs=samplerate)
     return filtfilt(b, a, broadband_data, axis=0)
 
-def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
+def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4, 
+                      deriv=0, savgol_window_ms=50, savgol_polyorder=3, norm=False):
     '''
     Low-pass filter kinematics data to below 15 Hz by default. 
     Filter parameters taken from Bradberry, et al., 2009 
@@ -796,10 +797,16 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
         samplerate (float): sampling rate of the raw data
         low_cut (float, optional): cutoff frequency for low-pass filter. Defaults to 15 Hz
         buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
+        deriv (int, optional): apply a derivative to the data using Savitzky-Golay filter.
+            Default is 0, no derivative.
+        savgol_window_ms (float, optional): window length for Savitzky-Golay filter in milliseconds.
+            Default is 50 ms. If the window length is too small, it will be set to 3 samples.
+        savgol_polyorder (int, optional): polynomial order for Savitzky-Golay filter. Default is 3.
+        norm (bool, optional): if True, return the norm of the filtered data. Default is False.
 
     Returns:
         tuple: tuple containing:
-            | **filtere_data (nt, ...):** filtered kinematics data
+            | **filtered_data (nt, ...):** filtered kinematics data
             | **samplerate (float):** sampling rate of the kinematics data
 
     Examples:
@@ -829,7 +836,66 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
             ax['C'].set_ylabel('PSD')
 
         .. image:: _images/filter_kinematics.png
+
+        Apply a derivative to obtain velocity or acceleration:
+
+        .. code-block:: python
+
+            subject = 'test'
+            id = 8461
+            date = '2023-02-25'
+            exp_data, exp_metadata = aopy.data.base.load_preproc_exp_data(data_dir, subject, id, date)
+            x = aopy.data.get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=fs)[30*fs:35*fs,1]
+            t = np.arange(len(x)) / fs
+            x_filt_pos, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=0)
+            x_filt_vel, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=1)
+
+            # Compare to a simple derivative of the filtered position
+            x_filt_pos_deriv = utils.derivative(t, x_filt_pos, norm=False)
+
+            plt.figure(figsize=(5, 4))
+            plt.subplot(2,1,1)
+            plt.plot(t, x, label='Original signal')
+            plt.plot(t, x_filt_pos, label='Filtered position')
+            plt.ylabel('Position (cm)')
+            plt.legend()
+            plt.subplot(2,1,2)
+            plt.plot(t, x_filt_vel, label='Filtered velocity')
+            plt.plot(t, x_filt_pos_deriv, label='Filtered position derivative')
+            plt.xlabel('time (seconds)')
+            plt.ylabel('Velocity (cm/s)')
+            plt.legend()
+            
+        .. image:: _images/filter_kinematics_speed.png
+
+        .. code-block:: python
+
+            # Test acceleration
+            x_filt_acc, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=2)
+            x_filt_pos_deriv_deriv = utils.derivative(t, x_filt_pos_deriv, norm=False)
+            
+            plt.figure(figsize=(5, 3))
+            plt.plot(t, x_filt_acc, label='Filtered acceleration')
+            plt.plot(t, x_filt_pos_deriv_deriv, label='Filtered position 2nd derivative')
+            plt.xlabel('time (seconds)')
+            plt.ylabel('Acceleration (cm/s^2)')
+            plt.legend()
+            plt.tight_layout()
+
+        .. image:: _images/filter_kinematics_accel.png
+        
+
     '''
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
     filtered_data = filtfilt(b, a, kinematic_data, axis=0)
+    if deriv > 0:
+        window_length = int(np.ceil(savgol_window_ms * samplerate / 1000.)) | 1
+        if window_length < 3:
+            print("Warning: Savitzky-Golay filter window length is too small, setting to 3")
+            window_length = 3
+        filtered_data = signal.savgol_filter(filtered_data, window_length=window_length, 
+                                             delta=1./samplerate, polyorder=savgol_polyorder, 
+                                             deriv=deriv, axis=0)
+    if norm:
+        filtered_data = np.linalg.norm(filtered_data, axis=1)
     return filtered_data, samplerate

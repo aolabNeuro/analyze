@@ -271,27 +271,74 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
             be sampled. The first dimension must represent the time index.
         timestamps (nt,): The timestamp (in seconds) for each data point in data.
         samplerate (float): The desired output sampling rate in Hz.
-        upsamplerate (float, optional): The upsampling rate to use for interpolation. 
-            Defaults to 100 times the samplerate.
+        upsamplerate (float, optional): (deprecated) No longer used.
         append_time (float, optional): The amount of extra time to add at the end 
             of the timeseries, in seconds. Defaults to 0.
         kwargs (dict, optional): arguments to include in interpolation function
 
     Returns:
         (ns, ...): cursor_data_time containing the sampled data.
+
+    Examples:
+
+        .. code-block:: python
+
+            np.random.seed(0)
+            duration = 4
+            freq = 5
+            samplerate = 25000
+            ground_truth_data = utils.generate_multichannel_test_signal(duration*2, samplerate, 2, freq, 1)
+            
+            fps = 120
+            nt = fps*duration
+            offset = 0.01 # timestamps start strictly after time zero
+            framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
+            drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
+            timestamps = offset + np.arange(nt)/fps + framerate_error + drift
+            samples = (timestamps * samplerate).astype(int)
+
+            frame_data = ground_truth_data[samples,:]
+            interp_samplerate = 120
+            interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
+
+            fig, ax = plt.subplots(3,1, figsize=(5,6))
+            visualization.plot_timeseries(frame_data[:,0], fps, ax=ax[0])
+            visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[0])
+            ax[0].set_title(f'{freq} Hz signal')
+            ax[0].set_ylabel('pos (cm)')
+            ax[0].legend(['without sampling', 'with sampling'])
+
+            visualization.plot_freq_domain_amplitude(frame_data[:,0], fps, ax=ax[1])
+            visualization.plot_freq_domain_amplitude(interp_data[:,0], interp_samplerate, ax=ax[1])
+            ax[1].set_xscale('linear')
+            ax[1].set_xlim(0,30)
+            ax[1].set_ylabel('Peak amplitude')
+            ax[1].legend(['without sampling', 'with sampling'])
+            plt.tight_layout()
+
+            # Compare with different upsampling rates
+            visualization.plot_timeseries(ground_truth_data[:,0], samplerate, ax=ax[2])
+            interp_data = sample_timestamped_data(frame_data, timestamps, 1000)
+            visualization.plot_timeseries(interp_data[:,0], 1000, ax=ax[2])
+            interp_data = sample_timestamped_data(frame_data, timestamps, 10000)
+            visualization.plot_timeseries(interp_data[:,0], 10000, ax=ax[2])
+            ax[2].set_xlim(0.0,0.3)
+            ax[2].legend(['sampled at 120 Hz', 'sampled at 1 kHz', 'sampled at 10 kHz'])
+
+        .. image:: _images/sample_timestamped_data.png
+
+    Modified July 2025: removed upsamplerate in favor of always interpolating to
+    exactly the sampling rate. Filtering and downsampling is now done later,
+    e.g. in :func:`~aopy.data.get_kinematics`.
     '''
     assert len(data) == len(timestamps), (f"Data and timestamps should "
         f"have the same number of cycles ({len(data)} vs {len(timestamps)})")
 
-    if upsamplerate is None:
-        upsamplerate = samplerate * 10
+    if upsamplerate is not None:
+        warnings.warn("upsamplerate is no longer used", DeprecationWarning)
 
-    assert upsamplerate >= samplerate, "Upsamplerate must be greater than or equal to samplerate"
-
-    time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
+    time = np.arange(int((timestamps[-1] + append_time)*samplerate))/samplerate # add extra time
     data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False, **kwargs)
-    if upsamplerate > samplerate:
-        data_time = precondition.downsample(data_time, upsamplerate, samplerate)
     return data_time
 
 def get_dch_data(digital_data, digital_samplerate, dch):

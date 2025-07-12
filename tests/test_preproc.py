@@ -198,12 +198,12 @@ class DigitalCalcTests(unittest.TestCase):
 
         # Compare with different upsampling rates
         visualization.plot_timeseries(ground_truth_data[:,0], samplerate, ax=ax[2])
-        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120)
-        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
-        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120*100)
-        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, 1000)
+        visualization.plot_timeseries(interp_data[:,0], 1000, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, 10000)
+        visualization.plot_timeseries(interp_data[:,0], 10000, ax=ax[2])
         ax[2].set_xlim(0.0,0.3)
-        ax[2].legend(['original', 'no upsample', 'upsample to 10,000 Hz'])
+        ax[2].legend(['sampled at 120 Hz', 'sampled at 1 kHz', 'sampled at 10 kHz'])
 
         filename = 'sample_timestamped_data.png'
         visualization.savefig(docs_dir, filename, transparent=False)
