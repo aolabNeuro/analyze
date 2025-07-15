@@ -2498,7 +2498,9 @@ def calc_trial_bootstraps(data, n_trials=300, n_bootstraps=30,
     elif type(parallel) is mp.pool.Pool: # use an existing pool
         pool = parallel
     
-    if pool:
+    if n_bootstraps == 1:
+        results = [calc_statistic_random_trials(*args_list[0])]
+    elif pool:
         results = list(tqdm(pool.imap(_calc_statistic_random_trials, args_list), 
                             total=n_bootstraps, desc="Bootstraps"))
         if parallel is True:
@@ -2512,7 +2514,7 @@ def calc_trial_bootstraps(data, n_trials=300, n_bootstraps=30,
 
 def compare_conditions_bootstrap_spatial_corr_no_shuffle(
         data, elec_pos, labels, n_trials=300, n_bootstraps=30, 
-        statistic=partial(np.mean, axis=0), parallel=False):
+        statistics=partial(np.mean, axis=0), parallel=False):
     '''
     Compare multiple conditions using bootstrapping. Two comparisons are made:
         1. The spatial correlation of the distributions of the statistic across conditions.
@@ -2525,7 +2527,7 @@ def compare_conditions_bootstrap_spatial_corr_no_shuffle(
         labels (ntrials,): labels for each trial, used to group trials by condition
         n_trials (int): number of trials to use in each bootstrap
         n_bootstraps (int): number of bootstrap trials to perform
-        statistic (function): function to calculate the statistic on the data. 
+        statistics (function or list of functions): function(s) to calculate the statistic on the data. If more than one is supplied, they will be applied per condition 
 
     Returns:
         tuple: tuple containing:
@@ -2537,9 +2539,11 @@ def compare_conditions_bootstrap_spatial_corr_no_shuffle(
     conditions = np.unique(labels)
     if len(conditions) < 2:
         raise ValueError("At least two conditions are required for comparison")
-    
+    if callable(statistics):
+        statistics=[statistics] * len(conditions)
+
     cond_dists = []
-    for cond in conditions:
+    for idx, cond in enumerate(conditions):
         try:
             data_cond = data[labels == cond]
         except KeyError:
@@ -2549,7 +2553,7 @@ def compare_conditions_bootstrap_spatial_corr_no_shuffle(
             raise ValueError(f"Condition {cond} has less than {n_trials} trials")
 
         dist = calc_trial_bootstraps(data_cond, n_trials=n_trials, n_bootstraps=n_bootstraps,
-                                     statistic=statistic, parallel=parallel)
+                                     statistic=statistics[idx], parallel=parallel)
         
         cond_dists.append(dist)
 
@@ -2568,7 +2572,7 @@ def compare_conditions_bootstrap_spatial_corr_no_shuffle(
 
 def compare_conditions_bootstrap_spatial_corr(
         data, elec_pos, labels, n_trials=300, n_bootstraps=30, n_shuffle=0, 
-        statistic=partial(np.mean, axis=0), parallel=False):
+        statistics=partial(np.mean, axis=0), parallel=False):
     '''
     Compare multiple conditions using bootstrapping and shuffling. 
 
@@ -2579,11 +2583,10 @@ def compare_conditions_bootstrap_spatial_corr(
         n_trials (int): number of trials to use in each bootstrap
         n_bootstraps (int): number of bootstrap trials to perform
         n_shuffle (int): number of times to shuffle the labels to create a null distribution
-        statistic (function): function to calculate the statistic on the data.
+        statistics (function or list of functions): function(s) to calculate the statistic on the data. If more than one is supplied, they will be applied per condition 
 
     Returns:
         tuple: tuple containing:
-            | **means (nch):** mean of the statistic across conditions
             | **observed_dists (n_cond, n_bootstraps, len(data)//n_trials, nch):** bootstraps distributions for each condition
             | **conditions (n_cond):** unique conditions in the labels
             | **observed_corr (n_bootstraps, n_cond*n_cond, n_cond*n_cond, nch):** list of spatial correlation matrices for each bootstrap
@@ -2601,23 +2604,16 @@ def compare_conditions_bootstrap_spatial_corr(
         parallel = mp.Pool(mp.cpu_count() // 2)  # use half of the available cores
     if n_shuffle > 0:
         shuff_pbar = tqdm(total=n_shuffle, desc="Shuffles")
-
-    # Calculate means using the minimum number of trials across conditions
-    min_n_trials = min([np.sum(labels == cond) for cond in conditions])
-    means, _, _, _ = compare_conditions_bootstrap_spatial_corr_no_shuffle(
-        data, elec_pos, labels, n_trials=min_n_trials, n_bootstraps=1, 
-        statistic=statistic, parallel=parallel
-    )
-
+        
     # Calculate observed distributions
     observed_dists, _, observed_corr, observed_dprime = \
         compare_conditions_bootstrap_spatial_corr_no_shuffle(
             data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
-            statistic=statistic, parallel=parallel
+            statistics=statistics, parallel=parallel
         )
     
     if n_shuffle == 0:
-        return np.squeeze(means), observed_dists, conditions, observed_corr, observed_dprime
+        return observed_dists, conditions, observed_corr, observed_dprime
 
     # Calculate shuffled distributions
     shuff_labels = labels.copy()
@@ -2629,12 +2625,12 @@ def compare_conditions_bootstrap_spatial_corr(
         shuff_dists, _, shuff_corr, shuff_dprime = \
             compare_conditions_bootstrap_spatial_corr_no_shuffle(
                 data, elec_pos, shuff_labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
-                statistic=statistic, parallel=parallel
+                statistics=statistics, parallel=parallel
             )
         shuff_dists_dist.append(shuff_dists)
         shuff_corr_dist.append(shuff_corr)
         shuff_dprime_dist.append(shuff_dprime)
         shuff_pbar.update()
         
-    return np.squeeze(means), observed_dists, conditions, observed_corr, observed_dprime, \
+    return observed_dists, conditions, observed_corr, observed_dprime, \
         shuff_dists_dist, shuff_corr_dist, shuff_dprime_dist

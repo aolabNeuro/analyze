@@ -2495,7 +2495,7 @@ class BootstrapTests(unittest.TestCase):
         n_elec = len(elec_pos)
         total_trials = 1600
         n_trials = 50
-        np.random.seed()
+        np.random.seed(0)
         data = 0.5*np.ones((total_trials,n_elec))
         data += np.random.normal(0.5, size=(total_trials,n_elec))
         data[:,n_elec//4:n_elec//2] += 0.1
@@ -2547,7 +2547,7 @@ class BootstrapTests(unittest.TestCase):
         n_bootstraps = 50
 
         # Test null distribution
-        np.random.seed()
+        np.random.seed(0)
         data = 0.5*np.ones((total_trials,n_elec))
         data += np.random.normal(0.5, size=(total_trials,n_elec))
         data[:,n_elec//4:n_elec//2] += 0.1
@@ -2589,7 +2589,8 @@ class BootstrapTests(unittest.TestCase):
 
         fig = plt.figure(figsize=(8,6), dpi=300)
 
-        means, dists, conditions, corr_mat, dprime = \
+        means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
+        dists, conditions, corr_mat, dprime = \
             aopy.analysis.compare_conditions_bootstrap_spatial_corr(
                 data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=False
             )
@@ -2599,7 +2600,8 @@ class BootstrapTests(unittest.TestCase):
         # Test difference
         data[labels == 1,:n_elec//8] += 0.2
 
-        means, dists, conditions, corr_mat, dprime, shuff_dists, shuff_mat, shuff_dprime = \
+        means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
+        dists, conditions, corr_mat, dprime, shuff_dists, shuff_mat, shuff_dprime = \
             aopy.analysis.compare_conditions_bootstrap_spatial_corr(
                 data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, n_shuffle=1, parallel=False
             )
@@ -2615,12 +2617,12 @@ class BootstrapTests(unittest.TestCase):
         savefig(docs_dir, filename, transparent=False)
 
         # Test with parallel processing
-        parallel_means, dists, conditions, corr_mat, dprime = \
+        dists, conditions, _, parallel_dprime = \
             aopy.analysis.compare_conditions_bootstrap_spatial_corr(
                 data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=True
             )
-
-        np.testing.assert_array_almost_equal(means[0], parallel_means[0])
+        # Note: random seed doesn't propagate to parallel processes, but the d-prime values are fairly stable anyway
+        np.testing.assert_array_almost_equal(dprime, parallel_dprime, decimal=0) 
 
         # Sweep the wrapper over increasing trials
         n_bootstraps = 10
@@ -2630,7 +2632,7 @@ class BootstrapTests(unittest.TestCase):
         avg_dprime_2 = []
         trial_sizes = range(10, 450, 50)
         for n_trials in trial_sizes:
-            means, dists, conditions, corr_mat, dprime = \
+            dists, conditions, corr_mat, dprime = \
                 aopy.analysis.compare_conditions_bootstrap_spatial_corr(
                     data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=False
                 )
