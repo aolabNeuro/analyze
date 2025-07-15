@@ -422,15 +422,13 @@ def _prepare_bmi3d_v0(data, metadata):
         data['task'] = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
     
     # Compare task and clock data
-    if len(data['task']) < len(data['clock']):
+    if abs(len(data['task']) - len(data['clock'])) == 1:
+        data['clock'] = data['clock'][:len(data['task'])]
+        data['task'] = data['task'][:len(data['clock'])]
+    elif len(data['task']) != len(data['clock']):
         warnings.warn(f"Number of task cycles ({len(data['task'])}) doesn't match number of clock cycles ({len(data['clock'])}).")
         preproc_errors.append(f"Number of task cycles ({len(data['task'])}) doesn't match number of clock cycles ({len(data['clock'])}).")
-        data['clock'] = data['clock'][:len(data['task'])]
-    elif len(data['task']) > len(data['clock']):
-        warnings.warn(f"Number of task cycles ({len(data['task'])}) is larger than number of clock cycles ({len(data['clock'])}).")
-        preproc_errors.append(f"Number of task cycles ({len(data['task'])}) is larger than number of clock cycles ({len(data['clock'])}).")
-        data['task'] = data['task'][:len(data['clock'])]
-    
+
     if isinstance(data['task'], np.ndarray) and 'manual_input' in data['task'].dtype.names:
         data['clean_hand_position'] = data['task']['manual_input']
 
@@ -646,14 +644,12 @@ def _prepare_bmi3d_v1(data, metadata):
         task = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
 
     # Compare the task and clock data
-    if len(task) < len(corrected_clock):
+    if abs(len(task) - len(corrected_clock)) == 1:
+        corrected_clock = corrected_clock[:len(task)]
+        task = task[:len(corrected_clock)]
+    elif len(task) != len(corrected_clock):
         warnings.warn(f"Number of task cycles ({len(task)}) doesn't match number of clock cycles ({len(corrected_clock)}).")
         preproc_errors.append(f"Number of task cycles ({len(task)}) doesn't match number of clock cycles ({len(corrected_clock)}).")
-        corrected_clock = corrected_clock[:len(task)]
-    elif len(task) > len(corrected_clock):
-        warnings.warn(f"Number of task cycles ({len(task)}) is larger than number of clock cycles ({len(corrected_clock)}).")
-        preproc_errors.append(f"Number of task cycles ({len(task)}) is larger than number of clock cycles ({len(corrected_clock)}).")
-        task = task[:len(corrected_clock)]
 
     data.update({
         'task': task,
