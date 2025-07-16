@@ -1054,8 +1054,39 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlabel('Reward trial #'); plt.ylabel('Time (sec)')
         plt.ylim(15,25); plt.legend()
         figname = 'tabulate_tracking_trial_segment_lengths_churro.png'
-        visualization.savefig(write_dir, figname)       
+        visualization.savefig(write_dir, figname)   
 
+    def test_tabulate_behavior_data_random_targets(self):
+
+        subjects = ['Leo', 'Leo']
+        ids = [1957, 1959]
+        dates = ['2025-02-13', '2025-02-13']
+
+        df = tabulate_behavior_data_random_targets(data_dir, subjects, ids, dates, metadata = ['sequence_params'])
+        self.assertEqual(len(df), 66) #check correct length 
+        self.assertEqual(len(df.columns), 18+1)  #check correct number of columns
+        for loc in df['target_location']:
+            self.assertEqual(loc.shape[0], 3) #3 coordinates per target location 
+            self.assertLess(np.linalg.norm(loc), 10) #values in target location should be less than 10 
+        
+        # Visualization check 
+        example_reaches = df[-5:] #last 5 reaches in the earlier dataframe
+        example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
+                                               example_reaches['date'], example_reaches['target_on'], 
+                                               example_reaches['cursor_enter_target'], datatype = 'cursor')
+        ex_targets = example_reaches['target_location'].to_numpy()
+        bounds = [-5,5,-5,5,-5,5] #equal bounds to make visualization appear as spheres
+        default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        colors = default_colors[:len(ex_targets)] #match colors from the trajectories
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection = '3d')
+        for idx, path in enumerate(example_traj):
+            ax.plot(*path.T)
+            visualization.plot_sphere(ex_targets[idx], color = colors[idx], radius = 0.5, 
+                                      bounds = bounds, ax = ax)
+        figname = 'tabulate_behavior_random_targets.png' 
+        visualization.savefig(docs_dir, figname, transparent = False)
+    
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
