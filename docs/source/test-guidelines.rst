@@ -263,6 +263,10 @@ datasets here as they become available.
      - BMI3D data - another eyetracking test with 0 trials
    * - `2021-12-13_BMI3D_te3498`
      - eCube data - sync version 7
+   * - `beig20220701_04_te5974.hdf`
+     - BMI3D data - a manual control experiment of 0.6 minutes and 10 rewarded trials
+   * - `2022-07-01_BMI3D_te5974`
+     - eCube data - from the above manual control experiment, including 16 channels of headstage data
    * - `beig20221002_09_te6890.hdf`
      - BMI3D data - a laser only experiment which does not contain any task data
    * - `2022-10-02_BMI3D_te6890`
@@ -292,6 +296,8 @@ datasets here as they become available.
    * - `Take 2021-03-10 17_56_55 (1039).csv`
      - optitrack data exported into csv format
    * - `Take 2021-04-06 11_47_54 (1312).csv`
+     - optitrack data exported into csv format
+   * - `Take 2022-07-01 11_07_07 (5974).csv`
      - optitrack data exported into csv format
    * - `task_codes.yaml`
      - yaml formatted file with some task codes
