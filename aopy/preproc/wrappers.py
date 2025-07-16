@@ -83,7 +83,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         broadband_data, broadband_metadata = aodata.load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
         assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
-        files['broadband'] = broadband_filename # for proc_lfp()
+        files['broadband'] = broadband_filename # for proc_lfp() and proc_ap()
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
         lfp_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'lfp')
@@ -97,6 +97,29 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
+    if 'ap' in preproc_jobs:
+        print('processing action potential band data...')
+        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'ap')
+        proc_ap(
+            data_dir,
+            files,
+            preproc_dir,
+            ap_filename,
+            overwrite=overwrite,
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+        )
+        ap_data, ap_metadata = aodata.load_preproc_ap_data(preproc_dir_base, subject, te_id, date)
+        assert ap_data.shape == (ap_metadata['n_samples'], ap_metadata['n_channels'])
+    if 'spikes' in preproc_jobs:
+        print('processing spike times and waveforms...')
+        spikes_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+        proc_spikes(
+            data_dir,
+            files,
+            preproc_dir,
+            spikes_filename,
+            overwrite=overwrite
+        )
     if 'emg' in preproc_jobs:
         print('processing emg data...')
         emg_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'emg')
@@ -423,6 +446,21 @@ def proc_ap(data_dir, files, result_dir, result_filename, overwrite=False, max_m
                                                     max_memory_gb=max_memory_gb, **filter_kwargs)
         
     aodata.save_hdf(result_dir, result_filename, ap_metadata, "/ap_metadata", append=True)
+
+def proc_spikes(data_dir, files, result_dir, result_filename, overwrite=False):
+    '''
+    '''
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "spike_times" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+
+    return
 
 def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
     '''

@@ -338,12 +338,15 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, c
         cached (bool, optional): whether to allow loading cached version of data (default True)
         
     Returns:
-        dict: spike data
+        dict: spike times
         dict: Dictionary of spike metadata
     '''
-    filename = get_preprocessed_filename(subject, te_id, date,'spike')
+    filename = get_preprocessed_filename(subject, te_id, date, 'spike')
     preproc_dir = os.path.join(preproc_dir, subject)
-    spikes =load_hdf_group(preproc_dir, filename, f'drive{drive_number}/spikes', cached=cached)
+    try:
+        spikes = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/times', cached=cached) # ecube recordings
+    except:
+        spikes = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/spikes', cached=cached) # neuropixel recordings
     metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/metadata', cached=cached)
     
     return spikes, metadata
