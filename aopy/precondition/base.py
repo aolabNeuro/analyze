@@ -888,6 +888,8 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
 
     '''
     # Remove nan
+    if np.ndim(kinematic_data) == 1:
+        kinematic_data = kinematic_data.reshape(-1, 1)
     nan_mask = np.any(np.isnan(kinematic_data), axis=1)
     f = interp1d(np.flatnonzero(~nan_mask), kinematic_data[~nan_mask], axis=0,
                 bounds_error=False, fill_value="extrapolate")
