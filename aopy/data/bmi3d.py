@@ -923,15 +923,15 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype='curs
         eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
         
         # Define a preproc function for eye data
-        low_cut = kwargs.get('low_cut', 200.0)
-        buttord = kwargs.get('buttord', 4)
+        low_cut = kwargs.pop('low_cut', 200.0)
+        buttord = kwargs.pop('buttord', 4)
         savgol_window_ms = kwargs.pop('savgol_window_ms', 20)
         filter = True
         def preproc(kin, fs):
             if filter:
                 filtered, fs = precondition.filter_kinematics(kin, fs,
                     low_cut=low_cut, buttord=buttord,
-                    deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm, **kwargs)
+                    deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm)
             if samplerate < fs:
                 return precondition.downsample(filtered, fs, samplerate), samplerate
             elif samplerate > fs:
@@ -956,13 +956,13 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype='curs
     else:
 
         # Apply a filter to task data
-        low_cut = kwargs.get('low_cut', 15.0)
-        buttord = kwargs.get('buttord', 4)
+        low_cut = kwargs.pop('low_cut', 15.0)
+        buttord = kwargs.pop('buttord', 4)
         savgol_window_ms = kwargs.pop('savgol_window_ms', 50)
         def preproc(kin, fs):
             return precondition.filter_kinematics(kin, fs,
             low_cut=low_cut, buttord=buttord,
-            deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm, **kwargs)
+            deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm)
         
         kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
                                                samplerate, preproc=preproc, **kwargs)
@@ -2867,6 +2867,70 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
             plt.ylabel('kinematics (cm)')
 
         .. image:: _images/tabulate_kinematics_derivative.png
+
+        .. code-block:: python
+        
+            subject = 'CES003'
+            te_id = 2234
+            date = '2025-03-04'
+            df = tabulate_behavior_data_center_out(data_dir, [subject], [te_id], [date])
+            df = df[df['reach_completed']]
+            plot_kin(df, 'go_cue_time', 'reach_end_time')
+        
+        .. image:: _images/tabulate_kinematics_ces.png
+
+        Different interpolation options:
+
+        .. code-block:: python
+
+                raw, _ = tabulate_task_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='cursor', samplerate=1000)
+                raw_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                             datatype='cursor', samplerate=1000, low_cut=5, buttord=2)
+                nan, _ = tabulate_task_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000, remove_nan=False)
+                nan_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000, low_cut=5, buttord=2, remove_nan=False)        
+                pos, _ = tabulate_task_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000)
+                pos_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000, low_cut=5, buttord=2)        
+                spd = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            deriv=1, norm=True, datatype='cursor', samplerate=1000)
+                weird_trials = np.where([np.any(s > 500) for s in spd])[0]
+                plt.figure(figsize=(5,6))
+                plt.subplot(3,1,1)
+                for i in weird_trials:
+                    visualization.plot_timeseries(raw[i][:,0], 1000)
+                    visualization.plot_timeseries(raw_filt[i][:,0], 1000, color='k', alpha=0.5)
+                plt.ylabel('x position (cm)')
+                plt.xlabel('')
+                plt.title('cursor')
+                plt.legend(['raw', 'filtered'])
+                plt.subplot(3,1,2)
+                for i in weird_trials:
+                    visualization.plot_timeseries(nan[i][:,0], 1000)
+                    visualization.plot_timeseries(nan_filt[i][:,0], 1000, color='k', alpha=0.5)
+                plt.ylabel('x position (cm)')
+                plt.xlabel('time from go cue (s)')
+                plt.title('user_screen')
+                plt.subplot(3,1,3)
+                for i in weird_trials:
+                    visualization.plot_timeseries(pos[i][:,0], 1000)
+                    visualization.plot_timeseries(pos_filt[i][:,0], 1000, color='k', alpha=0.5)
+                plt.ylabel('x position (cm)')
+                plt.xlabel('time from go cue (s)')
+                plt.title('user_screen interp')
+                plt.tight_layout()
+
+        .. image:: _images/kinematics_interpolation.png
     '''
 
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
