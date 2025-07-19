@@ -888,16 +888,18 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
 
     '''
     # Remove nan
-    if np.ndim(kinematic_data) == 1:
-        kinematic_data = kinematic_data.reshape(-1, 1)
-    nan_mask = np.any(np.isnan(kinematic_data), axis=1)
-    f = interp1d(np.flatnonzero(~nan_mask), kinematic_data[~nan_mask], axis=0,
+    filtered_data = np.copy(kinematic_data)
+    if np.ndim(filtered_data) == 1:
+        filtered_data = filtered_data.reshape(-1, 1)
+    nan_mask = np.any(np.isnan(filtered_data), axis=1)
+    f = interp1d(np.flatnonzero(~nan_mask), filtered_data[~nan_mask], axis=0,
                 bounds_error=False, fill_value="extrapolate")
-    kinematic_data[nan_mask] = f(np.flatnonzero(nan_mask))
+    filtered_data[nan_mask] = f(np.flatnonzero(nan_mask))
 
     # Low-pass filter and apply derivatives
-    b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
-    filtered_data = filtfilt(b, a, kinematic_data, axis=0)
+    if low_cut is not None:
+        b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
+        filtered_data = filtfilt(b, a, filtered_data, axis=0)
     if deriv > 0:
         window_length = int(np.ceil(savgol_window_ms * samplerate / 1000.)) | 1
         if window_length < 3:

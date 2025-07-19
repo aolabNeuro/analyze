@@ -1109,11 +1109,11 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test speed and acceleration
         dst = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                                      deriv=0, norm=True, datatype='cursor', samplerate=1000)
+                                      deriv=0, norm=True, datatype='cursor', samplerate=1000, filter_kinematics=True)
         spd = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                                      deriv=1, norm=True, datatype='cursor', samplerate=1000)
+                                      deriv=1, norm=True, datatype='cursor', samplerate=1000, filter_kinematics=True)
         acc = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                                      deriv=2, norm=True, datatype='cursor', samplerate=1000)
+                                      deriv=2, norm=True, datatype='cursor', samplerate=1000, filter_kinematics=True)
         plt.figure()
         visualization.plot_timeseries(dst[0], 1000)
         visualization.plot_timeseries(spd[0], 1000)
@@ -1124,13 +1124,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'tabulate_kinematics_derivative.png' # should look very similar to get_trial_aligned_trajectories.png
         visualization.savefig(docs_dir, figname, transparent=False)
 
-        def plot_kin(df, start_event, end_event):            
+        def plot_kin(df, start_event, end_event, filter_kinematics=False):            
             dst = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df[start_event], df[end_event], 
-                                        deriv=0, norm=True, datatype='cursor', samplerate=1000)
+                                        deriv=0, norm=True, datatype='cursor', samplerate=1000, filter_kinematics=filter_kinematics)
             spd = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df[start_event], df[end_event],
-                                        deriv=1, norm=True, datatype='cursor', samplerate=1000)
+                                        deriv=1, norm=True, datatype='cursor', samplerate=1000, filter_kinematics=filter_kinematics)
             acc = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df[start_event], df[end_event],
-                                        deriv=2, norm=True, datatype='cursor', samplerate=1000)
+                                        deriv=2, norm=True, datatype='cursor', samplerate=1000, filter_kinematics=filter_kinematics)
             plt.figure()
             plt.subplot(3,1,1) # position
             for i in range(len(dst)):
@@ -1169,20 +1169,20 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'tabulate_kinematics_ces.png'
         visualization.savefig(docs_dir, figname, transparent=False)
 
-        raw, _ = tabulate_task_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+        raw = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                                  datatype='cursor', samplerate=1000)
         raw_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                                 datatype='cursor', samplerate=1000, low_cut=5, buttord=2)
-        nan, _ = tabulate_task_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                 datatype='cursor', samplerate=1000, filter_kinematics=True, low_cut=5, buttord=2)
+        nan = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                                  datatype='user_screen', samplerate=1000, remove_nan=False)
         nan_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                                 datatype='user_screen', samplerate=1000, low_cut=5, buttord=2, remove_nan=False)        
-        pos, _ = tabulate_task_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                 datatype='user_screen', samplerate=1000, low_cut=5, buttord=2, filter_kinematics=True, remove_nan=False)        
+        pos = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
                                  datatype='user_screen', samplerate=1000)
         pos_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                                 datatype='user_screen', samplerate=1000, low_cut=5, buttord=2)        
+                                 datatype='user_screen', samplerate=1000, filter_kinematics=True, low_cut=5, buttord=2)        
         spd = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                                       deriv=1, norm=True, datatype='cursor', samplerate=1000)
+                                       deriv=1, norm=True, datatype='cursor', samplerate=1000, filter_kinematics=True)
         weird_trials = np.where([np.any(s > 500) for s in spd])[0]
         plt.figure(figsize=(5,6))
         plt.subplot(3,1,1)
