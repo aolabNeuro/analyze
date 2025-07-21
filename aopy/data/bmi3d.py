@@ -1271,12 +1271,15 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, tim
     
     # Define relevant variables
     samplerate = int(np.round(1/bin_width))
-    ntrials = len(trigger_times)
-    
-    # Parse segment and bin spikes
     unit_labels = list(spike_data.keys())
-    temp_binned_spikes, bins = precondition.bin_spike_times(spike_data[unit_labels[0]], 0, trigger_times[-1]+time_after, bin_width) # Run once to get binning parameters
-    ntime, nch = temp_binned_spikes.shape
+    nch = len(unit_labels)
+    ntrials = len(trigger_times)
+    dur = time_after + time_before
+    ntime = int(np.floor(dur * samplerate))
+    bins = (np.arange(ntime)/samplerate) - time_before + bin_width/2
+
+    # Parse segment and bin spikes
+    ntime = len(bins)
     spike_aligned = np.zeros((ntime, nch, ntrials))*np.nan #(ntime, nch, ntrials)
     for iunit, unit_label in enumerate(unit_labels):
         binned_spikes, _ = precondition.bin_spike_times(spike_data[unit_label], 0, trigger_times[-1]+time_after, bin_width)
