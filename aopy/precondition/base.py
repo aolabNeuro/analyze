@@ -728,7 +728,7 @@ def downsample(data, old_samplerate, new_samplerate):
     pad_shape = (pad_size,)
     if data.ndim > 1:
         pad_shape = np.concatenate(([pad_size], data.shape[1:]))
-    data_padded = np.append(data, np.zeros(pad_shape)*np.NaN, axis=0)
+    data_padded = np.append(data, np.zeros(pad_shape)*np.nan, axis=0)
 
     # Downsample using average
     if data.ndim == 1:
