@@ -1396,8 +1396,8 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, tim
     
     # Define relevant variables
     samplerate = int(np.round(1/bin_width))
-    bins = np.arange(-time_before, time_after, bin_width) + bin_width/2
-    ntime = int(np.round((time_after+time_before)/bin_width))
+    ntime = int(np.floor((time_after+time_before)/bin_width))
+    bins = (np.arange(ntime)/samplerate) - time_before + bin_width/2
     nch = len(spike_data)
     ntrials = len(trigger_times)
     
