@@ -1166,20 +1166,54 @@ def plot_trajectories(trajectories, bounds=None, ax=None, **kwargs):
     if ax is None:
         ax = plt.gca()
 
-    # Plot in 3D, fall back to 2D
+    # Plot in 3D, fall back to 2D and check axes
     try:
         ax.set_zlabel('z')
-        for path in trajectories:
-            ax.plot(*path.T, **kwargs)
+        for traj in trajectories:
+            ax.plot(*traj.T, **kwargs)
         ax.set_box_aspect((1, 1, 1))
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
     except:
-        for path in trajectories:
-            ax.plot(path[:, 0], path[:, 1], **kwargs)
+        stacked = np.vstack(trajectories)
+        zero_cols = np.all(stacked==0, axis=0)
+        
+        if stacked.shape[1]>2:
+
+            if not zero_cols.any():
+                raise ValueError("Axis is unclear for 3D data (no zero columns). Cannot plot in 2D.")
+            else:
+                zero_col_idx = np.where(zero_cols)[0]
+                
+                if len(zero_col_idx) > 1: # 1D data; remove 2nd all-zero axis
+                    col_to_remove = zero_col_idx[1]
+                else:
+                    col_to_remove = zero_col_idx[0] # 2D data; remove only all-zero axis
+                    
+                flattened = [traj[:, [i for i in range(3) if i != col_to_remove]] for traj in trajectories]
+                flattened = np.array(flattened, dtype=object)
+
+            if np.all(np.isin(2, zero_col_idx)):
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+            elif np.all(np.isin(1, zero_col_idx)):
+                ax.set_xlabel('x')
+                ax.set_ylabel('z')
+            else:
+                ax.set_xlabel('z')
+                ax.set_ylabel('y')
+                
+        else:
+            flattened = trajectories
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+
+        for traj in flattened:
+                ax.plot(traj[:, 0], traj[:, 1], **kwargs)
+                
         ax.set_aspect('equal', adjustable='box')
 
     if bounds is not None: set_bounds(bounds, ax)
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
 
 def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
     '''
