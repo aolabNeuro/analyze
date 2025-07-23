@@ -1334,52 +1334,99 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         those bounds to manually set the first 2 axes bounds for the 3D plot.
     '''
 
+    color_list = sns.color_palette(color_palette, n_colors)
+
     if ax is None:
         ax = plt.gca()
+        
+    try: # check if 3D axes given
+        ax.set_zlabel('z')
+        
+        for traj in trajectories:
+            n_pt = len(traj)
 
-    color_list = sns.color_palette(color_palette, n_colors)
-    for traj in trajectories:
-        n_pt = len(traj)
+            if n_pt < n_colors:
+                warnings.warn("Not enough datapoints to divide into n_colors!")
 
-        if n_pt < n_colors:
-            warnings.warn("Not enough datapoints to divide into n_colors!")
+            # Assign labels to the trajectory according to color
+            labels = np.zeros((n_pt,), dtype='int')
+            size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
+            labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
+            labels[size:] = n_colors - 1 # leftovers also get the last color
 
-        # Assign labels to the trajectory according to color
-        labels = np.zeros((n_pt,), dtype='int')
-        size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
-        labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
-        labels[size:] = n_colors - 1 # leftovers also get the last color
-            
-        # Split the labeled trajectories into segments with unique colors
-        segments, labels = utils.segment_array(traj, labels, duplicate_endpoints=True)
-        labels = np.array(labels).astype(int)
-        colors = [color_list[i] for i in labels]
+            # Split the labeled trajectories into segments with unique colors
+            segments, labels = utils.segment_array(traj, labels, duplicate_endpoints=True)
+            labels = np.array(labels).astype(int)
+            colors = [color_list[i] for i in labels]
 
-        # Plot as line collections in 3D, fall back to 2D
-        try:
-            ax.set_zlabel('z')
             segments = [np.vstack([s[:,0], s[:,1], s[:,2]]).T for s in segments]
             lc = Line3DCollection(segments, colors=colors, **kwargs)
             ax.add_collection(lc)
             ax.set_box_aspect((1, 1, 1))
-        except:
+        
+    except: # 2D axes given
+    
+        stacked = np.vstack(trajectories)
+        zero_cols = np.all(stacked==0, axis=0)
+        
+        if stacked.shape[1]>2:
+
+            if not zero_cols.any():
+                raise ValueError("Axis is unclear for 3D data (no zero columns). Cannot plot in 2D.")
+            else:
+                zero_col_idx = np.where(zero_cols)[0]
+                
+                if len(zero_col_idx) > 1: # 1D data; remove 2nd all-zero axis
+                    col_to_remove = zero_col_idx[1]
+                else:
+                    col_to_remove = zero_col_idx[0] # 2D data; remove only all-zero axis
+                    
+                flattened = [traj[:, [i for i in range(3) if i != col_to_remove]] for traj in trajectories]
+                flattened = np.array(flattened, dtype=object)
+
+            if np.all(np.isin(2, zero_col_idx)):
+                ax.set_xlabel('x')
+                ax.set_ylabel('y')
+            elif np.all(np.isin(1, zero_col_idx)):
+                ax.set_xlabel('x')
+                ax.set_ylabel('z')
+            else:
+                ax.set_xlabel('z')
+                ax.set_ylabel('y')
+                
+        else:
+            flattened = trajectories
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+        
+        for traj in flattened:
+            
+            n_pt = len(traj)
+
+            if n_pt < n_colors:
+                warnings.warn("Not enough datapoints to divide into n_colors!")
+
+            # Assign labels to the trajectory according to color
+            labels = np.zeros((n_pt,), dtype='int')
+            size = (n_pt // n_colors) * n_colors # largest size we can evenly split into n_colors
+            labels[:size] = np.repeat(range(n_colors), n_pt // n_colors)
+            labels[size:] = n_colors - 1 # leftovers also get the last color
+
+            # Split the labeled trajectories into segments with unique colors
+            segments, labels = utils.segment_array(traj, labels, duplicate_endpoints=True)
+            labels = np.array(labels).astype(int)
+            colors = [color_list[i] for i in labels]
+        
             segments = [np.vstack([s[:,0], s[:,1]]).T for s in segments]
             lc = LineCollection(segments, colors=colors, **kwargs)
             ax.add_collection(lc)
-                
-    try:
-        ax.set_zlabel('z')
-        ax.set_box_aspect((1, 1, 1))
-    except:
+            
         ax.set_aspect('equal', adjustable='box')
 
     if bounds is not None: 
         set_bounds(bounds, ax)
     else:
-        ax.margins(0.05) # The ax.add_collection() call doesn't automatically set margins
-
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')        
+        ax.margins(0.05) # The ax.add_collection() call doesn't automatically set margins        
 
 def plot_sessions_by_date(trials, dates, *columns, method='sum', labels=None, ax=None):
     '''
