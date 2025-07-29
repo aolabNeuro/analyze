@@ -1128,10 +1128,76 @@ def plot_circles(circle_positions, circle_radius, circle_color='b', bounds=None,
             ax.set_aspect('equal', adjustable='box')
     if bounds is not None: set_bounds(bounds, ax)
 
+def plot_3D_as_2D(trajectories, ax):
+    """
+    Flattens 3D trajectory data to 2D for plotting and sets appropriate axis labels.
+
+    This helper function converts a list of 3D trajectories into 2D by identifying and removing 
+    one axis. All-zero axes are removed if they exist, otherwise the z-axis is removed.
+    Axis labels are set based on which dimensions are retained.
+
+    Args:
+        trajectories (list of numpy.ndarray): A list of trajectory arrays, each of shape (T, D),
+            where T is the number of time steps and D is the dimensionality (typically 3).
+        ax (matplotlib.axes.Axes): The 2D axis on which the trajectories will be plotted.
+
+    Returns:
+        numpy.ndarray: An object array of 2D trajectories, each of shape (T, 2), with one axis removed.
+
+    Example:
+        traj1 = np.array([[0, 0, 0], [1, 2, 0], [2, 4, 0]])
+        traj2 = np.array([[0, 0, 0], [1, 1, 0], [2, 2, 0]])
+
+        fig, ax = plt.subplots()
+        flat_trajs = plot_3D_as_2D([traj1, traj2], ax)
+
+        for traj in flat_trajs:
+            ax.plot(traj[:, 0], traj[:, 1])
+        plt.show()
+    """
+    
+    stacked = np.vstack(trajectories)
+    zero_cols = np.all(stacked==0, axis=0)
+
+    if stacked.shape[1]>2:
+
+        if not zero_cols.any():
+            warnings.warn("Axis is unclear for 3D data (no zero columns). Plots assume data of interest is in xy-plane.", stacklevel=2)
+            zero_col_idx = [2] # assume z-axis data is unwanted
+            col_to_remove = zero_col_idx[0] # tag z-axis data for removal
+        else:
+            zero_col_idx = np.where(zero_cols)[0]
+
+            if len(zero_col_idx) > 1: # 1D data; remove 2nd all-zero axis
+                col_to_remove = zero_col_idx[1]
+            else:
+                col_to_remove = zero_col_idx[0] # 2D data; remove only all-zero axis
+
+        flattened = [traj[:, [i for i in range(3) if i != col_to_remove]] for traj in trajectories]
+        flattened = np.array(flattened, dtype=object)
+
+        if np.all(np.isin(2, zero_col_idx)):
+            ax.set_xlabel('x')
+            ax.set_ylabel('y')
+        elif np.all(np.isin(1, zero_col_idx)):
+            ax.set_xlabel('x')
+            ax.set_ylabel('z')
+        else:
+            ax.set_xlabel('z')
+            ax.set_ylabel('y')
+
+    else:
+        flattened = trajectories
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        
+    return flattened
 
 def plot_trajectories(trajectories, bounds=None, ax=None, **kwargs):
     '''
-    Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes
+    Draws the given trajectories, one at a time in different colors. Works for 2D and 3D axes.
+    If 2D axes are given with 3D data, dimensions of interest are inferred from zero-columns if present.
+    Plotting 3D data with no zero-columns on a 2D axis will show the data in the xy-plane (first two dimensions).
 
     Example:
         Two random trajectories.
@@ -1157,6 +1223,48 @@ def plot_trajectories(trajectories, bounds=None, ax=None, **kwargs):
 
         .. image:: _images/trajectories.png
 
+        ::
+            trajectories =[
+                np.array([
+                    [0, 0, 0],
+                    [1, 0, 1],
+                    [2, 0, 2],
+                    [3, 0, 3],
+                    [4, 0, 2]
+                ]),
+                np.array([
+                    [-1, 0, 1],
+                    [-2, 0, 2],
+                    [-3, 0, 3],
+                    [-3, 0, 4]
+                ])
+            ]
+            bounds = (-5., 5., -5., 5., 0., 0.)
+            plot_trajectories(trajectories, bounds)
+
+        .. image:: _images/trajectories_flat.png
+
+        ::
+            trajectories =[
+                np.array([
+                    [0, 0, 0],
+                    [0, 1, 0],
+                    [0, 2, 0],
+                    [0, 3, 0],
+                    [0, 2, 0]
+                ]),
+                np.array([
+                    [0, 1, 0],
+                    [0, 2, 0],
+                    [0, 3, 0],
+                    [0, 4, 0]
+                ])
+            ]
+            bounds = (-5., 5., -5., 5., 0., 0.)
+            plot_trajectories(trajectories, bounds)
+
+        .. image:: _images/trajectories_1D.png
+
     Args:
         trajectories (list): list of (n, 2) or (n, 3) trajectories where n can vary across each trajectory
         bounds (tuple, optional): 6-element tuple describing (-x, x, -y, y, -z, z) cursor bounds
@@ -1170,46 +1278,14 @@ def plot_trajectories(trajectories, bounds=None, ax=None, **kwargs):
     # Plot in 3D, fall back to 2D and check axes
     try:
         ax.set_zlabel('z')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
         for traj in trajectories:
             ax.plot(*traj.T, **kwargs)
         ax.set_box_aspect((1, 1, 1))
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
     except:
-        stacked = np.vstack(trajectories)
-        zero_cols = np.all(stacked==0, axis=0)
         
-        if stacked.shape[1]>2:
-
-            if not zero_cols.any():
-                warnings.warn("Axis is unclear for 3D data (no zero columns). Plots assume data of interest is in xy-plane.", stacklevel=2)
-                zero_col_idx = [2] # assume z-axis data is unwanted
-                col_to_remove = zero_col_idx[0] # tag z-axis data for removal
-            else:
-                zero_col_idx = np.where(zero_cols)[0]
-                
-                if len(zero_col_idx) > 1: # 1D data
-                    col_to_remove = zero_col_idx[1] # tag the 2nd all-zero axis for removal
-                else: # 2D data
-                    col_to_remove = zero_col_idx[0] # tag the only all-zero axis for removal
-                    
-            flattened = [traj[:, [i for i in range(3) if i != col_to_remove]] for traj in trajectories]
-            flattened = np.array(flattened, dtype=object)
-
-            if np.all(np.isin(2, zero_col_idx)):
-                ax.set_xlabel('x')
-                ax.set_ylabel('y')
-            elif np.all(np.isin(1, zero_col_idx)):
-                ax.set_xlabel('x')
-                ax.set_ylabel('z')
-            else:
-                ax.set_xlabel('z')
-                ax.set_ylabel('y')
-                
-        else:
-            flattened = trajectories
-            ax.set_xlabel('x')
-            ax.set_ylabel('y')
+        flattened = plot_3D_as_2D(trajectories, ax)
 
         for traj in flattened:
                 ax.plot(traj[:, 0], traj[:, 1], **kwargs)
@@ -1293,8 +1369,9 @@ def color_trajectories(trajectories, labels, colors, ax=None, **kwargs):
 
 def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', bounds=None, ax=None, **kwargs):
     '''
-    Draw trajectories with a gradient of color from start to end of each trajectory. 
-    Works in 2D and 3D.
+    Draw trajectories with a gradient of color from start to end of each trajectory. Works in 2D and 3D.
+    If 2D axes are given with 3D data, dimensions of interest are inferred from zero-columns if present.
+    Plotting 3D data with no zero-columns on a 2D axis will show the data in the xy-plane (first two dimensions).
 
     Note: this function applies the gradient evenly across the timepoints of the trajectory. 
         It might be useful to use the sampling rate of the data instead of n_colors, so that
@@ -1344,6 +1421,8 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         
     try: # check if 3D axes given
         ax.set_zlabel('z')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
         
         for traj in trajectories:
             n_pt = len(traj)
@@ -1369,40 +1448,7 @@ def gradient_trajectories(trajectories, n_colors=100, color_palette='viridis', b
         
     except: # 2D axes given
     
-        stacked = np.vstack(trajectories)
-        zero_cols = np.all(stacked==0, axis=0)
-        
-        if stacked.shape[1]>2:
-
-            if not zero_cols.any():
-                warnings.warn("Axis is unclear for 3D data (no zero columns). Plots assume data of interest is in xy-plane.", stacklevel=2)
-                zero_col_idx = [2] # assume z-axis data is unwanted
-                col_to_remove = zero_col_idx[0] # tag z-axis data for removal
-            else:
-                zero_col_idx = np.where(zero_cols)[0]
-                
-                if len(zero_col_idx) > 1: # 1D data; remove 2nd all-zero axis
-                    col_to_remove = zero_col_idx[1]
-                else:
-                    col_to_remove = zero_col_idx[0] # 2D data; remove only all-zero axis
-                    
-            flattened = [traj[:, [i for i in range(3) if i != col_to_remove]] for traj in trajectories]
-            flattened = np.array(flattened, dtype=object)
-
-            if np.all(np.isin(2, zero_col_idx)):
-                ax.set_xlabel('x')
-                ax.set_ylabel('y')
-            elif np.all(np.isin(1, zero_col_idx)):
-                ax.set_xlabel('x')
-                ax.set_ylabel('z')
-            else:
-                ax.set_xlabel('z')
-                ax.set_ylabel('y')
-                
-        else:
-            flattened = trajectories
-            ax.set_xlabel('x')
-            ax.set_ylabel('y')
+        flattened = plot_3D_as_2D(trajectories, ax)
         
         for traj in flattened:
             
