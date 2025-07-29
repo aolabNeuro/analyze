@@ -678,6 +678,52 @@ class KinematicsPlottingTests(unittest.TestCase):
         plot_trajectories(trajectories, bounds)
         savefig(write_dir, filename)
 
+        # Test flat display plotting
+        # Should look the same as trajectories.png with different axes labels
+        filename = 'trajectories_flat.png'
+        trajectories =[
+            np.array([
+                [0, 0, 0],
+                [1, 0, 1],
+                [2, 0, 2],
+                [3, 0, 3],
+                [4, 0, 2]
+            ]),
+            np.array([
+                [-1, 0, 1],
+                [-2, 0, 2],
+                [-3, 0, 3],
+                [-3, 0, 4]
+            ])
+        ]
+        fig = plt.figure()
+        bounds = (-5., 5., -5., 5., 0., 0.)
+        plot_trajectories(trajectories, bounds)
+        savefig(write_dir, filename)
+
+        # Test 1D data plotting
+        filename = 'trajectories_1D.png'
+        trajectories =[
+            np.array([
+                [0, 0, 0],
+                [0, 1, 0],
+                [0, 2, 0],
+                [0, 3, 0],
+                [0, 2, 0]
+            ]),
+            np.array([
+                [0, 1, 0],
+                [0, 2, 0],
+                [0, 3, 0],
+                [0, 4, 0]
+            ])
+        ]
+        fig = plt.figure()
+        bounds = (-5., 5., -5., 5., 0., 0.)
+        plot_trajectories(trajectories, bounds)
+        savefig(write_dir, filename)
+
+
     def test_color_trajectories(self):
 
         trajectories = [
