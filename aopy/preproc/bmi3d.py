@@ -420,7 +420,15 @@ def _prepare_bmi3d_v0(data, metadata):
         warnings.warn("No task data found! Cannot accurately prepare bmi3d data")
         preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
         data['task'] = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
-        
+    
+    # Compare task and clock data
+    if abs(len(data['task']) - len(data['clock'])) == 1:
+        data['clock'] = data['clock'][:len(data['task'])]
+        data['task'] = data['task'][:len(data['clock'])]
+    elif len(data['task']) != len(data['clock']):
+        warnings.warn(f"Number of task cycles ({len(data['task'])}) doesn't match number of clock cycles ({len(data['clock'])}).")
+        preproc_errors.append(f"Number of task cycles ({len(data['task'])}) doesn't match number of clock cycles ({len(data['clock'])}).")
+
     if isinstance(data['task'], np.ndarray) and 'manual_input' in data['task'].dtype.names:
         data['clean_hand_position'] = data['task']['manual_input']
 
@@ -634,6 +642,14 @@ def _prepare_bmi3d_v1(data, metadata):
         warnings.warn("No task data found!")
         preproc_errors.append("No hdf task data found!")
         task = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
+
+    # Compare the task and clock data
+    if abs(len(task) - len(corrected_clock)) == 1:
+        corrected_clock = corrected_clock[:len(task)]
+        task = task[:len(corrected_clock)]
+    elif len(task) != len(corrected_clock):
+        warnings.warn(f"Number of task cycles ({len(task)}) doesn't match number of clock cycles ({len(corrected_clock)}).")
+        preproc_errors.append(f"Number of task cycles ({len(task)}) doesn't match number of clock cycles ({len(corrected_clock)}).")
 
     data.update({
         'task': task,

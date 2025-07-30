@@ -747,7 +747,7 @@ class CalcTests(unittest.TestCase):
         self.assertAlmostEqual(NCC[1,0], NCC2[1,0], places=1)
 
     def test_calc_spatial_tf_data_correlation(self):
-        np.random.seed()
+        np.random.seed(0)
 
         # Test ECoG layout
         elec_pos, _, _ = aopy.data.load_chmap('ECoG244')

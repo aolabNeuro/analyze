@@ -198,12 +198,12 @@ class DigitalCalcTests(unittest.TestCase):
 
         # Compare with different upsampling rates
         visualization.plot_timeseries(ground_truth_data[:,0], samplerate, ax=ax[2])
-        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120)
-        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
-        interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate, upsamplerate=120*100)
-        visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, 1000)
+        visualization.plot_timeseries(interp_data[:,0], 1000, ax=ax[2])
+        interp_data = sample_timestamped_data(frame_data, timestamps, 10000)
+        visualization.plot_timeseries(interp_data[:,0], 10000, ax=ax[2])
         ax[2].set_xlim(0.0,0.3)
-        ax[2].legend(['original', 'no upsample', 'upsample to 10,000 Hz'])
+        ax[2].legend(['sampled at 120 Hz', 'sampled at 1 kHz', 'sampled at 10 kHz'])
 
         filename = 'sample_timestamped_data.png'
         visualization.savefig(docs_dir, filename, transparent=False)
@@ -1387,9 +1387,9 @@ class ProcTests(unittest.TestCase):
 
     def test_proc_single(self):
         files = {}
-        files['ecube'] = 'fake ecube data'
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        proc_single(data_dir, files, write_dir, 'test', 3498, '2021-12-13', ['exp', 'eye', 'broadband', 'lfp'], overwrite=True)
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+        proc_single(data_dir, files, write_dir, 'test', 5974, '2022-07-01', ['exp', 'eye', 'broadband', 'lfp'], overwrite=True)
 
     def test_proc_broadband(self):
         files = {'ecube': "short headstage test"}
@@ -1410,6 +1410,64 @@ class ProcTests(unittest.TestCase):
         # Overwrite
         proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
 
+    def test_proc_spikes(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+        result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
+
+        proc_spikes(data_dir, files, save_dir, result_filename, kilosort_dir=kilosort_dir, overwrite=True)
+
+        spikes1, metadata1 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        waveforms1  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        self.assertIn('0', spikes1)
+        self.assertIn('0', waveforms1)
+        self.assertIn('1', spikes1)
+        self.assertIn('1', waveforms1)
+        self.assertIn('sync_timestamps', metadata1)
+        self.assertIn('spike_pos', metadata1)
+
+        spikes2, metadata2 = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+        waveforms2  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+        self.assertIn('0', spikes2)
+        self.assertIn('0', waveforms2)
+        self.assertIn('1', spikes2)
+        self.assertIn('1', waveforms2)
+        self.assertIn('sync_timestamps', metadata2)
+        self.assertIn('spike_pos', metadata2)
+
+        # Delete the file because its size is big
+        result_hdffile = save_dir / result_filename
+        result_hdffile.unlink()
+
+    def test_proc_ap(self):
+        # Test proc from ap data in neuropixels
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+
+        datatype = 'ap'
+        result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', datatype)
+
+        proc_ap(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=1.)
+        ap_data1, ap_metadata1 = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        ap_data2, ap_metadata2 = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+
+        self.assertEqual(ap_data1.shape[1], ap_metadata1['n_channels'])
+        self.assertIn('ap_samplerate', ap_metadata1)
+        self.assertIn('sync_timestamps', ap_metadata1)
+        self.assertEqual(ap_data2.shape[1], ap_metadata2['n_channels'])
+        self.assertIn('ap_samplerate', ap_metadata2)
+        self.assertIn('sync_timestamps', ap_metadata2)
+
+        # Delete the file because its size is big
+        result_hdffile = save_dir / result_filename
+        result_hdffile.unlink()
+
     def test_proc_lfp(self):
 
         # Test proc from ecube
@@ -1420,11 +1478,11 @@ class ProcTests(unittest.TestCase):
         proc_lfp(data_dir, files, write_dir, ecube_result_filename, max_memory_gb=0.0001, overwrite=True)
 
         contents = get_hdf_dictionary(write_dir, ecube_result_filename)
-        self.assertIn('lfp_data', contents)
-        self.assertIn('lfp_metadata', contents)
+        self.assertIn('lfp_data', contents['drive1'])
+        self.assertIn('lfp_metadata', contents['drive1'])
 
-        lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, ecube_result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'drive1/lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, ecube_result_filename, 'drive1/lfp_metadata')
 
         approx_n_samples = int(ecube_metadata['n_samples']*lfp_metadata['samplerate']/ecube_metadata['samplerate'])
 
@@ -1441,21 +1499,46 @@ class ProcTests(unittest.TestCase):
         proc_lfp(data_dir, files, write_dir, bb_result_filename, max_memory_gb=0.0001, overwrite=True)
 
         contents = get_hdf_dictionary(write_dir, bb_result_filename)
-        self.assertIn('lfp_data', contents)
-        self.assertIn('lfp_metadata', contents)
+        self.assertIn('lfp_data', contents['drive1'])
+        self.assertIn('lfp_metadata', contents['drive1'])
 
-        lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+        lfp_data = load_hdf_data(write_dir, bb_result_filename, 'drive1/lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'drive1/lfp_metadata')
 
         self.assertTrue(abs(lfp_data.shape[0] - approx_n_samples) < 100) # within 100 samples
         self.assertEqual(lfp_data.shape[1], 8)
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
         self.assertEqual(lfp_metadata['samplerate'], 1000)
 
+        # Test proc from lfp data in neuropixels
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+
+        datatype = 'lfp'
+        result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', datatype)
+
+        proc_lfp(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=1.)
+        lfp_data1, lfp_metadata1 = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        lfp_data2, lfp_metadata2 = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
+
+        self.assertEqual(lfp_data1.shape[1], lfp_metadata1['n_channels'])
+        self.assertIn('lfp_samplerate', lfp_metadata1)
+        self.assertIn('sync_timestamps', lfp_metadata1)
+        self.assertEqual(lfp_data2.shape[1], lfp_metadata2['n_channels'])
+        self.assertIn('lfp_samplerate', lfp_metadata2)
+        self.assertIn('sync_timestamps', lfp_metadata2)
+
+        # Delete the file because its size is big
+        result_hdffile = save_dir / result_filename
+        result_hdffile.unlink()
+
         # Compare the two files
-        ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'lfp_data')
-        bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'lfp_data')
-        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'lfp_metadata')
+        ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'drive1/lfp_data')
+        bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'drive1/lfp_data')
+        lfp_metadata = load_hdf_group(write_dir, bb_result_filename, 'drive1/lfp_metadata')
 
         ch = 0
 
@@ -1806,7 +1889,64 @@ class NeuropixelTests(unittest.TestCase):
         np.testing.assert_(np.all(data.shape == destriped_data.shape))
         del destriped_data # delete memmap file to completely delete the file later
         save_path.unlink()
-          
+        
+    def test_preproc_spikes(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        kilosort_dir = Path(data_dir)/'kilosort'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'spike')
+        save_dir = Path(data_dir)/'test'
+        result_filename = save_dir / filename
+
+        # Preprocess data from port 1 and port 2
+        port_number = 1
+        for port_number in [1,2]:
+            _, _, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,port_number,result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/metadata', append=True)
+            spikes, metadata = load_preproc_spike_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+            waveforms  = load_spike_waveforms(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+            self.assertIn('0', spikes)
+            self.assertIn('0', waveforms)
+            self.assertIn('1', spikes)
+            self.assertIn('1', waveforms)
+            self.assertIn('sync_timestamps', metadata)
+            self.assertIn('spike_pos', metadata)
+
+        result_filename.unlink() # delete preprocessed file
+        
+    def test_preproc_ts(self):
+        np_recorddir = '2024-08-27_Neuropixel_test_te0001'
+        ecube_files = '2024-08-27_BMI3D_te0001'
+        kilosort_dir = Path(data_dir)/'kilosort'
+        save_dir = Path(data_dir)/'test'
+        
+        # Test for ap data
+        datatype = 'ap'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'ap')
+        result_filename = save_dir / filename
+        for port_number in [1,2]:
+            _, metadata = proc_neuropixel_ts(data_dir,np_recorddir,ecube_files,kilosort_dir,datatype, port_number, result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/ap_metadata', append=True)
+            ap_data, metadata = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=port_number)
+            self.assertEqual(ap_data.shape[1], metadata['n_channels'])
+            self.assertIn('ap_samplerate', metadata)
+            self.assertIn('sync_timestamps', metadata)
+            result_filename.unlink() # delete preprocessed file
+
+        # Test for lfp data
+        datatype = 'lfp'
+        filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', 'lfp')
+        result_filename = save_dir / filename
+        for port_number in [1,2]:
+            _, metadata = proc_neuropixel_ts(data_dir,np_recorddir,ecube_files,kilosort_dir,datatype, port_number, result_filename)
+            aodata.save_hdf(save_dir, filename, metadata, f'drive{port_number}/lfp_metadata', append=True)
+            lfp_data, metadata = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=port_number)
+            self.assertEqual(lfp_data.shape[1], metadata['n_channels'])
+            self.assertIn('lfp_samplerate', metadata)
+            self.assertIn('sync_timestamps', metadata)
+            result_filename.unlink() # delete preprocessed file
+        
+        
 class LaserTests(unittest.TestCase):
 
     def test_calibrate_gain(self):

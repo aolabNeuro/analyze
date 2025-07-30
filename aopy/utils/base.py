@@ -108,7 +108,7 @@ def count_unique_symbols(files):
     for filename in files:
         with open(filename, mode='r') as f:
             text = f.read()
-        symbols += re.findall("variable (\w+)", text)
+        symbols += re.findall(r"variable (\w+)", text)
     unique_symbols, counts = np.unique(symbols, return_counts=True)
     order = np.argsort(-counts)
 
