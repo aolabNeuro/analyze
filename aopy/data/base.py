@@ -110,13 +110,13 @@ def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     for file in contents:
         try:
             filename = os.path.basename(file)
-            te_id = int(re.match(f"preproc_{date}_{subject}_(\d*)_{data_source}.hdf$", filename).group(1))
+            te_id = int(re.match(f"preproc_{date}_{subject}_(\\d*)_{data_source}.hdf$", filename).group(1))
         except AttributeError:
             return []
         ids.append(te_id)
     return ids
 
-def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
+def load_preproc_exp_data(preproc_dir, subject, te_id, date, verbose=True, cached=True):
     '''
     Loads experiment data from a preprocessed file.
 
@@ -125,6 +125,8 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        verbose (bool, optional): check for preprocessing errors and print them (default True)
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: Dictionary of exp data
@@ -134,6 +136,32 @@ def load_preproc_exp_data(preproc_dir, subject, te_id, date, cached=True):
     preproc_dir = os.path.join(preproc_dir, subject)
     data = load_hdf_group(preproc_dir, filename, 'exp_data', cached=cached)
     metadata = load_hdf_group(preproc_dir, filename, 'exp_metadata', cached=cached)
+    
+    # Check for errors
+    if verbose and 'preproc_errors' in metadata and len(metadata['preproc_errors']) > 0:
+        warnings.warn(f"Preprocessing errors found in {filename}:\n{metadata['preproc_errors']}")
+    return data, metadata
+
+def load_preproc_emg_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads emg data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: Dictionary of exp data
+        dict: Dictionary of exp metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'emg')
+    path = str(os.path.join(preproc_dir, subject))
+    data = load_hdf_data(path, filename, '/emg_data', cached=cached)
+    metadata = load_hdf_group(path, filename, 'emg_metadata', cached=cached)
+
     return data, metadata
 
 def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
@@ -145,6 +173,7 @@ def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: Dictionary of eye data
@@ -156,6 +185,48 @@ def load_preproc_eye_data(preproc_dir, subject, te_id, date, cached=True):
     metadata = load_hdf_group(preproc_dir, filename, 'eye_metadata', cached=cached)
     return data, metadata
 
+def load_preproc_analog_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads analog data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: analog data
+        dict: dictionary of analog metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'analog')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    data = load_hdf_data(preproc_dir, filename, 'analog_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'analog_metadata', cached=cached)
+    return data, metadata
+
+def load_preproc_digital_data(preproc_dir, subject, te_id, date, cached=True):
+    '''
+    Loads digital data from a preprocessed file.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Returns:
+        dict: digital data
+        dict: dictionary of digital metadata
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'digital')
+    preproc_dir = os.path.join(preproc_dir, subject)
+    data = load_hdf_data(preproc_dir, filename, 'digital_data', cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, 'digital_metadata', cached=cached)
+    return data, metadata
+
 def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
     '''
     Loads broadband data from a preprocessed file.
@@ -165,6 +236,7 @@ def load_preproc_broadband_data(preproc_dir, subject, te_id, date, cached=True):
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
+        cached (bool, optional): whether to allow loading cached version of data (default True)
 
     Returns:
         dict: broadband data
@@ -187,7 +259,8 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Raises:
         ValueError: if drives are detected when drive number is None. 
         
@@ -225,7 +298,8 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Raises:
         ValueError: if drives are detected when drive number is None.
         
@@ -251,7 +325,7 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
         metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', cached=cached)
     return data, metadata
 
-def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
     '''
     Loads spike data from a preprocessed file.
 
@@ -261,7 +335,8 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1,
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Returns:
         dict: spike data
         dict: Dictionary of spike metadata
@@ -273,7 +348,7 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number = 1,
     
     return spikes, metadata
 
-def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, cached=True):
+def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
     '''
     Loads spike waveforms from a preprocessed file.
 
@@ -283,7 +358,8 @@ def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number = 1, ca
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
-
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
     Returns:
         dict: spike waveforms
     '''
@@ -447,11 +523,17 @@ def _load_hdf_dataset(dataset, name):
     if '_json' in name:
         import json
         name = name.replace('_json', '')
+        # Handle bytes vs string for JSON decoding
+        if isinstance(data, bytes):
+            data = data.decode('utf-8')
         data = json.loads(data)
-    try:
-        data = data.decode('utf-8')
-    except:
-        pass
+    # Handle bytes objects for Python 3 compatibility
+    elif isinstance(data, bytes):
+        try:
+            data = data.decode('utf-8')
+        except UnicodeDecodeError:
+            # If UTF-8 decoding fails, try with other common encodings or keep as bytes
+            pass
     return name, data
 
 def load_hdf_data(data_dir, hdf_filename, data_name, data_group="/", cached=False):
@@ -489,6 +571,7 @@ def _load_hdf_data_cached(data_dir, hdf_filename, data_name, data_group="/"):
     full_file_name = os.path.join(data_dir, hdf_filename)
     hdf = h5py.File(full_file_name, 'r')
     full_data_name = os.path.join(data_group, data_name).replace("\\", "/")
+    
     if full_data_name not in hdf:
         raise ValueError('{} not found in file {}'.format(full_data_name, hdf_filename))
     _, data = _load_hdf_dataset(hdf[full_data_name], data_name)
@@ -825,9 +908,10 @@ def map_acq2pos(signalpath_table, eleclayout_table, acq_ch_subset=None, theta=0,
     acq_ch_position = np.empty((nelec, 2))
 
     for ielec, elecid in enumerate(connected_elecs):
-        acq_ch_position[ielec,0] = eleclayout_table[xpos_name][eleclayout_table['electrode']==elecid]
-        acq_ch_position[ielec,1] = eleclayout_table[ypos_name][eleclayout_table['electrode']==elecid]
-
+        row = eleclayout_table.loc[eleclayout_table['electrode'] == elecid].iloc[0]
+        acq_ch_position[ielec, 0] = float(row[xpos_name])
+        acq_ch_position[ielec, 1] = float(row[ypos_name])
+        
     if theta != 0:
         theta = np.deg2rad(theta)
         rot_mat = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
@@ -899,22 +983,30 @@ def map_data2elecandpos(datain, signalpath_table, eleclayout_table, acq_ch_subse
     
     return dataout, acq_ch_position, acq_chs, connected_elecs
 
-def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
+def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, center=(0,0), **kwargs):
     '''
-    Load the mapping between acquisition channel and electrode number for the viventi ECoG array or between a chamber grid and chamber location.
+    Load the centered mapping between acquisition channels and electrode position for supported drives.
+    Currently supports 'ECoG244', 'Opto32', 'NP_Insert72', and 'NP_Insert137' drives.
     
     Args:
-        drive_type (str, optional): Drive type of the method used to record neural activity. Currently supports `ECoG244`, 'Opto32', 'NP_Insert72', and 'NP_Insert137'
+        drive_type (str, optional): Drive type of the method used to record neural activity. 
+            - 'ECoG244': Viventi 244 channel ECoG array          
+            - 'Opto32': Orsborn 32 channel fiber optic array
+            - 'NP_Insert72': Orsborn 72 site Neuropixel grid
+            - 'NP_Insert137': Orsborn 137 site Neuropixel grid
         acq_ch_subset (nacq, optional): Subset of acquisition channels to call. If not called, all acquisition 
             channels and connected electrodes will be returned.
         theta (float): rotation (in degrees) to apply to positions. rotations are applied clockwise, e.g., theta = 90 
             rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise by 90 degrees. Default 0.
+        center (2-tuple): chamber coordinates of the center of the drive in mm. This function translates the 
+            coordinates of the drive to be centered on this value. Defaults to (0,0).
         kwargs (dict): Additional keyword arguments to pass to :func:`~aopy.data.map_acq2pos`
 
     Returns:
         tuple: Tuple Containing:
-            | **acq_ch_position (nelec, 2):** X and Y coordinates of the electrode each acquisition channel gets data from.
-                                        X position is in the first column and Y position is in the second column
+            | **acq_ch_position (nelec, 2):** X and Y coordinates (in mm) of the electrodes corresponding
+                to each acquisition channel.
+                X position is in the first column and Y position is in the second column
             | **acq_chs (nelec):** Acquisition channels that map to electrodes (e.g. 240/256 for viventi ECoG array)
             | **connected_elecs (nelec):** Electrodes used (e.g. 240/244 for viventi ECoG array)   
     
@@ -930,6 +1022,13 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
             
         .. image:: _images/ecog244_opto32_theta90.png
 
+        .. code-block:: python
+
+            plt.figure()
+            plot_spatial_drive_map(np.zeros(64,), drive_type='EMG_GR08MM1305', cmap='Greys', theta=0)
+            annotate_spatial_map_channels(drive_type='EMG_GR08MM1305', color='k', theta=0)
+
+        .. image:: _images/emg64_gr08mm1305.png
 
     '''
     config_files = files('aopy').joinpath('config')
@@ -944,8 +1043,11 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
         rotation_offset = (5.625, 5.625)
     elif drive_type == 'NP_Insert72' or drive_type == 'NP_Insert137':
         signal_path_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_signal_path.xlsx'))
-        print(signal_path_filepath)
         elec_to_pos_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/{drive_type}_ch_mapping.xlsx'))
+    elif drive_type == 'EMG_GR08MM1305':
+        signal_path_filepath = as_file(config_files.joinpath('251202_64ch_emg_signal_path.xlsx'))
+        elec_to_pos_filepath = as_file(config_files.joinpath('64ch_emg_gr08mm1305_elec_to_pos.xlsx'))
+        rotation_offset = (16, 48)
     else:
         raise ValueError('Drive type not supported')
     
@@ -955,26 +1057,35 @@ def load_chmap(drive_type='ECoG244', acq_ch_subset=None, theta=0, **kwargs):
         layout = pd.read_excel(f)
     if acq_ch_subset is not None:
         acq_ch_subset = np.array(acq_ch_subset, dtype='int')
-    return map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, 
-                       rotation_offset=rotation_offset, **kwargs)
+    elec_pos, acq_ch, elecs = map_acq2pos(signal_path, layout, acq_ch_subset=acq_ch_subset, theta=theta, 
+                                          rotation_offset=rotation_offset, **kwargs)
+    elec_pos = elec_pos - rotation_offset + center # re-center the coordinates
+    return elec_pos, acq_ch, elecs
 
-def align_recoring_drives(neuropixel_drive, drive2, subject):
+def align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=0, center=(0,0)):
     '''
     This function aligns one drive to another drive type. In the current iteration, this function only supports aligning neuropixels drives ('NP_Insert72'/'NP_Insert137'') 
-    to each other or to 'ECoG244'/'Opto32' drives. This function is not currently compatible with selecting subsets of channels. 
+    to each other or to 'ECoG244'/'Opto32' drives. This function assumes a fixed mapping between subject and alignment is not currently compatible with selecting subsets of channels. 
+    The mapping between subject and alignment is defined in aopy/config/neuropixel_insert_ch_mapping/NP_insert_angle_alignment.xlsx.
+    The following images depict the alignment between neuropixels insert grid hole locations and ECoG channel location for two subjects.
 
     .. image:: _images/NP_Insert137_ECoG244_alignment.png
+    
+    .. image:: _images/NP_Insert72_ECoG244_alignment.png
 
     Args:
         neuropixel_drive (str): Neuropixel drive to align. Currently supports 'NP_Insert72', and 'NP_Insert137'
         drive2 (str): Other drive to align. Currently supports 'ECoG244', 'Opto32', 'NP_Insert72', and 'NP_Insert137'
         subject (str): Subject recordings were performed on. Currently supports 'Affi' and 'Beignet'
+        theta (float): rotation (in degrees) to apply to positions. Rotations are applied clockwise. Default 0.
+        center (2-tuple): chamber coordinates of the center of the drive in mm. Defaults to (0,0).
 
     Returns:
         tuple: Tuple Containing:
             | **aligned_np_drive_coordinates (nelec, 2):** X and Y coordinates of each neuropixel insert recording site relative to drive2
-            | **recording_site (nelec):** Neuropixel insert recording site that matches the corresponding row in 'aligned_np_drive_coordinates'
-
+            | **aligned_drive2_coordinates (nelec, 2):** X and Y coordinates of each drive2 recording site
+            | **recording_sites (nelec):** Neuropixel insert recording site numbers
+            | **acq_ch (nelec):** Acquisition channels (0-indexed) for each drive2 recording site
     '''
     NP_drive_list = ['NP_Insert72', 'NP_Insert137'] # Drives this function is compatible with
     drive2_list = ['NP_Insert72', 'NP_Insert137', 'ECoG244', 'Opto32']
@@ -990,33 +1101,21 @@ def align_recoring_drives(neuropixel_drive, drive2, subject):
     if subject not in subjects:
         raise ValueError('Subject not supported')
 
-    # Load ch map for drives
-    np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive)
-    if drive2 == 'Opto32': 
-        drive2_ch_pos, _ , _ = load_chmap(drive_type='ECoG244') # For opto drive we still want to center the neuropixel insert relative to ECoG
-    else:
-        drive2_ch_pos, _ , _ = load_chmap(drive_type=drive2)
-    
     # If drive2 is not a neuropixel drive, load alignment angle
     config_files = files('aopy').joinpath('config')
     if drive2 not in NP_drive_list:
         angle_lookup_filepath = as_file(config_files.joinpath(f'neuropixel_insert_ch_mapping/NP_Insert_angle_alignment.xlsx'))
         with angle_lookup_filepath as f:
             angle_df = pd.read_excel(f)
-            angle = angle_df.loc[angle_df['subject'] == subject, drive2].values[0]   
+            relative_angle = np.rad2deg(angle_df.loc[angle_df['subject'] == subject, drive2].values[0])
     else:    
-        angle = 0
+        relative_angle = 0
 
-    # Align neuropixel drive to drive2 based on trig - neuropixel insert coordinates are centered by default, but adjust if necessary
-    np_offset = (np.max(np_drive_ch_pos, axis=0) + np.min(np_drive_ch_pos, axis=0))/2 # Find center of drive 2
-    aligned_np_drive_coordinates_x = (np.cos(angle)*(np_drive_ch_pos[:,0] - np_offset[0])) - (np.sin(angle)*(np_drive_ch_pos[:,1] - np_offset[1]))
-    aligned_np_drive_coordinates_y = (np.sin(angle)*(np_drive_ch_pos[:,0] - np_offset[0])) + (np.cos(angle)*(np_drive_ch_pos[:,1] - np_offset[1]))
-    aligned_np_drive_coordinates = np.concatenate((aligned_np_drive_coordinates_x[:,None], aligned_np_drive_coordinates_y[:,None]), axis=1)
+    # Load ch map for neuropixel drive and drive 2
+    np_drive_ch_pos, recording_sites , _ = load_chmap(drive_type=neuropixel_drive, theta=theta - relative_angle, center=center)    
+    drive2_ch_pos, acq_ch , _ = load_chmap(drive_type=drive2, theta=theta, center=center)
 
-    # Compute offset to align with drive 2
-    drive2_offset = (np.max(drive2_ch_pos, axis=0) + np.min(drive2_ch_pos, axis=0))/2 # Find center of drive 2
-    
-    return (aligned_np_drive_coordinates + drive2_offset), recording_sites
+    return np_drive_ch_pos, drive2_ch_pos, recording_sites, acq_ch
 
 
 def parse_str_list(strings, str_include=None, str_avoid=None):
@@ -1174,3 +1273,19 @@ def yaml_read(filename):
         task_codes = yaml.load(file, Loader=yaml.FullLoader)
 
     return task_codes
+
+def load_yaml_config(filename):
+    '''
+    Load a yaml configuration file into a dictionary
+
+    Args:
+        config_file (str): path to the yaml configuration file
+
+    Returns:
+        dict: dictionary containing the configuration parameters
+    '''
+    config_dir = files('aopy').joinpath('config')
+    params_file = as_file(config_dir.joinpath(filename))
+    with params_file as f:
+        config = yaml_read(f)
+    return config

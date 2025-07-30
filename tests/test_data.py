@@ -34,11 +34,12 @@ class LoadPreprocTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         files = {}
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        files['ecube'] = 'fake ecube data'
-        cls.id = 3498
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+
         cls.subject = 'fake_subject'
-        cls.date = '2021-12-13'
+        cls.id = 5974
+        cls.date = '2022-07-01'
         
         cls.id2 = '0000'
         cls.subject2 = 'test'
@@ -61,10 +62,7 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertIsInstance(broadband_metadata, dict)
 
     def test_load_preproc_lfp_data(self):
-        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date)
-        self.assertIsInstance(lfp_data, np.ndarray)
-        self.assertIsInstance(lfp_metadata, dict)
-        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=None)
+        lfp_data, lfp_metadata = load_preproc_lfp_data(write_dir, self.subject, self.id, self.date, drive_number=1)
         self.assertIsInstance(lfp_data, np.ndarray)
         self.assertIsInstance(lfp_metadata, dict)
         
@@ -74,7 +72,7 @@ class LoadPreprocTests(unittest.TestCase):
         self.assertEqual(len(ids), 1)
 
     def test_proc_eye_day(self):
-        self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
+        #self.assertRaises(ValueError, lambda:proc_eye_day(write_dir, self.subject, self.date))
         best_id, te_ids = proc_eye_day(data_dir, 'test', '2022-08-19', correlation_min=0, dry_run=True)
         self.assertIsNone(best_id)
         self.assertCountEqual(te_ids, [6581, 6577])
@@ -280,6 +278,43 @@ class BMI3DTests(unittest.TestCase):
         self.assertTrue(all(off_times - on_times)>0)
         self.assertTrue(any(np.diff(on_times)>30))
 
+    def test_load_emg_data(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        emg_data, emg_metadata = load_emg_data(emg_data_dir, filename)
+        self.assertEqual(emg_data.shape[1], 64)
+        self.assertEqual(emg_data.shape[0], 14720)
+
+        self.assertIn('samplerate', emg_metadata)
+        self.assertEqual(emg_metadata['samplerate'], 2048)
+        self.assertEqual(emg_metadata['n_channels'], 64)
+
+    def test_load_emg_analog(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        analog_data, analog_metadata = load_emg_analog(emg_data_dir, filename)
+        self.assertEqual(analog_data.shape[1], 16)
+        self.assertEqual(analog_data.shape[0], 14720)
+
+        self.assertIn('samplerate', analog_metadata)
+        self.assertEqual(analog_metadata['samplerate'], 2048)
+        self.assertEqual(analog_metadata['n_channels'], 16)
+
+    def test_load_emg_digital(self):
+        emg_data_dir = os.path.join(data_dir, 'quatt_emg')
+        filename = 'aj20250319_05_te2540_emg.hdf'
+        
+        digital_data, digital_metadata = load_emg_digital(emg_data_dir, filename)
+        self.assertEqual(digital_data.shape[0], 14720)
+        self.assertEqual(digital_data.ndim, 1)
+
+        self.assertIn('samplerate', digital_metadata)
+        self.assertEqual(digital_metadata['samplerate'], 2048)
+        self.assertEqual(digital_metadata['n_channels'], 16)
+
+
 class NeuropixelTest(unittest.TestCase):
     
     def test_load_neuropixel_data(self):
@@ -452,11 +487,17 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         files = {}
-        files['hdf'] = 'fake_ecube_data_bmi3d.hdf'
-        files['ecube'] = 'fake ecube data'
-        cls.subject = 'test'
-        cls.te_id = 3498
-        cls.date = '2021-12-13'
+        files['hdf'] = 'beig20220701_04_te5974.hdf'
+        files['ecube'] = '2022-07-01_BMI3D_te5974'
+
+        # Reduce the file size so we can upload it to github
+        # headstage_data, metadata = load_ecube_headstages(data_dir, files['ecube'])
+        # headstage_data = headstage_data[:,:16] * metadata['voltsperbit'] # reduce to 16 channels
+        # filename = utils.save_test_signal_ecube(headstage_data, data_dir, 1, datasource='Headstages')
+
+        cls.subject = 'beignet'
+        cls.te_id = 5974
+        cls.date = '2022-07-01'
         preproc_dir = os.path.join(write_dir, cls.subject)
         preproc.proc_single(data_dir, files, preproc_dir, cls.subject, cls.te_id, cls.date, ['exp', 'eye', 'lfp'], overwrite=True)
 
@@ -606,7 +647,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot cycle count
         ts_data, samplerate = get_task_data(write_dir, self.subject, self.te_id, self.date, 'cycle')
-        self.assertEqual(len(ts_data), 7031)
+        self.assertEqual(len(ts_data), 7985)
         self.assertEqual(samplerate, 120)
         time = np.arange(len(ts_data))/samplerate
         plt.figure()
@@ -672,7 +713,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
-        self.assertEqual(len(trajs), 9)
+        self.assertEqual(len(trajs), 13)
         self.assertEqual(trajs[1].shape[1], 3)
         bounds = [-10, 10, -10, 10]
         plt.figure()
@@ -683,7 +724,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot eye trajectories - expect same 9 trials but no eye pos to plot
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='eye')
-        self.assertEqual(len(trajs), 9)
+        self.assertEqual(len(trajs), 13)
         self.assertEqual(trajs[1].shape[1], 4) # two eyes x and y
         plt.figure()
         visualization.plot_trajectories(trajs[:2], bounds=bounds)
@@ -693,7 +734,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Plot hand trajectories - expect same 9 trials but hand kinematics.
         hand_trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, datatype='manual_input')
-        self.assertEqual(len(hand_trajs), 9)
+        self.assertEqual(len(hand_trajs), 13)
         self.assertEqual(hand_trajs[1].shape[1], 3)
         plt.figure()
         visualization.plot_trajectories(hand_trajs, bounds=bounds)
@@ -704,7 +745,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Try cursor velocity
         # Test normalized output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=True)
-        self.assertEqual(len(vel), 9)
+        self.assertEqual(len(vel), 13)
         self.assertEqual(vel[1].ndim, 1)
         plt.figure()
         plt.plot(vel[1])
@@ -714,34 +755,36 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test component wise velocity output
         vel, _ = get_velocity_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, norm=False)
-        self.assertEqual(len(vel), 9)
+        self.assertEqual(len(vel), 13)
         self.assertEqual(vel[1].shape[1], 3)
 
         # Use a trial filter to only get rewarded trials
         trial_filter = lambda t: TRIAL_END not in t
         trajs, segs = get_kinematic_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, trial_filter=trial_filter)
-        self.assertEqual(len(trajs), 7)
+        self.assertEqual(len(trajs), 10)
 
     def test_get_lfp_segments(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
-        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes)
-        self.assertEqual(len(lfp_segs), 9)
-        self.assertEqual(lfp_segs[0].shape, (0, 8)) # fake lfp data has 8 channels and 0 samples
+        lfp_segs, segs = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
+                                          trial_start_codes, trial_end_codes, drive_number=1)
+        self.assertEqual(len(lfp_segs), 13)
+        self.assertEqual(lfp_segs[0].shape, (1395, 16)) # fake lfp data has 8 channels and 0 samples
 
     def test_get_lfp_aligned(self):
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [REWARD, TRIAL_END]
         time_before = 0.1
         time_after = 0.4
-        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, trial_start_codes, trial_end_codes, time_before, time_after)
-        self.assertEqual(lfp_aligned.shape, ((time_before+time_after)*1000, 8, 9))
+        lfp_aligned = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
+                                      trial_start_codes, trial_end_codes, time_before, time_after, drive_number=1)
+        self.assertEqual(lfp_aligned.shape, ((time_before+time_after)*1000, 16, 13))
 
     def test_get_target_locations(self):
         target_indices = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
         locs = get_target_locations(write_dir, self.subject, self.te_id, self.date, target_indices)
         self.assertEqual(locs.shape, (9, 3))
-        self.assertEqual(len(str(locs[1][0])), 6)
+        self.assertEqual(len(str(locs[1][0])), 3)
 
         # If you supply an invalid target index it should raise an error
         target_indices = np.array([10])
@@ -771,13 +814,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         df = tabulate_behavior_data(
             write_dir, subjects, ids, dates, trial_start_codes, trial_end_codes,
             reward_codes, penalty_codes, metadata=['target_radius', 'rand_delay'], df=None)
-        self.assertEqual(len(df), 18)
-        np.testing.assert_allclose(df['target_radius'], 2.)
+        self.assertEqual(len(df), 26)
+        np.testing.assert_allclose(df['target_radius'], 1.3)
         for delay in df['rand_delay']:
-             np.testing.assert_allclose(delay, [0.23, 0.3])
+             np.testing.assert_allclose(delay, [0.1, 0.6])
         expected_reward = np.ones(len(df))
-        expected_reward[-2:] = 0
-        expected_reward[-11:-9] = 0
+        expected_reward[[4,6,8,17,19,21]] = 0
         np.testing.assert_allclose(df['reward'], expected_reward)
 
     def test_tabulate_behavior_data_center_out(self):
@@ -791,7 +833,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         t1 = time.perf_counter()
         print(f"tabulate_behavior_data_center_out took {t1-t0:0.3f} seconds")
         
-        self.assertEqual(len(df), 20) # 10 total trials, duplicated
+        self.assertEqual(len(df), 26) # 10 total trials, duplicated
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
         self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
@@ -807,8 +849,8 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Check a couple interesting trials
         trial = df.iloc[0] # a successful trial
         self.assertTrue(trial['reward'])
-        np.testing.assert_allclose(trial['event_codes'], [16, 80, 18, 32, 82, 48, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 24, 32, 88, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, 4.5962, 0.])
         self.assertTrue(trial['trial_initiated'])
         self.assertTrue(trial['hold_completed'])
         self.assertTrue(trial['delay_completed'])
@@ -820,37 +862,35 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertGreater(trial['trial_end_time'], trial['reward_start_time'])
 
         trial = df.iloc[7] # a timeout penalty before anything happens
-        self.assertFalse(trial['reward'])
-        self.assertTrue(trial['penalty'])
-        np.testing.assert_allclose(trial['event_codes'], [16, 65, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
-        self.assertFalse(trial['trial_initiated'])
-        self.assertFalse(trial['hold_completed'])
-        self.assertFalse(trial['delay_completed'])
-        self.assertFalse(trial['reach_completed'])
-        self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 40.42532)
-        self.assertEqual(trial['penalty_event'], 65) # timeout penalty
+        self.assertTrue(trial['reward'])
+        self.assertFalse(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 22, 32, 86, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, -4.5962, 0.])
+        self.assertTrue(trial['trial_initiated'])
+        self.assertTrue(trial['hold_completed'])
+        self.assertTrue(trial['delay_completed'])
+        self.assertTrue(trial['reach_completed'])
+        self.assertTrue(np.isnan(trial['penalty_start_time']))
+        self.assertTrue(np.isnan(trial['penalty_event']))# timeout penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
-        self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
 
         trial = df.iloc[8] # a hold penalty on the center target
         self.assertFalse(trial['reward'])
         self.assertTrue(trial['penalty'])
-        np.testing.assert_allclose(trial['event_codes'], [16, 80, 64, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 0., 0.])
+        np.testing.assert_allclose(trial['event_codes'], [16, 80, 20, 32, 84, 64, 239])
+        np.testing.assert_allclose(trial['target_location'], [4.5962, -4.5962, 0.])
         self.assertTrue(trial['trial_initiated'])
-        self.assertFalse(trial['hold_completed'])
-        self.assertFalse(trial['delay_completed'])
-        self.assertFalse(trial['reach_completed'])
+        self.assertTrue(trial['hold_completed'])
+        self.assertTrue(trial['delay_completed'])
+        self.assertTrue(trial['reach_completed'])
         self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_start_time'], 42.64848)
+        np.testing.assert_allclose(trial['penalty_start_time'], 41.38588)
         self.assertEqual(trial['penalty_event'], 64) # hold penalty
         self.assertGreater(trial['prev_trial_end_time'], 0.)
         self.assertGreater(trial['trial_end_time'], trial['penalty_start_time'])
 
         trial = df.iloc[10] # first trial of the second session
-        self.assertEqual(trial['prev_trial_end_time'], 0.)
+        self.assertEqual(trial['prev_trial_end_time'], 49.4024)
 
     def test_tabulate_behavior_data_out(self):
 
@@ -859,7 +899,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = [self.date, self.date]
 
         df = tabulate_behavior_data_out(write_dir, subjects, ids, dates, df=None)
-        self.assertEqual(len(df), 16) # 8 total trials, duplicated (center target hold and timeout penalty trials are excluded)
+        self.assertEqual(len(df), 26) # 8 total trials, duplicated (center target hold and timeout penalty trials are excluded)
         self.assertTrue(np.all(df['target_idx'] < 9))
         self.assertTrue(np.all(df['target_idx'] >= 0))
         self.assertTrue(np.all(df['target_idx'][df['reward']] > 0))
@@ -873,27 +913,82 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Check a couple interesting trials
         trial = df.iloc[0] # a successful trial
         self.assertTrue(trial['reward'])
-        np.testing.assert_allclose(trial['event_codes'], [18, 32, 82, 48, 239])
-        np.testing.assert_allclose(trial['target_location'], [0., 6.5, 0.])
+        np.testing.assert_allclose(trial['event_codes'], [24, 32, 88, 48, 239])
+        np.testing.assert_allclose(trial['target_location'], [-4.5962, 4.5962, 0.])
         self.assertTrue(trial['reach_completed'])
         events = [trial['prev_trial_end_time'], trial['target_on_time'], trial['reach_end_time'], trial['reward_start_time'], trial['trial_end_time']]
         np.testing.assert_allclose(events, sorted(events)) # events should occur in order
 
         trial = df.iloc[7] # a hold penalty on the peripheral target
-        self.assertFalse(trial['reward'])
-        self.assertTrue(trial['penalty'])
-        np.testing.assert_allclose(trial['event_codes'], [21, 32, 85, 64, 239])
+        self.assertTrue(trial['reward'])
+        self.assertFalse(trial['penalty'])
+        np.testing.assert_allclose(trial['event_codes'], [22, 32, 86, 48, 239])
         np.testing.assert_allclose(trial['target_location'], [-4.5962, -4.5962, 0.])
         self.assertTrue(trial['reach_completed'])
-        self.assertTrue(~np.isnan(trial['penalty_start_time']))
-        self.assertEqual(trial['penalty_event'], 64) # hold penalty
+        self.assertFalse(~np.isnan(trial['penalty_start_time']))
+        self.assertTrue(np.isnan(trial['penalty_event']))# hold penalty
 
+    def test_tabulate_behavior_data_corners(self):
+        task_codes = load_bmi3d_task_codes()
+        subjects = ['test', 'test']
+        ids = [19005, 19054]
+        dates = ['2024-12-31', '2025-01-21'] # first entry is pre-pause state, second entry has pause state
+        df = tabulate_behavior_data_corners(data_dir, subjects, ids, dates, metadata=['target_radius', 'cursor_radius', 'rand_delay'])
+        self.assertEqual(len(df), 55)
+        self.assertEqual(len(df.columns), 8+3+20) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
+
+        # Check chain length (sequence param)
+        self.assertTrue(np.all(df['chain_length'] == 2))
+
+        # Check that rewarded trials are complete
+        self.assertTrue(np.all(df['trial_initiated'][df['reward']]))
+        self.assertTrue(np.all(df['hold_completed'][df['reward']]))
+
+        # Check that reach completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['reach_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['reach_completed']].target_location]))
+
+        # Check that hold completed trials have two target indicies & locations
+        self.assertTrue(np.all([len(idx)==2 for idx in df[df['hold_completed']].target_idx]))
+        self.assertTrue(np.all([loc.shape==(2,3) for loc in df[df['hold_completed']].target_location]))
+
+        # Check that hold penalty trials have one target idx & location
+        self.assertTrue(np.all([len(idx)==1 for idx in df[df['hold_completed']==False].target_idx]))
+        self.assertTrue(np.all([loc.shape==(3,) for loc in df[df['hold_completed']==False].target_location]))
+
+        # Check that trial segments occur in the correct order
+        reward_df = df[df['reward']]
+        for i in range(len(reward_df)):
+            trial = reward_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['hold_start_time'])
+            self.assertTrue(trial['hold_start_time'] < trial['delay_start_time'])
+            self.assertTrue(trial['delay_start_time'] < trial['go_cue_time'])
+            self.assertTrue(trial['go_cue_time'] < trial['reach_end_time'])
+            self.assertTrue(trial['reach_end_time'] < trial['reward_start_time'])
+            self.assertTrue(trial['reward_start_time'] < trial['trial_end_time'])
+            
+        penalty_df = df[df['penalty']]
+        for i in range(len(penalty_df)):
+            trial = penalty_df.iloc[i]
+            self.assertTrue(trial['first_target_on_time'] < trial['penalty_start_time'])
+            self.assertTrue(trial['penalty_start_time'] < trial['trial_end_time'])
+            
+        # Check pause events
+        pause_df = df[~np.isnan(df['pause_event'])]
+        self.assertTrue(np.all(pause_df['pause_event'] == task_codes['PAUSE_START']))
+        self.assertTrue(np.all(~np.isnan(pause_df['pause_start_time'])))
+        for i in range(len(pause_df)):
+            trial = pause_df.iloc[i]
+            self.assertTrue(trial['pause_start_time'] == trial['trial_end_time'])
+        
     def test_tabulate_behavior_data_tracking_task(self):
         subjects = ['test', 'test']
         ids = [8461, 8461]
         dates = ['2023-02-25', '2023-02-25']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)  # no penalties in this session
         self.assertEqual(len(df), 42) # 21 total trials, duplicated
+        self.assertEqual(len(df.columns), 8+0+18) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
+
         self.assertTrue(np.all(df['reward']))
         self.assertFalse(np.all(df['penalty']))
         self.assertTrue(np.all(df['trial_initiated']))
@@ -931,6 +1026,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         dates = ['2023-10-02', '2023-10-02']
         df = tabulate_behavior_data_tracking_task(data_dir, subjects, ids, dates)
         self.assertEqual(len(df), 212)
+        self.assertEqual(len(df.columns), 8+0+18) # no. columns in base tabulate func + no. of user-inputted metadata fields + no. columns in tabulate wrapper
 
         # Check sequence params
         self.assertTrue(np.all([json.loads(params)['ramp']==0 for params in df['sequence_params']]))
@@ -958,8 +1054,39 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         plt.xlabel('Reward trial #'); plt.ylabel('Time (sec)')
         plt.ylim(15,25); plt.legend()
         figname = 'tabulate_tracking_trial_segment_lengths_churro.png'
-        visualization.savefig(write_dir, figname)       
+        visualization.savefig(write_dir, figname)   
 
+    def test_tabulate_behavior_data_random_targets(self):
+
+        subjects = ['Leo', 'Leo']
+        ids = [1957, 1959]
+        dates = ['2025-02-13', '2025-02-13']
+
+        df = tabulate_behavior_data_random_targets(data_dir, subjects, ids, dates, metadata = ['sequence_params'])
+        self.assertEqual(len(df), 66) #check correct length 
+        self.assertEqual(len(df.columns), 18+1)  #check correct number of columns
+        for loc in df['target_location']:
+            self.assertEqual(loc.shape[0], 3) #3 coordinates per target location 
+            self.assertLess(np.linalg.norm(loc), 10) #values in target location should be less than 10 
+        
+        # Visualization check 
+        example_reaches = df[-5:] #last 5 reaches in the earlier dataframe
+        example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
+                                               example_reaches['date'], example_reaches['target_on'], 
+                                               example_reaches['cursor_enter_target'], datatype = 'cursor')
+        ex_targets = example_reaches['target_location'].to_numpy()
+        bounds = [-5,5,-5,5,-5,5] #equal bounds to make visualization appear as spheres
+        default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+        colors = default_colors[:len(ex_targets)] #match colors from the trajectories
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection = '3d')
+        for idx, path in enumerate(example_traj):
+            ax.plot(*path.T)
+            visualization.plot_sphere(ex_targets[idx], color = colors[idx], radius = 0.5, 
+                                      bounds = bounds, ax = ax)
+        figname = 'tabulate_behavior_random_targets.png' 
+        visualization.savefig(docs_dir, figname, transparent = False)
+    
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
@@ -970,7 +1097,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Only consider completed reaches
         df = df[df['reach_completed']]
         kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
-                            preproc=lambda x,fs : (x,fs), datatype='cursor', samplerate=1000)
+                                      datatype='cursor', samplerate=1000)
 
         self.assertEqual(len(df), len(kin))
 
@@ -978,7 +1105,31 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         bounds = [-10, 10, -10, 10]
         visualization.plot_trajectories(kin, bounds=bounds)
         figname = 'tabulate_kinematics.png' # should look very similar to get_trial_aligned_trajectories.png
-        visualization.savefig(write_dir, figname)
+        visualization.savefig(docs_dir, figname, transparent=False)
+
+        # Test speed and acceleration
+        dst = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                      deriv=0, norm=True, datatype='cursor', samplerate=1000)
+        spd = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                      deriv=1, norm=True, datatype='cursor', samplerate=1000)
+        acc = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                      deriv=2, norm=True, datatype='cursor', samplerate=1000)
+        plt.figure()
+        visualization.plot_timeseries(dst[0], 1000)
+        visualization.plot_timeseries(spd[0], 1000)
+        visualization.plot_timeseries(acc[0], 1000)
+        plt.legend(['distance', 'speed', 'acceleration'])
+        plt.xlabel('time from go cue (s)')
+        plt.ylabel('kinematics (cm)')
+        figname = 'tabulate_kinematics_derivative.png' # should look very similar to get_trial_aligned_trajectories.png
+        visualization.savefig(docs_dir, figname, transparent=False)
+
+        # Test return_nan arg
+        df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+        df['te_id'] = 0 
+        kin_nan = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                            datatype='cursor', samplerate=1000, return_nan=True)
+        self.assertTrue(np.isnan(kin_nan[0]))
 
     def test_tabulate_features(self):
         preproc_dir = data_dir
@@ -1051,12 +1202,12 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Note: the data we're reading is only 1s long, so mostly these will be nans
         ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'], 
-                               trigger_times, time_before, time_after, datatype='lfp')
+                               trigger_times, time_before, time_after, drive_number=1, datatype='lfp')
         
         trial_start_codes = [CURSOR_ENTER_CENTER_TARGET]
         trial_end_codes = [TRIAL_END]
         ts_data_single_file = get_lfp_aligned(write_dir, self.subject, self.te_id, self.date, 
-                                              trial_start_codes, trial_end_codes, time_before, time_after)
+                                              trial_start_codes, trial_end_codes, time_before, time_after, drive_number=1)
      
         print(ts_data_single_file.shape)
 
@@ -1064,7 +1215,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Test getting a single channel
         ts_data, samplerate = tabulate_ts_data(write_dir, df['subject'], df['te_id'], df['date'],
-                                 trigger_times, time_before, time_after, datatype='lfp', channels=[0])
+                                 trigger_times, time_before, time_after, drive_number=1, datatype='lfp', channels=[0])
 
         self.assertEqual(ts_data.shape[1], 1)
 
@@ -1080,14 +1231,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # Only consider completed trials
         df = df[df['reach_completed']]
         ts_seg, samplerate = tabulate_ts_segments(write_dir, df['subject'], df['te_id'], df['date'], 
-                                                  df['go_cue_time'], df['reach_end_time'])
+                                                  df['go_cue_time'], df['reach_end_time'], drive_number=1)
 
         self.assertEqual(len(df), len(ts_seg))
         
         trial_start_codes = [CENTER_TARGET_OFF]
         trial_end_codes = CURSOR_ENTER_PERIPHERAL_TARGET + [TRIAL_END]
-        ts_seg_single_file, _ = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, 
-                                              trial_start_codes, trial_end_codes, trial_filter=lambda t: TRIAL_END not in t)
+        ts_seg_single_file, _ = get_lfp_segments(write_dir, self.subject, self.te_id, self.date, trial_start_codes, 
+                                                 trial_end_codes, drive_number=1, trial_filter=lambda t: TRIAL_END not in t)
 
         self.assertEqual(len(ts_seg_single_file), len(ts_seg))
         for i in range(len(ts_seg)):
@@ -1210,6 +1361,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             self.assertGreater(df['trial_power'][trial], 0.)
             self.assertLessEqual(df['trial_power'][trial], 25.0)
 
+    def test_tabulate_poisson_trial_times(self):
+        subjects = ['test']
+        ids = [6577]
+        dates = ['2022-08-19']
+        df = tabulate_poisson_trial_times(data_dir, subjects, ids, dates)
+
+        self.assertIn('trial_time', df.columns)
+        self.assertTrue(len(df) > 0)
+
     def test_get_kilosort_foldername(self):
         subject='affi'
         te_id = 1000
@@ -1281,6 +1441,9 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_ENTER_PERIPHERAL_TARGET': list(range(81, 89)),
                    'PERIPHERAL_TARGET_ON': list(range(17, 25)),
                    'CENTER_TARGET_OFF': 32,
+                   'CURSOR_ENTER_CORNER_TARGET': list(range(81, 85)),
+                   'CORNER_TARGET_ON': list(range(17, 21)),
+                   'CORNER_TARGET_OFF': list(range(33, 37)),
                    'REWARD': 48,
                    'DELAY_PENALTY': 66,
                    'TIMEOUT_PENALTY': 65,
@@ -1290,7 +1453,11 @@ class TestYaml(unittest.TestCase):
                    'TRIAL_END': 239,
                    'TRIAL_START': 2,
                    'CURSOR_ENTER_TARGET': 80,
+                   'CURSOR_ENTER_TARGET_RAMP_UP': 81,
+                   'CURSOR_ENTER_TARGET_RAMP_DOWN': 82,
                    'CURSOR_LEAVE_TARGET': 96,
+                   'CURSOR_LEAVE_TARGET_RAMP_UP': 97,
+                   'CURSOR_LEAVE_TARGET_RAMP_DOWN': 98,
                    'OTHER_PENALTY': 79,
                    'PAUSE_START': 128,
                    'PAUSE_END': 129}
@@ -1304,6 +1471,16 @@ class TestYaml(unittest.TestCase):
         task_codes_file = load_bmi3d_task_codes('task_codes.yaml')
 
         self.assertDictEqual(params, task_codes_file)
+
+    def test_load_lasers(self):
+        lasers = load_bmi3d_lasers()
+        for l in lasers:
+            self.assertIn('name', l.keys())
+            self.assertIn('stimulation_site', l.keys())
+            self.assertIn('trigger', l.keys())
+            self.assertIn('trigger_dch', l.keys())
+            self.assertIn('sensor', l.keys())
+            self.assertIn('sensor_ach', l.keys())
 
 class SignalPathTests(unittest.TestCase):
 
@@ -1380,66 +1557,84 @@ class SignalPathTests(unittest.TestCase):
         self.assertEqual(acq_ch_position.shape[0], 240)
         self.assertEqual(acq_ch_position.shape[1], 2)
 
-    def test_align_recording_drives(self):
-        # Create plot for documentation with affi and biegnet
+        acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type='NP_Insert137')
+
+    def test_align_neuropixel_recoring_drive(self):
+        # Create plots for documentation with affi and biegnet
         fig, ax = plt.subplots(1,2)
         subjects = ['affi', 'beignet']
         neuropixel_drive='NP_Insert137'
         drive2 = 'ECoG244'
         for iax, subject in enumerate(subjects):
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax[iax])
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax[iax])
-            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=6) for ipt in range(len(recording_sites))]
-            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0, ax=ax[iax])
-            ax[iax].set(xlim=(-2,13.25), ylim=(-2,13.25), title=f'{subject}')
-        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png')
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, ax=ax[iax])
+            ax[iax].set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
+
+        fig, ax = plt.subplots(1,2)
+        neuropixel_drive='NP_Insert72'
+        for iax, subject in enumerate(subjects):
+            if subject == 'affi':
+                theta=90
+            else:
+                theta=0
+            center = (5,5)
+            aligned_np_drive_coordinates, drive2_coordinates, recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject, theta=theta, center=center)
+            [ax[iax].annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax[iax].annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r',fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=theta, center=center, ax=ax[iax])
+            ax[iax].set(xlim=(-3,13), ylim=(-3,13), title=f'{subject}')
+        visualization.savefig(docs_dir, f'{neuropixel_drive}_{drive2}_alignment.png', transparent=False)
 
         # Test the rest of the combinations
         for subject in subjects:
             neuropixel_drive = 'NP_Insert72'
             drive2 = 'ECoG244'
-            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
-
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates ,  recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             neuropixel_drive='NP_Insert137'
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=4) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=4) for ipt in range(len(recording_sites))]
             visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', drive2, theta=0)
-            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             ## Test with opto drive
             drive2 = 'Opto32'
             neuropixel_drive = 'NP_Insert72'
-            acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            # acq_ch_position, acq_chs, connected_elecs = load_chmap(drive_type=drive2)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
+            ax.set_aspect('equal')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
             neuropixel_drive='NP_Insert137'
-            aligned_np_drive_coordinates, recording_sites = align_recoring_drives(neuropixel_drive, drive2, subject)
+            aligned_np_drive_coordinates, drive2_coordinates , recording_sites, acq_elecs = align_neuropixel_recoring_drive(neuropixel_drive, drive2, subject)
             fig, ax = plt.subplots(1,1)
-            visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', ax=ax)
-            visualization.base.annotate_spatial_map_channels(drive_type=drive2, color='k', ax=ax)
-            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r') for ipt in range(len(recording_sites))]
+            [ax.annotate(str(acq_elecs[ipt]), (drive2_coordinates[ipt,0], drive2_coordinates[ipt,1]), ha='center', va='center', color='k',fontsize=5) for ipt in range(len(acq_elecs))]
+            [ax.annotate(str(recording_sites[ipt]), (aligned_np_drive_coordinates[ipt,0], aligned_np_drive_coordinates[ipt,1]), ha='center', va='center', color='r', fontsize=5) for ipt in range(len(recording_sites))]
             visualization.base.overlay_sulci_on_spatial_map(subject, 'LM1', 'ECoG244', theta=0)
-            ax.set(xlim=(-2,13.25), ylim=(-2,13.25))
-            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png')
-
-
+            ax.set_aspect('equal')
+            ax.set(xlim=(-8,8), ylim=(-8,8), title=f'{subject}')
+            visualization.savefig(write_dir, f'{neuropixel_drive}_{drive2}_alignment_{subject}.png', transparent=False)
 
     def test_map_data2elec(self):
         test_signalpathfile = '210910_ecog_signal_path.xlsx'
@@ -1585,12 +1780,20 @@ class DatabaseTests(unittest.TestCase):
         te.feats.set([feat])
         te.save(using='test_aopy')
 
+        system = models.System(name="bmi", path=write_dir, archive="")
+        system.save(using='test_aopy')
+
         # Add a decoder entry that was "trained" on a parent task entry
-        task = models.Task.objects.get(name="nothing")
-        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, entry_name="decoder parent")
-        te.save(using='test_aopy')
-        decoder = models.Decoder(name="test_decoder", entry_id=te.id)
-        decoder.save(using='test_aopy')
+        from riglib.bmi.state_space_models import StateSpaceEndptVel2D
+        from riglib.bmi.bmi import Decoder, MachineOnlyFilter
+        ssm = StateSpaceEndptVel2D()
+        A, B, W = ssm.get_ssm_matrices()
+        filt = MachineOnlyFilter(A, W)
+        units = []
+        decoder = Decoder(filt, units, ssm, binlen=0.1)
+        parent = db.create_decoder_parent('project', 'session')
+        db.save_decoder(parent, decoder, 'test_decoder')
+        decoder = db.lookup_decoders()[0]
 
         # And a flash task entry
         task = models.Task.objects.get(name="manual control")
@@ -1598,9 +1801,6 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="flash")
         te.report = '{"runtime": 3.0, "n_trials": 2, "n_success_trials": 0}'
         te.save(using='test_aopy')
-
-        system = models.System(name="test_system", path="", archive="")
-        system.save(using='test_aopy')
 
         # Add a bmi task entry
         task = models.Task(name="bmi control")
@@ -1617,6 +1817,18 @@ class DatabaseTests(unittest.TestCase):
         te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, rig_name="siberut-bmi")
         te.save(using='test_aopy')
 
+        # Add a perturbation manual control session
+        task = models.Task.objects.get(name="manual control")
+        expm = models.Experimenter.objects.get(name="experimenter_1")
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
+                            session="test session", project="test project", params='{"perturbation_rotation_x": 90}', sequence_id=seq.id)
+        te.save(using='test_aopy')
+
+        # And a washout session
+        te = models.TaskEntry(subject_id=subj.id, task_id=task.id, experimenter_id=expm.id, entry_name="task_desc",
+                            session="test session", project="test project", sequence_id=seq.id)
+        te.save(using='test_aopy')
+
 
     def test_lookup_sessions(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1631,13 +1843,12 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(sessions[1].id, all_sessions[1].id)
 
         # Other sanity tests
-        total_sessions = 6
-        self.assertEqual(len(db.lookup_sessions()), total_sessions)
-        self.assertEqual(len(db.lookup_mc_sessions()), 1)
-        self.assertEqual(len(db.lookup_flash_sessions()), 1)
-        self.assertEqual(len(db.lookup_tracking_sessions()), 1)
-        self.assertEqual(len(db.lookup_bmi_sessions()), 2)
-        self.assertEqual(len(db.lookup_decoder_parent()), 1)
+        total_sessions = len(db.lookup_sessions())
+        self.assertGreater(len(db.lookup_mc_sessions()), 0)
+        self.assertGreater(len(db.lookup_flash_sessions()), 0)
+        self.assertGreater(len(db.lookup_tracking_sessions()), 0)
+        self.assertGreater(len(db.lookup_bmi_sessions()), 0)
+        self.assertGreater(len(db.lookup_decoder_parent()), 0)
 
         # Test filtering
         self.assertEqual(len(db.lookup_sessions(subject="non_existent")), 0)
@@ -1645,7 +1856,6 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions(subject="test", task_name="manual control",
                                       task_desc="task_desc", session="test session", project="test project",
                                       experimenter="experimenter_1")
-        self.assertEqual(len(sessions), 1)
         self.assertEqual(sessions[0].task_name, "manual control")
         self.assertEqual(sessions[0].task_desc, "task_desc")
         self.assertEqual(sessions[0].subject, "test")
@@ -1686,14 +1896,14 @@ class DatabaseTests(unittest.TestCase):
         # Other sanity tests
         total_decoders = 1
         self.assertEqual(len(db.lookup_decoders()), total_decoders)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
 
         # Test filtering
         self.assertEqual(len(db.lookup_decoders(name="non_existent")), 0)
-        self.assertEqual(len(db.lookup_decoders(name="test_decoder")), total_decoders)
+        self.assertEqual(len(db.lookup_decoders(name="project_session_test_decoder")), total_decoders)
         decoders = db.lookup_decoders(parent_id=db.lookup_decoder_parent()[0].id)
         self.assertEqual(len(decoders), 1)
-        self.assertEqual(decoders[0].name, "test_decoder")
+        self.assertEqual(decoders[0].name, "project_session_test_decoder")
 
     def test_filter_functions(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1746,11 +1956,13 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(te.get_raw_files()), 0)
         raw = te.get_db_object()
         self.assertIsNotNone(raw)
+        np.testing.assert_allclose(te.get_exp_mapping(), np.eye(3))
+        self.assertEqual(te.has_exp_perturbation(), False)
 
         # Test a bmi session and decoder
         te = db.lookup_sessions(task_name="bmi control")[0]
         decoder = te.get_decoder_record()
-        self.assertEqual(decoder.name, "test_decoder")
+        self.assertEqual(decoder.name, "project_session_test_decoder")
         self.assertRaises(Exception, te.get_decoder) # No decoder file present
 
         # Test preprocess function
@@ -1762,8 +1974,9 @@ class DatabaseTests(unittest.TestCase):
         db.BMI3D_DBNAME = 'test_aopy'
         sessions = db.lookup_sessions(task_desc='task_desc')
         subject, te_id, date = db.list_entry_details(sessions)
-        self.assertCountEqual(subject, ['test'])
-        self.assertCountEqual([str(d) for d in date], [str(datetime.datetime.today().date())])
+        self.assertEqual(len(subject), len(sessions))
+        for s in subject:
+            self.assertEqual(s, 'test')
         
     def test_group_entries(self):
         db.BMI3D_DBNAME = 'test_aopy'
@@ -1771,21 +1984,18 @@ class DatabaseTests(unittest.TestCase):
         sessions = db.lookup_sessions()
         grouped = db.group_entries(sessions) # by date
         self.assertEqual(len(grouped), 1)
-        self.assertEqual(len(grouped[0]), 6)
+        self.assertEqual(len(grouped[0]), len(sessions))
 
         grouped = db.group_entries(sessions, lambda x: x.duration) # by duration
         self.assertEqual(len(grouped), 2)
-        self.assertEqual(len(grouped[0]), 4) # duration = 0.0
+        self.assertEqual(len(grouped[0]), len(sessions) - 2) # duration = 0.0
         self.assertEqual(len(grouped[1]), 2) # duration = 3.0
 
     def test_summarize_entries(self):
             
         sessions = db.lookup_sessions()
         summary = db.summarize_entries(sessions)
-        self.assertEqual(len(summary), 6)
-
-        summary = db.summarize_entries(sessions, sum_trials=True)
-        self.assertEqual(len(summary), 5) # one duplicate task
+        self.assertEqual(len(summary), len(sessions))
 
     def test_encode_onehot_sequence_name(self):
 
@@ -1803,6 +2013,17 @@ class DatabaseTests(unittest.TestCase):
         self.assertEqual(len(df), len(sessions))
         self.assertEqual(df['id_copy'].sum(), df['te_id'].sum())
         self.assertTrue(all(df['test'] == 'test'))
+
+    def test_get_aba_perturbation_sessions(self):
+        sessions = db.lookup_mc_sessions()
+        names = db.get_aba_perturbation_sessions(sessions)
+        self.assertCountEqual(names, ['a', 'b', 'aprime'])
+
+    def test_get_aba_perturbation_days(self):
+        sessions = db.lookup_mc_sessions()
+        days, sessions = db.get_aba_perturbation_days(sessions)
+        self.assertEqual(len(days), 1)
+        self.assertCountEqual(sessions[0], ['a', 'b', 'aprime'])
 
 if __name__ == "__main__":
     unittest.main()

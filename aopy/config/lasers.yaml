@@ -1,0 +1,34 @@
+- name: qwalor
+  stimulation_site: stimulation_site
+  trigger: qwalor_trigger
+  sensor: qwalor_sensor
+  trigger_dch: qwalor_trigger_dch
+  sensor_ach: qwalor_sensor_ach
+
+- name: qwalor_ch1
+  stimulation_site: stimulation_site_ch1
+  trigger: qwalor_ch1_trigger
+  sensor: qwalor_ch1_sensor
+  trigger_dch: qwalor_ch1_trigger_dch
+  sensor_ach: qwalor_ch1_sensor_ach
+
+- name: qwalor_ch2
+  stimulation_site: stimulation_site_ch2
+  trigger: qwalor_ch2_trigger
+  sensor: qwalor_ch2_sensor
+  trigger_dch: qwalor_ch2_trigger_dch
+  sensor_ach: qwalor_ch2_sensor_ach
+
+- name: qwalor_ch3
+  stimulation_site: stimulation_site_ch3
+  trigger: qwalor_ch3_trigger
+  sensor: qwalor_ch3_sensor
+  trigger_dch: qwalor_ch3_trigger_dch
+  sensor_ach: qwalor_ch3_sensor_ach
+
+- name: qwalor_ch4
+  stimulation_site: stimulation_site_ch4
+  trigger: qwalor_ch4_trigger
+  sensor: qwalor_ch4_sensor
+  trigger_dch: qwalor_ch4_trigger_dch
+  sensor_ach: qwalor_ch4_sensor_ach
