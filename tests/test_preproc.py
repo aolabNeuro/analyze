@@ -1832,7 +1832,15 @@ class NeuropixelTests(unittest.TestCase):
         self.assertTrue(np.all(con_data[:10,:] == data1.samples[:10,:]))
         self.assertTrue(np.all(con_data[sample_size1:sample_size1+10,:] == data2.samples[:10,:]))
 
-        # delte relevant files
+        # Check metadata about datasize and task_path
+        datasize_entry = np.load(concat_data_dir/'datasize_entry.npy')
+        task_path = np.load(concat_data_dir/'task_path.npy')
+        self.assertEqual(datasize_entry[0], data1.samples.shape[0])
+        self.assertEqual(datasize_entry[1], data2.samples.shape[0])
+        self.assertEqual(task_path[0], np_recorddir1)
+        self.assertEqual(task_path[1], np_recorddir2)
+
+        # delete relevant files
         del con_data
         for item in concat_data_dir.iterdir():
             item.unlink()

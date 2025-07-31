@@ -153,7 +153,6 @@ def concat_neuropixels(np_datadir, kilosort_dir, subject, te_ids, date, port_num
     print('\n', 'Working in ', savedir_path)
 
     datasize_entry = []
-    file_path = []
     for idx, np_recorddir in enumerate(concat_path):
         print(f'Processing {np_recorddir}')
 
@@ -166,7 +165,6 @@ def concat_neuropixels(np_datadir, kilosort_dir, subject, te_ids, date, port_num
 
         data = np.memmap(continuous_data_path, dtype = dtype)
 
-        file_path.append(np_recorddir)
         datasize_entry.append(int(data.shape[0]/nch))
 
         # Save data (concatentate data)
@@ -195,7 +193,7 @@ def concat_neuropixels(np_datadir, kilosort_dir, subject, te_ids, date, port_num
 
     # Save datasize and filename of each entry to parse data after spike sorting
     np.save(os.path.join(savedir_path, 'datasize_entry'), np.array(datasize_entry))
-    np.save(os.path.join(savedir_path, 'task_path'), np.array(file_path))
+    np.save(os.path.join(savedir_path, 'task_path'), np.array(concat_path))
 
 def sync_ts_data_timestamps(data, sync_timestamps):
     '''
