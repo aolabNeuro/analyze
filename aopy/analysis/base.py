@@ -2403,9 +2403,6 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
     if shuffle:
         Y = np.random.permutation(Y)
 
-    if return_weights:
-        weights = np.zeros((nlabels, nunit, nfolds))*np.nan
-
     # Choose trials randomly so that the number of trials per target can be the same across targets.
     trial_mask = postproc.get_conditioned_trials_per_target(labels, min_trial, cond_mask=cond_mask, replacement=replacement, seed=seed)
         
@@ -2418,6 +2415,10 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
 
     # Perform LDA using single unit activity separately
     if single_decoding:
+
+        if return_weights:
+            weights = np.zeros((nlabels, nunit, nfolds))*np.nan
+    
         for iunit in range(data_trial.shape[0]):
             X = data_trial[[iunit],:].T
             
@@ -2446,8 +2447,10 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
         if min_unit is not None:
             unit_mask = np.random.choice(nunit, size=min_unit, replace=replacement)
             X = data_trial[unit_mask,:].T
+            weights = np.zeros((nlabels, min_unit, nfolds))*np.nan
         else:
             X = data_trial.T
+            weights = np.zeros((nlabels, nunit, nfolds))*np.nan
 
         for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
 
