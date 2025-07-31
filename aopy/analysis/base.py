@@ -25,6 +25,7 @@ import pywt
 from .. import visualization
 from .. import utils
 from .. import preproc
+from .. import postproc
 from .. import precondition
 
 '''
@@ -2316,7 +2317,156 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
         return decoding_accuracy, time_axis, cm
     else:
         return decoding_accuracy, time_axis
+
+def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_decoding=True, min_unit=None, shuffle=False, nfolds=5,\
+                               replacement=False, regularization='auto', lda_model=None, return_weights=False, seed=None):
+    '''
+    Perform an n-fold cross-validation with Linear Discriminant Analysis (LDA) using a single unit or multiple units.
+    This functions extracts trials and/or units randomly based on the random seed with/without replacement.
+    The number of trials per target is controlled to be the same across targets
+    You can repeatedly perform this function by changing random seed to estimate the resampling distribution
+
+    Args:
+        data (nunit, ntr): neural data
+        labels (ntr): the labels for each trial.
+        min_trial (int): the minimum number of trials for each label to be extracted
+                                if this is 20, 20*(the number of unique labels) trials are extracted
+        cond_mask (ntr): a boolean array. This is a mask to extract trials that satisfies a certain condition
+                                (ex. movement onset is more than a certain threshold)
+        single_decoding (bool, optional): If True, LDA is performed using single unit activity separately (default is True)
+        min_unit (int, optional): the number of units used for decoding. This is used only when single_decoding is False.
+                                if min_unit is None, decoding is perfomed using all units (default is None)
+        shuffle (bool, optional): whether to shuffle labels or not (default is False)
+        nfolds (int, optional): the number of folds for cross-validation (default is 5)
+        replacement (bool, optional): whether to choose trials with replacement or without replacement
+        regularization (str or float, optional): If regularization should be included when building the LDA model
+                                Input into the shrinkage parameter of the sklearn LDA function
+                                Can either be None, 'auto', or a float between 0 and 1. 
+        lda_model (sklearn LDA class, optional): User-defined LDA model from sklearn.discriminant_analysis.LinearDiscriminantAnalysis. If None, this function will initialize the model.
+        return_weights (bool, optional): Whether to return the LDA weights (default is False).
+        seed (int, optional): random seed
+
+    Returns:
+        tuple: Tuple containing:
+            | **pred_Y (nch,ntr) / (ntr):** a list of predicted labels. If single_decoding is False, its shape becomes (ntr).
+            | **true_Y (nch,ntr) / (ntr):** a list of true labels. If single_decoding is False, its shape becomes (ntr).
+            | **(Optional) LDA Weights (nlabels, nch, nfolds):** The LDA weights if return_weights is True.
+
+    Examples:
+        
+        .. code-block:: python
+
+            "This is an example of this function using multiprocessing to get a resampling distribution"
+            
+            import multiprocessing as mp
+
+            single_decoding = True
+            min_unit = None
+            shuffle = False
+            n_fold = 5
+            replacement = False
+            regularization = 'auto'
+            lda_model = None
+            return_weights = False
+            n_resample = 100 # the number of resampling
+            n_processes = 20 # the number of cpus used for the computation
+
+            pool = mp.Pool(n_processes)
+            result_objects = [pool.apply_async(xval_lda_resample_wrapper,\
+                args=(data, target_idx, min_trials, trial_mask, single_decoding, min_unit,\
+                    shuffle, n_fold, replacement, regularization, lda_model, return_weights, ibs)) for ibs in range(n_resample)]
+            pool.close()
+
+            # Organize results
+            results = [r.get() for r in result_objects]
+            pred_labels_resample, true_labels_resample = zip(*results)
+            pred_labels_resample = np.array(pred_labels_resample, int)
+            true_labels_resample = np.array(true_labels_resample, int)
+
+    See Also:
+        :func:`~aopy.analysis.base.windowed_xval_lda_wrapper`
+
+    '''
+
+    nunit, ntr = data.shape 
+    nlabels = len(np.unique(labels))
+    kf = model_selection.KFold(n_splits=nfolds)
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    if lda_model is None:
+        lda = LinearDiscriminantAnalysis(solver='eigen', shrinkage=regularization)
+    else:
+        lda = lda_model
+
+    if shuffle:
+        Y = np.random.permutation(Y)
+
+    if return_weights:
+        weights = np.zeros((nlabels, nunit, nfolds))*np.nan
+
+    # Choose trials randomly so that the number of trials per target can be the same across targets.
+    trial_mask = postproc.get_conditioned_trials_per_target(labels, min_trial, cond_mask=cond_mask, replacement=replacement, seed=seed)
+        
+    # Extract trials
+    data_trial = data[:,trial_mask]
+    Y = labels[trial_mask]
+
+    pred_Y = []
+    true_Y = []
+
+    # Perform LDA using single unit activity separately
+    if single_decoding:
+        for iunit in range(data_trial.shape[0]):
+            X = data_trial[[iunit],:].T
+            
+            pred_Y_ch = []
+            true_Y_ch = []
+
+            # k-fold cross-validation
+            for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
     
+                Xtrain,Xtest = X[train_idx,:],X[test_idx,:]
+                Ytrain,Ytest = Y[train_idx],Y[test_idx]
+                
+                lda.fit( (Xtrain - np.mean(Xtrain,axis=0)), Ytrain)
+    
+                pred_Y_ch.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
+                true_Y_ch.extend(Ytest)
+
+                if return_weights:
+                    weights[:,iunit,ifold] = np.squeeze(lda.coef_)
+
+            pred_Y.append(pred_Y_ch)
+            true_Y.append(true_Y_ch)
+
+    # Perform LDA using multiple unit activity together
+    else:
+        if min_unit is not None:
+            unit_mask = np.random.choice(nunit, size=min_unit, replace=replacement)
+            X = data_trial[unit_mask,:].T
+        else:
+            X = data_trial.T
+
+        for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
+
+            Xtrain,Xtest = X[train_idx,:],X[test_idx,:]
+            Ytrain,Ytest = Y[train_idx],Y[test_idx]
+            
+            lda.fit( (Xtrain - np.mean(Xtrain,axis=0)), Ytrain)
+
+            pred_Y.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
+            true_Y.extend(Ytest)
+
+            if return_weights:
+                weights[:,:,ifold] = lda.coef_
+
+    if return_weights:
+        return np.array(pred_Y), np.array(true_Y), weights
+    else:
+        return np.array(pred_Y), np.array(true_Y)
+
 def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000):
     """
     Simulates straight reach trajectories from a given origin to a list of target points in 3D space.
