@@ -1845,26 +1845,30 @@ class NeuropixelTests(unittest.TestCase):
         for item in concat_data_dir.iterdir():
             item.unlink()
             
-    def test_parse_and_load_ksdata(self):
+    def test_parse_ksdata_entries(self):
         date = '2023-03-26'
-        subject = 'beignet'
-        task_id ='8922'
+        subject = 'test'
         kilosort_dir = os.path.join(data_dir, 'kilosort')
-        concat_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
-        parsed_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1_{task_id}'
-        
+        concat_data_dir = f'{date}_Neuropixel_{subject}_concat1'
+        port_number = 1
+        parsed_task_id = [8921, 8922, 8923, 8924]
+
         # devide spike times and clusters into each entry data
-        parse_ksdata_entries(kilosort_dir, concat_data_dir)
+        parse_ksdata_entries(kilosort_dir, concat_data_dir, port_number, kilosort_version='kilosort4')
 
         # load parsed data
-        spike_indices, spike_label, ks_label = load_parsed_ksdata(kilosort_dir, parsed_data_dir)
-        self.assertTrue(np.all(spike_indices>0))
-        self.assertTrue(spike_indices.shape == spike_label.shape)
-        self.assertTrue((np.all((ks_label[:,1] == 'mua') | (ks_label[:,1] == 'good'))))
+        for te_id in parsed_task_id:
+            task_path = Path(f'{date}_Neuropixel_te{te_id}_concat1')/f'port{port_number}'/'kilosort4'
+            spike_times = np.load(kilosort_dir / task_path / 'spike_times.npy')
+            spike_clusters = np.load(kilosort_dir / task_path / 'spike_clusters.npy')
+            self.assertTrue(np.all(spike_times>0))
+            self.assertTrue(spike_times.shape == spike_clusters.shape)
         
-        spike_indices_unit = classify_ks_unit(spike_indices, spike_label)
-        self.assertTrue(np.all(spike_indices_unit['0']>0))
-        self.assertTrue(np.all(spike_indices_unit['1']>0))
+            unit_times = classify_ks_unit(spike_times, spike_clusters)
+            unit_number1 = list(unit_times.keys())[0]
+            unit_number2 = list(unit_times.keys())[1]
+            self.assertTrue(np.all(unit_times[unit_number1]>0))
+            self.assertTrue(np.all(unit_times[unit_number2]>0))
     
     def test_sync_ts_data_timestamps(self):
         ndata = 20
