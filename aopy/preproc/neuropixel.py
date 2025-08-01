@@ -67,28 +67,35 @@ def classify_ks_unit(spike_times, spike_label):
     
     return spike_times_unit
 
-def parse_ksdata_entries(kilosort_dir, concat_data_dir):
+def parse_ksdata_entries(kilosort_dir, concat_data_dir, port_number, kilosort_version='kilosort4'):
     '''
     Parse concatenated data processed by kilosort into the task entries and save relevant data (spike_indices, spike_clusters, and ks_label)
     
     Args:
         kilosort_dir (str): kilosort directory (ex. '/data/preprocessed/kilosort')
         concat_data_dir (str): data directory that contains concatenated data and kilosort_output (ex. '2023-06-30_Neuropixel_ks_affi_bottom_port1')
+        port_number (int): port number which a probe connected to. natural number from 1 to 4.
+        kilosort_version (str, optional): kilosort version. This should be kilosort4 or kilosort2.5. Default is kilosort4
         
-    Returns
+    Returns:
         None
     '''
     
+    port_path = Path(kilosort_dir) / concat_data_dir / f'port{port_number}'
+    if kilosort_version == 'kilosort4':
+        ks_output_path = Path(kilosort_dir) / concat_data_dir / f'port{port_number}' / 'kilosort4'
+    elif kilosort_version == 'kilosort2.5':
+        ks_output_path = Path(kilosort_dir) / concat_data_dir / f'port{port_number}' / 'kilosort_output'
+    else:
+        raise ValueError('Wrong kilosort version. Choose kilosort4 or kilosort2.5')
+        
     # Load kilosort data
-    kilosort_output = aodata.load_ks_output(kilosort_dir, concat_data_dir, flag='spike')
-    spike_indices = kilosort_output['spike_indices']
-    spike_clusters = kilosort_output['spike_clusters']
-    ks_label = kilosort_output['ks_label']
-    
+    spike_indices = np.load(ks_output_path/'spike_times.npy')
+    spike_clusters = np.load(ks_output_path/'spike_clusters.npy')
+
     # Load datasize of each entry and filename
-    data_path = os.path.join(kilosort_dir, concat_data_dir)
-    datasize_entry = np.load(os.path.join(data_path, 'datasize_entry.npy'))
-    task_paths = np.load(os.path.join(data_path, 'task_path.npy'))
+    datasize_entry = np.load(port_path/'datasize_entry.npy')
+    task_paths = np.load(port_path/'task_path.npy')
 
     nentry = datasize_entry.shape[0]
 
@@ -106,16 +113,19 @@ def parse_ksdata_entries(kilosort_dir, concat_data_dir):
             spike_indices_entry -= datasize_entry[idx-1]
         
         # Make new directory to save parsed data
-        taskid = task_paths[idx].split('_')[-1][2:]
-        task_save_dir = f'{concat_data_dir}_{taskid}'
-        task_save_path = os.path.join(kilosort_dir, task_save_dir)
-        if not os.path.exists(task_save_path):
-            os.makedirs(task_save_path)
+        concat_id = concat_data_dir.split('_')[-1]
+        task_entry_dir = task_paths[idx] + f'_{concat_id}'
+        if kilosort_version == 'kilosort4':
+            parsed_data_save_path = Path(kilosort_dir)/ task_entry_dir / f'port{port_number}' /'kilosort4'
+        else:
+            parsed_data_save_path = Path(kilosort_dir)/ task_entry_dir / f'port{port_number}' /'kilosort_output'
+        
+        if not os.path.exists(parsed_data_save_path):
+            os.makedirs(parsed_data_save_path)
         
         # save data
-        np.save(os.path.join(task_save_path, 'spike_indices_entry'), spike_indices_entry)
-        np.save(os.path.join(task_save_path, 'spike_clusters_entry'), spike_clusters[ientry_idx])
-        np.save(os.path.join(task_save_path, 'ks_label'), ks_label.astype('str'))
+        np.save(parsed_data_save_path/'spike_times.npy', spike_indices_entry)
+        np.save(parsed_data_save_path/'spike_clusters.npy', spike_clusters[ientry_idx])
         
 def concat_neuropixels(np_datadir, kilosort_dir, subject, te_ids, date, port_number, concat_number =1, max_memory_gb = 0.1):
     '''
