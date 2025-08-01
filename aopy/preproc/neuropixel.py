@@ -83,9 +83,9 @@ def parse_ksdata_entries(kilosort_dir, concat_data_dir, port_number, kilosort_ve
     
     port_path = Path(kilosort_dir) / concat_data_dir / f'port{port_number}'
     if kilosort_version == 'kilosort4':
-        ks_output_path = Path(kilosort_dir) / concat_data_dir / f'port{port_number}' / 'kilosort4'
+        ks_output_path = port_path / 'kilosort4'
     elif kilosort_version == 'kilosort2.5':
-        ks_output_path = Path(kilosort_dir) / concat_data_dir / f'port{port_number}' / 'kilosort_output'
+        ks_output_path = port_path / 'kilosort_output'
     else:
         raise ValueError('Wrong kilosort version. Choose kilosort4 or kilosort2.5')
         
