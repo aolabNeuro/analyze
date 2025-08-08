@@ -655,7 +655,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         plt.figure()
         bounds = (-5., 5., -5., 5., 0., 0.)
         plot_trajectories(trajectories, bounds)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         # Test 3D
         filename = 'trajectories_3d.png'
@@ -663,7 +663,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         ax = fig.add_subplot(111, projection='3d')
         bounds = (-5., 5., -5., 5., -5., 5.)
         plot_trajectories(trajectories, bounds, ax=ax)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         # Make some pretty spirals. There should be 4 spiral trajectories
         filename = 'spirals.png'
@@ -676,7 +676,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         trajectories = aopy.preproc.get_data_segments(cursor, trial_times, samplerate)
         plt.figure()
         plot_trajectories(trajectories, bounds)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         # Test flat display plotting
         # Should look the same as trajectories.png with different axes labels
@@ -699,7 +699,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         fig = plt.figure()
         bounds = (-5., 5., -5., 5., 0., 0.)
         plot_trajectories(trajectories, bounds)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         # Test 1D data plotting
         filename = 'trajectories_1D.png'
@@ -721,7 +721,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         fig = plt.figure()
         bounds = (-5., 5., -5., 5., 0., 0.)
         plot_trajectories(trajectories, bounds)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
 
     def test_color_trajectories(self):
@@ -790,7 +790,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         gradient_trajectories(trajectories, n_colors=4)
         plt.title('Gradient trajectories')
         filename = 'gradient_trajectories_simple.png'
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
         plt.close()
 
         # Test what happens when the number of colors is higher than the number of points
