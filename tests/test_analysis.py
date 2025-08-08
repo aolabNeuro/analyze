@@ -1399,6 +1399,75 @@ class LatencyTests(unittest.TestCase):
         for output_1, output_2 in zip(result_sequential, result_parallel):
             np.testing.assert_allclose(output_1, output_2)
 
+    def test_calc_accllr_wrapper_spikes(self):
+
+        npts = 100
+        nch = 50
+        ntrials = 30
+        onset_idx = 50
+        altcond = np.random.poisson(0.5,npts)
+        altcond[onset_idx:] = np.random.poisson(5,npts-onset_idx)
+        altcond = np.repeat(np.tile(altcond, (nch,1)).T[:,:,None], ntrials, axis=2)
+        np.random.seed(0)
+        nullcond = np.random.poisson(0.5,size=altcond.shape)
+        print(altcond.shape, nullcond.shape)
+
+        # Test wrapper with spike data and no selectivity matching and trial_average=True
+        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'spike', 1)
+    
+        self.assertEqual(st.shape, (nch, ntrials))
+        mask = np.logical_and(st > 50, st < 70)
+        mask = np.all(mask, axis=1)
+
+        # Test on some real data
+        test_data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data_spike.hdf')
+        altcond = test_data['data_altcond']
+        nullcond = test_data['data_nullcond']
+        altcond_lp = altcond.copy()
+        nullcond_lp = nullcond.copy()
+        samplerate = 500
+
+        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'spike', 1./samplerate)
+        accllr_mean = np.nanmedian(st, axis=1)
+
+        ncol = 2
+        nt, nch, ntrial = altcond.shape
+        altcond_time = np.arange(nt)/samplerate
+        nullcond_time = altcond_time.copy() - altcond_time[-1]
+        nrow = (nch//ncol)+1
+
+        # Plot rasters sorted by latency
+        fig, ax = plt.subplots(nrow, ncol, figsize=(6, nrow*3))
+        for iunit in range(nch):
+            sorted_idx = np.argsort(st[iunit])
+            irow = iunit//ncol
+            icol = iunit % ncol
+            ax[irow, icol].pcolor(nullcond_time, np.arange(ntrial), nullcond[:,iunit,sorted_idx].T, 
+                                cmap='Greys', vmin=0, vmax=1)
+            ax[irow, icol].pcolor(altcond_time, np.arange(ntrial), altcond[:,iunit,sorted_idx].T, 
+                                cmap='Greys', vmin=0, vmax=1)
+            ax[irow, icol].plot([0,0], [0,ntrial], 'r--', linewidth=2)
+            ax[irow, icol].scatter(st[iunit,sorted_idx], np.arange(ntrial), color='b', marker='.')
+                
+        fig.tight_layout()
+        filename = 'accllr_test_data_spike_rasters.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
+        # Plot PSTH
+        fig, ax = plt.subplots(nrow, ncol, figsize=(6, nrow*3), squeeze=False)
+        for iunit in range(nch):
+            irow = iunit//ncol
+            icol = iunit % ncol
+            ax[irow, icol].plot(nullcond_time, np.mean(nullcond, axis=2)[:,iunit], 'k')
+            ax[irow, icol].plot(altcond_time, np.mean(altcond, axis=2)[:,iunit], 'k')
+            ax[irow, icol].plot([0,0], ax[irow,icol].get_ylim(), 'r--', linewidth=2)
+            ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
+            # ax[irow, icol].set_title(f"Unit {unit_labels[iunit]}")
+
+        fig.tight_layout()
+        filename = 'accllr_test_data_spike_psth.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
     def test_prepare_erp(self):
         npts = 100
         nch = 50

@@ -276,6 +276,76 @@ def calc_accllr_lfp(lfp_altcond, lfp_nullcond, lfp_altcond_lowpass, lfp_nullcond
             
     return accllr_altcond, accllr_nullcond
 
+def calc_llr_inh_poisson(spike_trial, rate1, rate2):
+    '''
+    Compute log-likelihood ratio for a single trial's binned spike train using two 
+    inhomogeneous Poisson rate models.
+    
+    Args:
+        spike_trial: (nt,) array, binned spike counts for one trial
+        rate1: (nt,) array, mean rate for model 1 (Hz)
+        rate2: (nt,) array, mean rate for model 2 (Hz)
+    
+    Returns:
+        (nt,) array: log-likelihood ratio per bin
+    '''
+    rate1 = np.clip(rate1, 1e-3, None)
+    rate2 = np.clip(rate2, 1e-3, None)
+    llr = (rate2 - rate1) + spike_trial * np.log(rate1 / rate2)
+    return llr
+
+def calc_accllr_spike(spikes_altcond, spikes_nullcond):
+    '''
+    Compute AccLLR for spikes using inhomogeneous Poisson model (static, no smoothing).
+    
+    Args:
+        spikes_altcond (nt, ntrial): binned spike trains for alternative condition
+        spikes_nullcond (nt, ntrial): binned spike trains for null condition
+    
+    Returns:
+        tuple: tuple containing:
+            - accllr_altcond: (nt, ntrial) array, AccLLR for alternative condition trials
+            - accllr_nullcond: (nt, ntrial) array, AccLLR for null condition trials
+    '''
+    # Check input shapes
+    if not (isinstance(spikes_altcond, np.ndarray) and spikes_altcond.ndim == 2):
+        raise ValueError("spikes_altcond must be a 2D numpy array (nt, ntrial)")
+    if not (isinstance(spikes_nullcond, np.ndarray) and spikes_nullcond.ndim == 2):
+        raise ValueError("spikes_nullcond must be a 2D numpy array (nt, ntrial)")
+    nt, ntrial_altcond = spikes_altcond.shape
+    nt_null, ntrial_nullcond = spikes_nullcond.shape
+    if nt != nt_null:
+        raise ValueError("spikes_altcond and spikes_nullcond must have the same number of time bins (nt)")
+    
+    # Compute static PSTH (mean rate) for null and altcond
+    rate_null = np.mean(spikes_nullcond, axis=1) # (nt,)
+    rate_altcond = np.mean(spikes_altcond, axis=1)  # (nt,)
+    
+    # Altcond trials: leave-one-out for altcond model
+    accllr_altcond = np.zeros((nt, ntrial_altcond))
+    for i in range(ntrial_altcond):
+        # Leave-one-out altcond model
+        if ntrial_altcond > 1:
+            loo_altcond = np.delete(spikes_altcond, i, axis=1)
+        else:
+            loo_altcond = spikes_altcond
+        rate_altcond_loo = np.mean(loo_altcond, axis=1)
+        llr = calc_llr_inh_poisson(spikes_altcond[:, i], rate_altcond_loo, rate_null)
+        accllr_altcond[:, i] = np.nancumsum(llr)
+   
+    # Nullcond trials: leave-one-out for nullcond model
+    accllr_nullcond = np.zeros((nt, ntrial_nullcond))
+    for i in range(ntrial_nullcond):
+        if ntrial_nullcond > 1:
+            loo_nullcond = np.delete(spikes_nullcond, i, axis=1)
+        else:
+            loo_nullcond = spikes_nullcond
+        rate_nullcond_loo = np.mean(loo_nullcond, axis=1)
+        llr = calc_llr_inh_poisson(spikes_nullcond[:, i], rate_altcond, rate_nullcond_loo)
+        accllr_nullcond[:, i] = np.nancumsum(llr)
+    
+    return accllr_altcond, accllr_nullcond
+
 # Try using ROC approach from Qiao et al 2020
 def detect_accllr(accllr, upper, lower):
     '''
@@ -581,8 +651,10 @@ def calc_accllr_st_single_ch(data_altcond_ch, data_nullcond_ch, lowpass_altcond_
     if modality == 'lfp':
         accllr_altcond, accllr_nullcond = calc_accllr_lfp(data_altcond_ch, data_nullcond_ch, 
                                                           lowpass_altcond_ch, lowpass_nullcond_ch)
+    elif modality == 'spike':
+        accllr_altcond, accllr_nullcond = calc_accllr_spike(data_altcond_ch, data_nullcond_ch)
     else:
-        raise ValueError("AccLLR currently only supports LFP")
+        raise ValueError("AccLLR currently only supports LFP and spike data")
         
     # Calculate appropriate levels to select accLLR decisions
     p_altcond, p_nullcond, _, levels = calc_accllr_performance(accllr_altcond, accllr_nullcond, nlevels)
@@ -748,6 +820,18 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
         Note that the selection times for the two larger peaks have shifted slightly to the right,
         but are still earlier than the smaller peak, despite having the same (or lower) selectivity.
         Thus, we can be confident that the bigger peaks appear faster than the smaller one.
+
+        Since AccLLR is model based, we can subsitute LFP data with spike data, and use two poisson
+        models to calculate the likelihood ratio. The rest of the code remains the same:
+
+        .. code-block:: python
+
+            st, roc_auc, roc_se, roc_p_fdrc = accllr.calc_accllr_st(altcond_spikes, nullcond_spikes,
+                                                                    altcond_spikes, nullcond_spikes,
+                                                                    'spike', 1./samplerate)
+        
+        .. image:: _images/accllr_test_data_spike_rasters.png
+        .. image:: _images/accllr_test_data_spike_psth.png
     '''
     # Calculate an initial analysis
     nt = data_altcond.shape[0]
