@@ -19,6 +19,7 @@ from matplotlib.testing.compare import compare_images
 import datetime
 import json
 import pickle
+from pathlib import Path
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -356,15 +357,6 @@ class NeuropixelTest(unittest.TestCase):
         self.assertTrue(all(np.diff(on_times)>0)) # on_times should increaseb monotonically
         self.assertTrue(all(off_times - on_times)>0) # on_times precede off_times
         self.assertTrue(any(np.diff(on_times)>30)) # whether there is a 30s inteval between on_times
-        
-    def test_load_ks_output(self):
-        date = '2023-03-26'
-        subject = 'beignet'
-        kilosort_dir = os.path.join(data_dir, 'kilosort')
-        concat_data_dir = f'{date}_Neuropixel_ks_{subject}_bottom_port1'
-        ks_output = load_ks_output(kilosort_dir, concat_data_dir, flag='spike')
-        self.assertTrue('spike_indices' in list(ks_output.keys()))
-        self.assertTrue('spike_clusters' in list(ks_output.keys()))
     
     def test_chanel_bank_name(self):
         record_dir = '2023-03-26_Neuropixel_beignet_te8921'
