@@ -1141,6 +1141,15 @@ class LatencyTests(unittest.TestCase):
         )
         np.testing.assert_allclose(llr.round(3), matlab_llr)
 
+        test_spike = np.array([1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1])
+        rate1 = np.array([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+        rate2 = np.array([0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5])
+
+        llr_spike1 = latency.calc_llr_inh_poisson(test_spike, rate1, rate2)
+        llr_spike2 = latency.calc_llr_inh_poisson(test_spike, rate2, rate1)
+
+        np.testing.assert_allclose(llr_spike1, -llr_spike2)
+
     def test_accllr(self):
         
         lfp_altcond = np.array([
@@ -1402,22 +1411,46 @@ class LatencyTests(unittest.TestCase):
     def test_calc_accllr_wrapper_spikes(self):
 
         npts = 100
-        nch = 50
+        nch = 5
         ntrials = 30
         onset_idx = 50
-        altcond = np.random.poisson(0.5,npts)
-        altcond[onset_idx:] = np.random.poisson(5,npts-onset_idx)
-        altcond = np.repeat(np.tile(altcond, (nch,1)).T[:,:,None], ntrials, axis=2)
         np.random.seed(0)
-        nullcond = np.random.poisson(0.5,size=altcond.shape)
+        altcond = np.random.poisson(0.1,(npts,nch,ntrials))
+        altcond[onset_idx:] = np.random.poisson(0.5,(npts-onset_idx,nch,ntrials))
+        nullcond = np.random.poisson(0.1,size=altcond.shape)
         print(altcond.shape, nullcond.shape)
 
         # Test wrapper with spike data and no selectivity matching and trial_average=True
         st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'spike', 1)
-    
+        accllr_mean = np.nanmedian(st, axis=1)
+
+        # Plot rasters sorted by latency
+        ncol = 2
+        nt, nch, ntrial = altcond.shape
+        altcond_time = np.arange(nt)
+        nullcond_time = altcond_time.copy() - altcond_time[-1]
+        nrow = (nch//ncol)+1
+        fig, ax = plt.subplots(nrow, ncol, figsize=(6, nrow*3))
+        for iunit in range(nch):
+            sorted_idx = np.argsort(st[iunit])
+            irow = iunit//ncol
+            icol = iunit % ncol
+            ax[irow, icol].pcolor(nullcond_time, np.arange(ntrial), nullcond[:,iunit,sorted_idx].T, 
+                                cmap='Greys', vmin=0, vmax=1)
+            ax[irow, icol].pcolor(altcond_time, np.arange(ntrial), altcond[:,iunit,sorted_idx].T, 
+                                cmap='Greys', vmin=0, vmax=1)
+            ax[irow, icol].plot([0,0], [0,ntrial], 'r--', linewidth=2)
+            ax[irow, icol].scatter(st[iunit,sorted_idx], np.arange(ntrial), color='m', marker='.')
+            ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
+
+        fig.tight_layout()
+        filename = 'accllr_sim_data_spike_rasters.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
         self.assertEqual(st.shape, (nch, ntrials))
-        mask = np.logical_and(st > 50, st < 70)
-        mask = np.all(mask, axis=1)
+        print(accllr_mean)
+        mask = np.logical_and(accllr_mean > 50, accllr_mean < 70)
+        self.assertEqual(np.sum(mask), nch) # all channels should have selectivity within 50-70 s
 
         # Test on some real data
         test_data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data_spike.hdf')
@@ -1447,8 +1480,9 @@ class LatencyTests(unittest.TestCase):
             ax[irow, icol].pcolor(altcond_time, np.arange(ntrial), altcond[:,iunit,sorted_idx].T, 
                                 cmap='Greys', vmin=0, vmax=1)
             ax[irow, icol].plot([0,0], [0,ntrial], 'r--', linewidth=2)
-            ax[irow, icol].scatter(st[iunit,sorted_idx], np.arange(ntrial), color='b', marker='.')
-                
+            ax[irow, icol].scatter(st[iunit,sorted_idx], np.arange(ntrial), color='m', marker='.')
+            ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
+
         fig.tight_layout()
         filename = 'accllr_test_data_spike_rasters.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)

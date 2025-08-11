@@ -15,6 +15,7 @@ from tqdm.auto import tqdm
 import multiprocessing as mp
 from matplotlib import pyplot as plt
 
+from .. import precondition
 from .. import visualization
 from .. import utils
 from . import base
