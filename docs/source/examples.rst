@@ -23,4 +23,24 @@ Examples:
 .. toctree::
 
     examples/save_segments.ipynb
+
+.. toctree::
+
+    examples/data_transforms.ipynb
+
+.. toctree::
+
+    examples/neuropixel_example.ipynb
+
+.. toctree::
+
+    examples/movement_onset_example.ipynb
+    
+.. toctree::
+
+    examples/example_extract_features.ipynb
+
+.. toctree::
+
+    examples/tabulate_tracking_task_example.ipynb
     

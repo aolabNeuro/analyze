@@ -1,9 +1,9 @@
-from pydoc import doc
 import unittest
 from aopy.visualization import *
 import aopy
 import numpy as np
 import os
+import pickle
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
@@ -52,16 +52,18 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertTrue(np.isnan(data_map[0,0]))
         plt.figure()
         plot_spatial_map(data_map, x_missing, y_missing)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Fill in the missing values by using calc_data_map instead of get_data_map
         filename = 'posmap_calcmap.png'
         interp_map, xy = calc_data_map(data_missing, x_missing, y_missing, [10, 10], threshold_dist=1.5)
+        np.testing.assert_allclose(x_pos.reshape(-1), xy[0])
+        np.testing.assert_allclose(y_pos.reshape(-1), xy[1])
         self.assertEqual(interp_map.shape, (10, 10))
         self.assertFalse(np.isnan(interp_map[0,0]))
         plt.figure()
         plot_spatial_map(interp_map, xy[0], xy[1])
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Use cubic interpolation to generate a high resolution map
         filename = 'posmap_calcmap_interp.png'
@@ -69,7 +71,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(interp_map.shape, (100, 100))
         plt.figure()
         plot_spatial_map(interp_map, xy[0], xy[1])
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
 
         # Test using an alpha map on top of the spatial map
         filename = 'posmap_alphamap.png'
@@ -77,8 +79,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         self.assertEqual(data_map.shape, (10, 10))
         plt.figure()
         plot_spatial_map(data_map, x_missing, y_missing, alpha_map=data_map)
-        savefig(docs_dir, filename)
-
+        savefig(docs_dir, filename, transparent=False)
 
     def test_single_spatial_map(self):
         data = 2.0
@@ -94,6 +95,10 @@ class NeuralDataPlottingTests(unittest.TestCase):
     def test_plot_ECoG244_data_map(self):
         data = np.linspace(-1, 1, 256)
         missing = [0, 5, 25]
+        elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+        missing_ch = acq_ch[np.isin(elecs, missing)]-1
+        data[missing_ch] = np.nan
+
         plt.figure()
         plot_ECoG244_data_map(data, bad_elec=missing, interp=False, cmap='bwr', ax=None)
         filename = 'posmap_244ch_no_interp.png'
@@ -110,6 +115,36 @@ class NeuralDataPlottingTests(unittest.TestCase):
         filename = 'posmap_244ch.png'
         savefig(write_dir, filename) # Missing electrodes should be filled in with linear interp.
 
+        plt.figure()
+        elec_data = np.arange(240)
+        plot_ECoG244_data_map(elec_data, elec_data=True)
+        filename = 'posmap_244ch_elec_data.png'
+        savefig(write_dir, filename) # No missing data
+
+    def test_plot_spatial_drive_maps(self):
+
+        im1 = np.arange(256).astype(float)
+        im2 = np.flip(im1)
+        im3 = im1.copy()
+        np.random.shuffle(im3)
+        im4 = np.flip(im3)
+        maps = [im1, im2, im3, im4]
+        plot_spatial_drive_maps(maps, (1,4), (2,2), cmap='viridis', clim=(0,255), label_mode="L")
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_1_4.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), cbar_mode='single')
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_2_2_single_cbar.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        fig, axes, ims, cbars = plot_spatial_drive_maps(maps, (2,2), (2,2), cmap='viridis', clim=(0,255), label_mode=None, cbar_mode='each', axes_pad=(0.4,0.05))
+        ims[3].set_clim(127,255)
+        plt.tight_layout()
+        filename = 'spatial_drive_maps_2_2.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_annotate_spatial_map(self):
         plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
@@ -120,12 +155,14 @@ class NeuralDataPlottingTests(unittest.TestCase):
         savefig(docs_dir, filename)
 
         plt.figure()
-        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
-        annotate_spatial_map_channels(drive_type='ECoG244', color='k', theta=90)
-        annotate_spatial_map_channels(drive_type='Opto32', color='b', theta=90)
+        plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
+        annotate_spatial_map_channels(drive_type='ECoG244', color='k')
+        annotate_spatial_map_channels(drive_type='Opto32', color='b')
+        annotate_spatial_map_channels(drive_type='ECoG244', color='r', theta=90)
+        annotate_spatial_map_channels(drive_type='Opto32', color='g', theta=90)
         plt.axis('off')
         filename = 'ecog244_opto32_theta90.png'
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys', theta=90)
@@ -134,6 +171,12 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plt.axis('off')
         filename = 'ecog244_opto32_index_subset.png'
         savefig(write_dir, filename)
+
+        plt.figure()
+        plot_spatial_drive_map(np.zeros(64,), drive_type='EMG_GR08MM1305', cmap='Greys', theta=0)
+        annotate_spatial_map_channels(drive_type='EMG_GR08MM1305', color='k', theta=0)
+        filename = 'emg64_gr08mm1305.png'
+        savefig(docs_dir, filename, transparent=False)
 
     def test_plot_image_by_time(self):
         time = np.array([-2, -1, 0, 1, 2, 3])
@@ -216,6 +259,27 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plt.tight_layout()
         savefig(docs_dir,filename)
 
+    def test_plot_tf_map_grid(self):
+        np.random.seed(0)
+        
+        nfreq = 100
+        nt = 3
+        nch = 100
+        freqs = np.linspace(1,250,nfreq)
+        time = np.linspace(0, 1, nt)
+        tf_data = np.random.rand(nfreq,nt,nch)
+        tf_data[:,1,:] *= 2 # increase power at time 1
+        tf_data[freqs > 10, :, :] *= 0.5 # decrease power in high frequencies
+        bands = [(1, 10), (10, 250)]
+        x, y = np.meshgrid(np.arange(10), np.arange(10))
+        elec_pos = np.zeros((100,2))
+        elec_pos[:,0] = x.reshape(-1)
+        elec_pos[:,1] = y.reshape(-1)
+        plot_tf_map_grid(freqs, time, tf_data, bands, elec_pos, clim=(0,1), interp_grid=None, 
+                     cmap='viridis')
+        filename = 'tf_map_grid.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_plot_corr_over_elec_distance(self):
 
         duration = 0.5
@@ -223,16 +287,65 @@ class NeuralDataPlottingTests(unittest.TestCase):
         n_channels = 30
         frequency = 100
         amplitude = 0.5
-        acq_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
-        acq_ch = (np.arange(n_channels)+1).astype(int)
+        elec_data = aopy.utils.generate_multichannel_test_signal(duration, samplerate, n_channels, frequency, amplitude)
         elec_pos = np.stack((range(n_channels), np.zeros((n_channels,))), axis=-1)
         
         plt.figure()
-        plot_corr_over_elec_distance(acq_data, acq_ch, elec_pos, label='test')
+        plot_corr_over_elec_distance(elec_data, elec_pos, label='test')
         filename = 'corr_over_dist.png'
         savefig(docs_dir,filename)
 
-    
+    def test_plot_corr_across_entries(self):
+        subjects = ['beignet', 'beignet']
+        ids = [5974, 5974]
+        dates = ['2022-07-01', '2022-07-01']
+        plt.figure()
+        plot_corr_across_entries(data_dir, subjects, ids, dates)
+        filename = 'corr_over_entries.png'
+        savefig(docs_dir,filename)
+
+    def test_plot_angles(self):
+
+        # Test with no magnitudes
+        angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+        plot_angles(angles)
+
+        filename = 'angles_simple.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        # Test with magnitudes
+        angles = np.linspace(np.pi/8, 2*np.pi + np.pi/8, 8, endpoint=False)
+        magnitudes = np.arange(len(angles)) + 1
+
+        fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+        plot_angles(angles, magnitudes, ax)
+
+        filename = 'angles_magnitudes.png'
+        savefig(docs_dir, filename, transparent=False)
+
+class StimPlottingWrapperTests(unittest.TestCase):
+
+    def test_plot_annotated_stim_drive_data(self):
+        np.random.seed(0)
+        data = np.random.normal(0, 1, (32,))
+
+        plt.figure()
+        plot_annotated_stim_drive_data(data, 'beignet', 'lm1', 0)
+
+        filename = 'annotated_stim_drive_data.png'
+        savefig(docs_dir, filename, transparent=False)
+
+    def test_plot_annotated_spatial_drive_map_stim(self):
+        np.random.seed(0)
+        data = np.random.normal(0, 1, (240,))
+        stim_site = 7
+
+        plt.figure()
+        plot_annotated_spatial_drive_map_stim(data, stim_site, 'beignet', 'lm1', 0, interp_method='cubic')
+
+        filename = 'annotated_spatial_drive_map_stim.png'
+        savefig(docs_dir, filename, transparent=False)
+
 class CurveFittingTests(unittest.TestCase):
     def test_plot_tuning_curves(self):
         filename = 'tuning_curves_plot.png'
@@ -241,6 +354,7 @@ class CurveFittingTests(unittest.TestCase):
         mds_true = np.linspace(1, 3, nunits)/2
         pds_offset = np.arange(-45,270,45)
         data = np.zeros((nunits,8))*np.nan
+        np.random.seed(0)
         for ii in range(nunits):
             noise = np.random.normal(1, 0.2, size=(1,8))
             data[ii,:] = noise*mds_true[ii]*np.sin(np.deg2rad(targets)-np.deg2rad(pds_offset[ii])) + 2
@@ -249,13 +363,62 @@ class CurveFittingTests(unittest.TestCase):
         # Test without ax input
         fit_params, _, _ = aopy.analysis.run_tuningcurve_fit(data, targets)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4)
+        savefig(docs_dir, filename, transparent=False)
 
         # test with ax input
         fig, ax = plt.subplots(2,4)
         plot_tuning_curves(fit_params, data, targets, n_subplot_cols=4, ax=ax)
+
+    def test_plot_direction_tuning(self):
+        np.random.seed(0)
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        data = np.random.normal(0, 1, (4, 2))
         
+        plt.figure()
+        plot_direction_tuning(data, direction, show_var=False)
+        savefig(write_dir, 'direction_tuning_simple.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(data, direction, wrap=False, show_var=False)
+        savefig(write_dir, 'direction_tuning_simple_polar.png', transparent=False)
+
+        # Try multichannel
+        direction = [-np.pi, -np.pi/2, 0, np.pi/2]
+        data = np.random.normal(0, 1, (4, 2, 4))
+        
+        plt.figure()
+        plot_direction_tuning(data, direction)
+        savefig(docs_dir, 'direction_tuning.png', transparent=False)
+
+        plt.figure()
+        plot_direction_tuning(data, np.degrees(direction))
+        savefig(write_dir, 'direction_tuning_degrees.png', transparent=False)
+
+        # Again with polar plot
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='polar')
+
+        plot_direction_tuning(data, direction)
+        savefig(docs_dir, 'direction_tuning_polar.png', transparent=False)
+
+        # Test the categorical plot
+        fig = plt.figure()
+        plot_condition_tuning(data, np.degrees(direction))
+        savefig(docs_dir, 'condition_tuning.png', transparent=False)
+
+        # Make sure both work with a 180 degree range
+        direction = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+
+        plt.figure()
+        plot_direction_tuning(data, direction)
+        savefig(write_dir, 'direction_tuning_modulo.png', transparent=False)
+
     def test_plot_boxplots(self):
         # Rectangular array
+        np.random.seed(0)
         data = np.random.normal(0, 2, size=(20, 5))
         xaxis_pts = np.array([2,3,4,4.75,5.5])
         fig, ax = plt.subplots(1,1)
@@ -270,6 +433,7 @@ class CurveFittingTests(unittest.TestCase):
         plot_boxplots(data, xaxis_pts, ax=ax)
         filename = 'boxplot_example_nonrectangular.png'
         savefig(docs_dir, filename, transparent=False)
+
 
 class AnimationTests(unittest.TestCase):
 
@@ -366,6 +530,28 @@ class AnimationTests(unittest.TestCase):
 
 class KinematicsPlottingTests(unittest.TestCase):
 
+    def test_color_targets(self):
+        # Generate 8 targets at radius 6.5 from the center
+        angles = np.linspace(0, 2*np.pi, 8, endpoint=False)
+        radius = 6.5
+        target_locations = np.column_stack((radius * np.cos(angles), radius * np.sin(angles)))
+        
+        # Add the center target
+        target_locations = np.vstack(([0, 0], target_locations))
+        target_idx = [0] + np.arange(1, 9).tolist()  # Center is index 0, peripheral are index 1 through 9
+
+        # Choose plotting parameters
+        colors = ['black'] + sns.color_palette("husl", 8)
+        target_radius = 0.5
+        bounds = (-8, 8, -8, 8)
+
+        # Plot the targets
+        fig, ax = plt.subplots(figsize=(8, 8))
+        color_targets(target_locations, target_idx, colors, target_radius, bounds, ax)
+        ax.set_aspect('equal')
+        filename = 'color_targets.png'
+        savefig(docs_dir, filename, transparent=False)
+
     def test_plot_targets(self):
 
         # Draw four outer targets and one center target
@@ -411,6 +597,42 @@ class KinematicsPlottingTests(unittest.TestCase):
             plot_circles(target_position, target_radius, target_color, (-2, 2, -2, 2, -2, 2), ax=ax)
             savefig(write_dir, filename)
 
+    def test_color_targets_3D(self):
+        from mpl_toolkits.mplot3d import Axes3D
+        import seaborn as sns
+
+        targets = np.array([
+            [0., 0., 0.],
+            [0., 10., 0.],
+            [7.0711, 7.0711, 0.],
+            [10., 0., 0.],
+            [7.0711, -7.0711, 0.],
+            [0., -10., 0.],
+            [-7.0711, -7.0711, 0.],
+            [-10., 0., 0.],
+            [-7.0711, 7.0711, 0.]
+        ])
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        ax.set_zlim3d([-10, 10])
+
+        colors = sns.color_palette(n_colors=len(targets))
+        aopy.visualization.color_targets_3D(targets, target_idx=np.arange(len(targets)), target_radius=1, colors=colors, ax=ax)
+
+        filename = 'color_targets_3D.png'
+        savefig(docs_dir, filename)
+
+    def test_plot_sphere(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        plot_sphere(location=(0, 1, 2), color='blue', radius=5, resolution=30, alpha=0.5, ax=ax)
+
+        filename = 'plot_sphere_example.png'
+        savefig(docs_dir, filename)
+
     def test_plot_trajectories(self):
 
         # Test with two known trajectories
@@ -433,7 +655,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         plt.figure()
         bounds = (-5., 5., -5., 5., 0., 0.)
         plot_trajectories(trajectories, bounds)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         # Test 3D
         filename = 'trajectories_3d.png'
@@ -441,7 +663,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         ax = fig.add_subplot(111, projection='3d')
         bounds = (-5., 5., -5., 5., -5., 5.)
         plot_trajectories(trajectories, bounds, ax=ax)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
 
         # Make some pretty spirals. There should be 4 spiral trajectories
         filename = 'spirals.png'
@@ -454,7 +676,53 @@ class KinematicsPlottingTests(unittest.TestCase):
         trajectories = aopy.preproc.get_data_segments(cursor, trial_times, samplerate)
         plt.figure()
         plot_trajectories(trajectories, bounds)
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
+
+        # Test flat display plotting
+        # Should look the same as trajectories.png with different axes labels
+        filename = 'trajectories_flat.png'
+        trajectories =[
+            np.array([
+                [0, 0, 0],
+                [1, 0, 1],
+                [2, 0, 2],
+                [3, 0, 3],
+                [4, 0, 2]
+            ]),
+            np.array([
+                [-1, 0, 1],
+                [-2, 0, 2],
+                [-3, 0, 3],
+                [-3, 0, 4]
+            ])
+        ]
+        fig = plt.figure()
+        bounds = (-5., 5., -5., 5., 0., 0.)
+        plot_trajectories(trajectories, bounds)
+        savefig(docs_dir, filename)
+
+        # Test 1D data plotting
+        filename = 'trajectories_1D.png'
+        trajectories =[
+            np.array([
+                [0, 0, 0],
+                [0, 1, 0],
+                [0, 2, 0],
+                [0, 3, 0],
+                [0, 2, 0]
+            ]),
+            np.array([
+                [0, 1, 0],
+                [0, 2, 0],
+                [0, 3, 0],
+                [0, 4, 0]
+            ])
+        ]
+        fig = plt.figure()
+        bounds = (-5., 5., -5., 5., 0., 0.)
+        plot_trajectories(trajectories, bounds)
+        savefig(docs_dir, filename)
+
 
     def test_color_trajectories(self):
 
@@ -522,7 +790,7 @@ class KinematicsPlottingTests(unittest.TestCase):
         gradient_trajectories(trajectories, n_colors=4)
         plt.title('Gradient trajectories')
         filename = 'gradient_trajectories_simple.png'
-        savefig(write_dir, filename)
+        savefig(docs_dir, filename)
         plt.close()
 
         # Test what happens when the number of colors is higher than the number of points
@@ -546,14 +814,31 @@ class KinematicsPlottingTests(unittest.TestCase):
         plt.close()
 
         # Hand data plotted in 3d
-        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='hand')
+        traj, _ = aopy.data.get_kinematic_segments(preproc_dir, subject, te_id, date, [32], [81, 82, 83, 239], datatype='user_world')
         plt.figure()
         ax = plt.axes(projection='3d')
-        gradient_trajectories(traj[:3], bounds=[-10,0,60,70,20,40], ax=ax)
+        gradient_trajectories(traj[:3], bounds=[-10,10,-10,10,-10,0], ax=ax)
 
         filename = 'gradient_trajectories_3d.png'
-        savefig(docs_dir, filename)
+        savefig(docs_dir, filename, transparent=False)
         plt.close()
+
+    def test_plot_plane(self):
+        from mpl_toolkits.mplot3d import Axes3D
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Example using a transformation matrix (identity)
+        plane = np.eye(3)  
+        plot_plane(plane, gain=1.0, color='blue', alpha=0.3, ax=ax)
+
+        # Example using a plane equation Ax + By + Cz + D = 0
+        plane_eq = np.array([1, 2, -1, 5])  # x + 2y - z + 5 = 0
+        plot_plane(plane_eq, gain=1.0, color='red', alpha=0.5, ax=ax)
+
+        filename = 'plot_plane_example.png'
+        savefig(docs_dir, filename)
         
     def test_get_color_gradient_RGB(self):
         npts = 200
@@ -633,6 +918,30 @@ class KinematicsPlottingTests(unittest.TestCase):
         filename = 'events_time'
         savefig(write_dir,filename)
 
+    def test_plot_circular_hist(self):
+        fig, ax = plt.subplots(3, 2, subplot_kw=dict(projection='polar'), figsize=(12,18))
+        np.random.seed(0)
+        angles = np.random.normal(loc=np.pi/4, scale=np.pi/8, size=1000)
+
+        # compare plotting the same data with vs. without allowing gaps in the bins
+        plot_circular_hist(angles, bins=16, ax=ax[0,0], gaps=False, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[0,1], gaps=True, edgecolor='tab:blue', fill=False)
+        ax[0,1].set_title('Bins not forced to span across entire circle')
+
+        # compare plotting the same data with value represented by bar radius vs. area 
+        plot_circular_hist(angles, bins=16, ax=ax[1,0], proportional_area=False, edgecolor='tab:blue', fill=False)
+        plot_circular_hist(angles, bins=16, ax=ax[1,1], proportional_area=True, edgecolor='tab:blue', fill=False)
+        ax[1,1].set_title('Value in bin represented by bar area, not radius')
+
+        # compare plotting the same data plotted as a probability density function or normalized by the max bin value
+        plot_circular_hist(angles, bins=16, ax=ax[2,0], density=True, edgecolor='tab:blue', fill=False)
+        ax[2,0].set_title('Bin values represent the probability density function')
+        plot_circular_hist(angles, bins=16, ax=ax[2,1], normalize=True, edgecolor='tab:blue', fill=False)
+        ax[2,1].set_title('Bin values are normalized to a max value of 1')
+
+        filename = 'circular_histograms'
+        savefig(docs_dir, filename, transparent=False)
+
 class TestPlotUtils(unittest.TestCase):
 
     @unittest.skip("bug in new versions of matplotlib, waiting for resolution")
@@ -644,7 +953,6 @@ class TestPlotUtils(unittest.TestCase):
         filename = 'advance_plot_color.png'
         savefig(docs_dir,filename)
 
-
     def test_reset_plot_color(self):
         plt.subplots()
         plt.plot(np.arange(10), np.ones(10))
@@ -652,6 +960,16 @@ class TestPlotUtils(unittest.TestCase):
         plt.plot(np.arange(10), 1 + np.ones(10))
 
         filename = 'reset_plot_color.png'
+        savefig(docs_dir,filename)
+
+    def test_plot_scalebar(self):
+        plt.subplots()
+
+        plt.plot(np.arange(10), np.arange(10)/10)
+        aopy.visualization.plot_scalebar(plt.gca(), 1, '1 s', color='orange')
+        aopy.visualization.plot_scalebar(plt.gca(), 0.1, '0.1 V', vertical=True, color='green')
+        aopy.visualization.plot_xy_scalebar(plt.gca(), 1, '1 s', 0.1, '0.1 V', bbox_to_anchor=(0.8, 0.1))
+        filename = 'scalebar_example.png'
         savefig(docs_dir,filename)
 
     def test_savefig(self):
@@ -699,6 +1017,19 @@ class TestPlotUtils(unittest.TestCase):
             ax.annotate(str(i+1), (0.5,0.5), ha='center', va='center',  fontsize=40)
         aopy.visualization.savefig(docs_dir, "place_Opto32_subplots.png", transparent=False)
 
+    def test_overlay_image_on_spatial_map(self):
+        plt.figure()
+        elec_pos, acq_ch, elecs = aodata.load_chmap('ECoG244')
+        plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+        overlay_sulci_on_spatial_map('beignet', 'LM1', 'ECoG244')
+        filename = 'overlay_sulci_beignet.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        plt.figure()
+        plot_spatial_map(np.arange(16*16).reshape((16,16)), elec_pos[:,0], elec_pos[:,1])
+        overlay_sulci_on_spatial_map('affi', 'LM1', 'ECoG244', theta=90)
+        filename = 'overlay_sulci_affi.png'
+        savefig(docs_dir, filename, transparent=False)
 
 class TestEyePlots(unittest.TestCase):
 
@@ -708,8 +1039,8 @@ class TestEyePlots(unittest.TestCase):
         te_id = 5974
         date = '2022-07-01'
         preproc_dir = data_dir
-        exp_data, exp_metadata = aopy.data.bmi3d.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-        eye_data, eye_metadata = aopy.data.bmi3d.load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        exp_data, exp_metadata = aopy.data.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+        eye_data, eye_metadata = aopy.data.load_preproc_eye_data(preproc_dir, subject, te_id, date)
 
         eye_raw = eye_data['raw_data']
         eye_samplerate = eye_metadata['samplerate']
@@ -728,6 +1059,25 @@ class TestEyePlots(unittest.TestCase):
 
         filename = 'eye_calibration.png'
         savefig(docs_dir,filename, transparent=False)
+
+class TestDecoderPlots(unittest.TestCase):
+
+    def test_plot_decoder_summary(self):
+
+        from aopy.data import db
+        with open(os.path.join(data_dir, 'test_decoder.pkl'), 'rb') as file:
+            decoder = pickle.load(file, fix_imports=False)
+
+        bmi3d.plot_decoder_summary(decoder)
+        filename = 'decoder_weights.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        with open(os.path.join(data_dir, 'test_decoder_emg.pkl'), 'rb') as file:
+            decoder = pickle.load(file, fix_imports=False)
+
+        bmi3d.plot_decoder_summary(decoder, drive_type='EMG_GR08MM1305')
+        filename = 'decoder_weights_emg.png'
+        savefig(docs_dir, filename, transparent=False)
 
 if __name__ == "__main__":
     unittest.main()

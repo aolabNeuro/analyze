@@ -1,5 +1,6 @@
 # we are generating noisy test data using sine and cosine functions with multiple frequencies
 import unittest
+import aopy
 from aopy.data.base import load_preproc_eye_data
 from aopy.precondition.eye import *
 from aopy import visualization
@@ -321,6 +322,51 @@ class FilterTests(unittest.TestCase):
         fname = 'filter_kinematics.png'
         savefig(docs_dir, fname)
 
+        # Test derivative filtering on kinematics data
+        subject = 'test'
+        id = 8461
+        date = '2023-02-25'
+        exp_data, exp_metadata = aopy.data.base.load_preproc_exp_data(data_dir, subject, id, date)
+        x = aopy.data.get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=fs)[30*fs:35*fs,1]
+        t = np.arange(len(x)) / fs
+        x_filt_pos, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=0)
+        x_filt_vel, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=1)
+
+        # Compare to a simple derivative of the filtered position
+        x_filt_pos_deriv = utils.derivative(t, x_filt_pos, norm=False)
+
+        plt.figure(figsize=(5, 4))
+        plt.subplot(2,1,1)
+        plt.plot(t, x, label='Original signal')
+        plt.plot(t, x_filt_pos, label='Filtered position')
+        plt.ylabel('Position (cm)')
+        plt.legend()
+        plt.subplot(2,1,2)
+        plt.plot(t, x_filt_vel, label='Filtered velocity')
+        plt.plot(t, x_filt_pos_deriv, label='Filtered position derivative')
+        plt.xlabel('time (seconds)')
+        plt.ylabel('Velocity (cm/s)')
+        plt.legend()
+        
+        fname = 'filter_kinematics_speed.png'
+        savefig(docs_dir, fname, transparent=False)
+
+        # Test acceleration
+        x_filt_acc, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=2)
+        x_filt_pos_deriv_deriv = utils.derivative(t, x_filt_pos_deriv, norm=False)
+        
+        plt.figure(figsize=(5, 3))
+        plt.plot(t, x_filt_acc, label='Filtered acceleration')
+        plt.plot(t, x_filt_pos_deriv_deriv, label='Filtered position 2nd derivative')
+        plt.xlabel('time (seconds)')
+        plt.ylabel('Acceleration (cm/s^2)')
+        plt.legend()
+        plt.tight_layout()
+        
+        fname = 'filter_kinematics_accel.png'
+        savefig(docs_dir, fname, transparent=False)
+
+
 
 class SpikeDetectionTests(unittest.TestCase):
         
@@ -600,6 +646,53 @@ class EyeTests(unittest.TestCase):
         onset, duration, distance = detect_saccades(le_data_filt, samplerate, intersaccade_min=0.02)
         offset = np.array([o + d for o, d in zip(onset, duration)])
         self.assertTrue(np.all(onset[1:]-offset[:-1] > 0.02)) # intersaccade min
+
+
+    def test_detect_eye_events(self):
+        samplerate = 1000
+        eye_trajectory, _ = filter_eye(self.calibrated_eye_data[:,:2], self.samplerate, downsamplerate=samplerate)
+        clf_params,preproc_params=get_default_parameters()
+
+        times, start_positions, end_positions = detect_eye_events(eye_trajectory, 'SACC', clf_params, preproc_params, 10.75, 28, samplerate)
+        duration= times[:,1]-times[:,0]
+        distance = np.linalg.norm(end_positions-start_positions, axis=1)
+
+        plt.figure()
+        plt.hist(1000*duration)
+        plt.xlabel('Duration (ms)')
+        plt.figure()
+        plt.hist(distance)
+        plt.xlabel('Distance (cm)')
+        savefig(docs_dir, 'remodnav_saccades_hist.png',transparent=False)
+        plt.close()
+
+        plt.figure()
+        plt.scatter(1000*duration, distance)
+        plt.xlabel('Duration (ms)')
+        plt.ylabel('Distance (cm)')
+        savefig(docs_dir, 'remodnav_saccades_scatter.png',transparent=False)
+        plt.close()
+        
+    def test_get_eye_event_trials(self):
+        preproc_dir = data_dir
+        subject = 'beignet'
+        te_id = 5974
+        date = '2022-07-01'
+        exp_data,exp_metadata=aopy.data.load_preproc_exp_data(preproc_dir,subject,te_id,date)
+        eye_data, eye_metadata=aopy.data.load_preproc_eye_data(preproc_dir,subject,te_id,date)
+
+        start_events=exp_metadata['event_sync_dict']['CURSOR_ENTER_TARGET']
+        end_events=exp_metadata['event_sync_dict']['REWARD']
+        samplerate = 1000
+        clf_params,preproc_params=get_default_parameters()
+        times,start_positions,end_positions=get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, 'SACC', clf_params, preproc_params, 10.75, 28, samplerate)
+
+        print(len(times))
+        print(len(start_positions))
+        print(len(end_positions))
+
+        self.assertEqual(len(times)==len(start_positions)==len(end_positions),True)
+        self.assertEqual(len(times), 10)
 
 
 

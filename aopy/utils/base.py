@@ -2,14 +2,13 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
-import numpy as np
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import sys
 import math
-from scipy.ndimage.interpolation import shift
 
+import numpy as np
 
 '''
 Test signals
@@ -109,7 +108,7 @@ def count_unique_symbols(files):
     for filename in files:
         with open(filename, mode='r') as f:
             text = f.read()
-        symbols += re.findall("variable (\w+)", text)
+        symbols += re.findall(r"variable (\w+)", text)
     unique_symbols, counts = np.unique(symbols, return_counts=True)
     order = np.argsort(-counts)
 
@@ -124,7 +123,7 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     threshold. It scales the analog to between 0 and 1 and uses thres as a 
 
     Args: 
-        analog_data (nt, nch): Time series array of analog data
+        analog_data (nt, 1): Time series array of analog data
         thresh (float, optional): Minimum threshold value to use in conversion
 
     Returns:
@@ -133,15 +132,15 @@ def convert_analog_to_digital(analog_data, thresh=.3):
     # Scale data between 0 and 1 so that threshold is a percentange
     minval = np.min(analog_data)
     maxval = np.max(analog_data)
-
-    analog_data_scaled = (analog_data - minval)/(maxval - minval)
+    if maxval == minval:
+        analog_data_scaled = (analog_data - minval)
+    else:
+        analog_data_scaled = (analog_data - minval)/(maxval - minval)
 
     # Initialize digital_data
     digital_data = np.zeros(analog_data_scaled.shape, dtype='bool') # Default to zero
-
-    # Set any value greater than threshold to be 1
     digital_data[analog_data_scaled >= thresh] = 1
-
+    
     return digital_data
 
 def detect_edges(digital_data, samplerate, rising=True, falling=True, check_alternating=True, 
@@ -766,3 +765,98 @@ def convert_port_number(port_number, datatype='ap'):
     probe_dir = f'Neuropix-PXI-100.Probe{letter}-{datatype.upper()}'
     
     return probe_dir
+
+def multiply_mat_batch(data, mat, save_path, scale = 1, max_memory_gb = 1., dtype='int16', min_batch_size=0):
+    '''
+    Multiply a matrix to data in each batch to save memory. The result is saved in save_path.
+    This function can be used to multiply an inverse matrix by spike band time series.
+    
+    Args:
+        data (nt, nch): neural data. This should be a memory mapping array.
+        mat (anysize, nch): matrix to multiply by data
+        save_path (str): file path to save destriped lfp data
+        scale (float, optional): Scaling factor to multiply by data. 1/200 is necessary for whitened data in kilosort4. default is 1.
+        max_memory_gb (float): memory size in GB to determine batch size. default is 1.0 GB.
+        dtype (str, optional): dtype for data. default is int16.
+        min_batch_size (int): the number of size in integer to ensure that batch size is more than min_batch_size. default is 0.
+    
+    Returns:
+        None
+    '''
+        
+    n_samples, n_channels = data.shape
+    batch_size = int (max_memory_gb*1e9 / (n_channels*np.dtype(dtype).itemsize))
+    batch_size += min_batch_size
+    Nbatches = np.ceil(n_samples/batch_size).astype(int)
+
+    # Multiply matrix in each batch to save memory
+    x = np.memmap(save_path, dtype=dtype, mode='w+', shape=(n_samples, n_channels))
+
+    for ibatch in range(Nbatches):
+        tmp = mat @ (scale*data[ibatch*batch_size:(ibatch+1)*batch_size, :].T)
+        x[ibatch*batch_size:(ibatch+1)*batch_size, :] = (tmp.T).astype(dtype)
+        x.flush()
+
+def generate_poisson_timestamps(mu, max_time, min_time=0., refractory_period=0.):
+    """
+    Generate timestamps following a Poisson process with mean time between events mu,
+    with a specified minimum refractory period, and that fall within a specified time window.
+    The number of timestamps generated is determined by the time window and the mean time between 
+    events and cannot be specified directly. The generated timestamps are random but can be
+    repeated by setting the random seed using `np.random.seed()`.
+
+    Args:
+        mu (float): Mean time between events in seconds.
+        max_time (float): End time of the window in seconds.
+        min_time (float, optional): Start time of the window in seconds. Default 0.
+        refractory_period (float, optional): Minimum refractory period between events in seconds. Default 0.
+
+    Returns:
+        np.ndarray: Array of timestamps within the specified time window.
+
+    Note:
+        The distribution is not guaranteed to be poisson when the refractory period is nonzero. As
+        the refractory period increases, the distribution will approach a uniform distribution.
+    """
+    # Initial estimate of required number of events (overestimate to ensure coverage)
+    estimated_events = int((max_time - min_time) / mu * 1.5)
+    
+    # Generate inter-event times
+    inter_event_times = np.random.exponential(mu, estimated_events)
+    inter_event_times = np.maximum(inter_event_times, refractory_period)
+    
+    # Use a cumulative sum to transform intervals into times
+    event_times = np.cumsum(inter_event_times)
+    event_times += min_time
+    event_times = event_times[event_times < max_time]
+    return event_times
+
+'''
+datetime utils
+'''
+
+def get_consecutive_days(dates):
+    '''
+    Find consecutive days in a list of dates.
+
+    Args:
+        dates (list of datetime): list of dates to check for consecutive days
+        
+    Returns:
+        list of lists: each sublist contains a list of consecutive dates
+    '''
+    if not dates:
+        return []
+
+    consecutive_dates = []
+    temp_consec_dates = [dates[0]]
+    for i in range(1, len(dates)):
+        if dates[i] - dates[i-1] == timedelta(days=1):
+            temp_consec_dates.append(dates[i])
+        else:
+            if len(temp_consec_dates) > 1:
+                consecutive_dates.append(temp_consec_dates)
+            temp_consec_dates = [dates[i]]
+    if len(temp_consec_dates) > 1:
+        consecutive_dates.append(temp_consec_dates)
+    return consecutive_dates

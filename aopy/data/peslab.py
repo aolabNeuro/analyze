@@ -1,12 +1,14 @@
-from ..preproc.quality import high_freq_data_detection, saturated_data_detection
 import os
 import warnings
 import pickle as pkl
 import re
 import json
+
 import numpy as np
 from pandas import DataFrame
 import xarray as xr
+
+from ..preproc.quality import high_freq_data_detection, saturated_data_detection
 
 def parse_file_info(file_path):
     """parse_file_info

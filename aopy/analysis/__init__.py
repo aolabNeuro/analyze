@@ -9,5 +9,6 @@ from .tuning import *
 from .kfdecoder import *
 
 # For new submodules, import just the namespace
-from . import accllr
+from . import connectivity
+from . import latency
 from . import controllers

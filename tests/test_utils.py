@@ -5,10 +5,13 @@ from aopy.visualization import plot_timeseries, savefig
 import os
 import numpy as np
 import unittest
+from pathlib import Path
+from matplotlib import pyplot as plt
 
 test_dir = os.path.dirname(__file__)
 data_dir = os.path.join(test_dir, 'data')
 write_dir = os.path.join(test_dir, 'tmp')
+docs_dir = os.path.join(test_dir, '../docs/source/_images')
 if not os.path.exists(write_dir):
     os.mkdir(write_dir)
 
@@ -400,6 +403,50 @@ class TestMath(unittest.TestCase):
 
         self.assertEqual(q, -1)
 
+    def test_multiply_mat_batch(self):
+        
+        save_path = Path(data_dir) / 'test_aaa'
+
+        data = np.random.randint(0,100, (100,5))
+        mat = np.random.randint(0,100, (5,5))
+
+        multiply_mat_batch(data, mat, save_path, scale = 1, max_memory_gb = 10)
+        multiplied_mat = np.memmap(save_path, shape=data.shape, dtype='int16')
+        A = mat @ data.T
+
+        self.assertTrue(np.all(A.T == multiplied_mat))
+        del multiplied_mat
+        save_path.unlink()
+
+    def test_generate_poisson_timestamps(self):
+        mu = 2.0
+        max_time = 500.0
+        min_time = 0.0
+        refractory_period = 0.1
+
+        np.random.seed(5)
+        timestamps = generate_poisson_timestamps(mu, max_time, min_time, refractory_period)
+        inter_event_times = np.diff(timestamps)
+
+        # Plot event train
+        plt.figure()
+        plt.subplot(2,1,1)
+        plt.eventplot(timestamps, orientation='horizontal', linelengths=0.8)
+        plt.xlabel("Time")
+        plt.title("Poisson Event Train (mu=2.0)")
+
+        plt.subplot(2,1,2)
+        plt.hist(inter_event_times, bins=20)
+        plt.xlabel("Inter-event time")
+        plt.ylabel("Count")
+        plt.vlines(np.mean(inter_event_times), 0, 1, transform=plt.gca().get_xaxis_transform(), color='r', linestyle='--')
+        plt.tight_layout()
+        aopy.visualization.savefig(docs_dir, "poisson_event_train.png", transparent=False)
+        
+        # Check that inter-event times respect the refractory period
+        self.assertTrue(np.all(timestamps >= min_time) and np.all(timestamps < max_time))
+        self.assertTrue(np.all(np.round(inter_event_times - refractory_period, 6) >= 0))
+
 class MemoryTests(unittest.TestCase):
 
     def test_get_memory_available(self):
@@ -448,6 +495,61 @@ class TestNeuropixel(unittest.TestCase):
         self.assertEqual(probe_dir, 'Neuropix-PXI-100.ProbeA-AP')
         probe_dir = convert_port_number(2)
         self.assertEqual(probe_dir, 'Neuropix-PXI-100.ProbeB-AP')
-        
+
+class TestConsecutiveDays(unittest.TestCase):
+
+    def test_multiple_consecutive_groups(self):
+        dates = [
+            datetime(2023, 1, 1),
+            datetime(2023, 1, 2),
+            datetime(2023, 1, 3),
+            datetime(2023, 1, 5),
+            datetime(2023, 1, 7),
+            datetime(2023, 1, 8),
+            datetime(2023, 1, 9)
+        ]
+        result = get_consecutive_days(dates)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0], [datetime(2023, 1, 1), datetime(2023, 1, 2), datetime(2023, 1, 3)])
+        self.assertEqual(result[1], [datetime(2023, 1, 7), datetime(2023, 1, 8), datetime(2023, 1, 9)])
+
+    def test_no_consecutive_days(self):
+        dates = [
+            datetime(2023, 1, 1),
+            datetime(2023, 1, 3),
+            datetime(2023, 1, 5)
+        ]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [])
+
+    def test_all_consecutive_days(self):
+        dates = [datetime(2023, 1, i) for i in range(1, 6)]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [dates])
+
+    def test_single_date(self):
+        dates = [datetime(2023, 1, 1)]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [])
+
+    def test_empty_input(self):
+        result = get_consecutive_days([])
+        self.assertEqual(result, [])
+
+    def test_exactly_two_consecutive_days(self):
+        dates = [datetime(2023, 1, 1), datetime(2023, 1, 2)]
+        result = get_consecutive_days(dates)
+        self.assertEqual(result, [dates])
+
+    def test_unsorted_input(self):
+        dates = [
+            datetime(2023, 1, 3),
+            datetime(2023, 1, 1),
+            datetime(2023, 1, 2)
+        ]
+        sorted_dates = sorted(dates)
+        result = get_consecutive_days(sorted_dates)
+        self.assertEqual(result, [[datetime(2023, 1, 1), datetime(2023, 1, 2), datetime(2023, 1, 3)]])
+
 if __name__ == "__main__":
     unittest.main()

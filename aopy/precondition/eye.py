@@ -1,9 +1,15 @@
+# eye.py
+#
+# Preconditioning eye movement data, e.g. filtering and saccade detection
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import butter, filtfilt
+import remodnav
 
 from ..precondition import downsample
 from ..utils import derivative, detect_edges
+from ..data import get_kinematic_segments
 
 def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=200, buttord=4):
     '''
@@ -20,8 +26,8 @@ def filter_eye(eye_pos, samplerate, downsamplerate=1000, low_cut=200, buttord=4)
 
     Returns:
         tuple: tuple containing:
-        | **eye_pos (nt, nch):** eye position after filtering and downsampling
-        | **samplerate (float):** sampling rate of the returned eye data
+            | **eye_pos (nt, nch):** eye position after filtering and downsampling
+            | **samplerate (float):** sampling rate of the returned eye data
     '''
     # Lowpass filter
     b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
@@ -189,3 +195,225 @@ def detect_saccades(eye_pos, samplerate, thr=None, num_sd=1.5, intersaccade_min=
 
     return onset, duration, distance
         
+'''REMoDNaV classification'''
+def get_default_parameters(pursuit_velthresh=5.0,noise_factor=5.0,velthresh_startvelocity=300.0,min_intersaccade_duration=0.04,min_saccade_duration=0.01,
+                           max_initial_saccade_freq=2.0,saccade_context_window_length=1.0,max_pso_duration=0.04,min_fixation_duration=0.04,min_pursuit_duration=0.04,
+                           lowpass_cutoff_freq=4.0,min_blink_duration=0.02,dilate_nan=0.01,median_filter_length=0.05,savgol_length=0.019,savgol_polyord=2,max_vel=2000.0):
+    """
+        Returns default parameters required for behavior analysis using REMoDNaV (Dar et al., 2021) https://doi.org/10.3758/s13428-020-01428-x
+
+        Args:
+            pursuit_velthresh (float): Velocity threshold to distinguish periods of pursuit from periods of fixation. Default is 5.0.
+            noise_factor (float): Factor to account for noise in the data. Default is 5.0.
+            velthresh_startvelocity (float): Start value for velocity threshold algorithm. Default is 300.0.
+            min_intersaccade_duration (float): No saccade classification is performed in windows shorter than twice this value plus minimum saccade and PSO duration. Default is 0.04.
+            min_saccade_duration (float): Minimum duration of a saccade event candidate in seconds. Default is 0.01.
+            max_initial_saccade_freq (float): Maximum frequency for initial saccade detection. Default is 2.0.
+            saccade_context_window_length (float): Size of a window centered on any velocity peak for adaptive determination of saccade velocity threshold. Default is 1.0.
+            max_pso_duration (float): Maximum duration of post-saccadic oscillations in seconds. Default is 0.04.
+            min_fixation_duration (float): Minimum duration of fixation event candidate in seconds. Default is 0.04.
+            min_pursuit_duration (float): Minimum duration of pursuit event candidate in seconds. Default is 0.04.
+            lowpass_cutoff_freq (float): Cutoff frequency for lowpass filtering. Default is 4.0.
+            min_blink_duration (float): Missing data windows shorter than this duration will not be considered for dilate nan. Default is 0.02.
+            dilate_nan (float): Duration for which to replace data by missing data markers either side of a signal-loss window. Default is 0.01.
+            median_filter_length (float): Smoothing median filter size in seconds. Default is 0.05.
+            savgol_length (float): Size of the Savitzky-Golay filter for noise reduction in seconds. Default is 0.019.
+            savgol_polyord (int): Polynomial order of the Savitzky-Golay filter for noise reduction. Default is 2.
+            max_vel (float): Maximum velocity threshold, will replace values above designated maximum. Default is 2000.0.
+
+        Returns:
+            tuple: A tuple containing two dictionaries:
+                - clf_params: Parameters needed for event classification.
+                - preproc_params: Parameters needed for preprocessing.
+        """
+    clf_params = dict(
+        pursuit_velthresh=pursuit_velthresh,
+        noise_factor=noise_factor,
+        velthresh_startvelocity=velthresh_startvelocity,
+        min_intersaccade_duration=min_intersaccade_duration,
+        min_saccade_duration=min_saccade_duration,
+        max_initial_saccade_freq=max_initial_saccade_freq,
+        saccade_context_window_length=saccade_context_window_length,
+        max_pso_duration=max_pso_duration,
+        min_fixation_duration=min_fixation_duration,
+        min_pursuit_duration=min_pursuit_duration,
+        lowpass_cutoff_freq=lowpass_cutoff_freq,
+        )
+    preproc_params = dict(
+        min_blink_duration=min_blink_duration,
+        dilate_nan=dilate_nan,
+        median_filter_length=median_filter_length,
+        savgol_length=savgol_length,
+        savgol_polyord=savgol_polyord,
+        max_vel=max_vel,
+        )
+    return clf_params, preproc_params
+
+def classify_eye_events(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate):
+    """
+        Classifies eye behavior based on a single trial eye trajectory using the REMoDNaV algorithm.
+        
+        Args:
+            eye_trajectories (nt, n_features): array of eye trajectories,
+                                    Where 'nt' is the number of timepoints,
+                                    'n_features' are the x,y coordinates for one eye. 
+                                    Note: n_features shape must = 2.
+            clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier. 
+            preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
+            screen_half_height (float): Half the height of the screen in cm.
+            viewing_dist (float): The viewing distance in cm.
+            samplerate (int, optional): Sampling rate of the eye tracker in Hz.
+    
+        Returns:
+            List: list of dictionaries containing classified eye movement events
+                    where one list per trial containing multiple dictionaries,
+                    and each dictionary contains the following keys:
+                        - 'id': event identifier.
+                        - 'label': Type of eye movement (e.g., saccade, fixation, pursuit).
+                        - 'start_time': Start time of the event in seconds.
+                        - 'end_time': End time of the event in seconds.
+                        - 'start_x': Start x-coordinate of the event.
+                        - 'start_y': Start y-coordinate of the event.
+                        - 'end_x': End x-coordinate of the event.
+                        - 'end_y': End y-coordinate of the event.
+                        - 'amplitude': Amplitude of the eye movement in degrees.
+                        - 'peak_velocity': Peak velocity of the eye movement in degrees/second.
+                        - 'med_velocity': Median velocity of the eye movement in degrees/second.
+                        - 'avg_velocity': Average velocity of the eye movement in degrees/second.
+
+        Example:
+
+            Detecting saccades on the first 5 seconds of test data from beignet block 5974 (included in /tests/data/beignet)
+    
+            .. image:: _images/remodnav_saccades_hist.png
+            .. image:: _images/remodnav_saccades_scatter.png
+    """
+        
+    eye_trajectory=np.array(eye_trajectory)
+
+    if eye_trajectory.ndim != 2 or eye_trajectory.shape[1] != 2:
+        raise ValueError("Warning! Input array must be a 2D numpy array with shape (nt, 2).")
+
+    eye_data = eye_trajectory.T
+
+    data = np.core.records.fromarrays(
+        eye_data,
+        names='x,y',
+        formats='f8,f8'
+    )
+    screen_half_height_deg=np.degrees(np.arctan2(screen_half_height,viewing_dist))
+    px2deg=screen_half_height_deg/screen_half_height
+    clf = remodnav.EyegazeClassifier(px2deg, samplerate, **clf_params)
+    pp = clf.preproc(data, **preproc_params)
+    events = clf(pp, classify_isp=True, sort_events=True)
+    
+    return events
+
+def detect_eye_events(eye_trajectory, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate):
+    """
+    Extracts the start and end times and x,y positions of specified events from a single eye trajectory. 
+    You must select a specific eye event to extract. Choose from following options using the event_label parameter.
+    Options for event labels:
+        - 'SACC': Saccadic eye movements.
+        - 'PURS': Smooth pursuit eye movements.
+        - 'FIXA': Fixation events.
+        - 'HPSO': High velocity post saccadic oscillations.
+        - 'LPSO': Low velocity post saccadic oscillations.
+        - 'IHPS': High velocity post inter-saccadic oscillations.
+        - 'ILPS': Low velocity post inter-saccadic oscillations.
+
+    Args:
+        eye_trajectories (nt, n_features): array of eye trajectories,
+                                    Where 'nt' is the number of timepoints,
+                                    'n_features' are the x,y coordinates for each eye.
+        event_label (str): The label of the event to extract. (e.g., 'SACC', 'PURS', 'FIXA')
+        clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
+        preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
+        screen_half_height (float): Half the height of the screen in cm.
+        viewing_dist (float): The viewing distance in cm.
+        samplerate (int, optional): Sampling rate of the eye tracker in Hz.
+
+    Returns:
+        tuple: A tuple containing
+            - times (ndarray): An array of start and end times in seconds for each event.
+            - start_positions (ndarray): An array of start positions (x, y) for each event.
+            - end_positions (ndarray): An array of end positions (x, y) for each event.
+    """
+    events=classify_eye_events(eye_trajectory, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+
+    times=[]
+    start_positions = []
+    end_positions = []
+
+    for i in events:
+        if i['label'] == event_label:
+            times.append([i['start_time'],i['end_time']])
+            start_positions.append([i['start_x'], i['start_y']])
+            end_positions.append([i['end_x'], i['end_y']])
+
+    return np.array(times), np.array(start_positions), np.array(end_positions)
+
+
+def get_eye_event_trials(preproc_dir, subject, te_id, date, start_events, end_events, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate=1000):
+    
+    """
+    Extracts event times and positions from eye movement data for a given session.
+    You must select a specific eye event to extract. Choose from following options using the event_label parameter.
+    Options for event labels:
+        - 'SACC': Saccadic eye movements.
+        - 'PURS': Smooth pursuit eye movements.
+        - 'FIXA': Fixations.
+        - 'HPSO': High velocity post saccadic oscillations.
+        - 'LPSO': Low velocity post saccadic oscillations.
+        - 'IHPS': High velocity post inter-saccadic oscillations.
+        - 'ILPS': Low velocity post inter-saccadic oscillations.
+    
+    Args:
+        preproc_dir (str): Base directory where file lives
+        subject (str): Subject name.
+        te_id (int): Block number of task entry object.
+        date (str): Date of the recording.
+        start_events (list): List of numeric codes representing the start of a trial.
+        end_events (list): List of numeric codes representing the end of a trial.
+        event_label (str): The label of the event to extract. (e.g., 'SACC', 'PURS', 'FIXA')
+        clf_params (dict): Dictionary of classifier parameters to be passed to the REMoDNaV EyegazeClassifier.
+        preproc_params (dict): Dictionary of preprocessing parameters to be passed to the classifier's preproc method.
+        screen_half_height (float): Half the height of the screen in degrees of visual angle.
+        viewing_dist (float): The viewing distance in cm.
+        samplerate (int, optional): Sampling rate of the eye tracker in Hz. Default is 1000.
+
+    Returns:
+        tuple: A tuple containing
+            - start_end_times (ntrials): 
+                List of (nevents, 2) arrays containing (start, end) times of detected events for each trial in seconds.
+            - start_pos (ntrials):
+                List of (nevents, 2) arrays containing start (x,y) positions of detected events for each trial.
+            - end_pos (ntrials):
+                List of (nevents,2) arrays containing end (x,y) positions of detected events for each trial.
+    """
+
+    eye_trajectories, eye_codes = get_kinematic_segments(
+        preproc_dir, subject, te_id, date, start_events, end_events, datatype='eye', samplerate=samplerate
+    )
+    
+    start_end_times=[]
+    start_pos=[]
+    end_pos=[]
+
+    for idx, eye_trajectory in enumerate(eye_trajectories):
+        if np.ndim(eye_trajectory) == 2 and np.shape(eye_trajectory)[1] > 2:
+            eye_trajectory=eye_trajectory[:,:2]
+
+        s_e, xs_ys, xe_ye = detect_eye_events(eye_trajectory, event_label, clf_params, preproc_params, screen_half_height, viewing_dist, samplerate)
+    
+        if s_e.size == 0:
+            print(f"No matching events found in trial {idx}, appending empty arrays.")
+            start_end_times.append([])
+            start_pos.append([])
+            end_pos.append([])
+        else:
+            start_end_times.append(s_e)
+            start_pos.append(xs_ys)
+            end_pos.append(xe_ye)
+
+    return start_end_times,start_pos,end_pos

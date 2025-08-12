@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.9]
+        python-version: [3.12]
 
     steps:
       - uses: actions/checkout@v2
@@ -25,6 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest pytest-cov torch
           pip install -e .
+          pip install PyOpenGL==3.1.1a1
       - name: Test with pytest
         run: |
           pytest --junitxml=junit/test-results.xml --cov=aopy --cov-report=xml --cov-report=html

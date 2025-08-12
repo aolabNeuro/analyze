@@ -1,11 +1,16 @@
-import numpy as np
+# laser.py
+#
+# preprocessing laser data
+
 import warnings
-import matplotlib.pyplot as plt
 import sys
 if sys.version_info >= (3,9):
     from importlib.resources import files, as_file
 else:
     from importlib_resources import files, as_file
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 from .. import data as aodata
 from .. import analysis
@@ -132,9 +137,7 @@ def calibrate_gain(gain, peak_power_mW, calibration_file='qwalor_447nm_ch2.yaml'
 
         .. image:: _images/calibrate_laser_gain.png
     '''
-    config_dir = files('aopy').joinpath('config')
-    with as_file(config_dir.joinpath(calibration_file)) as f:
-        yaml_data = aodata.yaml_read(f)
+    yaml_data = aodata.load_yaml_config(calibration_file)
     voltages = np.interp(gain, yaml_data['gain'], yaml_data['power'])
     
     min_voltage = np.min(yaml_data['power'])
@@ -157,9 +160,7 @@ def calibrate_sensor(sensor_voltage, peak_power_mW,
     Returns:
         (ntrial,) float array: laser power in mW
     '''
-    config_dir = files('aopy').joinpath('config')
-    with as_file(config_dir.joinpath(calibration_file)) as f:
-        yaml_data = aodata.yaml_read(f)
+    yaml_data = aodata.load_yaml_config(calibration_file)
     
     # Use interpolation in case calibration doesn't include 0. or 1. gain setting
     voltages = np.interp([0.,1.], yaml_data['gain'], yaml_data['power'])
