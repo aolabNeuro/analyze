@@ -2500,7 +2500,8 @@ class BootstrapTests(unittest.TestCase):
         data += np.random.normal(0.5, size=(total_trials,n_elec))
         data[:,n_elec//4:n_elec//2] += 0.1
 
-        dists = aopy.analysis.calc_statistic_random_trials(data, n_trials=n_trials)
+        rng = np.random.default_rng(0)
+        dists = aopy.analysis.calc_statistic_random_trials(data, n_trials=n_trials, rng=rng)
         self.assertEqual(np.shape(dists), (len(data)//n_trials, n_elec))
 
         # Test that the distribution means are close to the original data mean
@@ -2547,7 +2548,7 @@ class BootstrapTests(unittest.TestCase):
         n_bootstraps = 50
 
         # Test null distribution
-        np.random.seed(0)
+        np.random.seed(42)
         data = 0.5*np.ones((total_trials,n_elec))
         data += np.random.normal(0.5, size=(total_trials,n_elec))
         data[:,n_elec//4:n_elec//2] += 0.1
@@ -2576,8 +2577,13 @@ class BootstrapTests(unittest.TestCase):
             plt.title('Condition 2')
 
             plt.subplot(3,4,(4*(row-1))+3)
-            im = plt.matshow(np.nanmean(corr_mat, axis=0), cmap='Grays', vmin=0, vmax=1, origin='lower', fignum=0)
+            im = plt.imshow(np.nanmean(corr_mat, axis=0), cmap='Grays', vmin=0, vmax=1, origin='lower')
             plt.colorbar(im, shrink=0.5)
+            sz = len(corr_mat[0])//2
+            plt.xticks(range(sz*2), labels=['1']*sz + ['2']*sz)
+            plt.yticks(range(sz*2), labels=['1']*sz + ['2']*sz)
+            plt.xlabel('Condition')
+            plt.ylabel('Condition')
             plt.title('Correlation')
 
             plt.subplot(3,4,(4*(row-1))+4)
@@ -2589,10 +2595,11 @@ class BootstrapTests(unittest.TestCase):
 
         fig = plt.figure(figsize=(8,6), dpi=300)
 
+        rng = np.random.default_rng(0)
         means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
         dists, conditions, corr_mat, dprime = \
             aopy.analysis.compare_conditions_bootstrap_spatial_corr(
-                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=False
+                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, rng=rng, parallel=False
             )
         plot_result(means, corr_mat, dprime, 1)
         fig.text(0.5, 1, "Null distribution", ha='center', va='top', fontsize=14)
@@ -2600,10 +2607,12 @@ class BootstrapTests(unittest.TestCase):
         # Test difference
         data[labels == 1,:n_elec//8] += 0.2
 
+        rng = np.random.default_rng(0)
         means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
         dists, conditions, corr_mat, dprime, shuff_dists, shuff_mat, shuff_dprime = \
             aopy.analysis.compare_conditions_bootstrap_spatial_corr(
-                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, n_shuffle=1, parallel=False
+                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, n_shuffle=1, 
+                rng=rng, parallel=False
             )
         plot_result(means, corr_mat, dprime, 2)
         fig.text(0.5, 0.65, "Difference", ha='center', va='top', fontsize=14)
@@ -2617,12 +2626,13 @@ class BootstrapTests(unittest.TestCase):
         savefig(docs_dir, filename, transparent=False)
 
         # Test with parallel processing
+        rng = np.random.default_rng(0)
         dists, conditions, _, parallel_dprime = \
             aopy.analysis.compare_conditions_bootstrap_spatial_corr(
-                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=True
+                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
+                rng=rng, parallel=True
             )
-        # Note: random seed doesn't propagate to parallel processes, but the d-prime values are fairly stable anyway
-        np.testing.assert_array_almost_equal(dprime, parallel_dprime, decimal=0) 
+        np.testing.assert_array_almost_equal(dprime, parallel_dprime) 
 
         # Sweep the wrapper over increasing trials
         n_bootstraps = 10
@@ -2634,7 +2644,8 @@ class BootstrapTests(unittest.TestCase):
         for n_trials in trial_sizes:
             dists, conditions, corr_mat, dprime = \
                 aopy.analysis.compare_conditions_bootstrap_spatial_corr(
-                    data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=False
+                    data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps,
+                    rng=rng, parallel=False
                 )
             avg_corr_map = np.nanmean(corr_mat, axis=0)
             sz = avg_corr_map.shape[0]//2
