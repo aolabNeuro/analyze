@@ -280,12 +280,13 @@ def calc_accllr_lfp(lfp_altcond, lfp_nullcond, lfp_altcond_lowpass, lfp_nullcond
 def calc_llr_inh_poisson(spike_trial, rate1, rate2):
     '''
     Compute log-likelihood ratio for a single trial's binned spike train using two 
-    inhomogeneous Poisson rate models.
+    inhomogeneous Poisson rate models. Rates can be given in any units, so long
+    as they are consistent across all inputs.
     
     Args:
-        spike_trial: (nt,) array, binned spike counts for one trial
-        rate1: (nt,) array, mean rate for model 1 (Hz)
-        rate2: (nt,) array, mean rate for model 2 (Hz)
+        spike_trial: (nt,): binned spike counts for one trial
+        rate1: (nt,): rate model 1
+        rate2: (nt,): rate model 2
     
     Returns:
         (nt,) array: log-likelihood ratio per bin

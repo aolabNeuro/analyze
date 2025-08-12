@@ -1443,6 +1443,11 @@ class LatencyTests(unittest.TestCase):
             ax[irow, icol].scatter(st[iunit,sorted_idx], np.arange(ntrial), color='m', marker='.')
             ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
 
+            if irow == nrow-1:
+                ax[irow, icol].set_xlabel('Time (samples)')
+            if icol == 0:
+                ax[irow, icol].set_ylabel('Trial')
+
         fig.tight_layout()
         filename = 'accllr_sim_data_spike_rasters.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
@@ -1483,6 +1488,11 @@ class LatencyTests(unittest.TestCase):
             ax[irow, icol].scatter(st[iunit,sorted_idx], np.arange(ntrial), color='m', marker='.')
             ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
 
+            if irow == nrow-1:
+                ax[irow, icol].set_xlabel('Time (s)')
+            if icol == 0:
+                ax[irow, icol].set_ylabel('Trial')
+
         fig.tight_layout()
         filename = 'accllr_test_data_spike_rasters.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
@@ -1497,6 +1507,10 @@ class LatencyTests(unittest.TestCase):
             ax[irow, icol].plot([0,0], ax[irow,icol].get_ylim(), 'r--', linewidth=2)
             ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
             # ax[irow, icol].set_title(f"Unit {unit_labels[iunit]}")
+            if irow == nrow-1:
+                ax[irow, icol].set_xlabel('Time (s)')
+            if icol == 0:  
+                ax[irow, icol].set_ylabel('Spike rate (Hz)')
 
         fig.tight_layout()
         filename = 'accllr_test_data_spike_psth.png'
