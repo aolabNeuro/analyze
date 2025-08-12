@@ -190,7 +190,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
     The optional argument 'interp_kind' corresponds to 'kind'. The optional argument 'extrapolate' determines whether timepoints falling outside the 
     range of the input timestamps should be extrapolated or not. If not, they are copied from the first and last valid values, depending on whether they
-    appear at the beginnin or end of the timeseries, respectively.
+    appear at the beginning or end of the timeseries, respectively.
     
     Note:
         Enforces monotonicity of the input timestamps by removing timestamps and their associated values that do not increase.
@@ -338,7 +338,9 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
         warnings.warn("upsamplerate is no longer used", DeprecationWarning)
 
     time = np.arange(int((timestamps[-1] + append_time)*samplerate))/samplerate # add extra time
-    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False, **kwargs)
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, 
+                                                interp_kind='linear', extrapolate=False, 
+                                                **kwargs)
     return data_time
 
 def get_dch_data(digital_data, digital_samplerate, dch):

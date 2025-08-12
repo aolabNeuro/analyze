@@ -7,6 +7,7 @@ import math
 
 from scipy import signal
 from scipy.signal import butter, filtfilt, windows
+from scipy.interpolate import interp1d
 import numpy as np
 
 from .. import analysis
@@ -785,7 +786,7 @@ def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, butt
     b, a = butter(buttord, window, btype='bandpass', fs=samplerate)
     return filtfilt(b, a, broadband_data, axis=0)
 
-def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4, 
+def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
                       deriv=0, savgol_window_ms=50, savgol_polyorder=3, norm=False):
     '''
     Low-pass filter kinematics data to below 15 Hz by default. 
@@ -886,8 +887,19 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
         
 
     '''
-    b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
-    filtered_data = filtfilt(b, a, kinematic_data, axis=0)
+    # Remove nan
+    filtered_data = np.copy(kinematic_data)
+    if np.ndim(filtered_data) == 1:
+        filtered_data = filtered_data.reshape(-1, 1)
+    nan_mask = np.any(np.isnan(filtered_data), axis=1)
+    f = interp1d(np.flatnonzero(~nan_mask), filtered_data[~nan_mask], axis=0,
+                bounds_error=False, fill_value="extrapolate")
+    filtered_data[nan_mask] = f(np.flatnonzero(nan_mask))
+
+    # Low-pass filter and apply derivatives
+    if low_cut is not None:
+        b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
+        filtered_data = filtfilt(b, a, filtered_data, axis=0)
     if deriv > 0:
         window_length = int(np.ceil(savgol_window_ms * samplerate / 1000.)) | 1
         if window_length < 3:
@@ -898,4 +910,8 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
                                              deriv=deriv, axis=0)
     if norm:
         filtered_data = np.linalg.norm(filtered_data, axis=1)
+
+    # Append nan values back
+    filtered_data[nan_mask] = np.nan
+
     return filtered_data, samplerate
