@@ -13,7 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, accuracy_score
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
@@ -2318,8 +2318,8 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
     else:
         return decoding_accuracy, time_axis
 
-def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_decoding=True, min_unit=None, shuffle=False, nfolds=5,\
-                               replacement=False, regularization='auto', lda_model=None, return_weights=False, seed=None):
+def xval_lda_subsample_wrapper(data, labels, min_trial, cond_mask=None, single_decoding=True, min_unit=None, shuffle_labels=False,
+        nfolds=5, replacement=False, regularization='auto', lda_model=None, return_labels=False, return_weights=False, seed=None):
     '''
     Perform an n-fold cross-validation with Linear Discriminant Analysis (LDA) using a single unit or multiple units.
     This functions extracts trials and/or units randomly based on the random seed with/without replacement.
@@ -2327,7 +2327,7 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
     You can repeatedly perform this function by changing random seed to estimate the resampling distribution
 
     Args:
-        data (nunit, ntr): neural data
+        data (nunit, ntr) or (nunit, nfeatures, ntr): neural data. 2 different shapess are allowed. 
         labels (ntr): the labels for each trial.
         min_trial (int): the minimum number of trials for each label to be extracted
                                 if this is 20, 20*(the number of unique labels) trials are extracted
@@ -2336,21 +2336,23 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
         single_decoding (bool, optional): If True, LDA is performed using single unit activity separately (default is True)
         min_unit (int, optional): the number of units used for decoding. This is used only when single_decoding is False.
                                 if min_unit is None, decoding is perfomed using all units (default is None)
-        shuffle (bool, optional): whether to shuffle labels or not (default is False)
+        shuffle_labels (bool, optional): whether to shuffle labels or not (default is False)
         nfolds (int, optional): the number of folds for cross-validation (default is 5)
         replacement (bool, optional): whether to choose trials with replacement or without replacement
         regularization (str or float, optional): If regularization should be included when building the LDA model
                                 Input into the shrinkage parameter of the sklearn LDA function
                                 Can either be None, 'auto', or a float between 0 and 1. 
         lda_model (sklearn LDA class, optional): User-defined LDA model from sklearn.discriminant_analysis.LinearDiscriminantAnalysis. If None, this function will initialize the model.
+        return_labels (bool, optional): Whether to return true and predicted labels (default is False).
         return_weights (bool, optional): Whether to return the LDA weights (default is False).
         seed (int, optional): random seed
 
     Returns:
         tuple: Tuple containing:
-            | **pred_Y (nch,ntr) / (ntr):** a list of predicted labels. If single_decoding is False, its shape becomes (ntr).
-            | **true_Y (nch,ntr) / (ntr):** a list of true labels. If single_decoding is False, its shape becomes (ntr).
-            | **(Optional) LDA Weights (nlabels, nch, nfolds):** The LDA weights if return_weights is True.
+            | **accuracy (nch) or (float):** the decoding accuracy. If single_decoding is False, this gets a single velue.
+            | **(Optional) true_Y (nch,ntr) or (ntr):** a list of true labels. If single_decoding is False, its shape becomes (ntr).
+            | **(Optional) pred_Y (nch,ntr) or (ntr):** a list of predicted labels. If single_decoding is False, its shape becomes (ntr).
+            | **(Optional) LDA Weights (nlabels,nch,nfolds) or (nlabels,nch,nfeatures,nfolds):** The LDA weights if return_weights is True.
 
     Examples:
         
@@ -2362,24 +2364,26 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
 
             single_decoding = True
             min_unit = None
-            shuffle = False
+            shuffle_labels = False
             n_fold = 5
             replacement = False
             regularization = 'auto'
             lda_model = None
+            return_labels = True
             return_weights = False
             n_resample = 100 # the number of resampling
             n_processes = 20 # the number of cpus used for the computation
 
             pool = mp.Pool(n_processes)
-            result_objects = [pool.apply_async(xval_lda_resample_wrapper,\
-                args=(data, target_idx, min_trials, trial_mask, single_decoding, min_unit,\
-                    shuffle, n_fold, replacement, regularization, lda_model, return_weights, ibs)) for ibs in range(n_resample)]
+            result_objects = [pool.apply_async(xval_lda_subsample_wrapper,\
+                args=(data, target_idx, min_trials, trial_mask, single_decoding, min_unit, shuffle_labels, n_fold, \
+                    replacement, regularization, lda_model, return_labels, return_weights, ibs)) for ibs in range(n_resample)]
             pool.close()
 
             # Organize results
             results = [r.get() for r in result_objects]
-            pred_labels_resample, true_labels_resample = zip(*results)
+            accuracy, pred_labels_resample, true_labels_resample = zip(*results)
+            accuracy = np.array(accuracy)
             pred_labels_resample = np.array(pred_labels_resample, int)
             true_labels_resample = np.array(true_labels_resample, int)
 
@@ -2388,7 +2392,13 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
 
     '''
 
-    nunit, ntr = data.shape 
+    if data.ndim == 2:
+        # (nunit, ntr) -> (nunit, 1, ntr)
+        data = data[:, np.newaxis, :]
+    elif data.ndim != 3:
+        raise ValueError("data must have shape (nunit, ntr) or (nunit, nfeatures, ntr)")
+    
+    nunit, nfeatures, ntr = data.shape
     nlabels = len(np.unique(labels))
     kf = model_selection.KFold(n_splits=nfolds)
 
@@ -2400,14 +2410,14 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
     else:
         lda = lda_model
 
-    if shuffle:
+    if shuffle_labels:
         Y = np.random.permutation(Y)
 
     # Choose trials randomly so that the number of trials per target can be the same across targets.
     trial_mask = postproc.get_conditioned_trials_per_target(labels, min_trial, cond_mask=cond_mask, replacement=replacement, seed=seed)
         
     # Extract trials
-    data_trial = data[:,trial_mask]
+    data_trial = data[:,:,trial_mask]
     Y = labels[trial_mask]
 
     pred_Y = []
@@ -2417,10 +2427,12 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
     if single_decoding:
 
         if return_weights:
-            weights = np.zeros((nlabels, nunit, nfolds))*np.nan
+            weights = np.zeros((nlabels, nunit, nfeatures, nfolds))*np.nan
     
+        accuracy = []
         for iunit in range(data_trial.shape[0]):
-            X = data_trial[[iunit],:].T
+            # Flatten features for sklearn
+            X = data_trial[iunit].T  # shape (ntr, nfeatures)
             
             pred_Y_ch = []
             true_Y_ch = []
@@ -2437,21 +2449,29 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
                 true_Y_ch.extend(Ytest)
 
                 if return_weights:
-                    weights[:,iunit,ifold] = np.squeeze(lda.coef_)
-
-            pred_Y.append(pred_Y_ch)
+                    weights[:,iunit,:,ifold] = lda.coef_
+                    
+            accuracy.append(accuracy_score(true_Y_ch, pred_Y_ch))
             true_Y.append(true_Y_ch)
+            pred_Y.append(pred_Y_ch)
+
+        accuracy = np.array(accuracy)
 
     # Perform LDA using multiple unit activity together
     else:
+        # Subsample units for decoding
         if min_unit is not None:
-            unit_mask = np.random.choice(nunit, size=min_unit, replace=replacement)
-            X = data_trial[unit_mask,:].T
-            weights = np.zeros((nlabels, min_unit, nfolds))*np.nan
+            unit_mask = np.random.choice(nunit, size=min_unit, replace=replacement) # randomly choose units
+            X = data_trial[unit_mask,:,:].reshape(min_unit*nfeatures, -1).T
+            if return_weights:
+                weights = np.zeros((nlabels, min_unit, nfeatures, nfolds))*np.nan
+        # Use all units without subsampling
         else:
-            X = data_trial.T
-            weights = np.zeros((nlabels, nunit, nfolds))*np.nan
+            X = data_trial.reshape(nunit*nfeatures, -1).T
+            if return_weights:
+                weights = np.zeros((nlabels, nunit, nfeatures, nfolds)) * np.nan
 
+        # k-fold cross-validation
         for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
 
             Xtrain,Xtest = X[train_idx,:],X[test_idx,:]
@@ -2459,16 +2479,26 @@ def xval_lda_resample_wrapper(data, labels, min_trial, cond_mask=None, single_de
             
             lda.fit( (Xtrain - np.mean(Xtrain,axis=0)), Ytrain)
 
-            pred_Y.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
             true_Y.extend(Ytest)
-
+            pred_Y.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
+            
             if return_weights:
-                weights[:,:,ifold] = lda.coef_
+                weights[:,:,:,ifold] = lda.coef_.reshape(nlabels, -1, nfeatures)
 
+        accuracy = accuracy_score(true_Y, pred_Y)
+
+    # Organize results
+    results = [accuracy]
+    if return_labels:
+        results.append(np.array(true_Y))
+        results.append(np.array(pred_Y))
     if return_weights:
-        return np.array(pred_Y), np.array(true_Y), weights
+        results.append(np.squeeze(weights))
+
+    if len(results) == 1:
+        return results[0]
     else:
-        return np.array(pred_Y), np.array(true_Y)
+        return tuple(results)
 
 def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000):
     """
