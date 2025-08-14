@@ -961,6 +961,67 @@ class ModelFitTests(unittest.TestCase):
         self.assertEqual(time_axis[-1], nt-1) # -1 because of 0 indexing
         self.assertEqual(time_axis[0], 0)
 
+    def test_xval_lda_subsample_wrapper(self):
+        ntr_test = 50 # the number of trials
+        nunit_test = 10 # the number of units
+        ntarget_test = 4 # the number of targets
+        target_idx_test = np.random.randint(1,1+ntarget_test,ntr_test)
+        data_test = target_idx_test + np.random.normal(0,0.1,(nunit_test,ntr_test))
+
+        shuffle = False
+        nfold = 5
+        replacement = False
+        regularization = 'auto'
+        lda_model = None
+        min_unit = None
+        trial_mask_test = None
+        min_trials = aopy.postproc.base.get_minimum_trials_per_target(target_idx_test, cond_mask=trial_mask_test)
+
+        # Single-unit decoding
+        single_decoding = True
+        return_labels = False
+        return_weights = False
+        accuracy = aopy.analysis.xval_lda_subsample_wrapper(data_test, target_idx_test, min_trials, trial_mask_test, single_decoding,\
+                            min_unit, shuffle, nfold, replacement, regularization, lda_model, return_labels, return_weights, 0)
+        self.assertTrue(np.all(accuracy==1.0))
+        self.assertEqual(accuracy.shape[0], nunit_test)
+
+        # Mutiple returns
+        return_labels = True
+        return_weights = True
+        accuracy, true, pred, weights = aopy.analysis.xval_lda_subsample_wrapper(data_test, target_idx_test, min_trials, trial_mask_test, single_decoding,\
+                            min_unit, shuffle, nfold, replacement, regularization, lda_model, return_labels, return_weights, 0)
+        self.assertEqual(pred.shape, (nunit_test,ntarget_test*min_trials))
+        self.assertEqual(weights.shape, (ntarget_test, nunit_test, nfold))
+
+        # Decoding with all units
+        single_decoding = False
+        accuracy, true, pred, weights = aopy.analysis.xval_lda_subsample_wrapper(data_test, target_idx_test, min_trials, trial_mask_test, single_decoding,\
+                            min_unit, shuffle, nfold, replacement, regularization, lda_model, return_labels, return_weights, 0)
+        self.assertEqual(weights.shape, (ntarget_test, nunit_test, nfold))
+
+        # Decoding with subsampled units
+        min_unit = 3
+        accuracy, true, pred, weights = aopy.analysis.xval_lda_subsample_wrapper(data_test, target_idx_test, min_trials, trial_mask_test, single_decoding,\
+                            min_unit, shuffle, nfold, replacement, regularization, lda_model, return_labels, return_weights, 0)
+        self.assertEqual(weights.shape, (ntarget_test, min_unit, nfold))
+
+        # Decoding with additional features such as different band powers
+        nfeatures = 2
+        data_test = target_idx_test + np.random.normal(0,0.1,(nunit_test,nfeatures,ntr_test))
+
+        single_decoding = True
+        accuracy, true, pred, weights = aopy.analysis.xval_lda_subsample_wrapper(data_test, target_idx_test, min_trials, trial_mask_test, single_decoding,\
+                            min_unit, shuffle, nfold, replacement, regularization, lda_model, return_labels, return_weights, 0)
+        self.assertEqual(pred.shape, (nunit_test, ntarget_test*min_trials))
+        self.assertEqual(weights.shape, (ntarget_test, nunit_test, nfeatures, nfold))
+
+        single_decoding = False
+        min_unit = 3
+        accuracy, true, pred, weights = aopy.analysis.xval_lda_subsample_wrapper(data_test, target_idx_test, min_trials, trial_mask_test, single_decoding,\
+                            min_unit, shuffle, nfold, replacement, regularization, lda_model, return_labels, return_weights, 0)
+        self.assertEqual(weights.shape, (ntarget_test, min_unit, nfeatures, nfold))
+
     def test_get_random_timestamps(self):
         nshuffled_points = 5
         
