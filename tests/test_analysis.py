@@ -2548,6 +2548,192 @@ class ConfidenceIntervalTests(unittest.TestCase):
         CI2 = [17,30]
         overlap = aopy.analysis.calc_confidence_interval_overlap(CI1,CI2)
         self.assertEqual(overlap,(20-17)/(20-10))
+
+class BootstrapTests(unittest.TestCase):
+
+    def test_calc_statistic_random_trials(self):
+        elec_pos, _, _ = aopy.data.load_chmap()
+        n_elec = len(elec_pos)
+        total_trials = 1600
+        n_trials = 50
+        np.random.seed(0)
+        data = 0.5*np.ones((total_trials,n_elec))
+        data += np.random.normal(0.5, size=(total_trials,n_elec))
+        data[:,n_elec//4:n_elec//2] += 0.1
+
+        rng = np.random.default_rng(0)
+        dists = aopy.analysis.calc_statistic_random_trials(data, n_trials=n_trials, rng=rng)
+        self.assertEqual(np.shape(dists), (len(data)//n_trials, n_elec))
+
+        # Test that the distribution means are close to the original data mean
+        mean = np.mean(data, axis=0)
+        dists_mean = np.mean(dists, axis=0)
+        dists_std = np.std(dists, axis=0)
+        for i in range(n_elec):
+            self.assertAlmostEqual(mean[i], dists_mean[i], delta=0.1)
+        clim = (np.min(dists_mean), np.max(dists_mean))
+
+        plt.figure(figsize=(5,2), dpi=300)
+        plt.subplot(1,3,1)
+        im = aopy.visualization.plot_spatial_drive_map(mean, 
+                                        elec_data=True, cmap='Grays')
+        im.set_clim(*clim)
+        plt.axis('off')
+        plt.colorbar(im, shrink=0.5)
+        plt.title('data mean')
+
+        plt.subplot(1,3,2)
+        im = aopy.visualization.plot_spatial_drive_map(dists_mean, 
+                                        elec_data=True, cmap='Grays')
+        im.set_clim(*clim)
+        plt.axis('off')
+        plt.colorbar(im, shrink=0.5)
+        plt.title('dist means')
+
+        plt.subplot(1,3,3)
+        im = aopy.visualization.plot_spatial_drive_map(dists_std, 
+                                        elec_data=True, cmap='Grays')
+        plt.axis('off')
+        plt.colorbar(im, shrink=0.5)
+        plt.title('dist std')
+
+        figname = 'calc_statistic_random_trials.png'
+        savefig(docs_dir, figname, transparent=False)
+
+
+    def test_compare_conditions_bootstrap(self):
+        elec_pos, _, _ = aopy.data.load_chmap()
+        n_elec = len(elec_pos)
+        total_trials = 1600
+        n_trials = 200
+        n_bootstraps = 50
+
+        # Test null distribution
+        np.random.seed(42)
+        data = 0.5*np.ones((total_trials,n_elec))
+        data += np.random.normal(0.5, size=(total_trials,n_elec))
+        data[:,n_elec//4:n_elec//2] += 0.1
+        labels = np.zeros((total_trials,))
+        labels[total_trials//2:] = 1
+
+        def plot_result(means, corr_mat, dprime, row):
+
+            mean12 = np.concatenate(means)
+            clim = (np.min(mean12),np.max(mean12))
+
+            plt.subplot(3,4,(4*(row-1))+1)
+            im = aopy.visualization.plot_spatial_drive_map(means[0], 
+                                            elec_data=True, cmap='Grays')
+            im.set_clim(*clim)
+            plt.colorbar(im, shrink=0.5)
+            plt.axis('off')
+            plt.title('Condition 1')
+
+            plt.subplot(3,4,(4*(row-1))+2)
+            im = aopy.visualization.plot_spatial_drive_map(means[1], 
+                                            elec_data=True, cmap='Grays')
+            im.set_clim(*clim)
+            plt.colorbar(im, shrink=0.5)
+            plt.axis('off')
+            plt.title('Condition 2')
+
+            plt.subplot(3,4,(4*(row-1))+3)
+            im = plt.imshow(np.nanmean(corr_mat, axis=0), cmap='Grays', vmin=0, vmax=1, origin='lower')
+            plt.colorbar(im, shrink=0.5)
+            sz = len(corr_mat[0])//2
+            plt.xticks(range(sz*2), labels=['1']*sz + ['2']*sz)
+            plt.yticks(range(sz*2), labels=['1']*sz + ['2']*sz)
+            plt.xlabel('Condition')
+            plt.ylabel('Condition')
+            plt.title('Correlation')
+
+            plt.subplot(3,4,(4*(row-1))+4)
+            im = aopy.visualization.plot_spatial_drive_map(dprime, elec_data=True, cmap='turbo')
+            im.set_clim(0,5)
+            plt.axis('off')
+            plt.colorbar(im, shrink=0.5)
+            plt.title('dprime')
+
+        fig = plt.figure(figsize=(8,6), dpi=300)
+
+        rng = np.random.default_rng(0)
+        means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
+        dists, conditions, corr_mat, dprime = \
+            aopy.analysis.compare_conditions_bootstrap_spatial_corr(
+                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, rng=rng, parallel=False
+            )
+        plot_result(means, corr_mat, dprime, 1)
+        fig.text(0.5, 1, "Null distribution", ha='center', va='top', fontsize=14)
+
+        # Test difference
+        data[labels == 1,:n_elec//8] += 0.2
+
+        rng = np.random.default_rng(0)
+        means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
+        dists, conditions, corr_mat, dprime, shuff_dists, shuff_mat, shuff_dprime = \
+            aopy.analysis.compare_conditions_bootstrap_spatial_corr(
+                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, n_shuffle=1, 
+                rng=rng, parallel=False
+            )
+        plot_result(means, corr_mat, dprime, 2)
+        fig.text(0.5, 0.65, "Difference", ha='center', va='top', fontsize=14)
+
+        # Test shuffled
+        plot_result(means, shuff_mat[0], shuff_dprime[0], 3)
+        fig.text(0.5, 0.35, "Shuffled", ha='center', va='top', fontsize=14)
+
+        plt.tight_layout()
+        filename = 'compare_conditions_bootstrap_spatial_corr.png'
+        savefig(docs_dir, filename, transparent=False)
+
+        # Test with parallel processing
+        rng = np.random.default_rng(0)
+        dists, conditions, _, parallel_dprime = \
+            aopy.analysis.compare_conditions_bootstrap_spatial_corr(
+                data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
+                rng=rng, parallel=True
+            )
+        np.testing.assert_array_almost_equal(dprime, parallel_dprime) 
+
+        # Sweep the wrapper over increasing trials
+        n_bootstraps = 10
+        avg_coeff_1 = []
+        avg_coeff_2 = []
+        avg_dprime_1 = []
+        avg_dprime_2 = []
+        trial_sizes = range(10, 450, 50)
+        for n_trials in trial_sizes:
+            dists, conditions, corr_mat, dprime = \
+                aopy.analysis.compare_conditions_bootstrap_spatial_corr(
+                    data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps,
+                    rng=rng, parallel=False
+                )
+            avg_corr_map = np.nanmean(corr_mat, axis=0)
+            sz = avg_corr_map.shape[0]//2
+            avg_coeff_1.append(np.nanmean(avg_corr_map[:sz,:sz]))
+            avg_coeff_2.append(np.nanmean(avg_corr_map[sz:,:sz]))
+            avg_dprime_1.append(np.mean(dprime[:n_elec//8]))
+            avg_dprime_2.append(np.mean(dprime[-n_elec//8:]))
+
+        plt.figure(figsize=(5,2), dpi=300)
+        plt.subplot(1,2,1)
+        plt.plot(trial_sizes, avg_coeff_1)
+        plt.plot(trial_sizes, avg_coeff_2)
+        plt.ylabel('map correlation')
+        plt.xlabel('num trials in each map')
+        plt.legend(['within', 'across'], bbox_to_anchor=[1,1], loc='upper left')
+
+        plt.subplot(1,2,2)
+        plt.plot(trial_sizes, avg_dprime_1)
+        plt.plot(trial_sizes, avg_dprime_2)
+        plt.ylabel('dprime')
+        plt.xlabel('num trials in each map')
+        plt.legend(['diff', 'same'], bbox_to_anchor=[1,1], loc='upper left')
+
+        plt.tight_layout()
+
+        filename = 'compare_conditions_bootstrap_spatial_corr_sweep.png'
+        savefig(docs_dir, filename, transparent=False)
         
 if __name__ == "__main__":
 
