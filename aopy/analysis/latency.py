@@ -296,13 +296,16 @@ def calc_llr_inh_poisson(spike_trial, rate1, rate2):
     llr = (rate2 - rate1) + spike_trial * np.log(rate1 / rate2)
     return llr
 
-def calc_accllr_spike(spikes_altcond, spikes_nullcond):
+def calc_accllr_spike(spikes_altcond, spikes_nullcond, spikes_altcond_lowpass, spikes_nullcond_lowpass):
     '''
     Compute AccLLR for spikes using inhomogeneous Poisson model (static, no smoothing).
     
     Args:
         spikes_altcond (nt, ntrial): binned spike trains for alternative condition
         spikes_nullcond (nt, ntrial): binned spike trains for null condition
+        spikes_altcond_lowpass (nt, ntrial): low-pass filtered copy of alternative condition trials. If
+            desired, just pass the spikes_altcond again to avoid using a low-pass filtered version for model building.
+        spikes_nullcond_lowpass (nt, ntrial): low-pass filtered copy of null condition trials
     
     Returns:
         tuple: tuple containing:
@@ -320,28 +323,28 @@ def calc_accllr_spike(spikes_altcond, spikes_nullcond):
         raise ValueError("spikes_altcond and spikes_nullcond must have the same number of time bins (nt)")
     
     # Compute static PSTH (mean rate) for null and altcond
-    rate_null = np.mean(spikes_nullcond, axis=1) # (nt,)
-    rate_altcond = np.mean(spikes_altcond, axis=1)  # (nt,)
+    rate_nullcond = np.mean(spikes_nullcond_lowpass, axis=1) # (nt,)
+    rate_altcond = np.mean(spikes_altcond_lowpass, axis=1)  # (nt,)
     
     # Altcond trials: leave-one-out for altcond model
     accllr_altcond = np.zeros((nt, ntrial_altcond))
     for i in range(ntrial_altcond):
         # Leave-one-out altcond model
         if ntrial_altcond > 1:
-            loo_altcond = np.delete(spikes_altcond, i, axis=1)
+            loo_altcond = np.delete(spikes_altcond_lowpass, i, axis=1)
         else:
-            loo_altcond = spikes_altcond
+            loo_altcond = spikes_altcond_lowpass
         rate_altcond_loo = np.mean(loo_altcond, axis=1)
-        llr = calc_llr_inh_poisson(spikes_altcond[:, i], rate_altcond_loo, rate_null)
+        llr = calc_llr_inh_poisson(spikes_altcond[:, i], rate_altcond_loo, rate_nullcond)
         accllr_altcond[:, i] = np.nancumsum(llr)
    
     # Nullcond trials: leave-one-out for nullcond model
     accllr_nullcond = np.zeros((nt, ntrial_nullcond))
     for i in range(ntrial_nullcond):
         if ntrial_nullcond > 1:
-            loo_nullcond = np.delete(spikes_nullcond, i, axis=1)
+            loo_nullcond = np.delete(spikes_nullcond_lowpass, i, axis=1)
         else:
-            loo_nullcond = spikes_nullcond
+            loo_nullcond = spikes_nullcond_lowpass
         rate_nullcond_loo = np.mean(loo_nullcond, axis=1)
         llr = calc_llr_inh_poisson(spikes_nullcond[:, i], rate_altcond, rate_nullcond_loo)
         accllr_nullcond[:, i] = np.nancumsum(llr)
@@ -654,7 +657,8 @@ def calc_accllr_st_single_ch(data_altcond_ch, data_nullcond_ch, lowpass_altcond_
         accllr_altcond, accllr_nullcond = calc_accllr_lfp(data_altcond_ch, data_nullcond_ch, 
                                                           lowpass_altcond_ch, lowpass_nullcond_ch)
     elif modality == 'spike':
-        accllr_altcond, accllr_nullcond = calc_accllr_spike(data_altcond_ch, data_nullcond_ch)
+        accllr_altcond, accllr_nullcond = calc_accllr_spike(data_altcond_ch, data_nullcond_ch,
+                                                            lowpass_altcond_ch, lowpass_nullcond_ch)
     else:
         raise ValueError("AccLLR currently only supports LFP and spike data")
         

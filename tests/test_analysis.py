@@ -1420,8 +1420,10 @@ class LatencyTests(unittest.TestCase):
         nullcond = np.random.poisson(0.1,size=altcond.shape)
         print(altcond.shape, nullcond.shape)
 
-        # Test wrapper with spike data and no selectivity matching and trial_average=True
-        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'spike', 1)
+        # Test wrapper with spike data and no selectivity matching
+        altcond_smooth = aopy.precondition.smooth_spike_raster(altcond, 1, 5)
+        nullcond_smooth = aopy.precondition.smooth_spike_raster(nullcond, 1, 5)
+        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond_smooth, nullcond_smooth, 'spike', 1)
         accllr_mean = np.nanmedian(st, axis=1)
 
         # Plot rasters sorted by latency
