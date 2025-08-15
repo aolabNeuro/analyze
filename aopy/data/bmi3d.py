@@ -344,7 +344,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_
     
     return dset, lfp_metadata
 
-def filter_ap_from_broadband(broadband_filepath, result_filepath, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_ap_from_broadband(broadband_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters action potential (AP) band data from a given broadband signal file into an hdf file.
 
@@ -378,7 +378,7 @@ def filter_ap_from_broadband(broadband_filepath, result_filepath, dtype='int16',
 
     # Create an hdf dataset
     ap_hdf = h5py.File(result_filepath, 'a')
-    dset = ap_hdf.create_dataset('ap_data', (n_samples, n_channels), dtype=dtype)
+    dset = ap_hdf.create_dataset(f'drive{drive_number}/ap_data', (n_samples, n_channels), dtype=dtype)
 
     # Figure out how much data we can load at once
     max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
@@ -404,6 +404,8 @@ def filter_ap_from_broadband(broadband_filepath, result_filepath, dtype='int16',
             n_ch += channel_chunksize
         n_samples_read += time_chunksize
         
+    if mean_subtract:
+        dset -= np.mean(dset, axis=0, dtype=dtype) # hopefully this isn't constrained by memory
     bb_hdf.close()
 
     # Append the ap metadata to the file
@@ -413,6 +415,61 @@ def filter_ap_from_broadband(broadband_filepath, result_filepath, dtype='int16',
     ap_metadata.update(filter_kwargs)
     
     return dset, ap_metadata
+
+def filter_ap_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    # TODO
+    pass
+
+def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6', max_memory_gb=1., **detect_kwargs):
+    '''
+    '''
+    # Create an hdf dataset
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype('int16').itemsize)
+    chunksize = min(ap_metadata['n_samples'], max_samples)
+
+    # Load the AP band dataset
+    ap_data = []
+    ap_metadata = []
+
+    # Detect spikes above threshold
+    threshold = precondition.calc_spike_threshold(ap_data, high_threshold=True, **detect_kwargs)
+    spike_times, spike_waveforms = precondition.detect_spikes_chunk(abs(ap_data), ap_metadata['samplerate'], 
+                                                                threshold, chunksize, above_thresh=True, **detect_kwargs)
+
+    # Filter out refractory violations
+    filtered_spike_times = []
+    filtered_spike_waveforms = []
+    for ichan in range(len(spike_times)):
+        times, idx = precondition.filter_spike_times_fast(spike_times[ichan])
+        filtered_spike_times.append(times)
+        filtered_spike_waveforms.append(spike_waveforms[ichan][idx,:])    
+
+    ### TODO
+    # Create an hdf dataset
+    ap_hdf = h5py.File(result_filepath, 'a')
+    dset = ap_hdf.create_dataset(f'drive{drive_number}/ap_data', (n_samples, n_channels), dtype=dtype)
+
+    ### from proc_neuropixel_spikes()
+    # Save synchonized spike times and waveforms into hdf file
+    hdf = h5py.File(result_filename, 'a', track_order=True)
+    spike_group = hdf.create_group(f'drive{port_number}/spikes', track_order=True)
+    waveform_group = hdf.create_group(f'drive{port_number}/waveforms', track_order=True)
+
+    for iunit in np.unique(spike_clusters):
+        spike_group.create_dataset(f'{iunit}',data=sync_unit_times[f'{iunit}'])
+        waveform_group.create_dataset(f'{iunit}',data=unit_waveforms[f'{iunit}'])
+    hdf.close()
+    ### TODO
+
+    # Append the spike metadata to the file
+    spike_metadata = ap_metadata
+    spike_metadata['spike_threshold'] = threshold
+    spike_metadata['refractory_violations_removed'] = True
+    spike_metadata.update(detect_kwargs)
+
+    return dset, spike_metadata
 
 def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
