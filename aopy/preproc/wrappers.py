@@ -124,7 +124,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             spikes_filename,
             kilosort_dir=kilosort_dir,
             overwrite=overwrite,
-            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+            detect_kwargs=kwargs # pass any remaining kwargs to the spike detection function
         )
     if 'emg' in preproc_jobs:
         print('processing emg data...')
