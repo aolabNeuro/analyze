@@ -603,7 +603,7 @@ def calc_accllr_st_single_ch(data_altcond_ch, data_nullcond_ch, lowpass_altcond_
     return selection_time_altcond, roc_auc, roc_se
 
 def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond,
-                           modality, bin_width, nlevels, parallel):
+                           modality, bin_width, nlevels, parallel, verbose):
     '''
     Worker function for calc_accllr_st(). 
 
@@ -619,6 +619,7 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
         parallel (bool or mp.pool.Pool): whether to use parallel processing. Can optionally be a pool object
             to use an existing pool. If True, a new pool is created with the number of CPUs available. If False,
             computation is done serially.
+        verbose (bool): Print progress.
 
     Returns:
         tuple: tuple containing:
@@ -648,7 +649,10 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
                           for ich in range(nch)]
 
         # result_objects is a list of pool.ApplyResult objects
-        results = [r.get() for r in result_objects]
+        if verbose:
+            results = list(tqdm((r.get() for r in result_objects), total=nch, leave=False))
+        else:
+            results = [r.get() for r in result_objects]
         selection_time_altcond, roc_auc, roc_se = zip(*results)
         selection_time_altcond = np.array(selection_time_altcond)
         roc_auc = np.squeeze(roc_auc)
@@ -661,7 +665,11 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
         selection_time_altcond = np.zeros((nch, ntrials))*np.nan
         roc_auc = np.zeros((nch,))*np.nan
         roc_se = np.zeros((nch,))*np.nan
-        for ich in tqdm(range(nch), desc="AccLLR wrapper", leave=False):
+        if verbose:
+            iterator = tqdm(range(nch), leave=False)
+        else:
+            iterator = range(nch)
+        for ich in iterator:
             (selection_time_altcond[ich,:], roc_auc[ich], 
              roc_se[ich]) = calc_accllr_st_single_ch(data_altcond[:,ich,:], data_nullcond[:,ich,:], 
                                                      lowpass_altcond[:,ich,:], lowpass_nullcond[:,ich,:],
@@ -671,7 +679,7 @@ def _calc_accllr_st_worker(data_altcond, data_nullcond, lowpass_altcond, lowpass
             
 def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcond, 
                    modality, bin_width, nlevels=None, match_selectivity=False, 
-                   match_ch=None, noise_sd_step=1, parallel=True):
+                   match_ch=None, noise_sd_step=1, parallel=True, verbose=True):
     '''
     Calculate accllr selection time for a multiple channels with optional selectivity
     matching. Selectivity is defined by the area under the ROC curve. To match 
@@ -687,6 +695,33 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
     Note: 
         No noise is added to the models built on the lowpass versions of data. It is unclear how
         this step was performed in the original paper.
+
+    Args:
+        data_altcond ((nt, nch, ntrial)): lfp channel data for trials from the alternative condition
+        data_nullcond ((nt, nch, ntrial)): lfp channel data for trials from the null condition
+        lowpass_altcond ((nt, nch, ntrial) array): low-pass filtered copy of alternative condition trials. If
+            desired, just pass the lfp_altcond again to avoid using a low-pass filtered version for model building.
+        lowpass_nullcond ((nt, nch, ntrial) array): low-pass filtered copy of null condition trials
+        modality (str): type of data being inputted ("lfp", "spikes", etc.)
+        bin_width (float): bin width of input activity, or 1./samplerate for lfp data
+        nlevels (int): number of levels at which to test accllr performance
+        match_selectivity (bool, optional): if True, add noise to input data to match selectivity across channels.
+            Default False.
+        match_ch ((nch,) bool array or None, optional): if set, limit selectivity matching to only these 
+            channels. Default None.
+        noise_sd_step (float, optional): standard deviation step size to take when adding noise to ch data. 
+            Default 1.
+        parallel (bool or mp.pool.Pool): whether to use parallel processing. Can optionally be a pool object
+            to use an existing pool. If True, a new pool is created with the number of CPUs available. If False,
+            computation is done serially across channels.
+        verbose (bool, optional): Print progress. Defaults to True.
+            
+    Returns:
+        tuple: tuple containing:
+            | **selection_time (nch, ntrials):** time (in s) at which each trial 
+            | **roc_auc (nch,):** area under the curve from receiver operating characteristic analysis
+            | **roc_se (nch,):** error across trials of the auc analysis
+            | **roc_p_fdrc (nch,):** p-value for each channel after false-discovery-rate correction
 
     Examples:
 
@@ -713,32 +748,6 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
         Note that the selection times for the two larger peaks have shifted slightly to the right,
         but are still earlier than the smaller peak, despite having the same (or lower) selectivity.
         Thus, we can be confident that the bigger peaks appear faster than the smaller one.
-
-    Args:
-        data_altcond ((nt, nch, ntrial)): lfp channel data for trials from the alternative condition
-        data_nullcond ((nt, nch, ntrial)): lfp channel data for trials from the null condition
-        lowpass_altcond ((nt, nch, ntrial) array): low-pass filtered copy of alternative condition trials. If
-            desired, just pass the lfp_altcond again to avoid using a low-pass filtered version for model building.
-        lowpass_nullcond ((nt, nch, ntrial) array): low-pass filtered copy of null condition trials
-        modality (str): type of data being inputted ("lfp", "spikes", etc.)
-        bin_width (float): bin width of input activity, or 1./samplerate for lfp data
-        nlevels (int): number of levels at which to test accllr performance
-        match_selectivity (bool, optional): if True, add noise to input data to match selectivity across channels.
-            Default False.
-        match_ch ((nch,) bool array or None, optional): if set, limit selectivity matching to only these 
-            channels. Default None.
-        noise_sd_step (float, optional): standard deviation step size to take when adding noise to ch data. 
-            Default 1.
-        parallel (bool or mp.pool.Pool): whether to use parallel processing. Can optionally be a pool object
-            to use an existing pool. If True, a new pool is created with the number of CPUs available. If False,
-            computation is done serially across channels.
-            
-    Returns:
-        tuple: tuple containing:
-            | **selection_time (nch, ntrials):** time (in s) at which each trial 
-            | **roc_auc (nch,):** area under the curve from receiver operating characteristic analysis
-            | **roc_se (nch,):** error across trials of the auc analysis
-            | **roc_p_fdrc (nch,):** p-value for each channel after false-discovery-rate correction
     '''
     # Calculate an initial analysis
     nt = data_altcond.shape[0]
@@ -749,7 +758,7 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
     (selection_time_altcond, 
      roc_auc, roc_se) = _calc_accllr_st_worker(data_altcond, data_nullcond, 
                                                lowpass_altcond, lowpass_nullcond, modality, 
-                                               bin_width, nlevels, parallel)
+                                               bin_width, nlevels, parallel, verbose)
     
     # Optionally perform selectivity matching
     if match_ch is None:
@@ -761,11 +770,13 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
 
         # Find selective channel with the lowest ROC AUC
         match_ch_prob = np.min(roc_auc[match_ch])
-        print(f"Matching selectivity to {match_ch_prob:0.4f}. Largest selectivity is {np.max(roc_auc[match_ch]):0.4f}")
+        if verbose:
+            print(f"Matching selectivity to {match_ch_prob:0.4f}. Largest selectivity is {np.max(roc_auc[match_ch]):0.4f}")
         match_ch_idx = roc_auc <= match_ch_prob
 
         # Use the ROC AUC to match selectivity across channels   
-        pbar = tqdm(total=nch-np.sum(match_ch_idx), desc="Matching selectivity")
+        if verbose:
+            pbar = tqdm(total=nch-np.sum(match_ch_idx), desc="Matching selectivity")
         noise_sd = noise_sd_step
         while np.sum(match_ch_idx) < nch:
             
@@ -782,13 +793,15 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
             roc_se[unmatch_chs_idx]) = \
                 _calc_accllr_st_worker(data_altcond[:,unmatch_chs_idx,:], data_nullcond[:,unmatch_chs_idx,:],
                                        lowpass_altcond[:,unmatch_chs_idx,:], lowpass_nullcond[:,unmatch_chs_idx,:],
-                                       modality, bin_width, nlevels, parallel)
+                                       modality, bin_width, nlevels, parallel, verbose)
 
             match_ch_idx = roc_auc <= match_ch_prob
             noise_sd += noise_sd_step
-            pbar.update(np.sum(match_ch_idx[unmatch_chs_idx]))
+            if verbose:
+                pbar.update(np.sum(match_ch_idx[unmatch_chs_idx]))
             
-        pbar.close()
+        if verbose:
+            pbar.close()
 
     # Finally calculate an FDR-corrected p-value across all channels
     z = (roc_auc-0.5)/roc_se # null hypothesis auc=0.5 (chance)

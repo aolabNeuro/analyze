@@ -198,7 +198,7 @@ def proc_ecube_data(data_path, data_source, result_filepath, result_name='broadb
 
     return dset, metadata
 
-def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from a given broadband signal file into an hdf file.
 
@@ -234,7 +234,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
 
     # Create an hdf dataset
     lfp_hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = lfp_hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+    dset = lfp_hdf.create_dataset(f'drive{drive_number}/lfp_data', (lfp_samples, n_channels), dtype=dtype)
 
     # Figure out how much data we can load at once
     max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
@@ -276,7 +276,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, mean_subtract
     
     return dset, lfp_metadata
 
-def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
     '''
     Filters local field potential (LFP) data from an eCube recording file.
 
@@ -321,7 +321,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, mean_subtract=True, d
 
     # Create an hdf dataset
     hdf = h5py.File(result_filepath, 'a') # should append existing or write new?
-    dset = hdf.create_dataset('lfp_data', (lfp_samples, n_channels), dtype=dtype)
+    dset = hdf.create_dataset(f'drive{drive_number}/lfp_data', (lfp_samples, n_channels), dtype=dtype)
 
     # Filter broadband data into LFP directly into the hdf file
     n_lfp_samples = 0
@@ -904,21 +904,13 @@ def get_velocity_segments(*args, norm=True, **kwargs):
             | **velocities (ntrial):** array of velocity estimates for each trial
             | **trial_segments (ntrial):** array of numeric code segments for each trial
     '''
-    def preproc(pos, fs):
-        time = np.arange(pos.shape[0])/fs
-        return derivative(time, pos, norm=norm), fs
-    return get_kinematic_segments(*args, **kwargs, preproc=preproc)
+    return get_kinematic_segments(*args, **kwargs, deriv=1, norm=norm)
 
 @lru_cache(maxsize=1)
 def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, step=1, preproc=None, **kwargs):
     '''
     Return interpolated task data. Wraps :func:`~aopy.data.bmi3d.get_interp_task_data` but 
     caches the data for faster loading.
-
-    Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
-        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
-        same samplerate.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -971,24 +963,21 @@ def get_task_data(preproc_dir, subject, te_id, date, datatype, samplerate=None, 
     return data, samplerate
 
 @lru_cache(maxsize=1)
-def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, datatype='cursor', **kwargs):
+def get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype='cursor', 
+                   deriv=0, norm=False, filter_kinematics=False, **kwargs):
     '''
     Return all kinds of kinematics from preprocessed data. Caches the data for faster loading. 
-
-    Note: 
-        You can avoid the phase shift in downsampled data when using get_interp_task_data by setting 
-        upsamplerate=samplerate, so that it doesn't do any up/down sampling, only interpolation at the 
-        same samplerate.
 
     Args:
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
         te_id (int): Block number of Task entry object 
         date (str): Date of recording
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
+        samplerate (float): the desired samplerate of the data in Hz.
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.   
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
+        filter_kinematics (bool, optional): if True, the kinematics will be filtered. Default False.
         kwargs: additional keyword arguments to pass to get_interp_task_data 
 
     Raises:
@@ -999,8 +988,30 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             | **kinematics (nt, nch):** kinematics from the given experiment after preprocessing
             | **samplerate (float):** the sampling rate of the kinematics after preprocessing
     '''   
-    if 'eye' in datatype:
+    eye_filename = base.get_preprocessed_filename(subject, te_id, date, 'eye')
+    eye_filepath = os.path.join(preproc_dir, subject, eye_filename)
+    if 'eye' in datatype and os.path.exists(eye_filepath):
         eye_data, eye_metadata = base.load_preproc_eye_data(preproc_dir, subject, te_id, date)
+        
+        # Define a preproc function for eye data
+        low_cut = kwargs.pop('low_cut', 200.0)
+        buttord = kwargs.pop('buttord', 4)
+        savgol_window_ms = kwargs.pop('savgol_window_ms', 20)
+        def preproc(kin, fs):
+            if filter_kinematics:
+                kin, fs = precondition.filter_kinematics(kin, fs,
+                    low_cut=low_cut, buttord=buttord,
+                    deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm)
+            if samplerate < fs:
+                return precondition.downsample(kin, fs, samplerate), samplerate
+            elif samplerate > fs:
+                time = np.arange(len(kin))/fs
+                interp, _ = interp_timestamps2timeseries(time, kin, samplerate)
+                return interp, samplerate
+            else:
+                return kin, fs
+
+        # Preprocess eye data based on the datatype
         if datatype == 'eye_raw':
             eye_data = eye_data['raw_data']
         elif datatype == 'eye_closed_mask':
@@ -1009,24 +1020,29 @@ def get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc=None, 
             eye_data = eye_data['calibrated_data']
         else:
             raise ValueError(f"No calibrated eye data for {te_id}")
-        
-        time = np.arange(len(eye_data))/eye_metadata['samplerate']
-        raw_kinematics, _ = interp_timestamps2timeseries(time, eye_data, samplerate)
-
-        time = np.arange(len(raw_kinematics))/samplerate
-        if preproc is not None:
-            kinematics, samplerate = preproc(raw_kinematics, samplerate)
-        else:
-            kinematics = raw_kinematics
+        kinematics, samplerate = preproc(eye_data, eye_metadata['samplerate'])
 
     else:
+
+        # Apply a filter to task data
+        low_cut = kwargs.pop('low_cut', 15.0)
+        if not filter_kinematics:
+            low_cut = None
+        buttord = kwargs.pop('buttord', 4)
+        savgol_window_ms = kwargs.pop('savgol_window_ms', 50)
+        def preproc(kin, fs):
+            return precondition.filter_kinematics(kin, fs,
+            low_cut=low_cut, buttord=buttord,
+            deriv=deriv, savgol_window_ms=savgol_window_ms, norm=norm)
+        
         kinematics, samplerate = get_task_data(preproc_dir, subject, te_id, date, datatype, 
                                                samplerate, preproc=preproc, **kwargs)
-
+        
     return kinematics, samplerate
 
 def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_time, samplerate, 
-                          preproc=None, datatype='cursor', return_nan=False, **kwargs):
+                          datatype='cursor', deriv=0, norm=False, filter_kinematics=False,
+                          return_nan=False, **kwargs):
     '''
     Helper function to return one segment of kinematics.
 
@@ -1038,9 +1054,10 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
         start_time (float): start of a trial
         end_time (float): end of a trial
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
-            a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
+        filter_kinematics (bool, optional): if True, the kinematics will be filtered. Default False.
         return_nan (bool, optional): If True, a nan value will be returned when data can not be loaded for any reason. If False, an exception will be raised when data can not be loaded. Defaults to False.
         kwargs: additional keyword arguments to pass to get_kinematics
     
@@ -1051,7 +1068,9 @@ def _get_kinematic_segment(preproc_dir, subject, te_id, date, start_time, end_ti
 
     '''
     try:
-        kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, preproc, datatype, **kwargs)
+        kinematics, samplerate = get_kinematics(preproc_dir, subject, te_id, date, samplerate, datatype, 
+                                                deriv=deriv, norm=norm, filter_kinematics=filter_kinematics,
+                                                **kwargs)
         assert kinematics is not None
         return get_data_segment(kinematics, start_time, end_time, samplerate), samplerate
     except Exception as e:
@@ -1132,7 +1151,7 @@ def get_decoded_states(preproc_dir, subject, te_id, date, decoder, samplerate=No
                            end_time=end_time, datatype='decoder_state', preproc=preproc, **kwargs)
 
 def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           trial_filter=lambda x:True, preproc=None, datatype='cursor',
+                           trial_filter=lambda x:True, datatype='cursor', deriv=0, norm=False,
                            samplerate=1000, **kwargs):
     '''
     Loads x,y,z cursor, hand, or eye trajectories for each "trial" from a preprocessed HDF file. Trials can
@@ -1164,9 +1183,9 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         trial_end_codes (list): list of numeric codes representing the end of a trial
         trial_filter (fn, optional): function mapping trial segments to boolean values. Any trials
             for which the filter returns False will not be included in the output
-        preproc (fn, optional): function mapping (position, samplerate) data to kinematics. For example,
-            a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to load. Defaults to 'cursor'.    
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
         kwargs: additional keyword arguments to pass to get_kinematics
     
@@ -1179,7 +1198,8 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
         The sampling rate of the returned data might be different from the requested sampling rate if the
         preprocessing function does any modification to the length of the data.
 
-    Modified September 2023 to include optional sampling rate argument     
+    Modified September 2023 to include optional sampling rate argument 
+    Modified July 2025 to include optional deriv and norm arguments    
     '''
     data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
     event_codes = data['events']['code']
@@ -1187,7 +1207,8 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     trial_segments, trial_times = get_trial_segments(event_codes, event_times, 
                                                                   trial_start_codes, trial_end_codes)
     segments = [
-        _get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, preproc, datatype, **kwargs)[0] 
+        _get_kinematic_segment(preproc_dir, subject, te_id, date, t[0], t[1], samplerate, datatype, 
+                               deriv=deriv, norm=norm, **kwargs)[0] 
         for t in trial_times
     ]
     trajectories = np.array(segments, dtype='object')
@@ -1197,7 +1218,7 @@ def get_kinematic_segments(preproc_dir, subject, te_id, date, trial_start_codes,
     return trajectories[success_trials], trial_segments[success_trials]
 
 def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           trial_filter=lambda x:True):
+                           drive_number=None, trial_filter=lambda x:True):
     '''
     Loads lfp segments (different length for each trial) from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -1221,7 +1242,7 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
 
     '''
     data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=drive_number)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1237,7 +1258,7 @@ def get_lfp_segments(preproc_dir, subject, te_id, date, trial_start_codes, trial
 
 
 def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_end_codes, 
-                           time_before, time_after, trial_filter=lambda x:True):
+                           time_before, time_after, drive_number=None, trial_filter=lambda x:True):
     '''
     Loads lfp data (same length for each trial) from a preprocessed HDF file. Trials can
     be specified by numeric start and end codes. Trials can also be filtered so that only successful
@@ -1261,7 +1282,7 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
 
     '''
     data, metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
-    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date)
+    lfp_data, lfp_metadata = base.load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=drive_number)
     samplerate = lfp_metadata['lfp_samplerate']
 
     event_codes = data['events']['code']
@@ -1277,7 +1298,7 @@ def get_lfp_aligned(preproc_dir, subject, te_id, date, trial_start_codes, trial_
     return trial_aligned_data[:,:,success_trials]
 
 def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_before, time_after,
-                      channels=None, datatype='lfp'):
+                      drive_number=None, channels=None, datatype='lfp'):
     '''
     Simple wrapper around load_hdf_ts_trial for lfp or broadband data.
     
@@ -1298,13 +1319,25 @@ def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_befo
             | **samplerate (float):** sampling rate of the returned data
     '''
     data_group='/'
-    data_name=f'{datatype}_data'
-    metadata_group=f'{datatype}_metadata'
     samplerate_key='samplerate'
     if datatype == 'lfp':
         samplerate_key='lfp_samplerate'
     filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
+
+    group_names = base.list_root_groups(preproc_dir, filename)
+    if drive_number:
+        data_name=f'drive{drive_number}/{datatype}_data'
+        metadata_group=f'drive{drive_number}/{datatype}_metadata'
+                
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+        
+        data_name=f'{datatype}_data'
+        metadata_group=f'{datatype}_metadata'
 
     try:
         samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
@@ -1317,7 +1350,7 @@ def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_befo
     return data, samplerate
 
 def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
-                        channels=None, datatype='lfp'):
+                        drive_number=None, channels=None, datatype='lfp'):
     '''
     Simple wrapper around load_hdf_ts_segment for lfp or broadband data.
     
@@ -1338,13 +1371,25 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
             | **samplerate (float):** sampling rate of the returned data
     '''
     data_group='/'
-    data_name=f'{datatype}_data'
-    metadata_group=f'{datatype}_metadata'
     samplerate_key='samplerate'
     if datatype == 'lfp':
         samplerate_key='lfp_samplerate'
     filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
+    group_names = base.list_root_groups(preproc_dir, filename)
+
+    if drive_number:
+        data_name=f'drive{drive_number}/{datatype}_data'
+        metadata_group=f'drive{drive_number}/{datatype}_metadata'
+                
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+        
+        data_name=f'{datatype}_data'
+        metadata_group=f'{datatype}_metadata'
 
     try:
         samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
@@ -1425,8 +1470,8 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, tim
     
     # Define relevant variables
     samplerate = int(np.round(1/bin_width))
-    bins = np.arange(-time_before, time_after, bin_width) + bin_width/2
-    ntime = int(np.round((time_after+time_before)/bin_width))
+    ntime = int(np.floor((time_after+time_before)/bin_width))
+    bins = (np.arange(ntime)/samplerate) - time_before + bin_width/2
     nch = len(spike_data)
     ntrials = len(trigger_times)
     
@@ -2512,6 +2557,145 @@ def tabulate_behavior_data_tracking_task(preproc_dir, subjects, ids, dates, meta
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
+def tabulate_behavior_data_random_targets(preproc_dir, subjects, ids, dates, metadata=[], 
+                                      df=None):
+    '''
+    Wrapper around tabulate_behavior_data() specifically for random target location experiments. 
+    Uses the task event names (b'TARGET_ON' and b'TRIAL_END', specifically) to find start and end times for experiments.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        metadata (list, optional): list of metadata keys that should be included in the df
+        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None. 
+
+    Returns:
+        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns:
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_names (ntrial):** event name segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **target_idx (ntrial): ** target index for each trial within a unique data session
+            | **target_loc (ntrial): ** target locations (x,y,z) for each trial 
+            | **prev_trial_end_time (ntrial): **time at which previous trial ended
+            | **trial_end_time (ntrial): ** time at which trial ended 
+            | **target on (ntrial): ** time at which target appears 
+            | **reach completed (ntrial): **boolean indicating whether reach was completed 
+            | **cursor_enter_target(ntrial): **time at which cursor enters target
+            | **reward_start_time (ntrial): **time of reward 
+            | **penalty_start_time (ntrial): **penalty start time (if applicable)
+            | **penalty_event(ntrial): ** event description of penalty 
+    
+        Examples:
+            
+            Visualization of 5 reaches to random targets. 
+
+           .. code-block:: python
+           
+               subjects = ['Leo', 'Leo']
+               ids = [1957, 1959]
+               dates = ['2025-02-13', '2025-02-13']
+
+               df = tabulate_behavior_data_random_targets(data_dir, subjects, ids, dates, metadata = ['sequence_params'])
+               example_reaches = df[-5:] #last 5 reaches in the earlier dataframe
+               example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
+                                               example_reaches['date'], example_reaches['target_on'], 
+                                               example_reaches['cursor_enter_target'], datatype = 'cursor')
+               ex_targets = example_reaches['target_location'].to_numpy()
+               bounds = [-5,5,-5,5,-5,5] #equal bounds to make visualization appear as spheres
+               default_colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+               colors = default_colors[:len(ex_targets)] #match colors from the trajectories
+               
+               fig = plt.figure()
+               ax = fig.add_subplot(111, projection = '3d')
+               for idx, path in enumerate(example_traj):
+                   ax.plot(*path.T)
+                   visualization.plot_sphere(ex_targets[idx], color = colors[idx], radius = 0.5, 
+                                      bounds = bounds, ax = ax)
+
+            .. image:: _images/tabulate_behavior_random_targets.png
+
+    '''
+    # Set up how to tabulate based on event_code_type.
+    #event_code_type == 'event':
+    trial_end_codes = [b'TRIAL_END', b'PAUSE']
+    trial_start_codes = [b'TARGET_ON']
+    reward_codes = [b'REWARD']
+    penalty_codes = [b'HOLD_PENALTY', b'DELAY_PENALTY', b'TIMEOUT_PENALTY',b'OTHER_PENALTY']
+    
+    new_df = tabulate_behavior_data(
+        preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
+        reward_codes, penalty_codes, metadata = metadata, df=None, event_code_type= 'event') 
+
+    match_filter = b'TARGET_ON'
+    event_mask = new_df['event_codes'].apply(lambda x: x == match_filter)
+    
+    index_locs = []
+    for idx, row in new_df.iterrows():
+        index_locs.extend(np.array(row['event_idx'])[event_mask[idx]].tolist())
+
+    entries_list = list(zip(subjects, dates, ids)) #get unique entries 
+
+    target_idx = []
+    target_loc = []
+    for subject, date, te in entries_list: 
+    
+        df_sub = new_df[(new_df['subject']==subject) & (new_df['te_id']==te) & (new_df['date']==date)].index.tolist() #dataframe subset
+    
+        exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date) #need to reload data 
+     
+        idxloc_sub = np.array(index_locs)[df_sub] #subset 
+        targ_idx = [exp_data['bmi3d_events']['data'][val] for val in idxloc_sub]
+    
+        targ_loc = get_target_locations(preproc_dir,subject, te, date, targ_idx)
+        target_idx.extend(targ_idx)
+        target_loc.extend(targ_loc)
+    
+    new_df['target_idx'] = np.array(target_idx).flatten() #convert to list 
+    new_df['target_location'] = target_loc
+    new_df['target_on'] = np.nan
+    new_df['trial_end_time'] = np.nan
+    new_df['reach_completed'] = False
+    new_df['cursor_enter_target'] = np.nan
+    new_df['prev_trial_end_time'] = np.nan
+
+    for i in range(len(new_df)):
+        event_codes = new_df.loc[i,'event_codes'] #each row of event codes
+        event_times = new_df.loc[i, 'event_times'] #each row of event times 
+        
+        new_df.loc[i, 'target_on'] = event_times[np.isin(event_codes, b'TARGET_ON')] #populate target on 
+
+        if i > 0 and new_df.loc[i-1, 'event_times'][-1] < event_times[0]: #populate trial end times 
+            new_df.loc[i, 'prev_trial_end_time'] = new_df.loc[i-1, 'event_times'][-1]
+        else:
+            new_df.loc[i, 'prev_trial_end_time'] = 0. 
+        new_df.loc[i, 'trial_end_time'] = event_times[-1]
+
+        #trial initiated if cursor enters target 
+        reach_times = event_times[np.isin(event_codes, b'CURSOR_ENTER_TARGET')]
+        new_df.loc[i, 'reach_completed'] = len(reach_times) > 0 
+        if new_df.loc[i, 'reach_completed']:
+            new_df.loc[i, 'cursor_enter_target'] = reach_times[0]
+        #populate reward times
+        reward_codes = [b'REWARD']
+        reward_times = event_times[np.isin(event_codes, reward_codes)]
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+        #populate penalty times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        pcode = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = pcode[0]
+    
+    df = pd.concat([df, new_df], ignore_index = True)
+    return df
+
 def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
                        debug=True, df=None, **kwargs):
     '''
@@ -2697,9 +2881,12 @@ def tabulate_poisson_trial_times(preproc_dir, subjects, ids, dates, metadata=[],
     return df
 
 def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, 
-                            samplerate=1000, preproc=None, datatype='cursor', **kwargs):
+                            samplerate=1000, deriv=0, norm=False, datatype='cursor', 
+                            filter_kinematics=False, **kwargs):
     '''
-    Grab kinematics data from trials across arbitrary preprocessed files.
+    Grab kinematics data from trials across arbitrary preprocessed files. Before segmenting,
+    filters data using :func:`~aopy.preproc.filter_kinematics` (default 15 Hz low-pass) and
+    optionally applies a derivate to the data to get velocity, acceleration, or jerk.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -2709,18 +2896,127 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
         start_times (list of float): times in the recording at which the desired segments starts
         end_times (list of float): times in the recording at which the desired segments ends
         samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
-        preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
-            a smoothing function or an estimate of velocity from position
         datatype (str, optional): type of kinematics to tabulate. Defaults to 'cursor'.  
+        deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
+        norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
+        filter_kinematics (bool, optional): if True, filters the kinematics data before segmenting. Default False.
         kwargs (dict, optional): optional keyword arguments to pass to :func:`~aopy.preproc.get_kinematic_segment`  
 
     Returns:
         (ntrial,): list of tensors of (nt, nch) kinematics from each trial
+
+    Examples:
+
+        .. code-block:: python
+
+            subjects = ['test']
+            ids = [3498]
+            dates = ['2021-12-13']
+
+            df = tabulate_behavior_data_center_out(write_dir, subjects, ids, dates, df=None)
+            
+            # Only consider completed reaches
+            df = df[df['reach_completed']]
+            kin = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        datatype='cursor', samplerate=1000)
+
+            plt.figure()
+            bounds = [-10, 10, -10, 10]
+            visualization.plot_trajectories(kin, bounds=bounds)
+            
+        .. image:: _images/tabulate_kinematics.png
+            
+        .. code-block:: python
+
+            dst = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        deriv=0, norm=True, datatype='cursor', samplerate=1000)
+            spd = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        deriv=1, norm=True, datatype='cursor', samplerate=1000)
+            acc = tabulate_kinematic_data(write_dir, df['subject'], df['te_id'], df['date'], df['go_cue_time'], df['reach_end_time'], 
+                                        deriv=2, norm=True, datatype='cursor', samplerate=1000)
+            plt.figure()
+            visualization.plot_timeseries(dst[0], 1000)
+            visualization.plot_timeseries(spd[0], 1000)
+            visualization.plot_timeseries(acc[0], 1000)
+            plt.legend(['distance', 'speed', 'acceleration'])
+            plt.xlabel('time from go cue (s)')
+            plt.ylabel('kinematics (cm)')
+
+        .. image:: _images/tabulate_kinematics_derivative.png
+
+        .. code-block:: python
+
+            subject = 'CES003'
+            te_id = 2234
+            date = '2025-03-04'
+            df = tabulate_behavior_data_center_out(data_dir, [subject], [te_id], [date])
+            df = df[df['reach_completed']]
+            plot_kin(df, 'go_cue_time', 'reach_end_time')
+        
+        .. image:: _images/tabulate_kinematics_ces.png
+
+        Different interpolation options:
+
+        .. code-block:: python
+
+                raw = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='cursor', samplerate=1000)
+                raw_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='cursor', samplerate=1000, low_cut=5, buttord=2,
+                                            filter_kinematics=True)
+                nan = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000, remove_nan=False)
+                nan_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000, low_cut=5, buttord=2, 
+                                            filter_kinematics=True, remove_nan=False)
+                pos = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000)
+                pos_filt = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            datatype='user_screen', samplerate=1000, low_cut=5, buttord=2,
+                                            filter_kinematics=True)       
+                spd = tabulate_kinematic_data(data_dir, df['subject'], df['te_id'], df['date'], 
+                                            df['go_cue_time'], df['reach_end_time'], 
+                                            deriv=1, norm=True, datatype='cursor', samplerate=1000,
+                                            filter_kinematics=True)
+                weird_trials = np.where([np.any(s > 500) for s in spd])[0]
+                plt.figure(figsize=(5,6))
+                plt.subplot(3,1,1)
+                for i in weird_trials:
+                    visualization.plot_timeseries(raw[i][:,0], 1000)
+                    visualization.plot_timeseries(raw_filt[i][:,0], 1000, color='k', alpha=0.5)
+                plt.ylabel('x position (cm)')
+                plt.xlabel('')
+                plt.title('cursor')
+                plt.legend(['raw', 'filtered'])
+                plt.subplot(3,1,2)
+                for i in weird_trials:
+                    visualization.plot_timeseries(nan[i][:,0], 1000)
+                    visualization.plot_timeseries(nan_filt[i][:,0], 1000, color='k', alpha=0.5)
+                plt.ylabel('x position (cm)')
+                plt.xlabel('time from go cue (s)')
+                plt.title('user_screen')
+                plt.subplot(3,1,3)
+                for i in weird_trials:
+                    visualization.plot_timeseries(pos[i][:,0], 1000)
+                    visualization.plot_timeseries(pos_filt[i][:,0], 1000, color='k', alpha=0.5)
+                plt.ylabel('x position (cm)')
+                plt.xlabel('time from go cue (s)')
+                plt.title('user_screen interp')
+                plt.tight_layout()
+
+        .. image:: _images/kinematics_interpolation.png
     '''
 
     assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
-    
-    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, preproc, datatype, **kwargs)[0] 
+    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, datatype, 
+                                       deriv=deriv, norm=norm, filter_kinematics=filter_kinematics,
+                                       **kwargs)[0] 
                 for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
     trajectories = np.array(segments, dtype='object')
     return trajectories
@@ -2967,7 +3263,7 @@ def tabulate_state_data(preproc_dir, subjects, te_ids, dates, start_times, end_t
                               datatype, samplerate=samplerate, steps=steps, preproc=preproc, **kwargs)
 
 def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_before, time_after, 
-                     channels=None, datatype='lfp'):
+                     drive_number=None, channels=None, datatype='lfp'):
     '''
     Grab rectangular timeseries data from trials across arbitrary preprocessed files.
     
@@ -2993,7 +3289,7 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
     # Get the first trial
     segment_1, samplerate = get_ts_data_trial(
         preproc_dir, subjects[0], te_ids[0], dates[0], trigger_times[0], 
-        time_before, time_after, channels=channels, datatype=datatype
+        time_before, time_after, drive_number=drive_number, channels=channels, datatype=datatype
     )
         
     # Construct the tensor using the first trial as a template
@@ -3008,14 +3304,14 @@ def tabulate_ts_data(preproc_dir, subjects, te_ids, dates, trigger_times, time_b
     for s, t, d, tr in list(zip(subjects, te_ids, dates, trigger_times))[1:]:
         segments[:,:,idx] = get_ts_data_trial(preproc_dir, s, t, d, tr, 
                                               time_before, time_after, 
-                                              channels=channels, datatype=datatype)[0]
+                                              drive_number=drive_number, channels=channels, datatype=datatype)[0]
         idx += 1
         
     return segments, samplerate
 
 # Also, tabulate_ts_data has some errors in the docstring!
 def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_times,
-                         channels=None, datatype='lfp'):
+                         drive_number=None, channels=None, datatype='lfp'):
     '''
     Grab nonrectangular timeseries data from trials across arbitrary preprocessed files.
     
@@ -3041,7 +3337,7 @@ def tabulate_ts_segments(preproc_dir, subjects, te_ids, dates, start_times, end_
     segments = []
     for s, t, d, st, et in list(zip(subjects, te_ids, dates, start_times, end_times)):
         segment, samplerate = get_ts_data_segment(preproc_dir, s, t, d, st, et, 
-                                                  channels=channels, datatype=datatype)
+                                                  drive_number=drive_number, channels=channels, datatype=datatype)
         segments.append(segment)
         
     return segments, samplerate

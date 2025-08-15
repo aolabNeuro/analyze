@@ -34,6 +34,10 @@ Examples:
 
 .. toctree::
 
+    examples/movement_onset_example.ipynb
+    
+.. toctree::
+
     examples/example_extract_features.ipynb
 
 .. toctree::

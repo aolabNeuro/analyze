@@ -7,6 +7,7 @@ import math
 
 from scipy import signal
 from scipy.signal import butter, filtfilt, windows
+from scipy.interpolate import interp1d
 import numpy as np
 
 from .. import analysis
@@ -728,7 +729,7 @@ def downsample(data, old_samplerate, new_samplerate):
     pad_shape = (pad_size,)
     if data.ndim > 1:
         pad_shape = np.concatenate(([pad_size], data.shape[1:]))
-    data_padded = np.append(data, np.zeros(pad_shape)*np.NaN, axis=0)
+    data_padded = np.append(data, np.zeros(pad_shape)*np.nan, axis=0)
 
     # Downsample using average
     if data.ndim == 1:
@@ -785,7 +786,8 @@ def filter_ap(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=
     b, a = butter(buttord, window, btype='bandpass', fs=samplerate)
     return filtfilt(b, a, broadband_data, axis=0)
 
-def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
+def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
+                      deriv=0, savgol_window_ms=50, savgol_polyorder=3, norm=False):
     '''
     Low-pass filter kinematics data to below 15 Hz by default. 
     Filter parameters taken from Bradberry, et al., 2009 
@@ -796,10 +798,16 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
         samplerate (float): sampling rate of the raw data
         low_cut (float, optional): cutoff frequency for low-pass filter. Defaults to 15 Hz
         buttord (int, optional): order for butterworth low-pass filter. Defaults to 4.
+        deriv (int, optional): apply a derivative to the data using Savitzky-Golay filter.
+            Default is 0, no derivative.
+        savgol_window_ms (float, optional): window length for Savitzky-Golay filter in milliseconds.
+            Default is 50 ms. If the window length is too small, it will be set to 3 samples.
+        savgol_polyorder (int, optional): polynomial order for Savitzky-Golay filter. Default is 3.
+        norm (bool, optional): if True, return the norm of the filtered data. Default is False.
 
     Returns:
         tuple: tuple containing:
-            | **filtere_data (nt, ...):** filtered kinematics data
+            | **filtered_data (nt, ...):** filtered kinematics data
             | **samplerate (float):** sampling rate of the kinematics data
 
     Examples:
@@ -829,7 +837,81 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4):
             ax['C'].set_ylabel('PSD')
 
         .. image:: _images/filter_kinematics.png
+
+        Apply a derivative to obtain velocity or acceleration:
+
+        .. code-block:: python
+
+            subject = 'test'
+            id = 8461
+            date = '2023-02-25'
+            exp_data, exp_metadata = aopy.data.base.load_preproc_exp_data(data_dir, subject, id, date)
+            x = aopy.data.get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=fs)[30*fs:35*fs,1]
+            t = np.arange(len(x)) / fs
+            x_filt_pos, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=0)
+            x_filt_vel, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=1)
+
+            # Compare to a simple derivative of the filtered position
+            x_filt_pos_deriv = utils.derivative(t, x_filt_pos, norm=False)
+
+            plt.figure(figsize=(5, 4))
+            plt.subplot(2,1,1)
+            plt.plot(t, x, label='Original signal')
+            plt.plot(t, x_filt_pos, label='Filtered position')
+            plt.ylabel('Position (cm)')
+            plt.legend()
+            plt.subplot(2,1,2)
+            plt.plot(t, x_filt_vel, label='Filtered velocity')
+            plt.plot(t, x_filt_pos_deriv, label='Filtered position derivative')
+            plt.xlabel('time (seconds)')
+            plt.ylabel('Velocity (cm/s)')
+            plt.legend()
+            
+        .. image:: _images/filter_kinematics_speed.png
+
+        .. code-block:: python
+
+            # Test acceleration
+            x_filt_acc, _ = precondition.filter_kinematics(x, fs, low_cut=15, buttord=4, deriv=2)
+            x_filt_pos_deriv_deriv = utils.derivative(t, x_filt_pos_deriv, norm=False)
+            
+            plt.figure(figsize=(5, 3))
+            plt.plot(t, x_filt_acc, label='Filtered acceleration')
+            plt.plot(t, x_filt_pos_deriv_deriv, label='Filtered position 2nd derivative')
+            plt.xlabel('time (seconds)')
+            plt.ylabel('Acceleration (cm/s^2)')
+            plt.legend()
+            plt.tight_layout()
+
+        .. image:: _images/filter_kinematics_accel.png
+        
+
     '''
-    b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
-    filtered_data = filtfilt(b, a, kinematic_data, axis=0)
+    # Remove nan
+    filtered_data = np.copy(kinematic_data)
+    if np.ndim(filtered_data) == 1:
+        filtered_data = filtered_data.reshape(-1, 1)
+    nan_mask = np.any(np.isnan(filtered_data), axis=1)
+    f = interp1d(np.flatnonzero(~nan_mask), filtered_data[~nan_mask], axis=0,
+                bounds_error=False, fill_value="extrapolate")
+    filtered_data[nan_mask] = f(np.flatnonzero(nan_mask))
+
+    # Low-pass filter and apply derivatives
+    if low_cut is not None:
+        b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
+        filtered_data = filtfilt(b, a, filtered_data, axis=0)
+    if deriv > 0:
+        window_length = int(np.ceil(savgol_window_ms * samplerate / 1000.)) | 1
+        if window_length < 3:
+            print("Warning: Savitzky-Golay filter window length is too small, setting to 3")
+            window_length = 3
+        filtered_data = signal.savgol_filter(filtered_data, window_length=window_length, 
+                                             delta=1./samplerate, polyorder=savgol_polyorder, 
+                                             deriv=deriv, axis=0)
+    if norm:
+        filtered_data = np.linalg.norm(filtered_data, axis=1)
+
+    # Append nan values back
+    filtered_data[nan_mask] = np.nan
+
     return filtered_data, samplerate

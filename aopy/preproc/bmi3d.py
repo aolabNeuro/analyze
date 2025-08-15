@@ -420,7 +420,15 @@ def _prepare_bmi3d_v0(data, metadata):
         warnings.warn("No task data found! Cannot accurately prepare bmi3d data")
         preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
         data['task'] = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
-        
+    
+    # Compare task and clock data
+    if abs(len(data['task']) - len(data['clock'])) == 1:
+        data['clock'] = data['clock'][:len(data['task'])]
+        data['task'] = data['task'][:len(data['clock'])]
+    elif len(data['task']) != len(data['clock']):
+        warnings.warn(f"Number of task cycles ({len(data['task'])}) doesn't match number of clock cycles ({len(data['clock'])}).")
+        preproc_errors.append(f"Number of task cycles ({len(data['task'])}) doesn't match number of clock cycles ({len(data['clock'])}).")
+
     if isinstance(data['task'], np.ndarray) and 'manual_input' in data['task'].dtype.names:
         data['clean_hand_position'] = data['task']['manual_input']
 
@@ -634,6 +642,14 @@ def _prepare_bmi3d_v1(data, metadata):
         warnings.warn("No task data found!")
         preproc_errors.append("No hdf task data found!")
         task = np.zeros((0,), dtype=[('time', 'f8'), ('cursor', 'f8', (3,))])
+
+    # Compare the task and clock data
+    if abs(len(task) - len(corrected_clock)) == 1:
+        corrected_clock = corrected_clock[:len(task)]
+        task = task[:len(corrected_clock)]
+    elif len(task) != len(corrected_clock):
+        warnings.warn(f"Number of task cycles ({len(task)}) doesn't match number of clock cycles ({len(corrected_clock)}).")
+        preproc_errors.append(f"Number of task cycles ({len(task)}) doesn't match number of clock cycles ({len(corrected_clock)}).")
 
     data.update({
         'task': task,
@@ -961,7 +977,8 @@ def get_target_events(exp_data, exp_metadata):
         (n_event, n_target, 3) array: position of each target at each event time.
     '''
     
-    events = exp_data['events']['code']
+    events = exp_data['events']['event']
+    event_data = exp_data['events']['data']
     trials = exp_data['bmi3d_trials']
     
     target_idx, location_idx = np.unique(trials['index'], axis=0, return_index=True)
@@ -970,25 +987,17 @@ def get_target_events(exp_data, exp_metadata):
     # Generate events for each unique target
     target_events = []
     for idx in range(len(locations)):
-        target_on_codes = [
-            exp_metadata['event_sync_dict']['TARGET_ON'] + target_idx[idx]
-        ]
-        target_off_codes = [
-            exp_metadata['event_sync_dict']['TARGET_OFF'] + target_idx[idx], 
-            exp_metadata['event_sync_dict']['TRIAL_END']
-        ]
-
         target_location = locations[idx]
     
-        # Create a nan mask encoding when the target is turned on
+        # Create a nan mask encoding when each target is turned on
         target_on = np.zeros((len(events),))
         on = np.nan
-        for idx, e in enumerate(events):
-            if e in target_on_codes:
+        for event_idx, (event, data) in enumerate(zip(events, event_data)):
+            if (event == b'TARGET_ON') and (data == target_idx[idx]):
                 on = 1
-            elif e in target_off_codes:
+            elif event == b'TRIAL_END' or ((event == b'TARGET_OFF') and (data == target_idx[idx])):
                 on = np.nan
-            target_on[idx] = on
+            target_on[event_idx] = on
         
         # Set the non-nan values to the target location
         event_target = target_location[None,:] * target_on[:,None]    
