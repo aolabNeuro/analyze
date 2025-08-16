@@ -422,7 +422,24 @@ def filter_ap_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_s
 
 def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6', max_memory_gb=1., **detect_kwargs):
     '''
+    Detects spikes using threshold crossings in a given action potential (AP) band file and saves the spike times and waveforms into an hdf file.
+
+    Args:
+        ap_filepath (str): Path to the input AP band file.
+        result_filepath (str): Path to save the detected spike times and waveforms.
+        dtype (str, optional): Data type for the filtered AP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **detect_kwargs: Additional keyword arguments to customize the spike detection process.
+                        These arguments will be passed to :func:`~aopy.precondition.calc_spike_threshold` and :func:`~aopy.precondition.detect_spikes_chunk`.
+
+    Raises:
+        IOError: If the input AP band file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the spike detection process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_spikes` wrapper.
     '''
+    ap_metadata = base.load_hdf_group('', ap_filepath, 'ap_metadata')
     if 'rms_multiplier' in detect_kwargs:
         rms_multiplier = detect_kwargs.pop('rms_muliplier')
     else:
@@ -438,12 +455,14 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     waveform_group = hdf.create_group(f'drive{drive_number}/waveforms', track_order=True)
 
     # Figure out how much data we can load at once
-    max_samples = int(max_memory_gb * 1e9 / np.dtype('int16').itemsize)
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
     chunksize = min(ap_metadata['n_samples'], max_samples)
 
-    # Load the AP band dataset - TODO
-    ap_data = []
-    ap_metadata = []
+    # Load the AP band dataset
+    ap_hdf = h5py.File(ap_filepath, 'r')
+    if 'ap_data' not in ap_hdf:
+        raise ValueError(f'ap_data not found in file {ap_filepath}')
+    ap_data = ap_hdf['ap_data']
 
     # Detect spikes above threshold
     threshold = precondition.calc_spike_threshold(ap_data, high_threshold=True, rms_multipler=rms_multiplier)
@@ -451,16 +470,19 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
                                                                 threshold, chunksize, above_thresh=True, **detect_kwargs)
 
     # Filter out refractory violations and save directly into hdf file
-    for ichan in range(len(spike_times)):
+    n_channels = len(spike_times)
+    assert n_channels == int(ap_metadata['n_channels'])
+    for ichan in range(n_channels):
         times, idx = precondition.filter_spike_times_fast(spike_times[ichan])
         spike_group.create_dataset(f'{ichan}', data=times)
         waveform_group.create_dataset(f'{ichan}', data=spike_waveforms[ichan][idx,:])
     hdf.close()
 
-    # Append the spike metadata to the file - TODO this gets appended in the proc wrapper, why not here?
+    # Append the spike metadata to the file
     spike_metadata = ap_metadata
     spike_metadata['spike_threshold'] = threshold
     spike_metadata['refractory_violations_removed'] = True
+    spike_metadata['spike_pos'] = {chan_number: chan_number for chan_number in range(n_channels)} # channel identity of each unit (here, iunit=ichan)
     spike_metadata.update(detect_kwargs)
 
     return spike_group, waveform_group, spike_metadata

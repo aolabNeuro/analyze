@@ -110,7 +110,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             ap_filename,
             kilosort_dir=kilosort_dir,
             overwrite=overwrite,
-            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function - TODO this is an issue when passing args for lfp vs. ap filtering
         )
         ap_data, ap_metadata = aodata.load_preproc_ap_data(preproc_dir_base, subject, te_id, date, drive_number=1)
         assert ap_data.shape == (ap_metadata['n_samples'], ap_metadata['n_channels'])
@@ -124,7 +124,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             spikes_filename,
             kilosort_dir=kilosort_dir,
             overwrite=overwrite,
-            detect_kwargs=kwargs # pass any remaining kwargs to the spike detection function
+            detect_kwargs=kwargs # pass any remaining kwargs to the spike detection function - TODO this is an issue when passing args for filter functions
         )
     if 'emg' in preproc_jobs:
         print('processing emg data...')
@@ -534,9 +534,8 @@ def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, ove
 def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., detect_kwargs={}):
     '''
     Process spike data:
-        ecube: TODO
+        ecube: load 'ap band' hdf data and metadata, detect spike times using threshold crossings, filter out refractory violations.
         neuropixels: synchronize spike times with ecube. Extract waveforms from drift corrected data. 
-
     Saves spike times and waveforms into the HDF datasets:
         spikes (HDF5 group (dict)) : spike times for each drive
         waveforms (HDF5 group (dict)) : spike times for each drive
