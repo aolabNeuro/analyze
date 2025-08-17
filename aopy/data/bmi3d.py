@@ -448,7 +448,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     if 'rms_multiplier' in detect_kwargs:
         rms_multiplier = detect_kwargs.pop('rms_muliplier')
     else:
-        rms_multiplier = 3
+        rms_multiplier = 5
     if 'wf_length' not in detect_kwargs:
         detect_kwargs['wf_length'] = 2000 # time in us
     if 'tbefore_wf' not in detect_kwargs:
@@ -478,9 +478,20 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     # Filter out refractory violations and save directly into hdf file
     assert n_channels == len(spike_times)
     for ichan in range(n_channels):
-        times, idx = precondition.filter_spike_times_fast(spike_times[ichan])
+        print(f"{len(spike_times[ichan])} threshold crossings detected on channel {ichan}")
+
+        if len(spike_times[ichan]) < 1:
+            times = np.array([])
+            waveforms = np.array([])
+        else:
+            times, idx = precondition.filter_spike_times_fast(spike_times[ichan])
+            if len(times) < 1:
+                waveforms = np.array([])
+            else:
+                waveforms = spike_waveforms[ichan][idx,:]
+        
         spike_group.create_dataset(f'{ichan}', data=times)
-        waveform_group.create_dataset(f'{ichan}', data=spike_waveforms[ichan][idx,:])
+        waveform_group.create_dataset(f'{ichan}', data=waveforms)
     hdf.close()
 
     # Append the spike metadata to the file
