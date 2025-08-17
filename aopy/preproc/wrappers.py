@@ -580,7 +580,7 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
         ap_filepath = os.path.join(result_dir, files['ap'])
         result_filepath = os.path.join(result_dir, result_filename)
 
-        _, spike_metadata = aodata.proc_ecube_spikes(ap_filepath, result_filepath, drive_number=idrive, dtype='int16',
+        _,_, spike_metadata = aodata.proc_ecube_spikes(ap_filepath, result_filepath, drive_number=idrive, dtype='int16',
                                                      max_memory_gb=max_memory_gb, **detect_kwargs)
         aodata.save_hdf(result_dir, result_filename, spike_metadata, f'drive{idrive}/metadata', append=True)
     

@@ -441,7 +441,10 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     Note:
         This function is used in the :func:`~aopy.preproc.wrappers.proc_spikes` wrapper.
     '''
-    ap_metadata = base.load_hdf_group('', ap_filepath, f'drive{drive_number}/ap_metadata')
+    metadata = base.load_hdf_group('', ap_filepath, f'drive{drive_number}/ap_metadata')
+    samplerate = metadata['samplerate']
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
     if 'rms_multiplier' in detect_kwargs:
         rms_multiplier = detect_kwargs.pop('rms_muliplier')
     else:
@@ -457,23 +460,23 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     waveform_group = hdf.create_group(f'drive{drive_number}/waveforms', track_order=True)
 
     # Figure out how much data we can load at once
-    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
-    chunksize = min(ap_metadata['n_samples'], max_samples)
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / n_channels)
+    chunksize = min(n_samples, max_samples)
+    print(f"{n_channels} channels and {chunksize} samples in each chunk")
 
     # Load the AP band dataset
     ap_hdf = h5py.File(ap_filepath, 'r')
-    if 'ap_data' not in ap_hdf:
+    if f'drive{drive_number}/ap_data' not in ap_hdf:
         raise ValueError(f'ap_data not found in file {ap_filepath}')
-    ap_data = ap_hdf['ap_data']
+    ap_data = ap_hdf[f'drive{drive_number}/ap_data']
 
     # Detect spikes above threshold
-    threshold = precondition.calc_spike_threshold(ap_data, high_threshold=True, rms_multipler=rms_multiplier)
-    spike_times, spike_waveforms = precondition.detect_spikes_chunk(abs(ap_data), ap_metadata['samplerate'], 
-                                                                threshold, chunksize, above_thresh=True, **detect_kwargs)
+    threshold = precondition.calc_spike_threshold(ap_data, high_threshold=True, rms_multiplier=rms_multiplier)
+    spike_times, spike_waveforms = precondition.detect_spikes_chunk(ap_data, samplerate, 
+                                                                threshold, chunksize, use_abs=True, **detect_kwargs)
 
     # Filter out refractory violations and save directly into hdf file
-    n_channels = len(spike_times)
-    assert n_channels == int(ap_metadata['n_channels'])
+    assert n_channels == len(spike_times)
     for ichan in range(n_channels):
         times, idx = precondition.filter_spike_times_fast(spike_times[ichan])
         spike_group.create_dataset(f'{ichan}', data=times)
@@ -481,7 +484,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     hdf.close()
 
     # Append the spike metadata to the file
-    spike_metadata = ap_metadata
+    spike_metadata = metadata
     spike_metadata['spike_threshold'] = threshold
     spike_metadata['refractory_violations_removed'] = True
     spike_metadata['spike_pos'] = {chan_number: chan_number for chan_number in range(n_channels)} # channel identity of each unit (here, iunit=ichan)
