@@ -60,8 +60,9 @@ def detect_erp_response(nullcond, altcond, samplerate, num_sd=3, debug=False):
     ''' 
     mean = np.mean(nullcond, axis=0)
     std = np.std(nullcond, axis=0)
-    significant = np.abs(altcond - mean) > num_sd * std
-    idx_latency = np.argmax(significant, axis=0)
+    response = np.abs(altcond - mean)
+    significant = response > num_sd * std
+    idx_latency = np.argmax(response, axis=0)
     idx_latency = np.where(np.any(significant, axis=0), idx_latency.astype(float), np.nan)
     
     if debug:
@@ -81,6 +82,7 @@ def detect_erp_response(nullcond, altcond, samplerate, num_sd=3, debug=False):
         plt.xlabel('')
         plt.xticks([])
         plt.ylim(y_min, y_max)
+        plt.vlines(idx_latency[~np.isnan(idx_latency)]/samplerate, y_min, y_max, color='m', linestyles='dotted')
         plt.title('altcond detected')
             
         plt.subplot(2,2,4)
