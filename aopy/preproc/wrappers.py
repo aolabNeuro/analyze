@@ -114,7 +114,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         ap_data, ap_metadata = aodata.load_preproc_ap_data(preproc_dir_base, subject, te_id, date, drive_number=1)
         assert ap_data.shape == (ap_metadata['n_samples'], ap_metadata['n_channels'])
-    if 'spikes' in preproc_jobs:
+        files['ap'] = ap_filename # for proc_spikes()
+    if 'spike' in preproc_jobs:
         print('processing spike times and waveforms...')
         spikes_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
         proc_spikes(
@@ -576,7 +577,7 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
     if 'ecube' in files and record_headstage:
         idrive += 1
         # TODO: need to handle when ap data is not already preprocessed
-        ap_filepath = os.path.join(data_dir, files['ap'])
+        ap_filepath = os.path.join(result_dir, files['ap'])
         result_filepath = os.path.join(result_dir, result_filename)
 
         _, spike_metadata = aodata.proc_ecube_spikes(ap_filepath, result_filepath, drive_number=idrive, dtype='int16',

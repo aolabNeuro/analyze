@@ -406,10 +406,12 @@ def filter_ap_from_broadband(broadband_filepath, result_filepath, drive_number=1
         
     if mean_subtract:
         dset -= np.mean(dset, axis=0, dtype=dtype) # hopefully this isn't constrained by memory
+    ap_hdf.close()
     bb_hdf.close()
 
     # Append the ap metadata to the file
     ap_metadata = metadata
+    ap_metadata['ap_samplerate'] = samplerate
     ap_metadata['samplerate'] = samplerate
     ap_metadata['n_samples'] = n_samples
     ap_metadata.update(filter_kwargs)
@@ -439,7 +441,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     Note:
         This function is used in the :func:`~aopy.preproc.wrappers.proc_spikes` wrapper.
     '''
-    ap_metadata = base.load_hdf_group('', ap_filepath, 'ap_metadata')
+    ap_metadata = base.load_hdf_group('', ap_filepath, f'drive{drive_number}/ap_metadata')
     if 'rms_multiplier' in detect_kwargs:
         rms_multiplier = detect_kwargs.pop('rms_muliplier')
     else:

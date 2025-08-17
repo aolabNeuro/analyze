@@ -462,6 +462,8 @@ class BMI3DTaskEntry():
         if 'record_headstage' in params and params['record_headstage']:
             sources.append('broadband')
             sources.append('lfp')
+            sources.append('ap')
+            sources.append('spike')
         if 'neuropixels' in self.features:
             sources.append('spike')
             sources.append('lfp')
