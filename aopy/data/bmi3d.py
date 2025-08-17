@@ -470,10 +470,10 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
         raise ValueError(f'ap_data not found in file {ap_filepath}')
     ap_data = ap_hdf[f'drive{drive_number}/ap_data']
 
-    # Detect spikes above threshold
-    threshold = precondition.calc_spike_threshold(ap_data, high_threshold=True, rms_multiplier=rms_multiplier)
+    # Detect spikes below threshold (for extracellular recordings)
+    threshold = precondition.calc_spike_threshold(ap_data, high_threshold=False, rms_multiplier=rms_multiplier)
     spike_times, spike_waveforms = precondition.detect_spikes_chunk(ap_data, samplerate, 
-                                                                threshold, chunksize, use_abs=True, **detect_kwargs)
+                                                                threshold, chunksize, above_thresh=False, **detect_kwargs)
 
     # Filter out refractory violations and save directly into hdf file
     assert n_channels == len(spike_times)
