@@ -13,15 +13,19 @@ from sklearn.cluster import KMeans
 from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, accuracy_score
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
+from scipy.stats import wilcoxon
+from statsmodels.stats.multitest import fdrcorrection
 import nitime.algorithms as tsa
 import pywt
 
+from .. import visualization
 from .. import utils
 from .. import preproc
+from .. import postproc
 from .. import precondition
 
 '''
@@ -556,6 +560,107 @@ def calc_corr_over_elec_distance(elec_data, elec_pos, bins=20, method='spearman'
 
     return dist, corr
 
+def calc_stat_over_dist_from_pos(elec_data, elec_pos, pos, statistic='mean', bins=20):
+    '''
+    For spatial data, calculate a statistic over distance from a given position.
+
+    Args:
+        elec_data (nelec): electrode data
+        elec_pos (nelec, 2): x, y position of each electrode
+        pos (2,): x, y position to calculate distance from
+        statistic (str): statistic to calculate ('mean', 'std', 'median', 'max', 'min'). See scipy.stats.binned_statistic. Default 'mean'.
+        bins (int or array): number of bins or bin edges for binned_statistic. Default 20.
+
+    Returns:
+        tuple: tuple containing:
+            | **dist (nbins):** electrode distance at each bin
+            | **stat (nbins):** statistic at each bin
+
+    Example:
+    
+        .. code-block:: python
+        
+            nelec = 100
+            elec_data = np.arange(nelec)
+            elec_pos = [[idx, 1] for idx in range(nelec)]
+            pos = [0,1]
+            dist, mean = aopy.analysis.calc_stat_over_dist_from_pos(elec_data, elec_pos, pos)
+
+            plt.figure()
+            plt.plot(dist, mean)
+            plt.xlabel('Distance')
+            plt.ylabel('Mean')
+            plt.title('Increasing statistic with distance')
+
+        .. image:: _images/increasing_statistic_with_distance.png
+    '''
+    assert len(pos) == 2, "Position must be a 2D point"
+    assert len(elec_data) == len(elec_pos), "Number of electrodes don't match!"
+    assert np.shape(elec_pos)[1] == 2, "Electrode positions must be 2D"
+
+    pos = np.array(pos)
+    dist = [np.linalg.norm(np.array(p) - pos) for p in elec_pos]
+    stat, edges, _ = stats.binned_statistic(dist, elec_data, statistic=statistic, bins=bins)
+    dist = (edges[:-1] + edges[1:]) / 2
+
+    return dist, stat
+
+def calc_stat_over_angle_from_pos(elec_data, elec_pos, origin, statistic='mean', bins=20):
+    '''
+    Bins spatial data based on the angle from each electrode to the origin, 
+    then compute a statistic on the electrode data within each angular bin.
+
+    Args:
+        elec_data (nelec): electrode data
+        elec_pos (nelec, 2): x, y position of each electrode
+        origin (2,): x, y position to calculate angle from
+        statistic (str): statistic to calculate ('mean', 'std', 'median', 'max', 'min'). See scipy.stats.binned_statistic. Default 'mean'.
+        bins (int or array): number of angular bins or bin edges for binned_statistic. Default 20.
+
+    Returns:
+        tuple: tuple containing:
+            | **angle (nbins):** angle (in radians) to origin at each bin
+            | **stat (nbins):** statistic at each bin
+
+    Example:
+    
+        .. code-block:: python
+        
+            # Create a circle of electrodes
+            nelec = 100
+            elec_data = np.arange(nelec)
+            elec_pos = [[np.cos(idx/nelec*2*np.pi), np.sin(idx/nelec*2*np.pi)] for idx in range(nelec)]
+            origin1 = [0,0]
+            origin2 = [0,1]
+
+            plt.figure()
+            plt.subplot(1,2,1)
+            plt.scatter(*np.array(elec_pos).T, c=elec_data)
+            plt.scatter(*origin1, color='b')
+            plt.scatter(*origin2, color='r')
+            plt.axis('equal')
+
+            angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin1)
+            plt.subplot(1,2,2)
+            plt.plot(angle, mean, color='b')
+            angle, mean = aopy.analysis.calc_stat_over_angle_from_pos(elec_data, elec_pos, origin2)
+            plt.plot(angle, mean, color='r')
+            plt.xlabel('Angle (rad)')
+            plt.ylabel('Mean')
+
+        .. image:: _images/angle_versus_position.png
+    '''
+    assert len(origin) == 2, "Origin must be a 2D point"
+    assert len(elec_data) == len(elec_pos), "Number of electrodes don't match!"
+    assert np.shape(elec_pos)[1] == 2, "Electrode positions must be 2D"
+
+    origin = np.array(origin)
+    angle = [np.arctan2(p[1] - origin[1], p[0] - origin[0]) for p in elec_pos]
+    stat, edges, _ = stats.binned_statistic(angle, elec_data, statistic=statistic, bins=bins)
+    angle = (edges[:-1] + edges[1:]) / 2
+
+    return angle, stat
+
 def subtract_erp_baseline(erp, time, t0, t1):
     '''
     Subtract pre-trigger activity from trial-aligned data.
@@ -920,12 +1025,12 @@ def calc_cwt_tfr(data, freqs, samplerate, fb=1.5, f0_norm=1.0, method='fft', com
     wav = pywt.ContinuousWavelet(f'cmor{fb}-{f0_norm}') # 'cmorB-C' for a complex Morlet wavelet with the
                                                         # given time-decay (B) and center frequency (C) params.
     scale = pywt.frequency2scale(wav, freqs_ud)
-    coef, _ = pywt.cwt(data, scale, wav, method=method, axis=0)
     if verbose:
         print(wav.bandwidth_frequency)
         print(f"Wavelet ({wav.lower_bound}, {wav.upper_bound})")
         print(f"Scale ({scale[0]}, {scale[-1]})")
         print(f"Freqs ({freqs_ud[0]}, {freqs_ud[-1]})")
+    coef, _ = pywt.cwt(data, scale, wav, method=method, axis=0)
     
     shape = coef.shape
     while shape and shape[-1] == 1:
@@ -1122,10 +1227,10 @@ def calc_mt_tfr(ts_data, n, p, k, fs, step=None, fk=None, pad=2, ref=True, compl
     ts_data = ts_data.transpose(1, 0, 2)  # (nch, nt, ntr)
     nch, nt, ntr = ts_data.shape
     fk = np.array([0, fk])
-    tapers, _ = precondition.dpsschk(n * fs, p, k)
+    tapers, _ = precondition.dpsschk(int(n * fs), p, k) # round down
     
     win_size = tapers.shape[0]  # window size (data points of tapers)
-    step_size = int(np.floor(step * fs))  # step size
+    step_size = int(step * fs) # step size
     nf = np.max([256, pad * 2 ** utils.nextpow2(win_size + 1)])  # 0 padding for efficient computation in FFT
     nwin = 1 + int(np.floor((nt - win_size) / step_size))  # number of windows
     nfk = np.floor(fk / fs * nf)  # number of data points in frequency axis
@@ -1303,16 +1408,16 @@ def calc_welch_psd(data, fs, n_freq=None):
         f, psd = signal.welch(data, fs, average='median', scaling='spectrum', axis=0)
     return f, np.sqrt(psd)
 
-def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
+def get_tfr_feats(freqs, spec, bands, log=False, epsilon=1e-9):
     '''
-    Estimate band power in specified frequency bands using multitaper power spectral density estimate
+    Estimate band power in specified frequency bands, preserving other dimensions.
 
     Args:
         f (nfreq,): Frequency points vector
-        psd_est (nfreq, nt, nch): spectrogram of data
+        spec (nfreq, nt, nch): spectrogram of data
         bands (list of tuples): frequency bands of interest in Hz, e.g. [(0, 10), (10, 20), (130, 140)]
-        log (bool): boolean to select whether band power should be in log scale or not
-        epsilon (float): small number, e.g. 1e-10 to add to power before averaging in case there are zero values
+        log (bool, optional): boolean to select whether band power should be in log scale or not
+        epsilon (float, optional): small number to avoid division by zero. Default 1e-9.
         
     Returns:
         lfp_power (n_features, nt, nch): band power features at each timepoint for each channel
@@ -1332,6 +1437,57 @@ def get_tfr_feats(freqs, spec, bands, log=False, epsilon=0):
             feats[idx] = np.mean(spec[fft_inds], axis=0)
 
     return np.squeeze(feats)
+
+def calc_tfr_mean(freqs, time, spec, band=(0, 1e16), window=(-1e16, 1e16)):
+    """
+    Calculate the mean within a specific frequency band and time window.
+    
+    Args:
+        freqs (nfreq,): Frequency values in Hz.
+        time (nt,): Time values in seconds.
+        spec (nfreq, nt, nch): Time-frequency spectrogram data.
+        band (tuple): Frequency band (low, high) in Hz. Defaults to (0, np.inf).
+        window (tuple, optional): Time window (start, end) in seconds. Defaults to (-np.inf, np.inf).
+
+    Returns:
+        (nch,): Mean spectral value within the specified band and time window for each channel.
+    """
+    freq_idx = (freqs >= band[0]) & (freqs < band[1])
+    time_idx = (time >= window[0]) & (time < window[1])
+    tf_idx = np.ix_(freq_idx, time_idx)
+    
+    return np.nanmean(spec[tf_idx], axis=(0, 1))
+
+def calc_tfr_mean_fdrc_ranktest(freqs, time, spec, null_specs, band=(0,1e16), window=(-1e16, 1e16),
+                                alternative='greater', nan_policy='raise', alpha=0.05):
+    """
+    Compute band-specific Wilcoxon sign-rank test with false discovery-rate correction. Used for comparing 
+    coherence maps against null distributions. Spectrograms must be multi-channel.
+    
+    Args:
+        freqs (nfreq,): Frequency axis in Hz.
+        time (nt,): Time axis in seconds.
+        spec (nfreq, nt, nch): Observed spectrogram.
+        null_specs (n_null, nfreq, nt, nch): Distribution of null spectrograms.
+        band (tuple, optional): Frequency band (low, high) in Hz. Defaults to (0, np.inf).
+        window (tuple, optional): Time window (start, end) in seconds. Defaults to (-np.inf, np.inf).
+        alternative (str, optional): Hypothesis test alternative. See scipy.stats.calc_fdrc_ranktest for 
+            options. Defaults to 'greater'.
+        nan_policy (str, optional): Handling of NaN values. See scipy.stats.calc_fdrc_ranktest for options. 
+            Defaults to 'raise'.
+        alpha (float, optional): Significance level. Defaults to 0.05.
+    
+    Returns:
+        tuple: tuple containing:
+            - diff (nch,): Effect size at each channel.
+            - p_fdrc (nch,): Adjusted p-values at each channel.
+    """  
+    mean = calc_tfr_mean(freqs, time, spec, band, window)
+    null_means = np.array([calc_tfr_mean(freqs, time, null_spec, band, window) for null_spec in null_specs])
+    
+    diff, p_fdrc = calc_fdrc_ranktest(mean, null_means, alternative=alternative, 
+                                      nan_policy=nan_policy, alpha=alpha)
+    return diff, p_fdrc
 
 def get_bandpower_feats(data, samplerate, bands, method='mt', log=False, epsilon=0, **kwargs):
     '''
@@ -1707,6 +1863,37 @@ def calc_itpc(analytical_signals):
 '''
 Statistics
 '''
+def align_spatial_maps(data1, data2):
+    '''
+    Align two input maps by finding the location of the peak of the 2D correlation function.
+    Note, if these shifts are unexpectedly high, there is likely not high enough correlation between the maps
+    and the alignment should not be used. This function replaces input NaN values with 0 and uses 0-padding for all
+    edge conditions.
+
+    Args:
+        data1 (nrow, ncol): First input data array, used as baseline map.
+        data2 (nrow, ncol): Second input data array, will be shifted to match the baseline map.
+
+    Returns:
+        tuple: tuple containing:
+            | **data2_align (nrow, ncol):** aligned version of data2
+            | **shifts (tuple):** contains (row_shifts, col_shifts)
+    '''
+    # Replace NaNs with 0s so correlation doesn't output NaN
+    data1[np.isnan(data1)] = 0
+    data2[np.isnan(data2)] = 0
+    
+    # Align data maps.
+    corr = scipy.signal.correlate2d(data1/np.linalg.norm(data1), data2/np.linalg.norm(data2), 
+                                    boundary='fill', mode='same')
+    irow, icol = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
+    row_shift = int(irow - (data1.shape[0]-1)/2)
+    col_shift = int(icol - (data1.shape[1]-1)/2)
+    data2_align = np.roll(data2, row_shift, axis=0)
+    data2_align = np.roll(data2_align, col_shift, axis=1)
+    shifts = (row_shift, col_shift)
+    return data2_align, shifts
+
 def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     '''
     This function creates a map showning the local correlation between two input datamaps. If specified, it also aligns the input
@@ -1747,14 +1934,7 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     
     # Get maxidx of 2D spatial correlation matrix to ensure data maps are aligned.
     if align_maps:
-        corr = scipy.signal.correlate2d(data1/np.linalg.norm(data1), data2/np.linalg.norm(data2), 
-                                        boundary='fill', mode='same')
-        irow, icol = np.unravel_index(np.argmax(corr), corr.shape)  # find the match
-        row_shift = int(irow - (data1.shape[0]-1)/2)
-        col_shift = int(icol - (data1.shape[1]-1)/2)
-        data2_align = np.roll(data2, row_shift, axis=0)
-        data2_align = np.roll(data2_align, col_shift, axis=1)
-        shifts = (row_shift, col_shift)
+        data2_align, shifts = align_spatial_maps(data1, data2)
     else:
         data2_align = data2
         shifts = (0,0)
@@ -1782,8 +1962,171 @@ def calc_corr2_map(data1, data2, knlsz=15, align_maps=False):
     
     # Replace NaNs in correlation map
     NCC[nan_idx1] = np.nan
-    
     return NCC, shifts
+
+def calc_spatial_map_correlation(data_maps, align_maps=False):
+    '''
+    Generate a correlation matrix between all pairs of input data maps. If specified, it also 
+    aligns the input maps. Alignment is done using :func:`~aopy.analysis.align_spatial_maps` which 
+    finds the location of the peak of the 2D correlation function. Here, we calculate the 1D
+    correlation between flattened versions of the input data maps. This function removes datapoints
+    along the second axis if any map contains NaN values at that location. Data maps are normalized 
+    by their magnitude prior to computing correlation.
+
+    Note: 
+        If shifts are unexpectedly high, there is likely not high enough correlation between the 
+        datamaps and alignment should not be used.
+
+    Args:
+        data_maps ((nmaps,) list): list of (ncol, nrow) spatial data arrays
+        align_maps (bool): Whether or not to align maps. Always aligns to the first map. Default False.
+
+    Returns:
+        tuple: tuple containing:
+            | **NCC (nmaps, nmaps):** normalized correlation coefficients
+            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+
+    Examples:
+
+        Generate a noisy map and two copies with known change and shift
+
+        .. code-block:: python
+
+            data1 = np.random.normal(0,1,(nrows,ncols))
+            data2 = data1.copy()
+            NCC, _ = aopy.analysis.calc_spatial_map_correlation([data1, data2], False)
+            self.assertAlmostEqual(NCC[1,0], 1)
+
+            nrows_changed = 5
+            ncols_changed = 3
+            for irow in range(nrows_changed):
+                data2[irow,:ncols_changed] = 1
+
+            data3 = data2.copy()
+            data3 = np.roll(data3, 2, axis=0)
+
+            NCC, shifts = aopy.analysis.calc_spatial_map_correlation([data1, data2, data3], True)
+
+        Plot the maps and correlation coefficients against the reference map
+            
+        .. code-block:: python
+
+            fig, [ax1, ax2, ax3] = plt.subplots(1,3, figsize=(8,3))
+            im1 = ax1.pcolor(data1)
+            ax1.set(title='Reference')
+            plt.colorbar(im1, ax=ax1)
+            
+            im2 = ax2.pcolor(data2)
+            ax2.set(title=f'R^2={np.round(NCC[1,0],3)}')
+            plt.colorbar(im2, ax=ax2)
+            
+            im3 = ax3.pcolor(data3)
+            ax3.set(title=f'R^2={np.round(NCC[2,0],3)}')
+            plt.colorbar(im3, ax=ax3)
+
+        .. image:: _images/calc_spatial_map_correlation.png
+    '''
+    # Prepare spatial maps
+    shifts = []
+    flat_maps = []
+    for idx in range(len(data_maps)):
+        data_map = data_maps[idx].copy()
+        if align_maps:        
+            # Align to first map
+            shift = (0,0)
+            if idx == 0:
+                day0_map = data_maps[0].copy()
+            else:
+                data_map, shift = align_spatial_maps(day0_map, data_map)
+            shifts.append(shift)
+        else:
+            shifts.append((0,0))
+        flat_maps.append(data_map.ravel())
+            
+    # remove NaNs so correlation doesn't output NaN
+    mask = np.any(np.isnan(flat_maps), axis=0)
+    if np.sum(mask) > 0:
+        warnings.warn(f'Removing {np.sum(mask)} NaN values in data maps')
+        flat_maps = np.array(flat_maps)[:,~mask]
+
+    # Compute correlation
+    flat_maps /= np.linalg.norm(flat_maps, axis=1, keepdims=True)
+    NCC = np.corrcoef(flat_maps)
+
+    return NCC, shifts   
+
+def calc_spatial_data_correlation(elec_data, elec_pos, interp=False, grid_size=None, 
+                                  interp_method='cubic', align_maps=False):
+    '''
+    Wrapper around :func:`~aopy.analysis.calc_spatial_map_correlation` that interpolates electrode data 
+    onto a 2D map before computing correlation.
+
+    Args:
+        elec_data ((nmaps,) list): list of (nch,) spatial data arrays
+        elec_pos ((nch, 2) array): electrode positions for each channel
+        interp (bool): whether or not to interpolate data maps. Default False.
+        grid_size ((2,) tuple, optional): map size for interpolation, e.g. (16,16) for a 16x16 grid
+        interp_method (str): interpolation method to use. Default 'cubic'
+        align_maps (bool): Whether or not to align maps. Default False.
+
+    Returns:
+        tuple: tuple containing:
+            | **NCC (nmaps, nmaps):** normalized correlation coefficients
+            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+    '''
+    data_maps = []
+    for elec_data in elec_data:
+        if interp:
+            data_map, _ = visualization.calc_data_map(elec_data, elec_pos[:,0], elec_pos[:,1], 
+                                                    grid_size, interp_method=interp_method)
+        else:
+            data_map = visualization.get_data_map(elec_data, elec_pos[:,0], elec_pos[:,1])
+        data_maps.append(data_map)
+
+    return calc_spatial_map_correlation(data_maps, align_maps)
+
+def calc_spatial_tf_data_correlation(freqs, time, tf_elec_data, elec_pos, null_tf_elec_data=None,
+                                     band=(12,150), window=(0,1), alternative='greater', 
+                                     nan_policy='propagate', alpha=0.05, interp=False, 
+                                     grid_size=None, interp_method='cubic', align_maps=False):
+    '''
+    Wrapper around :func:`~aopy.analysis.calc_spatial_map_correlation` that averages over a given time-window
+    and frequency-band, then interpolates data onto a 2D map before computing correlation.
+    
+    Args:
+        freqs (nfreq): frequency axis
+        time (nt): time axis
+        tf_elec_data (list of (nt, nfreq, nch)): time-frequency data arrays
+        band (tuple): frequency band of interest, e.g. (12, 150), in Hz
+        window (tuple): time window of interest, e.g. (0, 1), in seconds
+        null_tf_elec_data (list of (nt, nfreq, nch), optional): time-frequency null data arrays to
+            compute significance. If None, no significance testing is performed.
+        alternative (str, optional): Hypothesis test alternative ('greater', 'less', 'two-sided'). Defaults to 'greater'.
+        nan_policy (str, optional): Handling of NaN values. Defaults to 'propagate'.
+        alpha (float, optional): Significance level. Defaults to 0.05.
+        interp (bool): whether or not to interpolate data maps. Default False.
+        grid_size ((2,) tuple, optional): map size for interpolation, e.g. (16,16) for a 16x16 grid
+        interp_method (str): interpolation method to use. Default 'cubic'
+        align_maps (bool): Whether or not to align maps. Default False.
+
+    Returns:
+        tuple: tuple containing:
+            | **NCC (nmaps, nmaps):** normalized correlation coefficients
+            | **shifts ((nmaps,) list):** list of (row_shifts, col_shifts) for each map
+    '''
+    band_data = []
+    for elec_data in tf_elec_data:
+        if null_tf_elec_data is None:
+            band_data.append(calc_tfr_mean(freqs, time, elec_data, band=band, window=window))
+        else:
+            diff, p = calc_tfr_mean_fdrc_ranktest(
+                freqs, time, elec_data, null_tf_elec_data, band=band, window=window,
+                                alternative=alternative, nan_policy=nan_policy, alpha=alpha)
+            diff[p > alpha] = np.nan
+            band_data.append(diff)
+    
+    return calc_spatial_data_correlation(band_data, elec_pos, interp=interp, grid_size=grid_size,
+                                         interp_method=interp_method, align_maps=align_maps)
 
 def get_confidence_interval(sample, hist_bins, alpha=0.025, ax=None, **kwarg):
     '''
@@ -1853,6 +2196,31 @@ def calc_confidence_interval_overlap(CI1, CI2):
     
     return overlap
 
+def calc_fdrc_ranktest(altdata, nulldata_dist, alternative='greater', nan_policy='raise', alpha=0.05):
+    """
+    Compute statistical significance using the Wilcoxon signed-rank test with FDR correction.
+    
+    Args:
+        altdata (nch): Observed data values.
+        nulldata_dist (n_null, nch): Null distribution for comparison.
+        alternative (str, optional): Hypothesis test alternative ('greater', 'less', 'two-sided'). Defaults to 'greater'.
+        nan_policy (str, optional): Handling of NaN values. Defaults to 'raise'.
+        alpha (float, optional): Significance level. Defaults to 0.05.
+    
+    Returns:
+        tuple: tuple containing:
+            | **effect_size (nch):** differences between the alternative and null data
+            | **p_fdrc (nch):** Adjusted p-values for each alternative hypothesis test.
+    """
+    differences = altdata - nulldata_dist
+    result = wilcoxon(differences, axis=0, alternative=alternative, nan_policy=nan_policy)
+    p_ranktest = result.pvalue
+    rej, p_fdrc = fdrcorrection(p_ranktest, alpha=alpha)
+    
+    diff = np.nanmean(differences, axis=0)
+    diff[p_fdrc > alpha] = 0
+    
+    return diff, p_fdrc
 
 def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regularization='auto', lda_model=None, return_weights=False, return_confusion_matrix=False):
     """
@@ -1877,10 +2245,10 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
 
     Returns:
         tuple: Tuple containing:
-            **accuracy (ntime-nlags, nfolds):** The decoding accuracy for each time point (and fold if cross-validation is used). 
-            **time_axis (nt-nlags):** The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
-            **(Optional) LDA Weights (ntime-lags, nlabels, nfeatures, nfolds):** The LDA weights for each time point, channel, and fold if `return_weights=True`. Note: nfeatures will include lagged features if lags are used.
-            **(Optional) Confusion Matrix (ntime-lags, nlabels, nlabels, nfolds):** The confusion matrix for each fold if `return_confusion_matrix=True`. 
+            | **accuracy (ntime-nlags, nfolds):** The decoding accuracy for each time point (and fold if cross-validation is used). 
+            | **time_axis (nt-nlags):** The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
+            | **(Optional) LDA Weights (ntime-lags, nlabels, nfeatures, nfolds):** The LDA weights for each time point, channel, and fold if `return_weights=True`. Note: nfeatures will include lagged features if lags are used.
+            | **(Optional) Confusion Matrix (ntime-lags, nlabels, nlabels, nfolds):** The confusion matrix for each fold if `return_confusion_matrix=True`. 
 
     Raises:
         ValueError: If the input data or labels are not valid, or if there is a mismatch between the data and labels.
@@ -1949,3 +2317,242 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
         return decoding_accuracy, time_axis, cm
     else:
         return decoding_accuracy, time_axis
+
+def xval_lda_subsample_wrapper(data, labels, min_trial, cond_mask=None, single_decoding=True, min_unit=None, shuffle_labels=False,
+        nfolds=5, replacement=False, regularization='auto', lda_model=None, return_labels=False, return_weights=False, seed=None):
+    '''
+    Perform an n-fold cross-validation with Linear Discriminant Analysis (LDA) using a single unit or multiple units.
+    This functions extracts trials and/or units randomly based on the random seed with/without replacement.
+    The number of trials per target is controlled to be the same across targets
+    You can repeatedly perform this function by changing random seed to estimate the resampling distribution
+
+    Args:
+        data (nunit, ntr) or (nunit, nfeatures, ntr): neural data. 2 different shapess are allowed. 
+        labels (ntr): the labels for each trial.
+        min_trial (int): the minimum number of trials for each label to be extracted
+                                if this is 20, 20*(the number of unique labels) trials are extracted
+        cond_mask (ntr): a boolean array. This is a mask to extract trials that satisfies a certain condition
+                                (ex. movement onset is more than a certain threshold)
+        single_decoding (bool, optional): If True, LDA is performed using single unit activity separately (default is True)
+        min_unit (int, optional): the number of units used for decoding. This is used only when single_decoding is False.
+                                if min_unit is None, decoding is perfomed using all units (default is None)
+        shuffle_labels (bool, optional): whether to shuffle labels or not (default is False)
+        nfolds (int, optional): the number of folds for cross-validation (default is 5)
+        replacement (bool, optional): whether to choose trials with replacement or without replacement
+        regularization (str or float, optional): If regularization should be included when building the LDA model
+                                Input into the shrinkage parameter of the sklearn LDA function
+                                Can either be None, 'auto', or a float between 0 and 1. 
+        lda_model (sklearn LDA class, optional): User-defined LDA model from sklearn.discriminant_analysis.LinearDiscriminantAnalysis. If None, this function will initialize the model.
+        return_labels (bool, optional): Whether to return true and predicted labels (default is False).
+        return_weights (bool, optional): Whether to return the LDA weights (default is False).
+        seed (int, optional): random seed
+
+    Returns:
+        tuple: Tuple containing:
+            | **accuracy (nch) or (float):** the decoding accuracy. If single_decoding is False, this gets a single velue.
+            | **(Optional) true_Y (nch,ntr) or (ntr):** a list of true labels. If single_decoding is False, its shape becomes (ntr).
+            | **(Optional) pred_Y (nch,ntr) or (ntr):** a list of predicted labels. If single_decoding is False, its shape becomes (ntr).
+            | **(Optional) LDA Weights (nlabels,nch,nfolds) or (nlabels,nch,nfeatures,nfolds):** The LDA weights if return_weights is True.
+
+    Examples:
+        
+        .. code-block:: python
+
+            "This is an example of this function using multiprocessing to get a resampling distribution"
+            
+            import multiprocessing as mp
+
+            single_decoding = True
+            min_unit = None
+            shuffle_labels = False
+            n_fold = 5
+            replacement = False
+            regularization = 'auto'
+            lda_model = None
+            return_labels = True
+            return_weights = False
+            n_resample = 100 # the number of resampling
+            n_processes = 20 # the number of cpus used for the computation
+
+            pool = mp.Pool(n_processes)
+            result_objects = [pool.apply_async(xval_lda_subsample_wrapper,\
+                args=(data, target_idx, min_trials, trial_mask, single_decoding, min_unit, shuffle_labels, n_fold, \
+                    replacement, regularization, lda_model, return_labels, return_weights, ibs)) for ibs in range(n_resample)]
+            pool.close()
+
+            # Organize results
+            results = [r.get() for r in result_objects]
+            accuracy, pred_labels_resample, true_labels_resample = zip(*results)
+            accuracy = np.array(accuracy)
+            pred_labels_resample = np.array(pred_labels_resample, int)
+            true_labels_resample = np.array(true_labels_resample, int)
+
+    See Also:
+        :func:`~aopy.analysis.base.windowed_xval_lda_wrapper`
+
+    '''
+
+    if data.ndim == 2:
+        # (nunit, ntr) -> (nunit, 1, ntr)
+        data = data[:, np.newaxis, :]
+    elif data.ndim != 3:
+        raise ValueError("data must have shape (nunit, ntr) or (nunit, nfeatures, ntr)")
+    
+    nunit, nfeatures, ntr = data.shape
+    nlabels = len(np.unique(labels))
+    kf = model_selection.KFold(n_splits=nfolds)
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    if lda_model is None:
+        lda = LinearDiscriminantAnalysis(solver='eigen', shrinkage=regularization)
+    else:
+        lda = lda_model
+
+    if shuffle_labels:
+        Y = np.random.permutation(Y)
+
+    # Choose trials randomly so that the number of trials per target can be the same across targets.
+    trial_mask = postproc.get_conditioned_trials_per_target(labels, min_trial, cond_mask=cond_mask, replacement=replacement, seed=seed)
+        
+    # Extract trials
+    data_trial = data[:,:,trial_mask]
+    Y = labels[trial_mask]
+
+    pred_Y = []
+    true_Y = []
+
+    # Perform LDA using single unit activity separately
+    if single_decoding:
+
+        if return_weights:
+            weights = np.zeros((nlabels, nunit, nfeatures, nfolds))*np.nan
+    
+        accuracy = []
+        for iunit in range(data_trial.shape[0]):
+            # Flatten features for sklearn
+            X = data_trial[iunit].T  # shape (ntr, nfeatures)
+            
+            pred_Y_ch = []
+            true_Y_ch = []
+
+            # k-fold cross-validation
+            for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
+    
+                Xtrain,Xtest = X[train_idx,:],X[test_idx,:]
+                Ytrain,Ytest = Y[train_idx],Y[test_idx]
+                
+                lda.fit( (Xtrain - np.mean(Xtrain,axis=0)), Ytrain)
+    
+                pred_Y_ch.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
+                true_Y_ch.extend(Ytest)
+
+                if return_weights:
+                    weights[:,iunit,:,ifold] = lda.coef_
+                    
+            accuracy.append(accuracy_score(true_Y_ch, pred_Y_ch))
+            true_Y.append(true_Y_ch)
+            pred_Y.append(pred_Y_ch)
+
+        accuracy = np.array(accuracy)
+
+    # Perform LDA using multiple unit activity together
+    else:
+        # Subsample units for decoding
+        if min_unit is not None:
+            unit_mask = np.random.choice(nunit, size=min_unit, replace=replacement) # randomly choose units
+            X = data_trial[unit_mask,:,:].reshape(min_unit*nfeatures, -1).T
+            if return_weights:
+                weights = np.zeros((nlabels, min_unit, nfeatures, nfolds))*np.nan
+        # Use all units without subsampling
+        else:
+            X = data_trial.reshape(nunit*nfeatures, -1).T
+            if return_weights:
+                weights = np.zeros((nlabels, nunit, nfeatures, nfolds)) * np.nan
+
+        # k-fold cross-validation
+        for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
+
+            Xtrain,Xtest = X[train_idx,:],X[test_idx,:]
+            Ytrain,Ytest = Y[train_idx],Y[test_idx]
+            
+            lda.fit( (Xtrain - np.mean(Xtrain,axis=0)), Ytrain)
+
+            true_Y.extend(Ytest)
+            pred_Y.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
+            
+            if return_weights:
+                weights[:,:,:,ifold] = lda.coef_.reshape(nlabels, -1, nfeatures)
+
+        accuracy = accuracy_score(true_Y, pred_Y)
+
+    # Organize results
+    results = [accuracy]
+    if return_labels:
+        results.append(np.array(true_Y))
+        results.append(np.array(pred_Y))
+    if return_weights:
+        results.append(np.squeeze(weights))
+
+    if len(results) == 1:
+        return results[0]
+    else:
+        return tuple(results)
+
+def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000):
+    """
+    Simulates straight reach trajectories from a given origin to a list of target points in 3D space.
+    A fixed number of samples is used for each reach (i.e. time to target is constant.)
+
+    Args:
+        targets (numpy.ndarray or list of lists/tuples): A list or array of target coordinates
+            in space.
+        origin (list or tuple, optional): The origin point from which the trajectories
+            are simulated. Default is zeros in all dimensions.
+        resolution (int, optional): The number of points used to render each trajectory.
+            Default is 1000.
+
+    Returns:
+        (num_targets, resolution, num_dims) numpy.ndarray: An array of simulated trajectories, each being a series of points
+            from the origin to the corresponding target.
+
+    Examples:
+
+        .. code-block:: python
+
+            subject = 'MCP015'
+            entries = db.lookup_mc_sessions(subject=subject)
+            subjects, ids, dates = db.list_entry_details(entries)
+            df = aopy.data.tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, 
+                                                            metadata=['target_radius', 'session'])
+            target_radius = df['target_radius'][0]
+            target_indices = np.unique(df['target_idx'])
+            target_locations = aopy.data.bmi3d.get_target_locations(preproc_dir, subject,
+                                                                    te_id, dates[0], target_indices)
+
+            ideal_trajectories = simulate_ideal_trajectories(target_locations[1:], target_locations[0])
+            
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            aopy.visualization.color_trajectories(ideal_trajectories, target_idx, colors)
+            
+        .. image:: _images/simulate_ideal_trajectories.png
+
+    """
+
+    if len(targets[0])!=3 and origin is None:
+        origin = []
+        for d in np.arange(len(targets[0])):
+            origin.append(0.0)
+
+    max_dist = np.max(targets - origin)
+    num_points = int(max_dist * resolution)
+    
+    trajectories = []
+    
+    for target in targets:
+        traj = np.linspace(origin, target, num_points)
+        trajectories.append(traj)
+        
+    return np.array(trajectories)

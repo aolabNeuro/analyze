@@ -10,10 +10,6 @@ import numpy as np
 from scipy.signal import convolve
 
 from .. import precondition
-from ..preproc.base import interp_timestamps2timeseries, get_data_segments, get_trial_segments, trial_align_data
-from ..utils import derivative
-from ..data import load_preproc_exp_data, load_preproc_eye_data, load_preproc_lfp_data
-from .. import data
 
 def translate_spatial_data(spatial_data, new_origin):
     '''
@@ -400,7 +396,7 @@ def smooth_timeseries_gaus(timeseries_data, sd, samplerate, nstd=3, conv_mode='s
 
     .. math::
 
-        g(x) = \\frac{1}{\sigma\sqrt{2\pi}}e^{\\frac{-x^{2}}{2\sigma^{2}}}
+        g(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}}e^{\\frac{-x^{2}}{2\\sigma^{2}}}
 
     
     Args:

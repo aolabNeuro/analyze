@@ -460,7 +460,7 @@ class NeuropixelFuncs(unittest.TestCase):
         ref_period = 1
         ref_perc_thresh = 1
         filename_mc = aopy.data.get_preprocessed_filename(subject,te_id,date,'spike')
-        spike_times = data.load_hdf_group(os.path.join(data_dir,subject), filename_mc, f'drive{port}/spikes')
+        spike_times = aopy.data.load_hdf_group(os.path.join(data_dir,subject), filename_mc, f'drive{port}/spikes')
         good_unit_labels, ref_violations = neuropixel.get_units_without_refractory_violations(spike_times, ref_perc_thresh=ref_perc_thresh, min_ref_period=ref_period, start_time=0, end_time=None)
   
         # Load all unit labels

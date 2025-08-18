@@ -1,0 +1,5 @@
+Software Time (milliseconds since midnight Jan 1st 1970 UTC): 1727111580079
+Start Time for Neuropix-PXI (100) - ProbeA-AP @ 30000 Hz: 459804
+Start Time for Neuropix-PXI (100) - ProbeA-LFP @ 2500 Hz: 38317
+Start Time for Neuropix-PXI (100) - ProbeB-AP @ 30000 Hz: 460116
+Start Time for Neuropix-PXI (100) - ProbeB-LFP @ 2500 Hz: 38343

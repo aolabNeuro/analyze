@@ -222,16 +222,16 @@ def run_tuningcurve_fit(mean_fr, targets, fit_with_nans=False, min_data_pts=3):
     return fit_params, md, pd
 
 def calc_dprime(*dist):
-    '''
+    """
     d-prime or the sensitivity index is the peak-to-peak difference of means of the signals 
     across categories divided by their pooled (mean) standard deviation. The formula is as follows:
     
     .. math::
 
-        d' = \\frac{µ_{max} - µ_{min}}{\sqrt{\sum_{i=0}^{n-1} (p_i)\sigma_i^2}}
+        d' = \\frac{µ_{max} - µ_{min}}{\\sqrt{\\sum_{i=0}^{n-1} (p_i)\\sigma_i^2}}
 
     where :math:`µ_{max} - µ_{min}` is the peak-to-peak distance across category means, :math:`p_i` is the proportion 
-    of trials in the i-th category, and :math:`\sigma_i^2` is the standard deviation of the i-th category.
+    of trials in the i-th category, and :math:`\\sigma_i^2` is the standard deviation of the i-th category.
 
     Args:
         *dist (ntr, nch): distribution of the data for each category. d-prime is calculated along the first axis.
@@ -271,7 +271,7 @@ def calc_dprime(*dist):
             dprime = aopy.analysis.calc_dprime(dist_1, dist_2, dist_3)
             print(dprime)
             >>> 4.
-    '''
+    """
     means = [np.mean(d, axis=0) for d in dist]
     try:
         np.shape(means)

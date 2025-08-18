@@ -12,3 +12,4 @@ dist/
 htmlcov
 docs/source/examples/.ipynb_checkpoints
 .idea/
+pavi_environment.yml

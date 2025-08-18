@@ -190,7 +190,7 @@ def interp_timestamps2timeseries(timestamps, timestamp_values, samplerate=None, 
     If both 'samplerate' and 'sampling_points' are input, the sampling points will be used. 
     The optional argument 'interp_kind' corresponds to 'kind'. The optional argument 'extrapolate' determines whether timepoints falling outside the 
     range of the input timestamps should be extrapolated or not. If not, they are copied from the first and last valid values, depending on whether they
-    appear at the beginnin or end of the timeseries, respectively.
+    appear at the beginning or end of the timeseries, respectively.
     
     Note:
         Enforces monotonicity of the input timestamps by removing timestamps and their associated values that do not increase.
@@ -271,27 +271,76 @@ def sample_timestamped_data(data, timestamps, samplerate, upsamplerate=None, app
             be sampled. The first dimension must represent the time index.
         timestamps (nt,): The timestamp (in seconds) for each data point in data.
         samplerate (float): The desired output sampling rate in Hz.
-        upsamplerate (float, optional): The upsampling rate to use for interpolation. 
-            Defaults to 100 times the samplerate.
+        upsamplerate (float, optional): (deprecated) No longer used.
         append_time (float, optional): The amount of extra time to add at the end 
             of the timeseries, in seconds. Defaults to 0.
         kwargs (dict, optional): arguments to include in interpolation function
 
     Returns:
         (ns, ...): cursor_data_time containing the sampled data.
+
+    Examples:
+
+        .. code-block:: python
+
+            np.random.seed(0)
+            duration = 4
+            freq = 5
+            samplerate = 25000
+            ground_truth_data = utils.generate_multichannel_test_signal(duration*2, samplerate, 2, freq, 1)
+            
+            fps = 120
+            nt = fps*duration
+            offset = 0.01 # timestamps start strictly after time zero
+            framerate_error = 0.01*np.random.uniform(size=(nt,)) # 10 ms jitter
+            drift = np.cumsum(0.0001*np.random.uniform(size=(nt,))) # 0.1 ms drift
+            timestamps = offset + np.arange(nt)/fps + framerate_error + drift
+            samples = (timestamps * samplerate).astype(int)
+
+            frame_data = ground_truth_data[samples,:]
+            interp_samplerate = 120
+            interp_data = sample_timestamped_data(frame_data, timestamps, interp_samplerate)
+
+            fig, ax = plt.subplots(3,1, figsize=(5,6))
+            visualization.plot_timeseries(frame_data[:,0], fps, ax=ax[0])
+            visualization.plot_timeseries(interp_data[:,0], interp_samplerate, ax=ax[0])
+            ax[0].set_title(f'{freq} Hz signal')
+            ax[0].set_ylabel('pos (cm)')
+            ax[0].legend(['without sampling', 'with sampling'])
+
+            visualization.plot_freq_domain_amplitude(frame_data[:,0], fps, ax=ax[1])
+            visualization.plot_freq_domain_amplitude(interp_data[:,0], interp_samplerate, ax=ax[1])
+            ax[1].set_xscale('linear')
+            ax[1].set_xlim(0,30)
+            ax[1].set_ylabel('Peak amplitude')
+            ax[1].legend(['without sampling', 'with sampling'])
+            plt.tight_layout()
+
+            # Compare with different upsampling rates
+            visualization.plot_timeseries(ground_truth_data[:,0], samplerate, ax=ax[2])
+            interp_data = sample_timestamped_data(frame_data, timestamps, 1000)
+            visualization.plot_timeseries(interp_data[:,0], 1000, ax=ax[2])
+            interp_data = sample_timestamped_data(frame_data, timestamps, 10000)
+            visualization.plot_timeseries(interp_data[:,0], 10000, ax=ax[2])
+            ax[2].set_xlim(0.0,0.3)
+            ax[2].legend(['sampled at 120 Hz', 'sampled at 1 kHz', 'sampled at 10 kHz'])
+
+        .. image:: _images/sample_timestamped_data.png
+
+    Modified July 2025: removed upsamplerate in favor of always interpolating to
+    exactly the sampling rate. Filtering and downsampling is now done later,
+    e.g. in :func:`~aopy.data.get_kinematics`.
     '''
     assert len(data) == len(timestamps), (f"Data and timestamps should "
         f"have the same number of cycles ({len(data)} vs {len(timestamps)})")
 
-    if upsamplerate is None:
-        upsamplerate = samplerate * 10
+    if upsamplerate is not None:
+        warnings.warn("upsamplerate is no longer used", DeprecationWarning)
 
-    assert upsamplerate >= samplerate, "Upsamplerate must be greater than or equal to samplerate"
-
-    time = np.arange(int((timestamps[-1] + append_time)*upsamplerate))/upsamplerate # add extra time
-    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, interp_kind='linear', extrapolate=False, **kwargs)
-    if upsamplerate > samplerate:
-        data_time = precondition.downsample(data_time, upsamplerate, samplerate)
+    time = np.arange(int((timestamps[-1] + append_time)*samplerate))/samplerate # add extra time
+    data_time, _ = interp_timestamps2timeseries(timestamps, data, sampling_points=time, 
+                                                interp_kind='linear', extrapolate=False, 
+                                                **kwargs)
     return data_time
 
 def get_dch_data(digital_data, digital_samplerate, dch):
@@ -503,7 +552,7 @@ def trial_align_times(timestamps, trigger_times, time_before, time_after, subtra
         trial_indices.append(np.where(trial_idx)[0])
     return trial_aligned, trial_indices
 
-def get_trial_segments(events, times, start_events, end_events):
+def get_trial_segments(events, times, start_events, end_events, repeating_start_events=False):
     '''
     Gets times for the start and end of each trial according to the given set of start_events and end_events
 
@@ -512,6 +561,7 @@ def get_trial_segments(events, times, start_events, end_events):
         times (nt): times vector
         start_events (list): set of start events to match
         end_events (list): set of end events to match
+        repeating_start_events (bool): whether the start events might occur multiple times within one segment. Otherwise always use the last start event within a segment. May lead to segments spanning multiple trials if used improperly. Default False.
 
     Returns:
         tuple: tuple containing:
@@ -519,13 +569,13 @@ def get_trial_segments(events, times, start_events, end_events):
             | **times (ntrials, 2):** list of 2 timestamps for each trial corresponding to the start and end events
 
     Note:
-        - if there are multiple matching start or end events in a trial, only consider the first one
+        - if there are multiple matching start or end events in a trial, the default is to only consider the first one. See :func:`~aopy.preproc.get_trial_segments_and_times` for more detail.
     '''
-    segments, segment_times = get_trial_segments_and_times(events, times, start_events, end_events)
+    segments, segment_times = get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=repeating_start_events)
     segment_times = np.array([[t[0], t[-1]] for t in segment_times])
     return segments, segment_times
 
-def get_trial_segments_and_times(events, times, start_events, end_events):
+def get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=False, return_idx=False):
     '''
     This function is similar to get_trial_segments() except it returns the timestamps of all events in event code.
     Trial align the event codes with corresponding event times.
@@ -535,33 +585,115 @@ def get_trial_segments_and_times(events, times, start_events, end_events):
         times (nt): times vector
         start_events (list): set of start events to match
         end_events (list): set of end events to match
-
+        repeating_start_events (bool, optional): whether the start events might occur multiple times within one segment. Otherwise always use the last start event within a segment. May lead to segments spanning multiple trials if used improperly. Default False.
+        return_idx (bool, optional): whether to return the indices into events and times corresponding to the segments
+        
     Returns:
         tuple: tuple containing:
             | **segments (list of list of events):** a segment of each trial
             | **times (list of list of times):** list of timestamps corresponding to each event in the event code
+            | **idx (list of list of indices, optional):** list of indices into events and times corresponding to each event in the event code
+    
+    Note:
+        - if there are multiple matching start or end events in a trial, the default is to only consider the first one. See examples for more detail.
+
+    Examples:
+
+        For segments that do not contain multiple start events (e.g. trials from center-out reaching task):
+
+        .. code-block:: python
+
+            task_codes = load_bmi3d_task_codes()
+            start_events = [task_codes['CENTER_TARGET_ON']]
+            end_events = [task_codes['TRIAL_END']]
+            print(start_events, end_events)
+
+            # example task data
+            events = [16, 80, 18, 32, 82, 48, 239, 16, 80, 19, 66, 239, 16, 80, 19, 32, 83, 48, 239]
+            times = np.arange(0,len(events))
+
+            # segments should contain only one 'CENTER_TARGET_ON' per segment, since the task is always to reach from the center to a random peripheral target
+            segments, times = get_trial_segments_and_times(events, times, start_events, end_events)
+            print(segments)
+            print(times)
+
+        For segments that contain multiple start events (e.g. trials from corners reaching task):
+
+        .. code-block:: python    
+
+            from aopy.data.bmi3d import load_bmi3d_task_codes
+            task_codes = load_bmi3d_task_codes()
+            start_events = [task_codes['CORNER_TARGET_ON']]
+            end_events = [task_codes['TRIAL_END']]
+            print(start_events, end_events)
+
+            # example task data
+            events = [18, 82, 19, 34, 83, 48, 239, 19, 83, 17, 66, 239, 19, 83, 17, 35, 81, 48, 239]
+            times = np.arange(0,len(events))
+            segments, times = get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=True)
+            
+            # segments should contain multiple 'CORNER_TARGET_ON' events within the same segment, since the task is to reach from one random corner to another
+            print(segments)
+            print(times)
+
+        For segments that do not contain multiple start events themselves but multiple start events may exist in the larger task structure (e.g. delay period from corners reaching task):
+
+        .. code-block:: python   
+
+            from aopy.data.bmi3d import load_bmi3d_task_codes
+            task_codes = load_bmi3d_task_codes()
+            start_events = [task_codes['CORNER_TARGET_ON']] # same as above, but now we want when the 2nd corner target in the sequence turns on
+            end_events = [task_codes['CORNER_TARGET_OFF']] # when 1st corner target turns off, indicating end of delay period
+            print(start_events, end_events)
+
+            # example task data (same as above)
+            events = [18, 82, 19, 34, 83, 48, 239, 19, 83, 17, 66, 239, 19, 83, 17, 35, 81, 48, 239]
+            times = np.arange(0,len(events))
+            segments, times = get_trial_segments_and_times(events, times, start_events, end_events, repeating_start_events=False)
+            
+            # without repeating_start_events, segments skip over the 1st corner target in the sequence and start instead from when the 2nd corner target turns on (e.g when the delay period begins)
+            print(segments)
+            print(times)
 
     '''
+    if np.shape(start_events) == ():
+        start_events = [start_events]
+    if np.shape(end_events) == ():
+        end_events = [end_events]
+        
     # Find the indices in events that correspond to start events
-    evt_start_idx = np.where(np.in1d(events, start_events))[0]
+    evt_start_idx = [i for i, evt in enumerate(events) if evt in start_events]
 
     # Extract segments for each start event
+    segment_idx = []
     segments = []
     segment_times = []
+    prev_segment_last_evt_idx = 0
     for idx_evt in range(len(evt_start_idx)):
         idx_start = evt_start_idx[idx_evt]
         idx_end = evt_start_idx[idx_evt] + 1
 
+        if repeating_start_events:
+            if idx_start < prev_segment_last_evt_idx:
+                continue
+
         # Look forward for a matching end event
         while idx_end < len(events):
-            if np.in1d(events[idx_end], start_events):
-                break # start event must be followed by end event otherwise not valid
-            if np.in1d(events[idx_end], end_events):
+            if not repeating_start_events:
+                if events[idx_end] in start_events:
+                    break # start event must be followed by end event otherwise not valid
+            if events[idx_end] in end_events:
+                segment_idx.append(list(range(idx_start, idx_end+1)))
                 segments.append(events[idx_start:idx_end+1])
                 segment_times.append(times[idx_start:idx_end+1])
+                prev_segment_last_evt_idx = idx_end
                 break
             idx_end += 1
-    return segments, segment_times
+
+    if return_idx:
+        return segments, segment_times, segment_idx    
+    else:
+        return segments, segment_times
 
 def get_data_segment(data, start_time, end_time, samplerate, channels=None):
     '''

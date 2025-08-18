@@ -20,6 +20,7 @@ except:
 
 from .. import data as aodata
 from .. import preproc
+from .. import postproc
 
 '''
 Lookup
@@ -369,10 +370,12 @@ class BMI3DTaskEntry():
             Decoder: decoder object (type depends on which decoder is being loaded)
         '''
         if decoder_dir is not None:
-            filename = bmi3d.get_decoder_name(self.record)
+            filename = bmi3d.get_decoder_name(self.record, dbname=self.dbname)
             filename = os.path.join(decoder_dir, filename)
         else:
-            filename = bmi3d.get_decoder_name_full(self.record)
+            decoder_basename = bmi3d.get_decoder_name(self.record, dbname=self.dbname)
+            sys_path = bmi3d.models.System.objects.using(self.dbname).get(name='bmi').path
+            filename =  os.path.join(sys_path, decoder_basename)
         dec = pickle.load(open(filename, 'rb'))
         dec.db_entry = self.get_decoder_record()
         return dec
@@ -398,34 +401,36 @@ class BMI3DTaskEntry():
         '''
         return featname in self.features
 
-    def get_task_param(self, paramname):
+    def get_task_param(self, paramname, default=None):
         '''
         Get a specific task parameter
 
         Args:
             paramname (str): name of the parameter to get
+            default (object, optional): default value to return if the parameter is not found. Defaults to None.
 
         Returns:
             object: parameter value
         '''
         params = self.task_params
         if paramname not in params:
-            return None
+            return default
         return params[paramname]
     
-    def get_sequence_param(self, paramname):
+    def get_sequence_param(self, paramname, default=None):
         '''
         Get a specific sequence parameter
 
         Args:
             paramname (str): name of the parameter to get
+            default (object, optional): default value to return if the parameter is not found. Defaults to None.
 
         Returns:
             object: parameter value
         '''
         params = self.sequence_params
         if paramname not in params:
-            return None
+            return default
         return params[paramname]
 
     def get_raw_files(self, system_subfolders=None):
@@ -450,15 +455,17 @@ class BMI3DTaskEntry():
         Returns:
             list: preprocessed sources for this task entry
         '''
+        sources = ['exp', 'eye']
+        if 'quatt_bmi' in self.features:
+            sources.append('emg')
         params = self.task_params
-        sources = ['exp']
         if 'record_headstage' in params and params['record_headstage']:
             sources.append('broadband')
             sources.append('lfp')
         if 'neuropixels' in self.features:
             sources.append('spike')
             sources.append('lfp')
-        sources.append('eye')
+            sources.append('ap')
         
         return sources
     
@@ -515,6 +522,43 @@ class BMI3DTaskEntry():
             models.TaskEntry: bmi3d task entry object
         '''
         return self.record
+    
+    def get_exp_mapping(self, raw=False):
+        '''
+        Get the experiment mapping matrix for this task entry that maps from world to
+        screen coordinates. Only useful for manual control experiments.
+
+        Args:
+            raw (bool, optional): if True, return the mapping in BMI3D coordinates (x,z,y). 
+                Only useful for debugging. Defaults to False.
+
+        Returns:
+            np.ndarray: 3x3 mapping matrix
+        '''
+        exp_rotation = self.get_task_param('exp_rotation', 'none')
+        exp_gain = self.get_task_param('exp_gain', 1)
+        x_rot = self.get_task_param('perturbation_rotation_x', 0)
+        y_rot = self.get_task_param('pertubation_rotation', 0)
+        z_rot = self.get_task_param('perturbation_rotation_z', 0)
+        baseline_rotation = self.get_task_param('baseline_rotation', 'none')
+
+        mapping = postproc.bmi3d.get_world_to_screen_mapping(
+            exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+        
+        if raw:
+            return mapping[[0, 2, 1], :][:, [0, 2, 1]]
+        else:
+            return mapping
+
+    def has_exp_perturbation(self):
+        '''
+        Check if this task entry has an experiment perturbation
+
+        Returns:
+            bool: True if the task entry has a non-identity mapping matrix
+        '''
+        return not np.all(np.isclose(self.get_exp_mapping(), np.eye(3)))
+
 
 class BMI3DDecoder():
     '''
@@ -613,6 +657,62 @@ class BMI3DDecoder():
         dec = pickle.load(open(filepath, 'rb'))
         self.dec = dec
         return dec
+
+'''
+Create
+'''
+def create_decoder_parent(project, session, task_name='nothing', task_desc='decoder parent', **kwargs):
+    '''
+    Create a new decoder parent entry (a TaskEntry) in the database. These are used to keep track of
+    decoders that weren't trained on a specific session.
+
+    Args:
+        project (str): project name
+        session (str): session name
+        task_name (str, optional): task name. Defaults to 'nothing'.
+        task_desc (str, optional): task description. Defaults to 'decoder parent'.
+        kwargs (dict, optional): optional keyword arguments, including `dbname` to specify the database
+
+    Returns:
+        TaskEntry: the new decoder parent entry
+    '''
+    dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+
+    subj = bmi3d.models.Subject.objects.using(dbname).get(name='test')
+    task = bmi3d.models.Task.objects.using(dbname).get(name=task_name)
+    
+    te = bmi3d.models.TaskEntry(subject_id=subj.id, task_id=task.id)
+    te.entry_name = task_desc
+    te.project = project
+    te.session = session
+    te.save(using=dbname)
+    
+    return te
+
+def save_decoder(decoder_parent, decoder, suffix, **kwargs):
+    '''
+    Save a new decoder to the database, associated with the given parent TaskEntry. If the decoder
+    was trained on a specific session, use that as the parent. If not, use 
+    :func:`~aopy.data.db.lookup_decoder_parent` or :func:`~aopy.data.db.create_decoder_parent` to 
+    look up or create a new parent entry, respectively.
+
+    Args:
+        decoder_parent (TaskEntry): the parent decoder entry
+        decoder (object): the decoder object to save
+        suffix (str): suffix to append to the decoder name
+        kwargs (dict, optional): optional keyword arguments, including `dbname` to specify the database
+
+    Note:
+        This only works if you have the `bmi` system path locally. See the BMI3D setup page
+        to find this path and make it available on your system.
+    ''' 
+    te_id = decoder_parent.id
+    new_decoder_fname = decoder.save()
+    new_decoder_name = f"{decoder_parent.project}_{decoder_parent.session}_{suffix}" 
+        
+    print("Saving new decoder:", new_decoder_name)
+    dbname = kwargs.pop('dbname', this.BMI3D_DBNAME)
+    dbq.save_bmi(new_decoder_name, te_id, new_decoder_fname, dbname=dbname)
 
 '''
 Wrappers
@@ -810,3 +910,66 @@ def add_metadata_columns(df, sessions, column_names, apply_fns):
     for col, fn in zip(column_names, apply_fns):
         for entry in (sessions):
             df.loc[df['te_id'] == entry.id, col] = fn(entry)
+
+def get_aba_perturbation_sessions(day_entries):
+    '''
+    Given a list of task entries, returns a list of session names
+    that follow an ABA block design. The sessions must be on the same 
+    day and contain at least one session with an experiment perturbation 
+    within the day. The sessions are assigned as follows:
+        - 'a' for sessions until the first perturbation
+        - 'b' for sessions with a perturbation
+        - 'aprime' for the remaining (non-perturbed) sessions
+
+    Args:
+        day_entries (n_rec,): list of task entries for a single day
+    
+    Returns:
+        (n_rec,) list or None: list of session names ('a', 'b', 'aprime') 
+            with the same length as the input list. If no sessions 
+            matching ABA format are found, returns None. 
+    '''
+    date = np.array([e.date for e in day_entries])
+    if len(set(date)) != 1:
+        return
+    
+    has_perturbation = np.array([e.has_exp_perturbation() for e in day_entries])
+    if np.all(~has_perturbation):
+        return
+    
+    # Try to find an ABA block pattern
+    session_idx = range(len(day_entries))
+    b_idx = np.where(has_perturbation)[0][0]
+    aprime_idx = np.where(~has_perturbation & (session_idx > b_idx))[0]
+    if len(aprime_idx) == 0:
+        return
+    aprime_idx = aprime_idx[0]
+    
+    # Assign sessions
+    sessions = np.array(['a']*len(day_entries), dtype='U16')
+    sessions[session_idx >= b_idx] = 'b'
+    sessions[session_idx >= aprime_idx] = 'aprime'
+    return sessions.tolist()
+
+def get_aba_perturbation_days(entries):
+    '''
+    Finds all days with ABA block design manual control perturbation experiments
+    based on :func:`~aopy.data.db.get_aba_sessions`.
+
+    Args:
+        entries (list): list of task entries
+
+    Returns:
+        tuple: tuple containing
+            | **aba_days (list):** list of dates with ABA block design sessions
+            | **aba_sessions (list):** list of lists of session names for each date
+    '''
+    days = group_entries(entries)
+    aba_days = []
+    aba_sessions = []
+    for d in days:
+        aba = get_aba_perturbation_sessions(d)
+        if len(aba) > 0:
+            aba_days.append(d[0].date)
+            aba_sessions.append(aba)
+    return aba_days, aba_sessions
