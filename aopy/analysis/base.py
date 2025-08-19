@@ -2734,6 +2734,7 @@ def find_submovement_start(trajectories, speeds, origins=None, speed_threshold=2
                 
     return np.array(split_indices)
 
+
 def calc_statistic_random_trials(data, n_trials=300, 
                                  statistic=partial(np.mean, axis=0),
                                  rng=None):
