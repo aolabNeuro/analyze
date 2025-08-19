@@ -13,7 +13,7 @@ from sklearn.cluster import KMeans
 from sklearn import model_selection
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, accuracy_score
 import scipy
 from scipy import stats, signal
 from scipy import interpolate
@@ -21,11 +21,16 @@ from scipy.stats import wilcoxon
 from statsmodels.stats.multitest import fdrcorrection
 import nitime.algorithms as tsa
 import pywt
+import multiprocessing as mp
+from tqdm.auto import tqdm
+from functools import partial
 
 from .. import visualization
 from .. import utils
 from .. import preproc
+from .. import postproc
 from .. import precondition
+from . import tuning
 
 '''
 Correlation / dimensionality analysis
@@ -2244,10 +2249,10 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
 
     Returns:
         tuple: Tuple containing:
-            **accuracy (ntime-nlags, nfolds):** The decoding accuracy for each time point (and fold if cross-validation is used). 
-            **time_axis (nt-nlags):** The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
-            **(Optional) LDA Weights (ntime-lags, nlabels, nfeatures, nfolds):** The LDA weights for each time point, channel, and fold if `return_weights=True`. Note: nfeatures will include lagged features if lags are used.
-            **(Optional) Confusion Matrix (ntime-lags, nlabels, nlabels, nfolds):** The confusion matrix for each fold if `return_confusion_matrix=True`. 
+            | **accuracy (ntime-nlags, nfolds):** The decoding accuracy for each time point (and fold if cross-validation is used). 
+            | **time_axis (nt-nlags):** The time-axis for each trial of the output data. When lags>0, each time-point corresponds to the right edge of the window. This is the time point corresponding to the latest data used in decoding.
+            | **(Optional) LDA Weights (ntime-lags, nlabels, nfeatures, nfolds):** The LDA weights for each time point, channel, and fold if `return_weights=True`. Note: nfeatures will include lagged features if lags are used.
+            | **(Optional) Confusion Matrix (ntime-lags, nlabels, nlabels, nfolds):** The confusion matrix for each fold if `return_confusion_matrix=True`. 
 
     Raises:
         ValueError: If the input data or labels are not valid, or if there is a mismatch between the data and labels.
@@ -2316,7 +2321,189 @@ def windowed_xval_lda_wrapper(data, labels, samplerate, lags=3, nfolds=5, regula
         return decoding_accuracy, time_axis, cm
     else:
         return decoding_accuracy, time_axis
+
+def xval_lda_subsample_wrapper(data, labels, min_trial, cond_mask=None, single_decoding=True, min_unit=None, shuffle_labels=False,
+        nfolds=5, replacement=False, regularization='auto', lda_model=None, return_labels=False, return_weights=False, seed=None):
+    '''
+    Perform an n-fold cross-validation with Linear Discriminant Analysis (LDA) using a single unit or multiple units.
+    This functions extracts trials and/or units randomly based on the random seed with/without replacement.
+    The number of trials per target is controlled to be the same across targets
+    You can repeatedly perform this function by changing random seed to estimate the resampling distribution
+
+    Args:
+        data (nunit, ntr) or (nunit, nfeatures, ntr): neural data. 2 different shapess are allowed. 
+        labels (ntr): the labels for each trial.
+        min_trial (int): the minimum number of trials for each label to be extracted
+                                if this is 20, 20*(the number of unique labels) trials are extracted
+        cond_mask (ntr): a boolean array. This is a mask to extract trials that satisfies a certain condition
+                                (ex. movement onset is more than a certain threshold)
+        single_decoding (bool, optional): If True, LDA is performed using single unit activity separately (default is True)
+        min_unit (int, optional): the number of units used for decoding. This is used only when single_decoding is False.
+                                if min_unit is None, decoding is perfomed using all units (default is None)
+        shuffle_labels (bool, optional): whether to shuffle labels or not (default is False)
+        nfolds (int, optional): the number of folds for cross-validation (default is 5)
+        replacement (bool, optional): whether to choose trials with replacement or without replacement
+        regularization (str or float, optional): If regularization should be included when building the LDA model
+                                Input into the shrinkage parameter of the sklearn LDA function
+                                Can either be None, 'auto', or a float between 0 and 1. 
+        lda_model (sklearn LDA class, optional): User-defined LDA model from sklearn.discriminant_analysis.LinearDiscriminantAnalysis. If None, this function will initialize the model.
+        return_labels (bool, optional): Whether to return true and predicted labels (default is False).
+        return_weights (bool, optional): Whether to return the LDA weights (default is False).
+        seed (int, optional): random seed
+
+    Returns:
+        tuple: Tuple containing:
+            | **accuracy (nch) or (float):** the decoding accuracy. If single_decoding is False, this gets a single velue.
+            | **(Optional) true_Y (nch,ntr) or (ntr):** a list of true labels. If single_decoding is False, its shape becomes (ntr).
+            | **(Optional) pred_Y (nch,ntr) or (ntr):** a list of predicted labels. If single_decoding is False, its shape becomes (ntr).
+            | **(Optional) LDA Weights (nlabels,nch,nfolds) or (nlabels,nch,nfeatures,nfolds):** The LDA weights if return_weights is True.
+
+    Examples:
+        
+        .. code-block:: python
+
+            "This is an example of this function using multiprocessing to get a resampling distribution"
+            
+            import multiprocessing as mp
+
+            single_decoding = True
+            min_unit = None
+            shuffle_labels = False
+            n_fold = 5
+            replacement = False
+            regularization = 'auto'
+            lda_model = None
+            return_labels = True
+            return_weights = False
+            n_resample = 100 # the number of resampling
+            n_processes = 20 # the number of cpus used for the computation
+
+            pool = mp.Pool(n_processes)
+            result_objects = [pool.apply_async(xval_lda_subsample_wrapper,\
+                args=(data, target_idx, min_trials, trial_mask, single_decoding, min_unit, shuffle_labels, n_fold, \
+                    replacement, regularization, lda_model, return_labels, return_weights, ibs)) for ibs in range(n_resample)]
+            pool.close()
+
+            # Organize results
+            results = [r.get() for r in result_objects]
+            accuracy, pred_labels_resample, true_labels_resample = zip(*results)
+            accuracy = np.array(accuracy)
+            pred_labels_resample = np.array(pred_labels_resample, int)
+            true_labels_resample = np.array(true_labels_resample, int)
+
+    See Also:
+        :func:`~aopy.analysis.base.windowed_xval_lda_wrapper`
+
+    '''
+
+    if data.ndim == 2:
+        # (nunit, ntr) -> (nunit, 1, ntr)
+        data = data[:, np.newaxis, :]
+    elif data.ndim != 3:
+        raise ValueError("data must have shape (nunit, ntr) or (nunit, nfeatures, ntr)")
     
+    nunit, nfeatures, ntr = data.shape
+    nlabels = len(np.unique(labels))
+    kf = model_selection.KFold(n_splits=nfolds)
+
+    if seed is not None:
+        np.random.seed(seed)
+
+    if lda_model is None:
+        lda = LinearDiscriminantAnalysis(solver='eigen', shrinkage=regularization)
+    else:
+        lda = lda_model
+
+    if shuffle_labels:
+        Y = np.random.permutation(Y)
+
+    # Choose trials randomly so that the number of trials per target can be the same across targets.
+    trial_mask = postproc.get_conditioned_trials_per_target(labels, min_trial, cond_mask=cond_mask, replacement=replacement, seed=seed)
+        
+    # Extract trials
+    data_trial = data[:,:,trial_mask]
+    Y = labels[trial_mask]
+
+    pred_Y = []
+    true_Y = []
+
+    # Perform LDA using single unit activity separately
+    if single_decoding:
+
+        if return_weights:
+            weights = np.zeros((nlabels, nunit, nfeatures, nfolds))*np.nan
+    
+        accuracy = []
+        for iunit in range(data_trial.shape[0]):
+            # Flatten features for sklearn
+            X = data_trial[iunit].T  # shape (ntr, nfeatures)
+            
+            pred_Y_ch = []
+            true_Y_ch = []
+
+            # k-fold cross-validation
+            for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
+    
+                Xtrain,Xtest = X[train_idx,:],X[test_idx,:]
+                Ytrain,Ytest = Y[train_idx],Y[test_idx]
+                
+                lda.fit( (Xtrain - np.mean(Xtrain,axis=0)), Ytrain)
+    
+                pred_Y_ch.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
+                true_Y_ch.extend(Ytest)
+
+                if return_weights:
+                    weights[:,iunit,:,ifold] = lda.coef_
+                    
+            accuracy.append(accuracy_score(true_Y_ch, pred_Y_ch))
+            true_Y.append(true_Y_ch)
+            pred_Y.append(pred_Y_ch)
+
+        accuracy = np.array(accuracy)
+
+    # Perform LDA using multiple unit activity together
+    else:
+        # Subsample units for decoding
+        if min_unit is not None:
+            unit_mask = np.random.choice(nunit, size=min_unit, replace=replacement) # randomly choose units
+            X = data_trial[unit_mask,:,:].reshape(min_unit*nfeatures, -1).T
+            if return_weights:
+                weights = np.zeros((nlabels, min_unit, nfeatures, nfolds))*np.nan
+        # Use all units without subsampling
+        else:
+            X = data_trial.reshape(nunit*nfeatures, -1).T
+            if return_weights:
+                weights = np.zeros((nlabels, nunit, nfeatures, nfolds)) * np.nan
+
+        # k-fold cross-validation
+        for ifold, (train_idx, test_idx) in enumerate(kf.split(X)):
+
+            Xtrain,Xtest = X[train_idx,:],X[test_idx,:]
+            Ytrain,Ytest = Y[train_idx],Y[test_idx]
+            
+            lda.fit( (Xtrain - np.mean(Xtrain,axis=0)), Ytrain)
+
+            true_Y.extend(Ytest)
+            pred_Y.extend(lda.predict( (Xtest - np.mean(Xtrain,axis=0)) ))
+            
+            if return_weights:
+                weights[:,:,:,ifold] = lda.coef_.reshape(nlabels, -1, nfeatures)
+
+        accuracy = accuracy_score(true_Y, pred_Y)
+
+    # Organize results
+    results = [accuracy]
+    if return_labels:
+        results.append(np.array(true_Y))
+        results.append(np.array(pred_Y))
+    if return_weights:
+        results.append(np.squeeze(weights))
+
+    if len(results) == 1:
+        return results[0]
+    else:
+        return tuple(results)
+
 def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000):
     """
     Simulates straight reach trajectories from a given origin to a list of target points in 3D space.
@@ -2546,3 +2733,435 @@ def find_submovement_start(trajectories, speeds, origins=None, speed_threshold=2
             continue
                 
     return np.array(split_indices)
+
+def calc_statistic_random_trials(data, n_trials=300, 
+                                 statistic=partial(np.mean, axis=0),
+                                 rng=None):
+    '''
+    Calculate a distribution of a statistic across groups of trials of the data
+    by randomly sampling trials without replacement.
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on. Also accepts a pandas DataFrame of
+            shape (ntrials, ...) if the statistic can be calculated on a DataFrame.
+        n_trials (int): number of trials to use in each bootstrap
+        statistic (function): function to calculate the statistic on the data. Should
+            take the form `f(x) = y` where `x` is a 2D array of shape (n_trials, nch)
+            and `y` is a 1D array of shape (nch). Default is np.mean(x, axis=0).
+        rng (numpy.random.Generator, optional): Random number generator to use for shuffling trials.
+            If None, uses the default random number generator. Default is None.
+            
+    Returns:
+        (len(data)//ntrials, nch) array: distributions of the statistic across divisions of the data.
+
+    Examples:
+
+        .. code-block:: python
+
+            elec_pos, _, _ = aopy.data.load_chmap()
+            n_elec = len(elec_pos)
+            total_trials = 1600
+            n_trials = 50
+            np.random.seed()
+            data = 0.5*np.ones((total_trials,n_elec))
+            data += np.random.normal(0.5, size=(total_trials,n_elec))
+            data[:,n_elec//4:n_elec//2] += 0.1
+
+            dists = aopy.analysis.calc_statistic_random_trials(data, n_trials=n_trials)
+            self.assertEqual(np.shape(dists), (len(data)//n_trials, n_elec))
+
+            # Test that the distribution means are close to the original data mean
+            mean = np.mean(data, axis=0)
+            dists_mean = np.mean(dists, axis=0)
+            dists_std = np.std(dists, axis=0)
+            for i in range(n_elec):
+                self.assertAlmostEqual(mean[i], dists_mean[i], delta=0.1)
+            clim = (np.min(dists_mean), np.max(dists_mean))
+
+            plt.figure(figsize=(5,2), dpi=300)
+            plt.subplot(1,3,1)
+            im = aopy.visualization.plot_spatial_drive_map(mean, 
+                                            elec_data=True, cmap='Grays')
+            im.set_clim(*clim)
+            plt.axis('off')
+            plt.colorbar(im, shrink=0.5)
+            plt.title('data mean')
+
+            plt.subplot(1,3,2)
+            im = aopy.visualization.plot_spatial_drive_map(dists_mean, 
+                                            elec_data=True, cmap='Grays')
+            im.set_clim(*clim)
+            plt.axis('off')
+            plt.colorbar(im, shrink=0.5)
+            plt.title('dist means')
+
+            plt.subplot(1,3,3)
+            im = aopy.visualization.plot_spatial_drive_map(dists_std, 
+                                            elec_data=True, cmap='Grays')
+            plt.axis('off')
+            plt.colorbar(im, shrink=0.5)
+            plt.title('dist std')
+
+        .. image:: _images/calc_statistic_random_trials.png
+    '''
+    if rng is None:
+        rng = np.random.default_rng()
+    all_trials = np.arange(len(data))
+    rng.shuffle(all_trials)
+    n_div = len(data)//n_trials
+    if n_div < 1:
+        raise ValueError(f"Not enough trials in data ({len(data)}) to perform the calculation with n_trials ({n_trials}).")
+    trials = np.reshape(all_trials[:n_div*n_trials], (n_div, n_trials))
+
+    dist = []
+    for k in range(n_div):
+        try:
+            dist.append(statistic(data[trials[k]]))
+        except KeyError:
+            dist.append(statistic(data.iloc[trials[k]].reset_index(drop=True)))
+
+    return np.array(dist)
+
+def _calc_statistic_random_trials(args):
+    '''
+    Helper function to unpack arguments for parallel processing.
+    '''
+    return calc_statistic_random_trials(*args)
+
+def calc_trial_bootstraps(data, n_trials=300, n_bootstraps=30, 
+                          statistic=partial(np.mean, axis=0), 
+                          rng=None, parallel=False, verbose=True):
+    '''
+    Repeatedly call :func:`~aopy.analysis.calc_statistic_random_trials` to generate
+    statistics over randomly sampled trials. Each bootstrap draws random groups of 
+    trials, each of size `n_trials`, without replacement, until there aren't enough
+    trials to make another full size group. The statistic is then calculated on each 
+    group, resulting in `n_bootstraps * len(data)//n_trials` values.
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on
+        n_trials (int): number of trials to use in each bootstrap
+        n_bootstraps (int): number of bootstrap trials to perform
+        statistic (function): function to calculate the statistic on the data. Should
+            take the form `f(x) = y` where `x` is a 2D array of shape (n_trials, nch)
+            and `y` is a 1D array of shape (nch). Default is np.mean(x, axis=0).
+        rng (numpy.random.Generator, optional): Random number generator to use for shuffling trials.
+            Be careful when using this with parallel processing, as it may lead to
+            duplicate results if the same random number generator is used across processes.
+            If None, uses a new default random number generator on each bootstrap.
+            Default is None.
+        parallel (bool or mp.pool.Pool, optional): Whether to run the bootstraps in parallel.
+            If True, uses a multiprocessing pool with 10 workers. If a Pool is provided,
+            it will use that pool instead. The pool will not be closed. If False, 
+            runs the bootstraps sequentially.
+        verbose (bool, optional): Whether to print progress bars. Default is True.
+            
+    Returns:
+        (n_bootstraps, len(data)//n_trials, nch) array: multiple bootstraps of distributions
+            of the statistic applied to divisions of the data.
+    '''
+    assert n_bootstraps > 0, "must have at least 1 bootstrap"
+    assert n_trials > 0, "must have at least 1 trial"
+    assert len(data) >= n_trials, "data must have at least as many trials as n_trials"
+    assert callable(statistic), "statistic must be a callable function"
+
+    if rng is None:
+        rng = np.random.default_rng()
+    args_list = [(data, n_trials, statistic, rng) for rng in rng.spawn(n_bootstraps)]
+
+    pool = None
+    if parallel is True:
+        pool = mp.Pool(mp.cpu_count() // 2)  # use half of the available cores
+    elif type(parallel) is mp.pool.Pool: # use an existing pool
+        pool = parallel
+    
+    if n_bootstraps == 1:
+        results = [calc_statistic_random_trials(*args_list[0])]
+    elif pool:
+        if verbose:
+            results = list(tqdm(pool.imap(_calc_statistic_random_trials, args_list), 
+                                total=n_bootstraps, desc="Bootstraps"))
+        else:
+            results = list(pool.imap(_calc_statistic_random_trials, args_list))
+        if parallel is True:
+            pool.close()
+    else:
+        results = []
+        if verbose:
+            iterator = tqdm(args_list, desc="Bootstraps")
+        else:
+            iterator = args_list
+        for args in iterator:
+            results.append(calc_statistic_random_trials(*args))
+
+    return np.array(results)
+
+def _compare_conditions_bootstrap_spatial_corr_worker(
+        data, elec_pos, labels, n_trials=300, n_bootstraps=30, 
+        statistics=partial(np.mean, axis=0), rng=None, parallel=False):
+    '''
+    Compare multiple conditions using bootstrapping. Two comparisons are made:
+        1. The spatial correlation of the distributions of the statistic across conditions.
+        2. The d-prime value for each channel pooled across bootstraps and comparing
+           across conditions.
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on. Also accepts a pandas DataFrame of
+            shape (ntrials, ...) if the statistic can be calculated on a DataFrame.
+        elec_pos ((nch, 2) array): electrode positions for each channel
+        labels (ntrials,): labels for each trial, used to group trials by condition
+        n_trials (int): number of trials to use in each bootstrap
+        n_bootstraps (int): number of bootstrap trials to perform
+        rng (numpy.random.Generator, optional): Random number generator to use for shuffling trials.
+            Be careful when using this with parallel processing, as it may lead to
+            duplicate results if the same random number generator is used across processes.
+            If None, uses a new default random number generator on each bootstrap.
+            Default is None.
+        statistics (function or list of functions): function(s) to calculate the statistic on the data. 
+            If more than one is supplied, they will be applied per condition 
+
+    Returns:
+        tuple: tuple containing:
+            | **cond_dists (n_cond, n_bootstraps, len(data)//n_trials, nch):** bootstraps distributions for each condition
+            | **conditions (n_cond):** unique conditions in the labels
+            | **corr_mats (n_bootstraps, n_cond*n_cond, n_cond*n_cond, nch):** list of spatial correlation matrices for each bootstrap
+            | **dprime (nch):** d-prime value for each channel pooled across bootstraps and comparing across conditions
+    '''
+    conditions = np.unique(labels)
+    if len(conditions) < 2:
+        raise ValueError("At least two conditions are required for comparison")
+    if callable(statistics):
+        statistics=[statistics] * len(conditions)
+
+    cond_dists = []
+    for idx, cond in enumerate(conditions):
+        try:
+            data_cond = data[labels == cond]
+        except KeyError:
+            data_cond = data.iloc[labels == cond].reset_index(drop=True)
+
+        if len(data_cond) < n_trials:
+            raise ValueError(f"Condition {cond} has less than {n_trials} trials")
+
+        dist = calc_trial_bootstraps(data_cond, n_trials=n_trials, n_bootstraps=n_bootstraps,
+                                     statistic=statistics[idx], rng=rng, parallel=parallel)
+        
+        cond_dists.append(dist)
+
+    # Compare spatial correlation
+    corr_mats = []
+    for i in range(n_bootstraps):
+        dists = [cd[i] for cd in cond_dists]
+        cmp = calc_spatial_data_correlation(np.concatenate(dists), 
+                                            elec_pos, interp=False)[0]
+        corr_mats.append(cmp)
+
+    # d-prime pooled across bootstraps
+    dprime = tuning.calc_dprime(*[np.concatenate(cd) for cd in cond_dists])
+
+    return cond_dists, conditions, corr_mats, dprime
+
+def compare_conditions_bootstrap_spatial_corr(
+        data, elec_pos, labels, n_trials=300, n_bootstraps=30, n_shuffle=0, 
+        statistics=partial(np.mean, axis=0), rng=None, parallel=False):
+    '''
+    Compare multiple conditions using bootstrapping and shuffling. Each additional
+    bootstrap draws random groups of trials, each of size `n_trials`, without replacement,
+    until there aren't enough trials to make another full size group. The statistic is then
+    calculated on each group, resulting in `n_bootstraps * len(data)//n_trials` values.
+    The spatial correlation of the statistic across conditions is calculated within each
+    bootstrap, and the d-prime is calculated for all statistics pooled across bootstraps.
+    Finally, if `n_shuffle > 0`, the labels are shuffled `n_shuffle` times and the bootstrap
+    procedure repeated to create a null distribution for the spatial correlation and d-prime values.
+
+    Args:
+        data (ntrials, nch): data to calculate the statistic on
+        elec_pos ((nch, 2) array): electrode positions for each channel
+        labels (ntrials,): labels for each trial, used to group trials by condition
+        n_trials (int): number of trials to use in each bootstrap
+        n_bootstraps (int): number of bootstrap trials to perform
+        n_shuffle (int): number of times to shuffle the labels to create a null distribution
+        statistics (function or list of functions): function(s) to calculate the statistic on the data. If more than one is supplied, they will be applied per condition 
+        rng (numpy.random.Generator, optional): Random number generator to use for shuffling trials.
+            Be careful when using this with parallel processing, as it may lead to
+            duplicate results if the same random number generator is used across processes.
+            If None, uses a new default random number generator on each bootstrap.
+            Default is None.
+        parallel (bool or mp.pool.Pool, optional): Whether to run the bootstraps in parallel.
+            If True, uses a multiprocessing pool with 10 workers. If a Pool is provided,
+            it will use that pool instead. The pool will not be closed. If False,
+            runs the bootstraps sequentially. Default is False.
+        
+    Returns:
+        tuple: tuple containing:
+            | **observed_dists (n_cond, n_bootstraps, len(data)//n_trials, nch):** bootstraps distributions for each condition
+            | **conditions (n_cond):** unique conditions in the labels
+            | **observed_corr (n_bootstraps, n_cond*n_cond, n_cond*n_cond, nch):** list of spatial correlation matrices for each bootstrap
+            | **observed_dprime (nch):** d-prime value for each channel pooled across bootstraps and comparing across conditions
+        
+        if n_shuffle > 0:
+            | **shuff_dists_dist (n_shuffle, n_cond, n_bootstraps, len(data)//n_trials, nch):** shuffled distributions for each condition
+            | **shuff_corr_dist (n_shuffle, n_bootstraps, n_cond*n_cond, n_cond*n_cond, nch):** shuffled spatial correlation matrices
+            | **shuff_dprime_dist (n_shuffle, nch):** shuffled d-prime  
+
+    Examples:
+
+        .. code-block:: python
+
+            elec_pos, _, _ = aopy.data.load_chmap()
+            n_elec = len(elec_pos)
+            total_trials = 1600
+            n_trials = 200
+            n_bootstraps = 50
+
+            # Test null distribution
+            np.random.seed(0)
+            data = 0.5*np.ones((total_trials,n_elec))
+            data += np.random.normal(0.5, size=(total_trials,n_elec))
+            data[:,n_elec//4:n_elec//2] += 0.1
+            labels = np.zeros((total_trials,))
+            labels[total_trials//2:] = 1
+
+            def plot_result(means, corr_mat, dprime, row):
+
+                mean12 = np.concatenate(means)
+                clim = (np.min(mean12),np.max(mean12))
+
+                plt.subplot(3,4,(4*(row-1))+1)
+                im = aopy.visualization.plot_spatial_drive_map(means[0], 
+                                                elec_data=True, cmap='Grays')
+                im.set_clim(*clim)
+                plt.colorbar(im, shrink=0.5)
+                plt.axis('off')
+                plt.title('Condition 1')
+
+                plt.subplot(3,4,(4*(row-1))+2)
+                im = aopy.visualization.plot_spatial_drive_map(means[1], 
+                                                elec_data=True, cmap='Grays')
+                im.set_clim(*clim)
+                plt.colorbar(im, shrink=0.5)
+                plt.axis('off')
+                plt.title('Condition 2')
+
+                plt.subplot(3,4,(4*(row-1))+3)
+                im = plt.imshow(np.nanmean(corr_mat, axis=0), cmap='Grays', vmin=0, vmax=1, origin='lower')
+                plt.colorbar(im, shrink=0.5)
+                sz = len(corr_mat[0])//2
+                plt.xticks(range(sz*2), labels=['1']*sz + ['2']*sz)
+                plt.yticks(range(sz*2), labels=['1']*sz + ['2']*sz)
+                plt.xlabel('Condition')
+                plt.ylabel('Condition')
+                plt.title('Correlation')
+
+                plt.subplot(3,4,(4*(row-1))+4)
+                im = aopy.visualization.plot_spatial_drive_map(dprime, elec_data=True, cmap='turbo')
+                im.set_clim(0,5)
+                plt.axis('off')
+                plt.colorbar(im, shrink=0.5)
+                plt.title('dprime')
+
+            fig = plt.figure(figsize=(8,6), dpi=300)
+
+            means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
+            dists, conditions, corr_mat, dprime = \
+                aopy.analysis.compare_conditions_bootstrap_spatial_corr(
+                    data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=False
+                )
+            plot_result(means, corr_mat, dprime, 1)
+            fig.text(0.5, 1, "Null distribution", ha='center', va='top', fontsize=14)
+
+            # Test difference
+            data[labels == 1,:n_elec//8] += 0.2
+
+            means = [np.mean(data[labels == i,:], axis=0) for i in np.unique(labels)]
+            dists, conditions, corr_mat, dprime, shuff_dists, shuff_mat, shuff_dprime = \
+                aopy.analysis.compare_conditions_bootstrap_spatial_corr(
+                    data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, n_shuffle=1, parallel=False
+                )
+            plot_result(means, corr_mat, dprime, 2)
+            fig.text(0.5, 0.65, "Difference", ha='center', va='top', fontsize=14)
+
+            # Test shuffled
+            plot_result(means, shuff_mat[0], shuff_dprime[0], 3)
+            fig.text(0.5, 0.35, "Shuffled", ha='center', va='top', fontsize=14)
+
+        .. image:: _images/compare_conditions_bootstrap_spatial_corr.png
+
+        Sweep over increasing n_trials of the same data as above
+        
+        .. code-block:: python
+
+            n_bootstraps = 10
+            avg_coeff_1 = []
+            avg_coeff_2 = []
+            avg_dprime_1 = []
+            avg_dprime_2 = []
+            trial_sizes = range(10, 450, 50)
+            for n_trials in trial_sizes:
+                dists, conditions, corr_mat, dprime = \
+                    aopy.analysis.compare_conditions_bootstrap_spatial_corr(
+                        data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, parallel=False
+                    )
+                avg_corr_map = np.nanmean(corr_mat, axis=0)
+                sz = avg_corr_map.shape[0]//2
+                avg_coeff_1.append(np.nanmean(avg_corr_map[:sz,:sz]))
+                avg_coeff_2.append(np.nanmean(avg_corr_map[sz:,:sz]))
+                avg_dprime_1.append(np.mean(dprime[:n_elec//8]))
+                avg_dprime_2.append(np.mean(dprime[-n_elec//8:]))
+
+            plt.figure(figsize=(5,2), dpi=300)
+            plt.subplot(1,2,1)
+            plt.plot(trial_sizes, avg_coeff_1)
+            plt.plot(trial_sizes, avg_coeff_2)
+            plt.ylabel('map correlation')
+            plt.xlabel('num trials in each map')
+            plt.legend(['within', 'across'], bbox_to_anchor=[1,1], loc='upper left')
+
+            plt.subplot(1,2,2)
+            plt.plot(trial_sizes, avg_dprime_1)
+            plt.plot(trial_sizes, avg_dprime_2)
+            plt.ylabel('dprime')
+            plt.xlabel('num trials in each map')
+            plt.legend(['diff', 'same'], bbox_to_anchor=[1,1], loc='upper left')
+
+            plt.tight_layout()
+
+        .. image:: _images/compare_conditions_bootstrap_spatial_corr_sweep.png
+    '''
+    conditions = np.unique(labels)
+    if len(conditions) < 2:
+        raise ValueError("At least two conditions are required for comparison")
+    if parallel is True:
+        parallel = mp.Pool(mp.cpu_count() // 2)  # use half of the available cores
+    if n_shuffle > 0:
+        shuff_pbar = tqdm(total=n_shuffle, desc="Shuffles")
+        
+    # Calculate observed distributions
+    observed_dists, _, observed_corr, observed_dprime = \
+        _compare_conditions_bootstrap_spatial_corr_worker(
+            data, elec_pos, labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
+            statistics=statistics, rng=rng, parallel=parallel
+        )
+    
+    if n_shuffle == 0:
+        return observed_dists, conditions, observed_corr, observed_dprime
+
+    # Calculate shuffled distributions
+    shuff_labels = labels.copy()
+    shuff_dists_dist = []
+    shuff_corr_dist = []
+    shuff_dprime_dist = []
+    for n in range(n_shuffle):
+        np.random.shuffle(shuff_labels)
+        shuff_dists, _, shuff_corr, shuff_dprime = \
+            _compare_conditions_bootstrap_spatial_corr_worker(
+                data, elec_pos, shuff_labels, n_trials=n_trials, n_bootstraps=n_bootstraps, 
+                statistics=statistics, rng=rng, parallel=parallel
+            )
+        shuff_dists_dist.append(shuff_dists)
+        shuff_corr_dist.append(shuff_corr)
+        shuff_dprime_dist.append(shuff_dprime)
+        shuff_pbar.update()
+        
+    return observed_dists, conditions, observed_corr, observed_dprime, \
+        shuff_dists_dist, shuff_corr_dist, shuff_dprime_dist

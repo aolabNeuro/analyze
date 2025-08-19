@@ -198,68 +198,6 @@ def get_neuropixel_digital_input_times(data_dir, data_folder, datatype, node_idx
     
     return on_times, off_times
 
-def load_ks_output(kilosort_dir, concat_data_dir, flag='spike'):
-    '''
-    load kilosort output preprocessed by kilosort.
-    If falg is 'spike', it loads spike information (spike indices, spike label)
-    If flag is 'template', it loads template informaiton that was used for spike sorting in kilosort
-    If flag is 'channel', it loads channel mapping information in kilosort
-    If flag is 'rez', it loads rez.mat file, which contains drift map information
-    
-    Args:
-        kilosort_dir (str): kilosort directory (ex. '/data/preprocessed/kilosort')
-        concat_data_dir (str): data directory that contains concatenated data and kilosort_output (ex. '2023-06-30_Neuropixel_ks_affi_bottom_port1')
-        flag (str, optional): Which data you load. 'spike','template','channel', or 'rez'
-        
-    Return:
-        kilosort_output (dict): preprocessed data by kilosort
-    '''
-
-    # Get kilosort directory path
-    data_path = os.path.join(kilosort_dir, concat_data_dir)
-    
-    # path for kilosort data
-    if flag == 'spike':
-        spike_times_path = glob.glob(os.path.join(data_path,'**/spike_times.npy'),recursive=True)[0]
-        spike_clusters_path = glob.glob(os.path.join(data_path,'**/spike_clusters.npy'),recursive=True)[0]
-        ks_label_path = glob.glob(os.path.join(data_path,'**/cluster_KSLabel.tsv'),recursive=True)[0]
-        amplitudes_path = glob.glob(os.path.join(data_path,'**/amplitudes.npy'),recursive=True)[0]
-        cluster_amplitude_path = glob.glob(os.path.join(data_path,'**/cluster_Amplitude.tsv'),recursive=True)[0]
-        cluster_group_path = glob.glob(os.path.join(data_path,'**/cluster_group.tsv'),recursive=True)[0]
-    elif flag == 'template':
-        spike_templates_path = glob.glob(os.path.join(data_path,'**/spike_templates.npy'),recursive=True)[0]
-        template_features_path = glob.glob(os.path.join(data_path,'**/template_features.npy'),recursive=True)[0]
-        template_feature_ind_path = glob.glob(os.path.join(data_path,'**/template_feature_ind.npy'),recursive=True)[0]
-        templates_path = glob.glob(os.path.join(data_path,'**/templates.npy'),recursive=True)[0]
-    elif flag == 'channel':
-        channel_map_path = glob.glob(os.path.join(data_path,'**/channel_map.npy'),recursive=True)[0]
-        channel_positions_path = glob.glob(os.path.join(data_path,'**/channel_positions.npy'),recursive=True)[0]
-    elif flag == 'rez':
-        rez_path = glob.glob(os.path.join(data_path,'**/rez.mat'),recursive=True)[0]
-    
-    # load kilsort data
-    kilosort_output = {}
-    if flag == 'spike':
-        kilosort_output['spike_indices'] = np.load(spike_times_path)
-        kilosort_output['spike_clusters'] = np.load(spike_clusters_path)
-        kilosort_output['ks_label'] = np.genfromtxt(ks_label_path,skip_header=1,dtype=h5py.special_dtype(vlen=str))
-        kilosort_output['amplitudes'] = np.load(amplitudes_path)
-        kilosort_output['cluster_amplitude'] = np.genfromtxt(cluster_amplitude_path,skip_header=1,dtype=h5py.special_dtype(vlen=str))
-        kilosort_output['cluster_group'] = np.genfromtxt(cluster_group_path,skip_header=1,dtype=h5py.special_dtype(vlen=str))
-    elif flag == 'template':
-        kilosort_output['spike_templates'] = np.load(spike_templates_path)
-        kilosort_output['template_features'] = np.load(template_features_path)
-        kilosort_output['template_feature_ind'] = np.load(template_feature_ind_path)
-        kilosort_output['templates'] = np.load(templates_path)
-    elif flag == 'channel':
-        kilosort_output['channel_map'] = np.load(channel_map_path)
-        kilosort_output['channel_positions'] = np.load(channel_positions_path)
-    elif flag == 'rez':
-        f = h5py.File(rez_path,'r')
-        kilosort_output = dict(f['rez'])
-    
-    return kilosort_output
-
 def load_parsed_ksdata(kilosort_dir, data_dir):
     '''
     load kilosort data (spike indices, clusters, and label) parsed into the task entries

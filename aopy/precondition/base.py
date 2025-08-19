@@ -7,6 +7,7 @@ import math
 
 from scipy import signal
 from scipy.signal import butter, filtfilt, windows
+from scipy.interpolate import interp1d
 import numpy as np
 
 from .. import analysis
@@ -723,12 +724,14 @@ def downsample(data, old_samplerate, new_samplerate):
     old_samples = data.shape[0]
     downsample_factor = int(old_samplerate/new_samplerate)
 
-    # Pad the data to a multiple of the downsample factor
-    pad_size = math.ceil(float(old_samples)/downsample_factor)*downsample_factor - old_samples
-    pad_shape = (pad_size,)
+    # Pad the data to a multiple of the downsample factor plus half the downsample factor to avoid phase shift
+    new_samples = math.ceil(float(old_samples)/downsample_factor)*downsample_factor
+    new_shape = (new_samples,)
     if data.ndim > 1:
-        pad_shape = np.concatenate(([pad_size], data.shape[1:]))
-    data_padded = np.append(data, np.zeros(pad_shape)*np.nan, axis=0)
+        new_shape = np.concatenate(([new_samples], data.shape[1:]))
+    data_padded = np.zeros(new_shape)*np.NaN
+    old_samples_kept = min(old_samples, new_samples-downsample_factor//2)
+    data_padded[downsample_factor//2:downsample_factor//2+old_samples_kept] = data[:old_samples_kept]
 
     # Downsample using average
     if data.ndim == 1:
@@ -785,7 +788,7 @@ def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, butt
     b, a = butter(buttord, window, btype='bandpass', fs=samplerate)
     return filtfilt(b, a, broadband_data, axis=0)
 
-def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4, 
+def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
                       deriv=0, savgol_window_ms=50, savgol_polyorder=3, norm=False):
     '''
     Low-pass filter kinematics data to below 15 Hz by default. 
@@ -886,8 +889,19 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
         
 
     '''
-    b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
-    filtered_data = filtfilt(b, a, kinematic_data, axis=0)
+    # Remove nan
+    filtered_data = np.copy(kinematic_data)
+    if np.ndim(filtered_data) == 1:
+        filtered_data = filtered_data.reshape(-1, 1)
+    nan_mask = np.any(np.isnan(filtered_data), axis=1)
+    f = interp1d(np.flatnonzero(~nan_mask), filtered_data[~nan_mask], axis=0,
+                bounds_error=False, fill_value="extrapolate")
+    filtered_data[nan_mask] = f(np.flatnonzero(nan_mask))
+
+    # Low-pass filter and apply derivatives
+    if low_cut is not None:
+        b, a = butter(buttord, low_cut, btype='lowpass', fs=samplerate)
+        filtered_data = filtfilt(b, a, filtered_data, axis=0)
     if deriv > 0:
         window_length = int(np.ceil(savgol_window_ms * samplerate / 1000.)) | 1
         if window_length < 3:
@@ -898,4 +912,8 @@ def filter_kinematics(kinematic_data, samplerate, low_cut=15, buttord=4,
                                              deriv=deriv, axis=0)
     if norm:
         filtered_data = np.linalg.norm(filtered_data, axis=1)
+
+    # Append nan values back
+    filtered_data[nan_mask] = np.nan
+
     return filtered_data, samplerate
