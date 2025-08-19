@@ -36,7 +36,7 @@ Examples:
 
     examples/movement_onset_example.ipynb
 
-  .. toctree::
+.. toctree::
 
     examples/ECoG_example.ipynb
 
