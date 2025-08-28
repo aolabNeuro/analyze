@@ -492,3 +492,90 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
         traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[:, itrial])
     
     return traj_correlation
+
+
+# Using velocity threshold for first point and distance for second point
+def heading_angle_velocity(coords, thresh_pt, time_spt, fs, baseline_time = 0, butter_order = 4, low_cut = 20):
+
+    """
+    Compute heading angle based on velocity threshold and time from that threshold crossing.
+
+    Args: 
+        coords (np.ndarray): Array of coordinates (number of points, 2)
+        thresh_pt (np.float): Criteria for the speed threshold 
+        time_spt (np.float): Time from the threshold crossing (in seconds)
+        fs (np.float): Sample rate 
+        baseline_time (np.float): Duration of the baseline period if want to ignore portion of the trial. Default of 0 includes entire trial 
+        butter_order (int): Order of the Butterworth filter 
+        low_cut (np.float): Low pass cut off frequency for Butterworth 
+
+    Returns: 
+        sample_mtrx: List containing (onset_idx, second_idx). Size is (n_trials, 2)
+
+    """
+
+    b, a = signal.butter(butter_order, low_cut, btype='lowpass', fs=fs)
+    
+    nbase_samples = int(baseline_time * fs) # convert baseline time to samples
+    sample_mtrx = []
+    for itr in range(len(coords)):
+        dist = np.linalg.norm(coords[itr], axis = 1)
+        speed_est = np.diff(dist)/(1/fs)
+        speed_est = np.hstack((speed_est[0], speed_est))  # Add the first element to match the length
+        speed_est = signal.filtfilt(b, a, speed_est, axis=0) #filter
+        thresh = thresh_pt * np.max(speed_est[nbase_samples:])  # find threshold of max speed
+    # Find the index at which speed_est exceeds thresh
+        onset_idx = np.argmax(speed_est[nbase_samples:] > thresh) + nbase_samples
+
+        time_samples = int(time_spt*fs) #Convert time (sec) to samples 
+
+        if onset_idx+time_samples >= len(coords[itr]): #if time post threshold crossing exceeds length of trial 
+            second_idx = None
+        else: 
+            second_idx = onset_idx + time_samples
+
+        
+        sample_mtrx.append((onset_idx, second_idx))
+
+    return(sample_mtrx)
+
+
+def heading_samples_position(coords, radius=1.5, second_point=4.0, dimension = '2d'):
+
+    first_pt = None
+    second_pt = None
+
+    if dimension == '2d':
+        for fidx, (xh, yh) in enumerate(coords):
+            distance_squared = (xh)**2 + (yh)**2 #circle 
+
+            if first_pt is None and distance_squared > radius**2: # if first point not identified yet 
+                first_pt = fidx #index of first point crossing
+                continue 
+            if first_pt is not None and distance_squared > second_point**2: # continuation after first point identified 
+                second_pt = fidx #index of second point crossing 
+                break 
+
+    elif dimension == '3d':
+        for idx, (x, y, z) in enumerate(coords):
+            distance_squared = x**2 + y**2 + z**2
+
+            if first_pt is None and distance_squared > radius**2:
+                first_pt = idx 
+                continue 
+                 
+            if first_pt is not None and distance_squared > second_point**2:
+                second_pt = idx
+                break
+    else:
+            raise ValueError ('Check dimension parameter')
+    
+    if first_pt is None or second_pt is None:
+            return None #cant find both crossing points 
+            
+    deltax = coords[second_pt][0] - coords[first_pt][0]
+    deltay = coords[second_pt][1] - coords[first_pt][1]
+    angle_rad = np.arctan2(deltay, deltax)
+    angle_deg = np.rad2deg(angle_rad)
+
+    return first_pt, second_pt, angle_deg
