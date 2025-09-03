@@ -447,6 +447,31 @@ class TestMath(unittest.TestCase):
         self.assertTrue(np.all(timestamps >= min_time) and np.all(timestamps < max_time))
         self.assertTrue(np.all(np.round(inter_event_times - refractory_period, 6) >= 0))
 
+    def test_scale_by_p_value(self):
+
+        p = np.linspace(0, 1, 240)
+        data = np.random.randn(240)
+        scaled_data = scale_data_by_p_value(data, p, k=100, p0=0.08)
+
+        plt.figure(figsize=(9,2.5))
+        plt.subplot(1,3,1)
+        im = aopy.visualization.plot_ECoG244_data_map(data, elec_data=True)
+        im.set_clim(-3, 3)
+        plt.colorbar(im)
+        plt.title("Original data")
+        plt.subplot(1,3,2)
+        im = aopy.visualization.plot_ECoG244_data_map(p, cmap='viridis', elec_data=True)
+        plt.colorbar(im)
+        plt.title("p-values")
+        plt.subplot(1,3,3)
+        im = aopy.visualization.plot_ECoG244_data_map(scaled_data, elec_data=True)
+        im.set_clim(-3, 3)
+        plt.colorbar(im)
+        plt.title("Scaled data")
+        plt.tight_layout()
+
+        aopy.visualization.savefig(docs_dir, "scale_by_p_value.png", transparent=False)
+
 class MemoryTests(unittest.TestCase):
 
     def test_get_memory_available(self):
