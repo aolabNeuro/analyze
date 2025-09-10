@@ -396,7 +396,7 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf
 
     return spike_times, spike_waveforms
 
-def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above_thresh=True,  use_abs=False, wf_length=1000, tbefore_wf=200):
+def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above_thresh=True, use_abs=False, wf_length=1000, tbefore_wf=200):
     '''
     This function is based on detect_spikes and calculates spike times while dividing data into chunks to deal with memory issues.
     This may work for numpy memmap array
