@@ -103,9 +103,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
     if 'ap' in preproc_jobs:
         print('processing action potential band data...')
         ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'ap')
-        broadband_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'broadband')
         if 'broadband' not in files:
-            files['broadband'] = broadband_filename
+            files['broadband'] = aodata.get_preprocessed_filename(subject, te_id, date, 'broadband') # in case broadband not included in preproc jobs
         proc_ap(
             data_dir,
             files,
@@ -121,6 +120,8 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
     if 'spike' in preproc_jobs:
         print('processing spike times and waveforms...')
         spikes_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+        if 'ap' not in files:
+            files['ap'] = aodata.get_preprocessed_filename(subject, te_id, date, 'ap') # in case ap not included in preproc jobs
         proc_spikes(
             data_dir,
             files,
@@ -493,10 +494,13 @@ def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, ove
     elif os.path.exists(filepath):
         os.remove(filepath)
 
-    # Check if processed broadband data already exists
-    broadband_filepath = os.path.join(result_dir, files['broadband'])
-    if not os.path.exists(broadband_filepath):
-        files.remove('broadband')
+    # Check if a processed broadband file already exists
+    if 'broadband' in files:
+        broadband_filepath = os.path.join(result_dir, files['broadband'])
+        if not os.path.exists(broadband_filepath):
+            print('...using existing preprocessed broadband data')
+        else:
+            files.remove('broadband')
         
     # Check if record_headstage is True or False
     record_headstage_key = 'record_headstage'
@@ -569,6 +573,14 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
             return
     elif os.path.exists(filepath):
         os.remove(filepath)
+
+    # Check if a processed ap file already exists
+    if 'ap' in files:
+        ap_filepath = os.path.join(result_dir, files['ap'])
+        if os.path.exists(ap_filepath):
+            print('...using existing preprocessed ap data')
+        else:
+            files.remove('ap')
 
     # Check if record_headstage is True or False
     record_headstage_key = 'record_headstage'
