@@ -452,7 +452,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     if 'refractory_period' in detect_kwargs:
         refractory_period = detect_kwargs.pop('refractory_period')
     else:
-        refractory_period = 100 # time in us
+        refractory_period = 1000 # time in us
     if 'wf_length' not in detect_kwargs:
         detect_kwargs['wf_length'] = 2000 # time in us
     if 'tbefore_wf' not in detect_kwargs:
