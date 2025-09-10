@@ -449,6 +449,10 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
         rms_multiplier = detect_kwargs.pop('rms_muliplier')
     else:
         rms_multiplier = 5
+    if 'refractory_period' in detect_kwargs:
+        refractory_period = detect_kwargs.pop('refractory_period')
+    else:
+        refractory_period = 100 # time in us
     if 'wf_length' not in detect_kwargs:
         detect_kwargs['wf_length'] = 2000 # time in us
     if 'tbefore_wf' not in detect_kwargs:
@@ -484,7 +488,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
             times = np.array([])
             waveforms = np.array([])
         else:
-            times, idx = precondition.filter_spike_times_fast(spike_times[ichan])
+            times, idx = precondition.filter_spike_times_fast(spike_times[ichan], refractory_period=refractory_period)
             if len(times) < 1:
                 waveforms = np.array([])
             else:
@@ -498,6 +502,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6'
     spike_metadata = metadata
     spike_metadata['spike_threshold'] = threshold
     spike_metadata['refractory_violations_removed'] = True
+    spike_metadata['refractory_period'] = refractory_period
     spike_metadata['spike_pos'] = {chan_number: chan_number for chan_number in range(n_channels)} # channel identity of each unit (here, iunit=ichan)
     spike_metadata.update(detect_kwargs)
 

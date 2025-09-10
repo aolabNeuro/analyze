@@ -585,7 +585,6 @@ def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None,
         aodata.save_hdf(result_dir, result_filename, spike_metadata, f'drive{idrive}/metadata', append=True)
     
     if 'neuropixels' in files:
-        print(1)
         np_recorddir = files['neuropixels']
         ecube_files = files['ecube']
         
