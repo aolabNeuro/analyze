@@ -103,6 +103,9 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
     if 'ap' in preproc_jobs:
         print('processing action potential band data...')
         ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'ap')
+        broadband_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'broadband')
+        if 'broadband' not in files:
+            files['broadband'] = broadband_filename
         proc_ap(
             data_dir,
             files,
@@ -490,6 +493,11 @@ def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, ove
     elif os.path.exists(filepath):
         os.remove(filepath)
 
+    # Check if processed broadband data already exists
+    broadband_filepath = os.path.join(result_dir, files['broadband'])
+    if not os.path.exists(broadband_filepath):
+        files.remove('broadband')
+        
     # Check if record_headstage is True or False
     record_headstage_key = 'record_headstage'
     metadata_group = 'exp_metadata'
