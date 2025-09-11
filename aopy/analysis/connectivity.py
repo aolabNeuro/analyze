@@ -245,7 +245,7 @@ def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_
             aopy.visualization.plot_tf_map_grid(f, t, coh_all, bands, elec_pos, clim=(0,1), interp_grid=None, 
                         cmap='viridis')
         
-        .. image:: _images/connectivity_map_coh.png'
+        .. image:: _images/connectivity_map_coh.png
     '''
     assert erp.ndim == 3, "ERP data must be 3D (nt, nch, ntr)"
     assert time_before >= n, "time_before must be greater than or equal to n"
