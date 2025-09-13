@@ -1887,6 +1887,21 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **penalty_event (ntrial):** numeric code for the penalty event
             | **pause_start_time (ntrial):** time at which the pause occurred
             | **pause_event (ntrial):** numeric code for the pause event
+
+    Example:
+
+        .. code-block:: python
+        
+            subject = 'test'
+            start_date = '2025-08-15'
+            end_date = '2025-08-16'
+            entries = db.lookup_mc_sessions(subject=subject, date=(date.fromisoformat(start_date), date.fromisoformat(end_date)), task_desc='center out with random delay')
+            subjects, te_ids, te_dates = db.list_entry_details(entries)
+
+            df = tabulate_behavior_data_center_out(preproc_dir, subjects, te_ids, te_dates)
+            display(df.head(8))
+
+        .. image:: _images/tabulate_behavior_data_center_out.png
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
