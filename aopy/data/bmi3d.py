@@ -1883,18 +1883,34 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
             | **reach_end_time (ntrial):** time at which the reach was completed
             | **reward_start_time (ntrial):** time at which the reward was presented
-            | **reward_end_time (ntrial):** time at which the reward was completed
             | **penalty_start_time (ntrial):** time at which the penalty was presented
-            | **penalty_end_time (ntrial):** time at which the penalty was completed
             | **penalty_event (ntrial):** numeric code for the penalty event
+            | **pause_start_time (ntrial):** time at which the pause occurred
+            | **pause_event (ntrial):** numeric code for the pause event
+
+    Example:
+
+        .. code-block:: python
+        
+            subject = 'test'
+            start_date = '2025-08-15'
+            end_date = '2025-08-16'
+            entries = db.lookup_mc_sessions(subject=subject, date=(date.fromisoformat(start_date), date.fromisoformat(end_date)), task_desc='center out with random delay')
+            subjects, te_ids, te_dates = db.list_entry_details(entries)
+
+            df = tabulate_behavior_data_center_out(preproc_dir, subjects, te_ids, te_dates)
+            display(df.head(8))
+
+        .. image:: _images/tabulate_behavior_data_center_out.png
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
-    trial_end_codes = [task_codes['TRIAL_END']]
+    trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
     penalty_codes = [task_codes['DELAY_PENALTY'], task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['PERIPHERAL_TARGET_ON']
+    pause_codes = [task_codes['PAUSE_START'], task_codes['PAUSE_END'], task_codes['PAUSE']]
 
     # Concatenate base trial data
     new_df = tabulate_behavior_data(
@@ -1934,6 +1950,8 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
     new_df['reward_start_time'] = np.nan
     new_df['penalty_start_time'] = np.nan
     new_df['penalty_event'] = np.nan
+    new_df['pause_start_time'] = np.nan
+    new_df['pause_event'] = np.nan    
     for i in range(len(new_df)):
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
@@ -1979,11 +1997,19 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
 
         # Penalty start times
         penalty_idx = np.isin(event_codes, penalty_codes)
-        penatly_codes = event_codes[penalty_idx]
+        penalty_events = event_codes[penalty_idx]
         penalty_times = event_times[penalty_idx]
         if len(penalty_times) > 0:
             new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
-            new_df.loc[i, 'penalty_event'] = penatly_codes[0]
+            new_df.loc[i, 'penalty_event'] = penalty_events[0]
+
+        # Pause events
+        pause_idx = np.isin(event_codes, pause_codes)
+        pause_events = event_codes[pause_idx]
+        pause_times = event_times[pause_idx]
+        if len(pause_times) > 0:
+            new_df.loc[i, 'pause_start_time'] = pause_times[0]
+            new_df.loc[i, 'pause_event'] = pause_events[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
@@ -2021,18 +2047,19 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
             | **reach_completed (ntrial):** boolean values indicating whether the reach was completed
             | **reach_end_time (ntrial):** time at which the reach was completed
             | **reward_start_time (ntrial):** time at which the reward was presented
-            | **reward_end_time (ntrial):** time at which the reward was completed
             | **penalty_start_time (ntrial):** time at which the penalty was presented
-            | **penalty_end_time (ntrial):** time at which the penalty was completed
             | **penalty_event (ntrial):** numeric code for the penalty event
+            | **pause_start_time (ntrial):** time at which the pause occurred
+            | **pause_event (ntrial):** numeric code for the pause event
     '''
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
-    trial_end_codes = [task_codes['TRIAL_END']]
+    trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
     trial_start_codes = task_codes['PERIPHERAL_TARGET_ON']
     reward_codes = [task_codes['REWARD']]
     penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
     target_codes = task_codes['PERIPHERAL_TARGET_ON']
+    pause_codes = [task_codes['PAUSE_START'], task_codes['PAUSE_END'], task_codes['PAUSE']]
 
     # Concatenate base trial data
     new_df = tabulate_behavior_data(
@@ -2064,10 +2091,10 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
     new_df['reach_completed'] = False
     new_df['reach_end_time'] = np.nan
     new_df['reward_start_time'] = np.nan
-    new_df['reward_end_time'] = np.nan
     new_df['penalty_start_time'] = np.nan
-    new_df['penalty_end_time'] = np.nan
     new_df['penalty_event'] = np.nan
+    new_df['pause_start_time'] = np.nan
+    new_df['pause_event'] = np.nan
     for i in range(len(new_df)):
         event_codes = new_df.loc[i, 'event_codes']
         event_times = new_df.loc[i, 'event_times']
@@ -2095,11 +2122,19 @@ def tabulate_behavior_data_out(preproc_dir, subjects, ids, dates, metadata=[],
 
         # Penalty start times
         penalty_idx = np.isin(event_codes, penalty_codes)
-        penatly_codes = event_codes[penalty_idx]
+        penalty_events = event_codes[penalty_idx]
         penalty_times = event_times[penalty_idx]
         if len(penalty_times) > 0:
             new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
-            new_df.loc[i, 'penalty_event'] = penatly_codes[0]
+            new_df.loc[i, 'penalty_event'] = penalty_events[0]
+
+        # Pause events
+        pause_idx = np.isin(event_codes, pause_codes)
+        pause_events = event_codes[pause_idx]
+        pause_times = event_times[pause_idx]
+        if len(pause_times) > 0:
+            new_df.loc[i, 'pause_start_time'] = pause_times[0]
+            new_df.loc[i, 'pause_event'] = pause_events[0]
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
