@@ -860,3 +860,52 @@ def get_consecutive_days(dates):
     if len(temp_consec_dates) > 1:
         consecutive_dates.append(temp_consec_dates)
     return consecutive_dates
+
+def scale_data_by_p_value(data, p, k=100, p0=0.08):
+    '''
+    Scale data by a sigmoid function of p-value. Useful for visualizing data maps
+    generated with p-values, to emphasize significant values. 
+    See https://www.science.org/doi/full/10.1126/scitranslmed.aay4682 for an example.
+
+    Args:
+        data (nch,): per-channel data to scale
+        p (nch,): p-values corresponding to data
+        k (float, optional): steepness of the sigmoid. Default 100.
+        p0 (float, optional): midpoint of the sigmoid. Default 0.08.
+
+    Returns:
+        (nch,) array: scaled data
+
+    Examples:
+
+        Given a 240-channel map of p-values and corresponding data from an ECoG array,
+        plot the original data, p-values, and scaled data
+
+        .. code-block:: python
+
+            p = np.linspace(0, 1, 240)
+            data = np.random.randn(240)
+            scaled_data = scale_data_by_p_value(data, p, k=100, p0=0.08)
+
+            plt.figure(figsize=(9,2.5))
+            plt.subplot(1,3,1)
+            im = aopy.visualization.plot_ECoG244_data_map(data, elec_data=True)
+            im.set_clim(-3, 3)
+            plt.colorbar(im)
+            plt.title("Original data")
+            plt.subplot(1,3,2)
+            im = aopy.visualization.plot_ECoG244_data_map(p, cmap='viridis', elec_data=True)
+            plt.colorbar(im)
+            plt.title("p-values")
+            plt.subplot(1,3,3)
+            im = aopy.visualization.plot_ECoG244_data_map(scaled_data, elec_data=True)
+            im.set_clim(-3, 3)
+            plt.colorbar(im)
+            plt.title("Scaled data")
+            plt.tight_layout()
+
+        .. image:: _images/scale_by_p_value.png
+            
+    '''
+    w = 1. / (1. + np.exp(-k * (p0 - p)))
+    return data * w
