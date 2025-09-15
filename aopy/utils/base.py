@@ -864,7 +864,8 @@ def get_consecutive_days(dates):
 def scale_data_by_p_value(data, p, k=100, p0=0.08):
     '''
     Scale data by a sigmoid function of p-value. Useful for visualizing data maps
-    generated with p-values, to emphasize significant values.
+    generated with p-values, to emphasize significant values. 
+    See https://www.science.org/doi/full/10.1126/scitranslmed.aay4682 for an example.
 
     Args:
         data (nch,): per-channel data to scale
