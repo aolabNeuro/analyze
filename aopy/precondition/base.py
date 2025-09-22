@@ -729,7 +729,7 @@ def downsample(data, old_samplerate, new_samplerate):
     new_shape = (new_samples,)
     if data.ndim > 1:
         new_shape = np.concatenate(([new_samples], data.shape[1:]))
-    data_padded = np.zeros(new_shape)*np.NaN
+    data_padded = np.zeros(new_shape)*np.nan
     old_samples_kept = min(old_samples, new_samples-downsample_factor//2)
     data_padded[downsample_factor//2:downsample_factor//2+old_samples_kept] = data[:old_samples_kept]
 
