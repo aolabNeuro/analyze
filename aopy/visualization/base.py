@@ -234,6 +234,63 @@ def place_Opto32_subplots(fig_size=5, subplot_size=0.75, offset=(0.,-0.25), thet
         )
     return fig, ax
 
+def plot_colorbar(size, cmap, clim=(0,1), orientation='vertical', ticks=None, label=None, labelpad=5, **kwargs):
+    '''
+    Plot just a colorbar in its own figure for the given colormap and color limits.
+
+    Args:
+        size (2-tuple): (width, height) of the colorbar in inches
+        cmap (str or Colormap): colormap to use
+        clim (2-tuple, optional): color limits to use. Default (0,1)
+        orientation (str, optional): 'vertical' or 'horizontal'. Default 'vertical'
+        ax (pyplot.Axis, optional): axis to plot the colorbar on. Default None, which will use gca.
+        kwargs (dict, optional): additional keyword arguments to pass to plt.colorbar()
+
+    Returns:
+        Colorbar: the created colorbar object
+    
+    Examples:
+
+        .. code-block:: python
+            
+            aopy.visualization.plot_colorbar(
+                size=(0.2,2),
+                cmap='viridis',
+                clim=(0, 100),
+                ticks=[0,100],
+                orientation='vertical',
+                label='(0.2 x 2) in colorbar',
+                labelpad=-15,
+            )
+
+        .. image:: _images/colorbar_example_vertical.png
+
+        .. code-block:: python
+
+            aopy.visualization.plot_colorbar(
+                size=(3,0.3),
+                cmap='hsv',
+                clim=(0, 1),
+                orientation='horizontal',
+                label='(3 x 0.3) in colorbar'
+            )
+
+        .. image:: _images/colorbar_example_horizontal.png
+    '''
+    if orientation == 'horizontal':
+        fig, ax = plt.subplots(figsize=(1.1*size[0], 5*size[1]))
+        plt.subplots_adjust(left=0.05, right=0.95, top=0.95, bottom=0.75)
+    else:
+        fig, ax = plt.subplots(figsize=(5*size[0],1.1*size[1]))
+        plt.subplots_adjust(bottom=0.05, top=0.95, left=0.05, right=0.25)
+    norm = colors.Normalize(vmin=clim[0], vmax=clim[1])
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([]) # only needed for older matplotlib versions to avoid a warning
+    cbar = plt.colorbar(sm, cax=ax, orientation=orientation, ticks=ticks, **kwargs)
+    if label is not None:
+        cbar.set_label(label, labelpad=labelpad)
+    return cbar
+
 def plot_timeseries(data, samplerate, t0=0., ax=None, **kwargs):
     '''
     Plots data along time on the given axis. Default units are seconds and volts.
