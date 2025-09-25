@@ -1031,6 +1031,28 @@ class TestPlotUtils(unittest.TestCase):
         filename = 'overlay_sulci_affi.png'
         savefig(docs_dir, filename, transparent=False)
 
+    def test_plot_colorbar(self):
+        aopy.visualization.plot_colorbar(
+            size=(0.2,2),
+            cmap='viridis',
+            clim=(0, 100),
+            ticks=[0,100],
+            orientation='vertical',
+            label='(0.2 x 2) in colorbar',
+            labelpad=-15,
+        )
+        filename = 'colorbar_example_vertical.png'
+        savefig(docs_dir, filename, transparent=False)
+        aopy.visualization.plot_colorbar(
+            size=(3,0.3),
+            cmap='hsv',
+            clim=(0, 1),
+            orientation='horizontal',
+            label='(3 x 0.3) in colorbar'
+        )
+        filename = 'colorbar_example_horizontal.png'
+        savefig(docs_dir, filename, transparent=False)
+
 class TestEyePlots(unittest.TestCase):
 
     def test_plot_eye_calibration_result(self):
