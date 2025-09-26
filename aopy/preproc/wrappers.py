@@ -85,21 +85,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         broadband_data, broadband_metadata = aodata.load_preproc_broadband_data(preproc_dir_base, subject, te_id, date)
         assert broadband_data.shape == (broadband_metadata['n_samples'], broadband_metadata['n_channels'])
-        files['broadband'] = broadband_filename # for proc_lfp()
-    if 'ap' in preproc_jobs:
-        print('processing ap band data...')
-        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'ap')
-        proc_ap(
-            data_dir,
-            files,
-            preproc_dir,
-            ap_filename,
-            kilosort_dir=kilosort_dir,
-            overwrite=overwrite,
-            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
-        )
-        ap_data, ap_metadata = aodata.load_preproc_ap_data(preproc_dir_base, subject, te_id, date, drive_number=1)
-        assert ap_data.shape == (ap_metadata['n_samples'], ap_metadata['n_channels'])
+        files['broadband'] = broadband_filename # for proc_lfp() and proc_ap()
     if 'lfp' in preproc_jobs:
         print('processing local field potential data...')
         lfp_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'lfp')
@@ -114,17 +100,36 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
         )
         lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date, drive_number=1)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
-    if 'spikes' in preproc_jobs:
-        print('processing spike data...')
-        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
-        proc_spikes(
+    if 'ap' in preproc_jobs:
+        print('processing action potential band data...')
+        ap_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'ap')
+        if 'broadband' not in files:
+            files['broadband'] = aodata.get_preprocessed_filename(subject, te_id, date, 'broadband') # in case broadband not included in preproc jobs
+        proc_ap(
             data_dir,
             files,
             preproc_dir,
             ap_filename,
             kilosort_dir=kilosort_dir,
             overwrite=overwrite,
-            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
+            filter_kwargs=kwargs # pass any remaining kwargs to the filtering function - TODO this is an issue when passing args for lfp vs. ap filtering
+        )
+        ap_data, ap_metadata = aodata.load_preproc_ap_data(preproc_dir_base, subject, te_id, date, drive_number=1)
+        assert ap_data.shape == (ap_metadata['n_samples'], ap_metadata['n_channels'])
+        files['ap'] = ap_filename # for proc_spikes()
+    if 'spike' in preproc_jobs:
+        print('processing spike times and waveforms...')
+        spikes_filename = aodata.get_preprocessed_filename(subject, te_id, date, 'spike')
+        if 'ap' not in files:
+            files['ap'] = aodata.get_preprocessed_filename(subject, te_id, date, 'ap') # in case ap not included in preproc jobs
+        proc_spikes(
+            data_dir,
+            files,
+            preproc_dir,
+            spikes_filename,
+            kilosort_dir=kilosort_dir,
+            overwrite=overwrite,
+            detect_kwargs=kwargs # pass any remaining kwargs to the spike detection function - TODO this is an issue when passing args for filter functions
         )
     if 'emg' in preproc_jobs:
         print('processing emg data...')
@@ -388,112 +393,10 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
         # Append the broadband metadata to the file
         aodata.save_hdf(result_dir, result_filename, metadata, "/broadband_metadata", append=True)
 
-def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False):
-    '''
-    Process spike data:
-        neuropixels: synchronize spike times with ecube. Extract waveforms from drift corrected data. 
-
-    Saves spike times and waveforms into the HDF datasets:
-        spikes (HDF5 group (dict)) : spike times for each drive
-        waveforms (HDF5 group (dict)) : spike times for each drive
-        metadata (dict)
-    
-    Args:
-        data_dir (str): where the data files are located
-        files (dict): dictionary of filenames indexed by system
-        result_dir (str): where to store the processed result
-        result_filename (str): where to store the processed result
-        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
-        overwrite (bool, optional): whether to remove existing processed files if they exist
-        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
-    '''  
-    # Check if a processed file already exists
-    filepath = os.path.join(result_dir, result_filename)
-    if not overwrite and os.path.exists(filepath):
-        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
-        if "spikes" in contents:
-            print("File {} already preprocessed, doing nothing.".format(result_filename))
-            return
-    elif os.path.exists(filepath):
-        os.remove(filepath)
-
-    # Check if record_headstage is True or False
-    record_headstage_key = 'record_headstage'
-    metadata_group = 'exp_metadata'
-    tmp = result_filename.split('_')[:-1]
-    exp_filename = "_".join(tmp) + '_exp.hdf'
-    record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
-
-    idrive = 0
-    # Preprocess neural data into spikes   
-    if 'neuropixels' in files:
-        print(1)
-        np_recorddir = files['neuropixels']
-        ecube_files = files['ecube']
-        
-        nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
-
-        for iport in range(nport):
-            idrive += 1
-            iport += 1 # Note that idrive is not always the same as iport when you do neuropixels with other recordings
-            _,_, metadata = proc_neuropixel_spikes(data_dir,np_recorddir,ecube_files,kilosort_dir,iport,filepath,version='kilosort4')
-            aodata.save_hdf(result_dir, result_filename, metadata, f'drive{idrive}/metadata', append=True)
-
-def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
-    '''
-    Process ap data
-        neuropixels: filter data between 300-5k, downsample to 10k, synchronize timestamps with ecube. Drift correction is applied
-    Saves ap data into the HDF datasets:
-        ap_data (nt, nch)
-        ap_metadata (dict)
-    
-    Args:
-        data_dir (str): where the data files are located
-        files (dict): dictionary of filenames indexed by system
-        result_dir (str): where to store the processed result
-        result_filename (str): where to store the processed result
-        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
-        overwrite (bool, optional): whether to remove existing processed files if they exist
-        max_memory_gb (float, optional): max memory used to load binary data at one time
-        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_lfp`
-    '''  
-    # Check if a processed file already exists
-    filepath = os.path.join(result_dir, result_filename)
-    if not overwrite and os.path.exists(filepath):
-        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
-        if "ap_data" in contents:
-            print("File {} already preprocessed, doing nothing.".format(result_filename))
-            return
-    elif os.path.exists(filepath):
-        os.remove(filepath)
-
-    # Check if record_headstage is True or False
-    record_headstage_key = 'record_headstage'
-    metadata_group = 'exp_metadata'
-    tmp = result_filename.split('_')[:-1]
-    exp_filename = "_".join(tmp) + '_exp.hdf'
-    record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
-
-    idrive = 0
-    # Preprocess neural data into lfp   
-    if 'neuropixels' in files:
-        np_recorddir = files['neuropixels']
-        ecube_files = files['ecube']
-        datatype = 'ap'
-        
-        nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
-        
-        for iport in range(nport):
-            idrive += 1
-            iport += 1 # Note that idrive is not always the same as iport when you do neuropixels with other recordings
-            _, ap_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath,
-                                                max_memory_gb = max_memory_gb)
-            aodata.save_hdf(result_dir, result_filename, ap_metadata, f'drive{idrive}/ap_metadata', append=True)
-
 def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
     '''
     Process lfp data:
-        Loads 'broadband' hdf data or 'ecube' headstage data and metadata
+        ecube: load 'broadband' hdf data or 'ecube' headstage data and metadata, low-pass filter data with 500Hz, downsample to 1k.
         neuropixels: low-pass filter data with 500Hz, downsample to 1k, synchronize timestamps with ecube. Destriping is applied
     Saves lfp data into the HDF datasets:
         lfp_data (nt, nch)
@@ -562,6 +465,156 @@ def proc_lfp(data_dir, files, result_dir, result_filename, kilosort_dir=None, ov
                                                  max_memory_gb = max_memory_gb)
             aodata.save_hdf(result_dir, result_filename, lfp_metadata, f'drive{idrive}/lfp_metadata', append=True)
     
+def proc_ap(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., filter_kwargs={}):
+    '''
+    Process ap data
+        ecube: load 'broadband' hdf data or 'ecube' headstage data and metadata, filter data between 300-10k, keep samplerate at 25k.
+        neuropixels: filter data between 300-5k, downsample to 10k, synchronize timestamps with ecube. Drift correction is applied
+    Saves ap data into the HDF datasets:
+        ap_data (nt, nch)
+        ap_metadata (dict)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
+        result_filename (str): where to store the processed result
+        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        max_memory_gb (float, optional): max memory used to load binary data at one time
+        filter_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.filter_ap`
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "ap_data" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+
+    # Check if a processed broadband file already exists
+    if 'broadband' in files:
+        broadband_filepath = os.path.join(result_dir, files['broadband'])
+        if not os.path.exists(broadband_filepath):
+            print('...using existing preprocessed broadband data')
+        else:
+            files.remove('broadband')
+        
+    # Check if record_headstage is True or False
+    record_headstage_key = 'record_headstage'
+    metadata_group = 'exp_metadata'
+    tmp = result_filename.split('_')[:-1]
+    exp_filename = "_".join(tmp) + '_exp.hdf'
+    try:
+        record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
+    except:
+        record_headstage = True # For previous recording where there is no 'record_headstage' key
+
+    idrive = 0
+    # Preprocess neural data into ap   
+    if 'broadband' in files:
+        idrive += 1
+        broadband_filepath = os.path.join(result_dir, files['broadband'])
+        result_filepath = os.path.join(result_dir, result_filename)
+
+        _, ap_metadata = aodata.filter_ap_from_broadband(broadband_filepath, result_filepath, drive_number=idrive, dtype='int16', 
+                                                    max_memory_gb=max_memory_gb, **filter_kwargs)
+        aodata.save_hdf(result_dir, result_filename, ap_metadata, f'drive{idrive}/ap_metadata', append=True)
+        
+    elif 'ecube' in files and record_headstage:
+        idrive += 1
+        ecube_filepath = os.path.join(data_dir, files['ecube'])
+        result_filepath = os.path.join(result_dir, result_filename)
+
+        print('filter_ap_from_ecube() not yet written!')
+
+    if 'neuropixels' in files:
+        np_recorddir = files['neuropixels']
+        ecube_files = files['ecube']
+        datatype = 'ap'
+        
+        nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
+        
+        for iport in range(nport):
+            idrive += 1
+            iport += 1 # Note that idrive is not always the same as iport when you do neuropixels with other recordings
+            _, ap_metadata = proc_neuropixel_ts(data_dir, np_recorddir, ecube_files, kilosort_dir, datatype, iport, filepath,
+                                                max_memory_gb = max_memory_gb)
+            aodata.save_hdf(result_dir, result_filename, ap_metadata, f'drive{idrive}/ap_metadata', append=True)
+
+def proc_spikes(data_dir, files, result_dir, result_filename, kilosort_dir=None, overwrite=False, max_memory_gb=1., detect_kwargs={}):
+    '''
+    Process spike data:
+        ecube: load 'ap band' hdf data and metadata, detect spike times using threshold crossings, filter out refractory violations.
+        neuropixels: synchronize spike times with ecube. Extract waveforms from drift corrected data. 
+    Saves spike times and waveforms into the HDF datasets:
+        spikes (HDF5 group (dict)) : spike times for each drive
+        waveforms (HDF5 group (dict)) : spike times for each drive
+        metadata (dict)
+    
+    Args:
+        data_dir (str): where the data files are located
+        files (dict): dictionary of filenames indexed by system
+        result_dir (str): where to store the processed result
+        result_filename (str): where to store the processed result
+        kilosort_dir (str): data folder where preprocessed data of kilosort is saved
+        overwrite (bool, optional): whether to remove existing processed files if they exist
+        max_memory_gb (float, optional): max memory used to load binary data at one time
+        detect_kwargs (dict, optional): keyword arguments to pass to :func:`aopy.precondition.calc_spike_threshold` and :func:`aopy.precondition.detect_spikes_chunk`
+    '''  
+    # Check if a processed file already exists
+    filepath = os.path.join(result_dir, result_filename)
+    if not overwrite and os.path.exists(filepath):
+        contents = aodata.get_hdf_dictionary(result_dir, result_filename)
+        if "spikes" in contents:
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
+    elif os.path.exists(filepath):
+        os.remove(filepath)
+
+    # Check if a processed ap file already exists
+    if 'ap' in files:
+        ap_filepath = os.path.join(result_dir, files['ap'])
+        if os.path.exists(ap_filepath):
+            print('...using existing preprocessed ap data')
+        else:
+            files.remove('ap')
+
+    # Check if record_headstage is True or False
+    record_headstage_key = 'record_headstage'
+    metadata_group = 'exp_metadata'
+    tmp = result_filename.split('_')[:-1]
+    exp_filename = "_".join(tmp) + '_exp.hdf'
+    try:
+        record_headstage = aodata.load_hdf_data(result_dir, exp_filename, record_headstage_key, metadata_group, cached=True)
+    except:
+        record_headstage = True # For previous recording where there is no 'record_headstage' key
+
+    idrive = 0
+    # Preprocess neural data into spikes
+    if 'ecube' in files and record_headstage:
+        idrive += 1
+        # TODO: need to handle when ap data is not already preprocessed
+        ap_filepath = os.path.join(result_dir, files['ap'])
+        result_filepath = os.path.join(result_dir, result_filename)
+
+        _,_, spike_metadata = aodata.proc_ecube_spikes(ap_filepath, result_filepath, drive_number=idrive, dtype='int16',
+                                                     max_memory_gb=max_memory_gb, **detect_kwargs)
+        aodata.save_hdf(result_dir, result_filename, spike_metadata, f'drive{idrive}/metadata', append=True)
+    
+    if 'neuropixels' in files:
+        np_recorddir = files['neuropixels']
+        ecube_files = files['ecube']
+        
+        nport = len(glob.glob(os.path.join(data_dir, f'{np_recorddir}*/**/continuous/*AP'),recursive=True))
+
+        for iport in range(nport):
+            idrive += 1
+            iport += 1 # Note that idrive is not always the same as iport when you do neuropixels with other recordings
+            _,_, spike_metadata = proc_neuropixel_spikes(data_dir, np_recorddir, ecube_files, kilosort_dir, iport, filepath, version='kilosort4')
+            aodata.save_hdf(result_dir, result_filename, spike_metadata, f'drive{idrive}/metadata', append=True)
 
 def proc_emg(data_dir, files, result_dir, result_filename, overwrite=False):
     '''
