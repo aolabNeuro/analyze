@@ -429,3 +429,116 @@ def smooth_timeseries_gaus(timeseries_data, sd, samplerate, nstd=3, conv_mode='s
         return np.apply_along_axis(convolve, 0, timeseries_data, gaus_filter, mode=conv_mode, method='direct'), gaus_filter
     else:
         return np.apply_along_axis(convolve, 0, timeseries_data, gaus_filter, mode=conv_mode, method='direct')
+
+def has_missing_data(preproc_dir, subjects, te_ids, dates, start_times, end_times, datatype, samplerate=1000, max_gap=0.13):
+    """
+    Detects trials with missing data segments by identifying long gaps of NaNs.
+    If the duration of the longest gap exceeds a user-defined threshold,
+    that trial is flagged as having missing data.
+
+    Args:
+        preproc_dir (str): Base directory where the files are stored.
+        subjects (list of str): Subject names for each recording.
+        te_ids (list of int): Block numbers of TaskEntry objects for each recording.
+        dates (list of str): Recording dates (YYYY-MM-DD).
+        start_times (list of float): Start times (in seconds) of the segments to load from each recording.
+        end_times (list of float): End times (in seconds) of the segments to load from each recording.
+        datatype (str): Column of task data to load.
+        samplerate (float, optional): Desired sample rate of the loaded data in Hz. 
+            Default is 1000 Hz. Data will be interpolated to this rate if necessary.
+        max_gap (float, optional): Maximum allowed gap length in seconds. Trials with 
+            longer consecutive NaN stretches are flagged as missing. Default is 0.13 s.
+
+    Returns:
+        numpy.ndarray: Boolean array of shape (N,), where N is the number of trials.
+        Each entry is True if the corresponding trial has missing data (gap > max_gap),
+        otherwise False.
+
+    Raises:
+        ValueError: If input dimensions for subjects, te_ids, dates, start_times, or end_times are inconsistent.
+
+    Example:
+    
+    .. code-block:: python
+
+        import seaborn as sns
+        import pandas as pd
+        from aopy.data import db
+
+        subject = 'MCP015'
+        preproc_dir = '/media/moor-data/preprocessed-human'
+
+        target_colors = sns.color_palette(n_colors=9)
+        target_colors[0] = (1.0, 1.0, 1.0, 0.0)
+
+        entries = db.lookup_mc_sessions(subject=subject)
+        subjects, ids, dates = db.list_entry_details(entries)
+        df = aopy.data.tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates,
+                                                         metadata=['session', 'target_radius', 'scale'])
+        df = df[df['reach_completed'] & df['session'].isin(['a1','a2','a3'])].reset_index()
+
+        max_gap = 0.13 # Tolerate up to 0.13 seconds of missing data
+        samplerate = 1000 # Hz
+
+        drop = pd.Series(aopy.postproc.has_missing_data(preproc_dir, df['subject'],
+                                         df['te_id'],
+                                         df['date'],
+                                         df['go_cue_time'],
+                                         df['reach_end_time'],
+                                         datatype='user_world', samplerate=1000,
+                                         max_gap=max_gap),
+                                         index=df.index)
+
+        df.loc[df['reach_completed'], 'hand_traj'] = aopy.data.bmi3d.tabulate_kinematic_data(
+                    preproc_dir, df['subject'], df['te_id'],
+                    df['date'], df['go_cue_time'], df['reach_end_time'],
+                    datatype='user_world', remove_nan=False)
+
+        hand_traj = np.array([trial[:,:2] for trial in df['hand_traj']], dtype='object')
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
+
+        target_locs = [np.array(target) for target in df[df['subject']==subject].sort_values(by='target_idx')['target_location'].apply(lambda x: tuple(x)).unique()]
+        target_ids = df['target_idx'].to_numpy()
+
+        ax1.set_title(f'Trials to Drop')
+        aopy.visualization.color_trajectories(hand_traj[drop], target_ids[drop], target_colors, ax=ax1)
+        aopy.visualization.color_targets(target_locs, np.arange(1,9), target_colors, target_radius=2, bounds=(-11,11,-11,11,-11,11), ax=ax1)
+
+        ax2.set_title(f'Trials to Keep')
+        aopy.visualization.color_trajectories(hand_traj[~drop], target_ids[~drop], target_colors, ax=ax2)
+        aopy.visualization.color_targets(target_locs, np.arange(1,9), target_colors, target_radius=2, bounds=(-11,11,-11,11,-11,11), ax=ax2)
+        
+        .. image:: _images/drop_data_gaps.png
+
+    """
+
+    from ..data.bmi3d import tabulate_task_data
+    
+    data_with_gaps, _ = tabulate_task_data(preproc_dir, subjects, te_ids, dates, 
+                            start_times, end_times, datatype='user_world',
+                            samplerate=samplerate, remove_nan=False)
+    
+    drop = []
+    
+    for trial in data_with_gaps:
+
+        nans = np.any(np.isnan(trial), axis=1)
+
+        max_consecutive = 0
+        current_consecutive = 0
+
+        for nan in nans:
+
+            if nan:
+                current_consecutive += 1
+                max_consecutive = max(max_consecutive, current_consecutive)
+            else:
+                current_consecutive = 0
+
+        if (max_consecutive / samplerate) > max_gap:
+            drop.append(True)
+        else:
+            drop.append(False)    
+
+    return np.array(drop)
