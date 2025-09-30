@@ -2,13 +2,16 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
+from doctest import debug
 import re
 from datetime import datetime, timedelta
 import os
 import sys
 import math
-
+import matplotlib.pyplot as plt
 import numpy as np
+
+from .. import visualization
 
 '''
 Test signals
@@ -909,3 +912,77 @@ def scale_data_by_p_value(data, p, k=100, p0=0.08):
     '''
     w = 1. / (1. + np.exp(-k * (p0 - p)))
     return data * w
+
+def bin_vectors(vectors, start_angle=-np.pi/4, bins=4):
+    '''
+    Bin 2D vectors into angular bins.
+
+    Args:
+        vectors (ntarg): List or array of 2D vectors.
+        start_angle (float, optional): Starting angle for binning in radians. Default is -pi/4.
+        bins (int, optional): Number of angular bins. Default is 4.
+
+    Returns:
+        (ntarg,) int: Array of bin indices corresponding to each vector.
+    '''
+    vectors = np.array(vectors)
+    angles = np.arctan2(vectors[:,1], vectors[:,0])
+    angles = (angles - start_angle) % (2 * np.pi) - np.pi
+    bin_edges = np.linspace(-np.pi, np.pi, bins+1)
+    return np.digitize(angles, bin_edges)
+
+def reindex_targets(target_locations, target_idxs, start_angle=-np.pi/4, bins=4, debug=True):
+    '''
+    Reindex target indices based on their angular location.
+    
+    Args:
+        target_locations (ntarg, 2): List or array of 2D target locations
+        target_idxs (ntarg,): Original target indices
+        start_angle (float, optional): Starting angle for binning in radians. Default is -
+        bins (int, optional): Number of angular bins. Default is 4.
+        debug (bool, optional): If True, plot the original and new target indices. Default
+        
+    Returns:
+        (ntarg,) int: Array of new bin indices corresponding to each target location.
+    
+    Examples:
+    
+        Given a set of target locations and their original indices, reindex them based on their angular location
+        and plot the original and new indices.
+        
+        .. code-block:: python
+        
+            target_locations = np.array([[4,0], [0,4], [-4,0], [0,-4],
+                                    [7,0], [0,7], [-7,0], [0,-7]])
+            target_idxs = np.array([0,1,2,3,1,2,3,4])
+            reindex_targets(target_locations, target_idxs, start_angle=-np.pi/4, bins=4)
+
+        .. image:: _images/test_reindex_targets.png
+    '''
+    new_idx = bin_vectors(target_locations, start_angle=start_angle, bins=bins)
+    if debug:
+        plt.figure(figsize=(8,4))
+        
+        # Original indices
+        plt.subplot(1,2,1)
+        visualization.plot_targets(target_locations, target_radius=2, bounds=(-10,10,-10,10))
+        locs = np.array([np.array(t) for t in target_locations])
+        target_locs_and_idx = np.hstack([locs, np.array(target_idxs).reshape(-1,1)])
+        print(target_locs_and_idx)
+        unique_targs = np.unique(target_locs_and_idx, axis=0)
+        for idx in range(len(unique_targs)):
+            plt.text(*unique_targs[idx][:2], int(unique_targs[idx][-1]), fontsize=10, ha='center', va='center')
+        plt.title('Original indices')
+
+        # New indices
+        plt.subplot(1,2,2)
+        visualization.plot_targets(target_locations, target_radius=2, bounds=(-10,10,-10,10))
+        locs = np.array([np.array(t) for t in target_locations])
+        target_locs_and_idx = np.hstack([locs, new_idx.reshape(-1,1)])
+        print(target_locs_and_idx)
+        unique_targs = np.unique(target_locs_and_idx, axis=0)
+        for idx in range(len(unique_targs)):
+            plt.text(*unique_targs[idx][:2], int(unique_targs[idx][-1]), fontsize=10, ha='center', va='center')
+        plt.title('New indices')
+    
+    return new_idx
