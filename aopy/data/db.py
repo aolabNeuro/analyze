@@ -931,18 +931,18 @@ def get_aba_perturbation_sessions(day_entries):
     '''
     date = np.array([e.date for e in day_entries])
     if len(set(date)) != 1:
-        return
-    
+        return []
+
     has_perturbation = np.array([e.has_exp_perturbation() for e in day_entries])
     if np.all(~has_perturbation):
-        return
+        return []
     
     # Try to find an ABA block pattern
     session_idx = range(len(day_entries))
     b_idx = np.where(has_perturbation)[0][0]
     aprime_idx = np.where(~has_perturbation & (session_idx > b_idx))[0]
     if len(aprime_idx) == 0:
-        return
+        return []
     aprime_idx = aprime_idx[0]
     
     # Assign sessions
