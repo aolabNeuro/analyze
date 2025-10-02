@@ -422,7 +422,7 @@ def filter_ap_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_s
     # TODO
     pass
 
-def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int6', max_memory_gb=1., **detect_kwargs):
+def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int16', max_memory_gb=1., **detect_kwargs):
     '''
     Detects spikes using threshold crossings in a given action potential (AP) band file and saves the spike times and waveforms into an hdf file.
 
