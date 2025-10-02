@@ -1768,6 +1768,8 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, start_events, end_
 
         # Concatenate with existing dataframes
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+        df['reward'] = df['reward'].astype(bool)
+        df['penalty'] = df['penalty'].astype(bool)
     
     if return_bad_entries:
         return df, bad_entries
