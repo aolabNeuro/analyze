@@ -1322,7 +1322,7 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
         metadata_group=f'{datatype}_metadata'
 
     try:
-        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
         data = base.load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
                                    samplerate, start_time, end_time, channels=channels)
     except FileNotFoundError as e:
@@ -3147,7 +3147,8 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
         decoders = [decoders for _ in range(len(subjects))]
 
     segments = []
-    for s, t, d, ts, te, dec in zip(subjects, te_ids, dates, start_times, end_times, decoders):
+    for s, t, d, ts, te, dec in tqdm(
+        zip(subjects, te_ids, dates, start_times, end_times, decoders)):
         lfp_features, samplerate = extract_lfp_features(
             preproc_dir, s, t, d, dec, samplerate=samplerate, channels=channels,
             start_time=ts, end_time=te, datatype=datatype, preproc=preproc, 
