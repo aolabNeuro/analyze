@@ -974,6 +974,11 @@ def reindex_targets(target_locations, target_idxs, start_angle=-np.pi/4, bins=4,
             plt.text(*unique_targs[idx][:2], int(unique_targs[idx][-1]), fontsize=10, ha='center', va='center')
         plt.title('Original indices')
 
+        # Vector bins
+        for idx in range(bins):
+            angle = start_angle + (2*np.pi/bins)*idx
+            plt.plot([0, 10*np.cos(angle)], [0, 10*np.sin(angle)], 'k--', linewidth=1)
+
         # New indices
         plt.subplot(1,2,2)
         visualization.plot_targets(target_locations, target_radius=2, bounds=(-10,10,-10,10))
