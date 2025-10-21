@@ -729,8 +729,8 @@ def plot_ECoG244_data_map(data, elec_data=False, interp=True, cmap='bwr',
     return plot_spatial_drive_map(data, elec_data=elec_data, interp=interp, grid_size=(16,16), 
                                   drive_type='ECoG244', cmap=cmap, theta=theta, ax=ax, **kwargs)
 
-def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05, label_mode="1",
-                            cbar_mode=None, **kwargs):
+def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, theta=0, axes_pad=0.05, 
+                            label_mode="1", cbar_mode=None, **kwargs):
     '''
     Plot multiple spatial maps on the same figure. Uses mpl_toolkits.axes_grid1.ImageGrid to create a grid of axes.
 
@@ -740,6 +740,10 @@ def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05,
         axsize ((2,) tuple): (width, height) size of each subplot in inches
         clim ((2,) tuple, optional): (min, max) to set the color axis limits. Default None, show the whole range,
             each image will be scaled independently.
+        theta (float or list of, optional): rotation (in degrees) to apply to positions. rotations are applied clockwise,
+            e.g., theta = 90 rotates the map clockwise by 90 degrees, -90 rotates the map anti-clockwise 
+            by 90 degrees. Default 0. If a list is given, it must be the same length as maps and each map
+            will be rotated by the corresponding theta value.
         axes_pad (float, optional): padding between axes. Default 0.1
         label_mode (str, optional): label mode for ImageGrid {"L", "1", "all", None}. Default None.
         cbar_mode (str, optional): colorbar mode for ImageGrid {"each", "single", None}. Default None.
@@ -807,6 +811,10 @@ def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05,
             continue
         
         ax = axes.axes_all[n]
+        if isinstance(theta, (list, np.ndarray)):
+            kwargs['theta'] = theta[n]
+        else:
+            kwargs['theta'] = theta
         im = plot_spatial_drive_map(maps[n], ax=ax, **kwargs)
         if label_mode is None:
             ax.set(xticks=[], yticks=[], xticklabels=[], yticklabels=[], xlabel='', ylabel='')
