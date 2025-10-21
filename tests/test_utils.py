@@ -473,13 +473,25 @@ class TestMath(unittest.TestCase):
         aopy.visualization.savefig(docs_dir, "scale_by_p_value.png", transparent=False)
 
     def test_reindex_targets(self):
-        target_locations = np.array([[4,0], [0,4], [-4,0], [0,-4],
-                                     [7,0], [0,7], [-7,0], [0,-7]])
-        target_idxs = np.array([0,1,2,3,1,2,3,4])
-        reindex_targets(target_locations, target_idxs, start_angle=-np.pi/4, bins=4)
+        target_locations = [[5,0], [3.53, 3.53], [0,5], [-3.53,3.53],
+                                    [-5,0], [-3.53,-3.53], [0,-5], [3.53,-3.53],
+                                    [8,0], [0,8], [-8,0], [0,-8]]
+        target_idxs = np.array([3,2,1,8,7,6,5,4,1,2,3,4])
+        reindex_targets(target_locations, target_idxs)
 
         filename = 'test_reindex_targets.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
+
+        target_locations = [[4,0], [0,4], [-4,0], [0,-4],
+                                     [7,0], [0,7], [-7,0], [0,-7]]
+        target_idxs = np.array([0,1,2,3,1,2,3,4])
+
+        reindex_targets(target_locations, target_idxs, 
+                        start_angle=np.pi/4, clockwise=False, bins=4)
+        filename = 'test_reindex_targets_ccw.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
 
 class MemoryTests(unittest.TestCase):
 
