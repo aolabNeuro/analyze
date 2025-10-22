@@ -2,7 +2,6 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
-from doctest import debug
 import re
 from datetime import datetime, timedelta
 import os
