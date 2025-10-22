@@ -2,7 +2,6 @@
 # Any extra utility functions belong here
 # Helper functions, math, other things that don't really pertain to neural data analysis
 
-from doctest import debug
 import re
 from datetime import datetime, timedelta
 import os
@@ -913,7 +912,7 @@ def scale_data_by_p_value(data, p, k=100, p0=0.08):
     w = 1. / (1. + np.exp(-k * (p0 - p)))
     return data * w
 
-def digitize_by_angle(vectors, start_angle=np.pi/4, clockwise=True, bins=4):
+def digitize_by_angle(vectors, start_angle=math.pi/4, clockwise=True, bins=4):
     '''
     Bin 2D vectors into angular bins.
 
@@ -935,7 +934,7 @@ def digitize_by_angle(vectors, start_angle=np.pi/4, clockwise=True, bins=4):
     bin_edges = np.linspace(-np.pi, np.pi, bins+1)
     return np.digitize(angles, bin_edges)
 
-def reindex_targets(target_locations, target_idxs, start_angle=5*np.pi/8, 
+def reindex_targets(target_locations, target_idxs, start_angle=5*math.pi/8, 
                     clockwise=True, bins=8, debug=True):
     '''
     Reindex target indices based on their angular location. Default behavior
