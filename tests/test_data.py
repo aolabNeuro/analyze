@@ -15,6 +15,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 from matplotlib.testing.compare import compare_images
 import datetime
 import json
@@ -1079,6 +1080,76 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'tabulate_behavior_random_targets.png' 
         visualization.savefig(docs_dir, figname, transparent = False)
     
+    def test_tabulate_readyset_data(self):
+
+        subjects = ['churro']
+        ids = [20788,]
+        dates = ['2025-06-12']
+
+        df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'])
+        self.assertEqual(len(df), 1718) #check correct length 
+        self.assertEqual(len(df.columns), 32)  #check correct number of columns
+
+        # Visualization Check 
+        example_reaches = df[0:6]
+        example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
+                                               example_reaches['date'], example_reaches['auditory_start_time'], 
+                                               example_reaches['trial_end_time'], datatype = 'cursor')
+        
+        example_reaches['cursor_traj'] = example_traj
+
+        fig, ax = plt.subplots(figsize=(8, 8))
+        color_dict = {'ready': 'red', 'set': 'orange', 'go': 'green'}
+        style_option = {'reward': '-', 'penalty': '--'}
+        tone_space = 500 #space between tones is 0.5 seconds or 500 samples 
+
+        for idx, traj in enumerate(example_traj):
+
+            if example_reaches.loc[idx, 'reward']:
+                style = style_option['reward']
+            else:
+                style = style_option['penalty']
+
+            tarloc = example_reaches.loc[idx, 'target_location']
+            tarcir = plt.Circle((tarloc[0], tarloc[1]), 1.0, color='gray', fill=False)
+            ax.add_patch(tarcir)
+            n = traj.shape[0]
+
+            # Plot first 500 samples (the ready)
+            if n > 0:
+                ax.plot(traj[:min(tone_space, n), 0], traj[:min(tone_space, n), 1], color=color_dict['ready'], linestyle =style, linewidth = 3)
+            # Plot next 500 samples (the set)
+            if n > tone_space:
+                ax.plot(traj[tone_space:min(2*tone_space, n), 0], traj[tone_space:min(2*tone_space, n), 1], color=color_dict['set'], linestyle =style, linewidth = 3)
+            # Plot last 500 samples (the go)
+            if n > 2*tone_space:
+                ax.plot(traj[2*tone_space:min(3*tone_space, n), 0], traj[2*tone_space:min(3*tone_space, n), 1], color=color_dict['go'], linestyle =style, linewidth = 3)
+
+        cir = plt.Circle((0, 0), 1.5, color='b', fill=False)
+        ax.add_patch(cir)
+        ax.set_xlim([-10,10])
+        ax.set_ylim([-10,10])
+        ax.set_aspect('equal', adjustable='box')
+        plt.xlabel('X Position')
+        plt.ylabel('Y Position')
+        plt.title('Example Cursor Trajectories')
+        reward_line = mlines.Line2D([], [], color='black', linestyle='-', linewidth=2, label='Reward')
+        penalty_line = mlines.Line2D([], [], color='black', linestyle='--', linewidth=2, label='Failed')
+
+        # Legend for colors
+        ready_label = mlines.Line2D([], [], color='red', linewidth=3, label='Ready')
+        set_label = mlines.Line2D([], [], color='orange', linewidth=3, label='Set')
+        go_label = mlines.Line2D([], [], color='green', linewidth=3, label='Go')
+
+        # Add legends separately (so they don’t merge)
+        first_legend = ax.legend(handles=[reward_line, penalty_line], loc='upper left', title='Reward Outcome')
+        ax.add_artist(first_legend)  
+        ax.legend(handles=[ready_label, set_label, go_label], loc='upper right', title='Part of Trial')
+
+        figname = 'tabulate_behavior_readyset.png' 
+        visualization.savefig(docs_dir, figname, transparent = False)
+
+
     def test_tabulate_kinematic_data(self):
         subjects = [self.subject, self.subject]
         ids = [self.te_id, self.te_id]
@@ -1534,7 +1605,8 @@ class TestYaml(unittest.TestCase):
                    'CURSOR_LEAVE_TARGET_RAMP_DOWN': 98,
                    'OTHER_PENALTY': 79,
                    'PAUSE_START': 128,
-                   'PAUSE_END': 129}
+                   'PAUSE_END': 129, 
+                   'CUE': 112}
         yaml_write(params_file, params)
 
         # Testing pkl_read
