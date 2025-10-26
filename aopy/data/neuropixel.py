@@ -81,7 +81,7 @@ def load_neuropixel_data(data_dir, data_folder, datatype, node_idx=0, ex_idx=0, 
     data_path = os.path.join(data_dir, data_folder)
     session = Session(data_path)
     data = session.recordnodes[node_idx].recordings[ex_idx].continuous[datatype_idx]   
-    metadata = data.metadata
+    metadata = data.metadata.__dict__
     
     # Add electrode configuration to metadata
     config = load_neuropixel_configuration(data_dir, data_folder, ex_idx=ex_idx, port_number=port_number)

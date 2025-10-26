@@ -300,6 +300,12 @@ class TestGetFuncs(unittest.TestCase):
         self.assertTrue(sum(target_idx_test[trial_mask] == 2) == min_trial)
         self.assertTrue(sum(target_idx_test[trial_mask] == 3) == min_trial)
 
+        cond_mask_test = target_idx_test != 1
+        trial_mask = get_conditioned_trials_per_target(target_idx_test, min_trial, cond_mask_test, replacement=False, seed=None)
+        self.assertTrue(sum(target_idx_test[trial_mask] == 1) == 0)
+        self.assertTrue(sum(target_idx_test[trial_mask] == 2) == min_trial)
+        self.assertTrue(sum(target_idx_test[trial_mask] == 3) == min_trial)
+
 class TestEyeFuncs(unittest.TestCase):
     
     def test_get_saccade_target_index(self):
