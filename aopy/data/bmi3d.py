@@ -2711,7 +2711,7 @@ def tabulate_behavior_data_readyset(preproc_dir, subjects, ids, dates, metadata 
             | **penalty_event (ntrial):** numeric code for the penalty event
     '''
     # Use default "trial" definition
-    task_codes = aopy.data.bmi3d.load_bmi3d_task_codes()
+    task_codes = load_bmi3d_task_codes()
     trial_end_codes = [task_codes['TRIAL_END']]
     trial_start_codes = [task_codes['CENTER_TARGET_ON']]
     reward_codes = [task_codes['REWARD']]
@@ -2722,7 +2722,7 @@ def tabulate_behavior_data_readyset(preproc_dir, subjects, ids, dates, metadata 
 
     always_meta = ['prepbuff_time' , 'delay_time'] #need these to calculate go cue timing 
     # Concatenate base trial data
-    new_df = aopy.data.bmi3d.tabulate_behavior_data(
+    new_df = tabulate_behavior_data(
         preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, 
         reward_codes, penalty_codes, metadata = metadata+always_meta, df=None)
     if len(new_df) == 0:
@@ -2737,7 +2737,7 @@ def tabulate_behavior_data_readyset(preproc_dir, subjects, ids, dates, metadata 
         in new_df['event_codes']
     ]
     target_location = [
-        np.squeeze(aopy.data.bmi3d.get_target_locations(preproc_dir, s, te, d, [t_idx]))
+        np.squeeze(get_target_locations(preproc_dir, s, te, d, [t_idx]))
         for s, te, d, t_idx 
         in zip(new_df['subject'], new_df['te_id'], new_df['date'], target_idx)
     ]

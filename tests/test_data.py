@@ -1083,15 +1083,16 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     def test_tabulate_readyset_data(self):
 
         subjects = ['churro']
-        ids = [20788,]
+        ids = [20778,]
         dates = ['2025-06-12']
 
         df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'])
-        self.assertEqual(len(df), 1718) #check correct length 
-        self.assertEqual(len(df.columns), 32)  #check correct number of columns
+        self.assertEqual(len(df), 212) #check correct length 
+        self.assertEqual(len(df.columns), 31)  #check correct number of columns
 
         # Visualization Check 
-        example_reaches = df[0:6]
+        df_hc = df[df['hold_completed']].reset_index()
+        example_reaches = df_hc[0:6]
         example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
                                                example_reaches['date'], example_reaches['auditory_start_time'], 
                                                example_reaches['trial_end_time'], datatype = 'cursor')
