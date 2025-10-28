@@ -150,7 +150,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
     n_probe = data_altcond_probe.shape[1]
     for source_idx in range(n_source):
         for probe_idx in range(n_probe):
-            ch_pair = np.array([source_idx, n_source+probe_idx])
+            ch_pair = np.array([n_source+probe_idx, source_idx]) # connection from source -> probe
             if set(ch_pair) in pair: # skip the reciprocal pairs
                 continue
             freqs, time, coh, angle = base.calc_mt_tfcoh(data_altcond, ch_pair, n, p, k, samplerate, 
