@@ -142,7 +142,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
         | **pair (list of tuples):** list of channel pairs
         | or **(freqs, time, coh, angle)** tuple**, if average is True
     '''
-    data_altcond = np.concatenate((data_altcond_source, data_altcond_probe), axis=1)
+    data_altcond = np.concatenate((data_altcond_probe, data_altcond_source), axis=1)
     stim_coh = []
     stim_angle = []
     pair = []
@@ -150,7 +150,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
     n_probe = data_altcond_probe.shape[1]
     for source_idx in range(n_source):
         for probe_idx in range(n_probe):
-            ch_pair = np.array([n_source+probe_idx, source_idx]) # for [probe, source], angle ≈ phase(probe) - phase(source)
+            ch_pair = np.array([probe_idx, n_probe+source_idx]) # for [probe, source], angle ≈ phase(probe) - phase(source)
             if set(ch_pair) in pair: # skip the reciprocal pairs
                 continue
             freqs, time, coh, angle = base.calc_mt_tfcoh(data_altcond, ch_pair, n, p, k, samplerate, 
@@ -165,7 +165,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
         return freqs, time, np.mean(stim_coh, axis=0), np.mean(stim_angle, axis=0)
     else:
         # Remove the offset in pair
-        pair = [(tuple(p)[0]-n_source, tuple(p)[1]) for p in pair]
+        pair = [(tuple(p)[0], tuple(p)[1]-n_probe) for p in pair]
         return freqs, time, stim_coh, stim_angle, pair
 
 def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_idx, window=None,
