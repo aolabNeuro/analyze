@@ -1768,6 +1768,8 @@ def tabulate_behavior_data(preproc_dir, subjects, ids, dates, start_events, end_
 
         # Concatenate with existing dataframes
         df = pd.concat([df,pd.DataFrame(exp)], ignore_index=True)
+        df['reward'] = df['reward'].astype(bool)
+        df['penalty'] = df['penalty'].astype(bool)
     
     if return_bad_entries:
         return df, bad_entries
@@ -3033,7 +3035,7 @@ def tabulate_task_data(preproc_dir, subjects, te_ids, dates, start_times, end_ti
 
 def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end_times,
                           decoders, samplerate=None, channels=None, datatype='lfp', 
-                          preproc=None, **kwargs):
+                          preproc=None, verbose=True, **kwargs):
     '''
     Extract (new, offline) lfp feature segments across arbitrary preprocessed files. Uses
     a decoder object to extract features from either lfp or broadband timeseries data. Can
@@ -3059,6 +3061,7 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
         preproc (fn, optional): function mapping (position, fs) data to (kinematics, fs_new). For example,
             a smoothing function or an estimate of velocity from position
         decode (bool, optional): whether to decode the lfp features. Default False.
+        verbose (bool, optional): whether to display a progress bar. Default True.
         kwargs: additional keyword arguments 
 
     Returns:
@@ -3146,6 +3149,9 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
     except:
         decoders = [decoders for _ in range(len(subjects))]
 
+    if verbose:
+        pbar = tqdm(total=len(subjects), desc="Segments")
+        
     segments = []
     for s, t, d, ts, te, dec in tqdm(
         zip(subjects, te_ids, dates, start_times, end_times, decoders)):
@@ -3155,6 +3161,8 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
             **kwargs
         )
         segments.append(lfp_features)
+        if verbose:
+            pbar.update()
 
     return segments, samplerate
 
