@@ -1322,7 +1322,7 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
         metadata_group=f'{datatype}_metadata'
 
     try:
-        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
+        samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
         data = base.load_hdf_ts_segment(preproc_dir, filename, data_group, data_name, 
                                    samplerate, start_time, end_time, channels=channels)
     except FileNotFoundError as e:
