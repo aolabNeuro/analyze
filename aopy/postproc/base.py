@@ -190,6 +190,7 @@ def get_conditioned_trials_per_target(target_idx, trials_per_cond, cond_mask=Non
         np.random.seed(seed)
         
     # Get trial index to get the same number of trials per target
+    trial_mask = []
     for idx, itarget in enumerate(np.unique(target_idx)):
         if cond_mask is None:
             trial_mask_targ = np.where(target_idx == itarget)[0]
@@ -197,10 +198,10 @@ def get_conditioned_trials_per_target(target_idx, trials_per_cond, cond_mask=Non
             trial_mask_targ = np.where(cond_mask * (target_idx == itarget))[0] 
                    
         if trial_mask_targ.size:
-            if idx == 0:
-                trial_mask = np.random.choice(trial_mask_targ, trials_per_cond, replace=replacement)
-            else:
-                trial_mask = np.vstack([trial_mask, np.random.choice(trial_mask_targ, trials_per_cond, replace=replacement)]) # conditions x trials shape
+            chosen_trials = np.random.choice(trial_mask_targ, trials_per_cond, replace=replacement)
+            trial_mask.append(chosen_trials[np.newaxis,:]) # add new axis for np.vstack later
+
+    trial_mask = np.vstack(trial_mask)
 
     # reshape using 'F' so that trial index would be aligned in the pseudorandom order
     trial_mask = trial_mask.reshape(-1, order='F')
