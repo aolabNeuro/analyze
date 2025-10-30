@@ -598,29 +598,6 @@ def bin_spikes(data, fs, bin_width):
     binned_spikes = binned_spikes/bin_width # convert from [spikes/bin] to [spikes/s]    
     return binned_spikes
 
-def smooth_spike_raster(raster, fs, smoothing_window=0.005):
-    '''
-    Smooths a spike raster using a Gaussian kernel. The kernel is defined by the smoothing_window parameter.
-    
-    Args:
-        raster (nt, nch): Spike raster data with multiple channels.
-        fs (float): Sampling rate of data [Hz].
-        smoothing_window (float): Width of the Gaussian kernel in seconds. Defaults to 0.005 (5 ms).
-
-    Returns:
-        smoothed_raster (nt, nch): Smoothed spike raster data.
-    '''
-    x = np.arange(-3*smoothing_window, 3*smoothing_window+1)
-    mu = 0
-    sigma = smoothing_window * fs
-    window = np.exp(-0.5 * ((x - mu)/sigma)**2) / (np.sqrt(2*np.pi) * sigma)
-    # Normalize window
-    window = window / np.sum(window)
-
-    smoothed_raster = np.apply_along_axis(
-        lambda d: np.convolve(d, window, mode='same'), 0, raster)
-    return smoothed_raster
-
 def calc_ks_waveforms(raw_data, sample_rate, spike_times_unit, templates, channel_pos, waveforms_nch=10, time_before=1000., time_after=1000.):
     '''
     Calculate waveforms, waveform channels, and positions of units, using templates from kilosort

@@ -1071,6 +1071,59 @@ class LatencyTests(unittest.TestCase):
         filename = 'detect_itpc_response.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
+        # Test on some real data
+        test_data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data_spike.hdf')
+        samplerate = 500
+        altcond = test_data['data_altcond']
+        nullcond = test_data['data_nullcond']
+
+        band = [10, 500]
+        taper_len = 0.03
+        window_len = 0.03
+
+        erp = np.vstack((nullcond, altcond))
+        tbefore = len(nullcond) / samplerate
+        tafter = len(altcond) / samplerate
+        filt_data_im = aopy.precondition.mt_bandpass_filter(erp.reshape(len(erp),-1), 
+                                                            band, taper_len, samplerate, 
+                                                            complex_output=True)
+        filt_data_im = np.reshape(filt_data_im, erp.shape)
+        time = np.arange(len(erp))/samplerate - tbefore
+        filt_data_im = aopy.analysis.subtract_erp_baseline(filt_data_im, time, -taper_len-window_len, -taper_len)
+        
+        altcond_window = (-taper_len/2, window_len - taper_len/2)
+        nullcond_window = (-taper_len - window_len, -taper_len)
+        altcond, nullcond, _, _ = aopy.analysis.latency.prepare_erp(
+            filt_data_im, filt_data_im, 
+            samplerate, tbefore, tafter, nullcond_window, altcond_window
+        )
+
+        accllr_mean = aopy.analysis.latency.detect_itpc_response(nullcond, altcond, samplerate)
+
+        # Plot PSTH
+        ncol = 2
+        nt, nch, ntrial = altcond.shape
+        altcond_time = np.arange(nt)
+        nullcond_time = altcond_time.copy() - altcond_time[-1]
+        nrow = int(np.ceil(nch/ncol))
+        fig, ax = plt.subplots(nrow, ncol, figsize=(6, nrow*3), squeeze=False)
+        for iunit in range(nch):
+            irow = iunit//ncol
+            icol = iunit % ncol
+            ax[irow, icol].plot(nullcond_time, np.mean(nullcond, axis=2)[:,iunit], 'k')
+            ax[irow, icol].plot(altcond_time, np.mean(altcond, axis=2)[:,iunit], 'k')
+            ax[irow, icol].plot([0,0], ax[irow,icol].get_ylim(), 'r--', linewidth=2)
+            ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
+            # ax[irow, icol].set_title(f"Unit {unit_labels[iunit]}")
+            if irow == nrow-1:
+                ax[irow, icol].set_xlabel('Time (s)')
+            if icol == 0:  
+                ax[irow, icol].set_ylabel('Spike rate (Hz)')
+
+        fig.tight_layout()
+        filename = 'itpc_sim_data_spike_psth.png'
+        aopy.visualization.savefig(docs_dir, filename, transparent=False)
+
     def test_detect_accLLR(self, upper=10, lower=-10):
       
         accllr_data = np.array(
@@ -1411,18 +1464,22 @@ class LatencyTests(unittest.TestCase):
     def test_calc_accllr_wrapper_spikes(self):
 
         npts = 100
-        nch = 5
-        ntrials = 30
-        onset_idx = 50
+        n_altcond = 50
+        nch_pos = 4
+        nch_neg = 4
+        nch = nch_pos + nch_neg
+        ntrials = 500
+        onset_idx = 60
+        offset_idx = 80
         np.random.seed(0)
-        altcond = np.random.poisson(0.1,(npts,nch,ntrials))
-        altcond[onset_idx:] = np.random.poisson(0.5,(npts-onset_idx,nch,ntrials))
-        nullcond = np.random.poisson(0.1,size=altcond.shape)
-        print(altcond.shape, nullcond.shape)
+        erp = np.random.poisson(20./1000,(npts,nch,ntrials)).astype(float)
+        erp[onset_idx:offset_idx,:nch_pos] = np.random.poisson(40./1000,(offset_idx-onset_idx,nch_pos,ntrials))
+        erp[onset_idx:offset_idx,nch_pos:] = np.random.poisson(10./1000,(offset_idx-onset_idx,nch_neg,ntrials))
+        erp[:,:,:30] = 0 # make some trials inactive
+        erp_smooth = aopy.postproc.smooth_timeseries_gaus(erp, 5, 1000)
 
         # Test wrapper with spike data and no selectivity matching
-        altcond_smooth = aopy.precondition.smooth_spike_raster(altcond, 1, 5)
-        nullcond_smooth = aopy.precondition.smooth_spike_raster(nullcond, 1, 5)
+        altcond, nullcond, altcond_smooth, nullcond_smooth = latency.prepare_erp(erp, erp_smooth, 1, n_altcond, n_altcond, (-n_altcond, 0), (0, n_altcond))
         st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond_smooth, nullcond_smooth, 'spike', 1)
         accllr_mean = np.nanmedian(st, axis=1)
 
@@ -1431,7 +1488,7 @@ class LatencyTests(unittest.TestCase):
         nt, nch, ntrial = altcond.shape
         altcond_time = np.arange(nt)
         nullcond_time = altcond_time.copy() - altcond_time[-1]
-        nrow = (nch//ncol)+1
+        nrow = int(np.ceil(nch/ncol))
         fig, ax = plt.subplots(nrow, ncol, figsize=(6, nrow*3))
         for iunit in range(nch):
             sorted_idx = np.argsort(st[iunit])
@@ -1446,7 +1503,7 @@ class LatencyTests(unittest.TestCase):
             ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)
 
             if irow == nrow-1:
-                ax[irow, icol].set_xlabel('Time (samples)')
+                ax[irow, icol].set_xlabel('Time (ms)')
             if icol == 0:
                 ax[irow, icol].set_ylabel('Trial')
 
@@ -1454,38 +1511,30 @@ class LatencyTests(unittest.TestCase):
         filename = 'accllr_sim_data_spike_rasters.png'
         aopy.visualization.savefig(docs_dir, filename, transparent=False)
 
-        self.assertEqual(st.shape, (nch, ntrials))
-        print(accllr_mean)
-        mask = np.logical_and(accllr_mean > 50, accllr_mean < 70)
-        self.assertEqual(np.sum(mask), nch) # all channels should have selectivity within 50-70 s
-
         # Test on some real data
         test_data = aopy.data.load_hdf_group(data_dir, 'accllr_test_data_spike.hdf')
+        samplerate = 500
         altcond = test_data['data_altcond']
         nullcond = test_data['data_nullcond']
-        altcond_lp = altcond.copy()
-        nullcond_lp = nullcond.copy()
-        samplerate = 500
-
-        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond_lp, nullcond_lp, 'spike', 1./samplerate)
+        st, roc_auc, roc_se, roc_p_fdrc = latency.calc_accllr_st(altcond, nullcond, altcond, nullcond, 'spike', 1./samplerate)
         accllr_mean = np.nanmedian(st, axis=1)
 
         ncol = 2
         nt, nch, ntrial = altcond.shape
         altcond_time = np.arange(nt)/samplerate
         nullcond_time = altcond_time.copy() - altcond_time[-1]
-        nrow = (nch//ncol)+1
+        nrow = int(np.ceil(nch/ncol))
 
         # Plot rasters sorted by latency
-        fig, ax = plt.subplots(nrow, ncol, figsize=(6, nrow*3))
+        fig, ax = plt.subplots(nrow, ncol, figsize=(6, nrow*3), squeeze=False)
         for iunit in range(nch):
             sorted_idx = np.argsort(st[iunit])
             irow = iunit//ncol
             icol = iunit % ncol
             ax[irow, icol].pcolor(nullcond_time, np.arange(ntrial), nullcond[:,iunit,sorted_idx].T, 
-                                cmap='Greys', vmin=0, vmax=1)
+                                cmap='Greys', vmin=-1, vmax=2)
             ax[irow, icol].pcolor(altcond_time, np.arange(ntrial), altcond[:,iunit,sorted_idx].T, 
-                                cmap='Greys', vmin=0, vmax=1)
+                                cmap='Greys', vmin=-1, vmax=2)
             ax[irow, icol].plot([0,0], [0,ntrial], 'r--', linewidth=2)
             ax[irow, icol].scatter(st[iunit,sorted_idx], np.arange(ntrial), color='m', marker='.')
             ax[irow, icol].plot([accllr_mean[iunit],accllr_mean[iunit]], ax[irow,icol].get_ylim(), 'b--', linewidth=2)

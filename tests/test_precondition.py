@@ -366,37 +366,6 @@ class FilterTests(unittest.TestCase):
         fname = 'filter_kinematics_accel.png'
         savefig(docs_dir, fname, transparent=False)
 
-    def test_smooth_raster(self):
-        fs = 1000  # Hz
-        nt, nch, ntr = 2000, 1, 6
-        fr_hz = 10.0  # firing rate per channel per trial
-        p_spike = fr_hz / fs
-        rng = np.random.default_rng(42)
-        raster = rng.poisson(0.5, (nt, nch, ntr))
-
-        smoothed_trials = precondition.smooth_spike_raster(raster, fs, smoothing_window=0.05)
-        self.assertEqual(smoothed_trials.shape, (nt, nch, ntr))
-
-        # Plot raw (single trial) and smoothed (mean across trials)
-        fig, axes = plt.subplots(2, 1, figsize=(8, 5), sharex=True)
-        im0 = axes[0].imshow(raster[:, 0, :].T, aspect='auto', interpolation='nearest',
-                             cmap='Greys', origin='lower')
-        axes[0].set_title('Raw spike raster (one trial)')
-        axes[0].set_ylabel('trial')
-        fig.colorbar(im0, ax=axes[0], shrink=0.7, label='spike')
-
-        # Result
-        im1 = axes[1].imshow(smoothed_trials[:, 0, :].T, aspect='auto', interpolation='nearest',
-                             cmap='Greys', origin='lower')
-        axes[1].set_title('Smoothed rate (mean across trials)')
-        axes[1].set_xlabel('time (samples)')
-        axes[1].set_ylabel('trial')
-        fig.colorbar(im1, ax=axes[1], shrink=0.7, label='rate (Hz)')
-
-        plt.tight_layout()
-        fname = 'smooth_spike_raster.png'
-        savefig(docs_dir, fname, transparent=False)
-
 class SpikeDetectionTests(unittest.TestCase):
         
     def test_calc_spike_threshold(self):

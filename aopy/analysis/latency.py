@@ -287,9 +287,9 @@ def calc_llr_inh_poisson(spike_trial, rate1, rate2):
     
     Args:
         spike_trial: (nt,): binned spike counts for one trial
-        rate1: (nt,): rate model 1
-        rate2: (nt,): rate model 2
-    
+        rate1: (nt,): binned spike counts for model 1
+        rate2: (nt,): binned spike counts for model 2
+
     Returns:
         (nt,) array: log-likelihood ratio per bin
     '''
@@ -635,7 +635,7 @@ def calc_accllr_roc(accllr_altcond, accllr_nullcond):
 def calc_accllr_st_single_ch(data_altcond_ch, data_nullcond_ch, lowpass_altcond_ch, lowpass_nullcond_ch,
                        modality, bin_width, nlevels, verbose_out=False):
     '''
-    Calculate accllr selection time for a single channel
+    Calculate AccLLR for a single channel of data, either LFP or spike data.
 
     Args:
         data_altcond_ch ((nt, ntrial)): lfp data for trials from the alternative condition
@@ -804,6 +804,18 @@ def calc_accllr_st(data_altcond, data_nullcond, lowpass_altcond, lowpass_nullcon
             | **roc_p_fdrc (nch,):** p-value for each channel after false-discovery-rate correction
 
     Examples:
+
+        Always start by preparing the data using the prepare_erp() function, which will baseline
+        subtract and organize the data into alternative and null conditions.
+
+        .. code-block:: python
+
+            from aopy.analysis.latency import prepare_erp
+            from aopy.analysis.accllr import calc_accllr_st
+
+            altcond, nullcond, altcond_lowpass, nullcond_lowpass = prepare_erp(
+                erp, erp_lowpass, samplerate, time_before, time_after,
+                (-0.06, 0.), (0., 0.06))
 
         Below are powers in 50-250hz band of three channels of laser-evoked response in motor cortex, 
         aligned to laser onset across 350 trials, 50 ms before and after. We first apply AccLLR without
