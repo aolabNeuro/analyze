@@ -13,7 +13,7 @@ from scipy.io import savemat
 import h5py
 from .. import preproc
 from pathlib import Path
-from ..precondition import calc_ks_waveforms, filter_lfp, downsample, filter_spikes
+from ..precondition import calc_ks_waveforms, filter_lfp, downsample, filter_ap
 from ..utils import extract_barcodes_from_times, get_first_last_times, sync_timestamp_offline, convert_port_number, multiply_mat_batch
 from .. import data as aodata
 
@@ -466,7 +466,7 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,po
         print(f'Filtering and synchronizing AP data')
         for ich in range(metadata['n_channels']):
             # filter_spikes only applies filtering, not downsampling
-            tmp = filter_spikes(inv_temp_wh[:,ich], metadata['samplerate'], low_pass=300, high_pass=5000, buttord=4)
+            tmp = filter_ap(inv_temp_wh[:,ich], metadata['samplerate'], low_pass=300, high_pass=5000, buttord=4)
             data_filt = downsample(tmp, metadata['samplerate'], down_samplerate)
             sync_data, sync_timestamps_new = sync_ts_data_timestamps(data_filt, sync_timestamps)
             if ich == 0:
