@@ -1604,7 +1604,8 @@ def calc_mt_tfcoh(data, ch, n, p, k, fs, step, fk=None, pad=2, ref=False, imagin
             Default is False.
         imaginary (bool, optional): if True, compute imaginary coherence.
         return_angle (bool, optional): if True, also return the phase difference between 
-            the two channels. Default False. Angles correspond to phase differences from ch1 to ch0.
+            the two channels. For example if ch = [ch1, ch0], angles correspond to phase differences 
+            from ch1 to ch0 (i.e. angle ≈ phase(ch1) - phase(ch0)). Default is False.
         dtype (str, optional): dtype of the output. Default 'float64'
         workers (int, optional): Number of workers argument to pass to scipy.fft.fft. 
             Default None. 
