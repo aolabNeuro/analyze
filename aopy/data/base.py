@@ -296,7 +296,7 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
     preproc_dir = os.path.join(preproc_dir, subject)
     data_group = _get_drive_group(preproc_dir, filename, drive_number)
     data = load_hdf_data(preproc_dir, filename, 'lfp_data', data_group=data_group, cached=cached)
-    metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', data_group=data_group, cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, os.path.join(data_group, 'lfp_metadata'), cached=cached)
     return data, metadata
 
 def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
@@ -323,7 +323,7 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
     preproc_dir = os.path.join(preproc_dir, subject)
     data_group = _get_drive_group(preproc_dir, filename, drive_number)
     data = load_hdf_data(preproc_dir, filename, 'ap_data', data_group=data_group, cached=cached)
-    metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', data_group=data_group, cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, os.path.join(data_group, 'ap_metadata'), cached=cached)
     return data, metadata
 
 def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
