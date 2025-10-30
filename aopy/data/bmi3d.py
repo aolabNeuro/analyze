@@ -3153,8 +3153,7 @@ def tabulate_lfp_features(preproc_dir, subjects, te_ids, dates, start_times, end
         pbar = tqdm(total=len(subjects), desc="Segments")
         
     segments = []
-    for s, t, d, ts, te, dec in tqdm(
-        zip(subjects, te_ids, dates, start_times, end_times, decoders)):
+    for s, t, d, ts, te, dec in zip(subjects, te_ids, dates, start_times, end_times, decoders):
         lfp_features, samplerate = extract_lfp_features(
             preproc_dir, s, t, d, dec, samplerate=samplerate, channels=channels,
             start_time=ts, end_time=te, datatype=datatype, preproc=preproc, 
