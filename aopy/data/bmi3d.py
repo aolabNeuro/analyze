@@ -1248,26 +1248,14 @@ def get_ts_data_trial(preproc_dir, subject, te_id, date, trigger_time, time_befo
             | **segment (nt, nch):** data segment from the given preprocessed file
             | **samplerate (float):** sampling rate of the returned data
     '''
-    data_group='/'
     samplerate_key='samplerate'
     if datatype == 'lfp':
         samplerate_key='lfp_samplerate'
     filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
-
-    group_names = base.list_root_groups(preproc_dir, filename)
-    if drive_number:
-        data_name=f'drive{drive_number}/{datatype}_data'
-        metadata_group=f'drive{drive_number}/{datatype}_metadata'
-                
-    else:
-        if 'drive2' in group_names:
-            raise ValueError('Multiple drives detected. Please set drive_number')
-        if 'drive1' in group_names:
-            raise ValueError('Drive detected. Please set drive_number') 
-        
-        data_name=f'{datatype}_data'
-        metadata_group=f'{datatype}_metadata'
+    data_group = base._get_drive_group(preproc_dir, filename, drive_number)
+    data_name=f'{datatype}_data'
+    metadata_group=f'{data_group}/{datatype}_metadata'
 
     try:
         samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group, cached=True)
@@ -1300,26 +1288,14 @@ def get_ts_data_segment(preproc_dir, subject, te_id, date, start_time, end_time,
             | **segment (nt, nch):** data segment from the given preprocessed file
             | **samplerate (float):** sampling rate of the returned data
     '''
-    data_group='/'
     samplerate_key='samplerate'
     if datatype == 'lfp':
         samplerate_key='lfp_samplerate'
     filename = base.get_preprocessed_filename(subject, te_id, date, datatype)
     preproc_dir = os.path.join(preproc_dir, subject)
-    group_names = base.list_root_groups(preproc_dir, filename)
-
-    if drive_number:
-        data_name=f'drive{drive_number}/{datatype}_data'
-        metadata_group=f'drive{drive_number}/{datatype}_metadata'
-                
-    else:
-        if 'drive2' in group_names:
-            raise ValueError('Multiple drives detected. Please set drive_number')
-        if 'drive1' in group_names:
-            raise ValueError('Drive detected. Please set drive_number') 
-        
-        data_name=f'{datatype}_data'
-        metadata_group=f'{datatype}_metadata'
+    data_group = base._get_drive_group(preproc_dir, filename, drive_number)
+    data_name=f'{datatype}_data'
+    metadata_group=f'{data_group}/{datatype}_metadata'
 
     try:
         samplerate = base.load_hdf_data(preproc_dir, filename, samplerate_key, metadata_group)
