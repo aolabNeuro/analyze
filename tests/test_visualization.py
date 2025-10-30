@@ -149,7 +149,7 @@ class NeuralDataPlottingTests(unittest.TestCase):
         plt.figure()
         plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
         annotate_spatial_map_channels(drive_type='ECoG244', color='k')
-        annotate_spatial_map_channels(drive_type='Opto32', color='b')
+        annotate_spatial_map_channels(drive_type='Opto32', color='b', annotation_style='marker')
         plt.axis('off')
         filename = 'ecog244_opto32.png'
         savefig(docs_dir, filename)

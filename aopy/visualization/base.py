@@ -8,6 +8,8 @@ from datetime import timedelta
 import os
 import copy
 import sys
+
+from matplotlib.markers import MarkerStyle
 if sys.version_info >= (3,9):
     from importlib.resources import files, as_file
 else:
@@ -821,15 +823,22 @@ def plot_spatial_drive_maps(maps, nrows_ncols, axsize, clim=None, axes_pad=0.05,
 
     return fig, axes, ims, cbars
 
-def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
+def annotate_spatial_map(elec_pos, text, color, annotation_style='text', fontsize=6, marker='o', 
+                         markersize=0.25, ax=None, **kwargs):
     '''
-    Simple wrapper around plt.annotate() to add text annotation to a 2d position. 
+    Add either a text or marker annotation to a 2d position. 
 
     Args:
         elec_pos ((x,y) tuple): position where text should be placed on 2d plot
         text (str): annotation text
         color (plt.Color): the color to make the text
-        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        annotation_style (str, optional): style of annotation to use for stimulation site ['text', 'marker']. 
+            Default 'text'.
+        fontsize (int, optional): the fontsize to make the text or marker. Defaults to 6.
+        marker (str, optional): marker style for annotations if annotation_style is 'marker'. Options are
+            the same as pyplot.markers.MarkerStyle; e.g. 'o', 's', etc. Default 'o'.
+        markersize (float, optional): size of the marker in data units if annotation_style is 'marker'. 
+            Defaults to 0.25.
         ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
         kwargs (dict): additional keyword arguments to pass to plt.annotate()
 
@@ -838,9 +847,19 @@ def annotate_spatial_map(elec_pos, text, color, fontsize=6, ax=None, **kwargs):
     '''
     if ax is None:
         ax = plt.gca()
-    return ax.annotate(text, elec_pos, color=color, fontsize=fontsize, ha='center', va='center', **kwargs)
-    
-def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244', theta=0, color='k', fontsize=6, 
+    if annotation_style == 'text':
+        return ax.annotate(text, elec_pos, color=color, fontsize=fontsize, ha='center', va='center', **kwargs)
+    elif annotation_style == 'marker':
+        scale = ax.transData.get_matrix()[0,0] # data units (x-axis) to points
+        marker_obj = MarkerStyle(marker)
+        marker_width = marker_obj.get_path().transformed(marker_obj.get_transform()).get_extents().width
+        return ax.plot(elec_pos[0], elec_pos[1], marker=marker, color=color, 
+                       markersize=markersize*scale/marker_width/2, **kwargs)[0]
+    else:
+        raise ValueError("annotation_style must be either 'text' or 'marker'.")
+
+def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244', theta=0, color='k', 
+                                  annotation_style='text', fontsize=6, marker='o', markersize=0.25,
                                   ax=None, **kwargs):
     '''
     Given acq_idx (indices) or acq_ch (channel numbers), prints either indices or channel numbers
@@ -855,7 +874,13 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
             annotated by default.
         drive_type (str, optional): Drive type of the channels to plot. See :func:`aopy.data.base.load_chmap`.
         color (str, optional): color to display the channels. Default 'k'.
-        fontsize (int, optional): the fontsize to make the text. Defaults to 6.
+        annotation_style (str, optional): style of annotation to use for stimulation site ['text', 'marker']. 
+            Default 'text'.
+        fontsize (int, optional): the fontsize to make the text or marker. Defaults to 6.
+        marker (str, optional): marker style for annotations if annotation_style is 'marker'. Options are
+            the same as pyplot.markers.MarkerStyle; e.g. 'o', 's', etc. Default 'o'.
+        markersize (float, optional): size of the marker in data units if annotation_style is 'marker'. 
+            Defaults to 0.25.
         print_zero_index (bool, optional): if True (the default), prints channel numbers indexed by 0. 
             Otherwise prints directly from the channel map (which should use 1-indexing).
         ax (pyplot.Axes, optional): axis on which to plot. Defaults to None.
@@ -867,7 +892,8 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
 
             aopy.visualization.plot_ECoG244_data_map(np.zeros(256,), cmap='Greys')
             aopy.visualization.annotate_spatial_map_channels(drive_type='ECoG244', color='k')
-            aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b')
+            aopy.visualization.annotate_spatial_map_channels(drive_type='Opto32', color='b', 
+                                                             annotation_style='marker')
             plt.axis('off')
 
         .. image:: _images/ecog244_opto32.png
@@ -893,7 +919,8 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, drive_type='ECoG244
     for pos, ch, color in zip(elec_pos, acq_ch, color):
         if acq_idx is not None:
             ch = ch - 1 # change back from channel numbers to indices
-        annotate_spatial_map(pos, ch, color, fontsize, ax, **kwargs)
+        annotate_spatial_map(pos, ch, color, annotation_style=annotation_style, fontsize=fontsize,
+                             marker=marker, markersize=markersize, ax=ax, **kwargs)
 
 def plot_image_by_time(time, image_values, ylabel='trial', cmap='bwr', ax=None):
     '''
@@ -2727,9 +2754,9 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
 
 def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, theta, elec_data=True, 
                                           interp=True, grid_size=(16,16), cmap='viridis', clim=None, 
-                                          colorbar=True, fontsize=12, color='w', 
-                                          recording_drive_type='ECoG244', stim_drive_type='Opto32', 
-                                          ax=None, **kwargs):
+                                          colorbar=True, annotation_style='marker', fontsize=8, marker='D',
+                                          markersize=0.5, color='w', recording_drive_type='ECoG244', 
+                                          stim_drive_type='Opto32', ax=None, **kwargs):
     '''
     Stimulation-specific version of :func:`plot_spatial_drive_map` that includes annotations for the stimulation site,
     removes tick marks, despines the map, and adds an overlay of the stimulation channel and chamber sulci locations.
@@ -2747,7 +2774,13 @@ def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, the
         cmap (str, optional): colormap to use for plotting. Default 'viridis'.
         clim (tuple, optional): 2-tuple of color limits (min, max) for the plot. Default None.
         colorbar (bool, optional): whether to add a colorbar to the plot. Default True
-        fontsize (int, optional): font size for annotations. Default 12
+        annotation_style (str, optional): style of annotation to use for stimulation site ['text', 'marker']. 
+            Default 'marker'.
+        fontsize (int, optional): the fontsize to make the text or marker. Defaults to 8.
+        marker (str, optional): marker style for annotations if annotation_style is 'marker'. Options are
+            the same as pyplot.markers.MarkerStyle; e.g. 'o', 's', etc. Default 'D'.
+        markersize (float, optional): size of the marker in data units for annotations if annotation_style 
+            is 'marker'. Default 0.5.
         color (str, optional): color for annotations. Default 'w'
         recording_drive_type (str, optional): drive type of the recording. Default 'ECoG244'. See :func:`aopy.data.load_chmap` for options.
         stim_drive_type (str, optional): drive type of the stimulation. Default 'Opto32'. See :func:`aopy.data.load_chmap` for options.
@@ -2786,7 +2819,9 @@ def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, the
     
     # Add annotations
     annotate_spatial_map_channels(acq_ch=[stim_site], fontsize=fontsize, color=color, 
-                                  drive_type=stim_drive_type, theta=theta, ax=ax)
+                                  annotation_style=annotation_style, marker=marker,
+                                  markersize=markersize, drive_type=stim_drive_type, 
+                                  theta=theta, ax=ax)
     overlay_sulci_on_spatial_map(subject, chamber, recording_drive_type, theta=theta, color=color, ax=ax)
     return im, pcm
     
