@@ -138,11 +138,11 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
         | **coh (list of (n_freq,nt)):** magnitude squared coherence or imaginary coherence 
             (0 <= coh <= 1) between the pairs
         | **angle ((list of n_freq,nt)):** list of phase difference (in radians) between the pairs 
-            (optional output, -pi <= angle <= pi)
+            (optional output, 0 <= angle <= 2*pi, how much does the probe lead the source)
         | **pair (list of tuples):** list of channel pairs
         | or **(freqs, time, coh, angle)** tuple**, if average is True
     '''
-    data_altcond = np.concatenate((data_altcond_source, data_altcond_probe), axis=1)
+    data_altcond = np.concatenate((data_altcond_probe, data_altcond_source), axis=1)
     stim_coh = []
     stim_angle = []
     pair = []
@@ -150,12 +150,13 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
     n_probe = data_altcond_probe.shape[1]
     for source_idx in range(n_source):
         for probe_idx in range(n_probe):
-            ch_pair = np.array([source_idx, n_source+probe_idx])
+            ch_pair = np.array([probe_idx, n_probe+source_idx]) # for [probe, source], angle ≈ phase(probe) - phase(source)
             if set(ch_pair) in pair: # skip the reciprocal pairs
                 continue
             freqs, time, coh, angle = base.calc_mt_tfcoh(data_altcond, ch_pair, n, p, k, samplerate, 
                                                         step=step, fk=fk, pad=pad, imaginary=imaginary, 
                                                         ref=False, return_angle=True)
+            angle = (angle + 2*np.pi) % (2*np.pi) # wrap the angle from [-pi, pi] to [0, 2*pi]
             stim_coh.append(coh)
             stim_angle.append(angle)
             pair.append(set(ch_pair))
@@ -164,7 +165,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
         return freqs, time, np.mean(stim_coh, axis=0), np.mean(stim_angle, axis=0)
     else:
         # Remove the offset in pair
-        pair = [(tuple(p)[0], tuple(p)[1]-n_source) for p in pair]
+        pair = [(tuple(p)[0], tuple(p)[1]-n_probe) for p in pair]
         return freqs, time, stim_coh, stim_angle, pair
 
 def calc_connectivity_map_coh(erp, samplerate, time_before, time_after, stim_ch_idx, window=None,
