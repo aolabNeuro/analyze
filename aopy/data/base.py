@@ -91,6 +91,29 @@ def get_kilosort_foldername(subject, te_id, date, data_source):
 
     return folder_name
 
+def _get_drive_group(preproc_dir, filename, drive_number=None):
+    '''
+    Helper function to get the drive group for a given drive number. If there is
+    data for multiple drives (drive1, drive2) in the hdf file, drive_number must be specified.
+    If there is only one drive it can be either specified or inferred automatically.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        filename (str): name of the hdf file
+        drive_number (int): drive number for multiple recordings.
+    '''
+    group_names = list_root_groups(preproc_dir, filename)
+    drive_names = [g for g in group_names if g.startswith('drive')]
+
+    if drive_number is None and len(drive_names) > 1:
+        raise ValueError('Multiple drives detected. Please set drive_number')
+    elif drive_number is None and len(drive_names) == 1:
+        drive_number = int(drive_names[0].replace('drive',''))
+    elif drive_number is None:
+        return '/'
+
+    return f'/drive{drive_number}'
+
 def find_preproc_ids_from_day(preproc_dir, subject, date, data_source):
     '''
     Returns the task entry ids that have preprocessed files in the given directory matching
@@ -271,20 +294,9 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'lfp')
     preproc_dir = os.path.join(preproc_dir, subject)
-    
-    group_names = list_root_groups(preproc_dir, filename)
-        
-    if drive_number:
-        data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/lfp_data', cached=cached)
-        metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/lfp_metadata', cached=cached)
-    else:
-        if 'drive2' in group_names:
-            raise ValueError('Multiple drives detected. Please set drive_number')
-        if 'drive1' in group_names:
-            raise ValueError('Drive detected. Please set drive_number') 
-
-        data = load_hdf_data(preproc_dir, filename, 'lfp_data', cached=cached)
-        metadata = load_hdf_group(preproc_dir, filename, 'lfp_metadata', cached=cached)
+    data_group = _get_drive_group(preproc_dir, filename, drive_number)
+    data = load_hdf_data(preproc_dir, filename, 'lfp_data', data_group=data_group, cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, os.path.join(data_group, 'lfp_metadata'), cached=cached)
     return data, metadata
 
 def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
@@ -309,20 +321,9 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'ap')
     preproc_dir = os.path.join(preproc_dir, subject)
-
-    group_names = list_root_groups(preproc_dir, filename)
-        
-    if drive_number:
-        data = load_hdf_data(preproc_dir, filename, f'drive{drive_number}/ap_data', cached=cached)
-        metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/ap_metadata', cached=cached)
-    else:
-        if 'drive2' in group_names:
-            raise ValueError('Multiple drives detected. Please set drive_number')
-        if 'drive1' in group_names:
-            raise ValueError('Drive detected. Please set drive_number') 
-                      
-        data = load_hdf_data(preproc_dir, filename, 'ap_data', cached=cached)
-        metadata = load_hdf_group(preproc_dir, filename, 'ap_metadata', cached=cached)
+    data_group = _get_drive_group(preproc_dir, filename, drive_number)
+    data = load_hdf_data(preproc_dir, filename, 'ap_data', data_group=data_group, cached=cached)
+    metadata = load_hdf_group(preproc_dir, filename, os.path.join(data_group, 'ap_metadata'), cached=cached)
     return data, metadata
 
 def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
