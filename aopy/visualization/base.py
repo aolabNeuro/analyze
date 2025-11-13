@@ -860,7 +860,8 @@ def annotate_spatial_map(elec_pos, text, color, annotation_style='text', fontsiz
     if annotation_style == 'text':
         return ax.annotate(text, elec_pos, color=color, fontsize=fontsize, ha='center', va='center', **kwargs)
     elif annotation_style == 'marker':
-        scale = ax.transData.get_matrix()[0,0] # data units (x-axis) to points
+        scale = ax.transData.get_matrix()[0,0] # data units (x-axis) to display units (pixels)
+        scale *= 72.0 / ax.get_figure().dpi # convert pixels to points
         marker_obj = MarkerStyle(marker)
         marker_width = marker_obj.get_path().transformed(marker_obj.get_transform()).get_extents().width
         return ax.plot(elec_pos[0], elec_pos[1], marker=marker, color=color, 
@@ -2765,7 +2766,7 @@ def overlay_sulci_on_spatial_map(subject, chamber, drive_type, theta=0, center=(
 def plot_annotated_spatial_drive_map_stim(data, stim_site, subject, chamber, theta, elec_data=True, 
                                           interp=True, grid_size=(16,16), cmap='viridis', clim=None, 
                                           colorbar=True, annotation_style='marker', fontsize=8, marker='D',
-                                          markersize=0.5, color='w', recording_drive_type='ECoG244', 
+                                          markersize=1.0, color='w', recording_drive_type='ECoG244', 
                                           stim_drive_type='Opto32', ax=None, **kwargs):
     '''
     Stimulation-specific version of :func:`plot_spatial_drive_map` that includes annotations for the stimulation site,
