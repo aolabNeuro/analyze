@@ -545,13 +545,15 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
     Wrapper around plt.imshow for spatial data
 
     Args:
-        data_map ((2,n) array): map of x,y data
-        x (list): list of x positions
-        y (list): list of y positions
-        alpha_map ((2,n) array): map of alpha values (optional, default alpha=1 everywhere). If the alpha
+        data_map ((n,m) array): map of x,y data where n is the number of y positions and m is the number of x positions. 
+            Can also supply a (n,m,3) rgb or (n,m,4) rgba image to add color or transparency.
+        x ((m,) array): list of x positions
+        y ((n,) array): list of y positions
+        alpha_map ((n,m) array): map of alpha values (optional, default alpha=1 everywhere). If the alpha
             values are outside of the range (0,1) they will be scaled automatically.
         ax (int, optional): axis on which to plot, default gca
-        cmap (str, optional): matplotlib colormap to use in image. default 'bwr'
+        cmap (str, optional): matplotlib colormap to use in image. Default 'bwr'. This parameter is
+            ignored if data_map is an rgb or rgba image.
         nan_color (str, optional): color to plot nan values, or None to leave them invisible. default 'black'
         clim ((2,) tuple): (min, max) to set the c axis limits. default None, show the whole range
 
@@ -593,7 +595,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     '''
     # Calculate the proper extents
-    assert np.ndim(data_map) >= 2, 'data_map must be 2D'
+    assert np.ndim(data_map) >= 2, 'data_map must be at least 2D'
     if np.size(data_map) > 1:
         extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
         x_spacing = (extent[1] - extent[0]) / (np.shape(data_map)[1] - 1)
