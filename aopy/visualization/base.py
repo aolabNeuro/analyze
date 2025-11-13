@@ -593,7 +593,7 @@ def plot_spatial_map(data_map, x, y, alpha_map=None, ax=None, cmap='bwr', nan_co
 
     '''
     # Calculate the proper extents
-    assert np.ndim(data_map) == 2, 'data_map must be 2D'
+    assert np.ndim(data_map) >= 2, 'data_map must be 2D'
     if np.size(data_map) > 1:
         extent = [np.min(x), np.max(x), np.min(y), np.max(y)]
         x_spacing = (extent[1] - extent[0]) / (np.shape(data_map)[1] - 1)
