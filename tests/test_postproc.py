@@ -1,4 +1,5 @@
 from aopy.postproc import *
+from aopy.visualization import savefig
 import aopy
 import numpy as np
 import warnings
@@ -200,6 +201,64 @@ class TestTrajectoryFuncs(unittest.TestCase):
     
         self.assertEqual(meanfr.shape[1], 360/45) # Check correct num of direction bins
         np.testing.assert_almost_equal(meanfr, exp_meanfr)
+
+    def test_has_missing_data(self):
+
+        import seaborn as sns
+        import pandas as pd
+
+        subject = 'MCP015'
+        preproc_dir = f"{data_dir}/human_centerout"
+        subjects = ('MCP015', 'MCP015', 'MCP015', 'MCP015', 'MCP015', 'MCP015', 'MCP015')
+        ids = (732, 733, 734, 735, 736, 737, 738)
+        dates = (datetime.date(2024, 9, 13),
+                datetime.date(2024, 9, 13),
+                datetime.date(2024, 9, 13),
+                datetime.date(2024, 9, 13),
+                datetime.date(2024, 9, 13),
+                datetime.date(2024, 9, 13),
+                datetime.date(2024, 9, 13))
+        df = aopy.data.tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates,
+                                                         metadata=['session', 'target_radius', 'scale'])
+        df = df[df['reach_completed'] & df['session'].isin(['a1','a2','a3'])].reset_index()
+
+        max_gap = 0.13 # Tolerate up to 0.13 seconds of missing data
+        fs = 1000 # Hz
+
+        drop = pd.Series(aopy.postproc.has_missing_data(preproc_dir, df['subject'],
+                                         df['te_id'],
+                                         df['date'],
+                                         df['go_cue_time'],
+                                         df['reach_end_time'],
+                                         datatype='user_world', samplerate=1000,
+                                         max_gap=max_gap),
+                                         index=df.index)
+
+        df.loc[df['reach_completed'], 'hand_traj'] = aopy.data.bmi3d.tabulate_kinematic_data(
+                    preproc_dir, df['subject'], df['te_id'],
+                    df['date'], df['go_cue_time'], df['reach_end_time'],
+                    datatype='user_world', remove_nan=False)
+
+        hand_traj = np.array([trial[:,:2] for trial in df['hand_traj']], dtype='object')
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
+
+        target_locs = [np.array(target) for target in df[df['subject']==subject].sort_values(by='target_idx')['target_location'].apply(lambda x: tuple(x)).unique()]
+        target_ids = df['target_idx'].to_numpy()
+
+        target_colors = sns.color_palette(n_colors=9)
+        target_colors[0] = (1.0, 1.0, 1.0, 0.0)
+
+        ax1.set_title(f'Trials to Drop')
+        aopy.visualization.color_trajectories(hand_traj[drop], target_ids[drop], target_colors, ax=ax1)
+        aopy.visualization.color_targets(target_locs, np.arange(1,9), target_colors, target_radius=2, bounds=(-11,11,-11,11,-11,11), ax=ax1)
+
+        ax2.set_title(f'Trials to Keep')
+        aopy.visualization.color_trajectories(hand_traj[~drop], target_ids[~drop], target_colors, ax=ax2)
+        aopy.visualization.color_targets(target_locs, np.arange(1,9), target_colors, target_radius=2, bounds=(-11,11,-11,11,-11,11), ax=ax2)
+
+        filename = 'drop_data_gaps.png'
+        savefig(docs_dir, filename)
     
 
 class TestCalcFuncs(unittest.TestCase):
