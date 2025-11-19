@@ -259,6 +259,45 @@ def calc_task_rel_dims(neural_data, kin_data, conc_proj_data=False):
     else:    
         return task_subspace.T, projected_data
 
+def align_latent_dynamics(La, Lb, return_aligned_dynamics=False):
+    """
+    Aligns latent dynamics using Canonical Correlation Analysis (CCA) and computes pairwise Pearson correlation for both aligned and unaligned dynamics.
+    References: Gallego, J. A., Perich, M. G., Chowdhury, R. H., Solla, S. A. & Miller, L. E. Long-term stability of cortical population dynamics underlying consistent behavior. Nat Neurosci 23, 260–270 (2020).
+
+    Args:
+        La (ndarray): Latent dynamics of Dataset A with shape (m, n_timepoints). Usually first dimension is time, however Juancho's code has it as (m, n_t). Keeping it similar to his paper is easier for the computations below.
+        Lb (ndarray): Latent dynamics of Dataset B with shape (m, n_timepoints).
+
+    Returns:
+        CCs_unaligned (ndarray): Pairwise Pearson correlation between unaligned latent dynamics (La and Lb) with shape (m).
+        CCs_aligned (ndarray): Pairwise Pearson correlation between aligned latent dynamics (La_tilde and Lb_tilde) with shape (m).
+    """
+     # Step 1: QR decomposition
+    Qa, Ra = np.linalg.qr(La.T)  # QR decomposition of La transpose
+    Qb, Rb = np.linalg.qr(Lb.T)  # QR decomposition of Lb transpose
+
+    # Step 2: Construct the cross covariance matrix and perform SVD
+    QaT_Qb = Qa.T @ Qb  # Inner product matrix of Qa and Qb
+    U, S, Vt = np.linalg.svd(QaT_Qb)  # Singular value decomposition of QaT_Qb
+
+    # Step 3: Calculate projection matrices
+    Ma = np.linalg.pinv(Ra) @ U  # Projection matrix for La
+    Mb = np.linalg.pinv(Rb) @ Vt.T  # Projection matrix for Lb
+
+    # Step 4: Project latent dynamics onto new manifold axes
+    La_tilde = La.T @ Ma  # Latent dynamics projected onto new manifold axes for La
+    Lb_tilde = Lb.T @ Mb  # Latent dynamics projected onto new manifold axes for Lb
+
+    # Step 5: Calculate pairwise correlations between unaligned and aligned latent dynamics from S and pearson correlation
+    CCs_unaligned = np.abs(np.diag(np.corrcoef(La, Lb)[:La.shape[0], La.shape[0]:])) # Pairwise correlations between rows of La and Lb
+    CCs_aligned = S
+
+    if return_aligned_dynamics:
+        return CCs_unaligned, CCs_aligned, La_tilde.T, Lb_tilde.T
+    else:
+        return CCs_unaligned, CCs_aligned
+
+
 '''
 METRIC CALCULATIONS
 '''
