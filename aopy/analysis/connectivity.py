@@ -162,7 +162,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
             pair.append(set(ch_pair))
 
     if average:
-        return freqs, time, np.mean(stim_coh, axis=0), np.mean(stim_angle, axis=0)
+        return freqs, time, np.mean(stim_coh, axis=0), np.circmean(stim_angle, axis=0)
     else:
         # Remove the offset in pair
         pair = [(tuple(p)[0], tuple(p)[1]-n_probe) for p in pair]
