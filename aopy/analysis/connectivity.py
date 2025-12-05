@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm.auto import tqdm
 import multiprocessing as mp
+from scipy.stats import circmean
 
 from . import base
 from .. import data as aodata
@@ -129,7 +130,8 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
             If pad=4, we pad the FFT to 2024 points.
             Default is 2.
         imaginary (bool, optional): if True, compute imaginary coherence.        
-        average: bool, whether to average the coherence across all pairs
+        average: bool, whether to average the coherence across all pairs. angles are averaged 
+            using circular statistics. Default is True.
 
     Returns:
         tuple: tuple containing:
@@ -162,7 +164,7 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
             pair.append(set(ch_pair))
 
     if average:
-        return freqs, time, np.mean(stim_coh, axis=0), np.mean(stim_angle, axis=0)
+        return freqs, time, np.mean(stim_coh, axis=0), circmean(stim_angle, axis=0)
     else:
         # Remove the offset in pair
         pair = [(tuple(p)[0], tuple(p)[1]-n_probe) for p in pair]
