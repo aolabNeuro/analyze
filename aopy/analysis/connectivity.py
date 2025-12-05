@@ -130,7 +130,8 @@ def calc_connectivity_coh(data_altcond_source, data_altcond_probe, n, p, k,
             If pad=4, we pad the FFT to 2024 points.
             Default is 2.
         imaginary (bool, optional): if True, compute imaginary coherence.        
-        average: bool, whether to average the coherence across all pairs
+        average: bool, whether to average the coherence across all pairs. angles are averaged 
+            using circular statistics. Default is True.
 
     Returns:
         tuple: tuple containing:
