@@ -416,6 +416,47 @@ def _prepare_bmi3d_v0(data, metadata):
 
     if 'bmi3d_task' in data:
         data['task'] = data['bmi3d_task']
+        ### if task is tracking and date is before xxx: ###
+
+            # data['task']['target'] = data['bmi3d_task']['current_target_validate]
+            # remove data['task']['current_target']
+            # remove data['task']['current_target_validate']
+
+            # TODO: following transformation only works for singular mappings, not incremental mappings! TODO: might need to put this after clean_hand_position is set below
+            # if 'incremental_rotation' in metadata['features']:
+            #     warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
+            # if 'exp_gain' in metadata:
+            #     scale = metadata['scale']
+            #     exp_gain = metadata['exp_gain']
+            # else:
+            #     scale = np.sign(metadata['scale'])
+            #     exp_gain = np.abs(metadata['scale'])
+            # user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], metadata['rotation'], 
+            #                                         metadata['offset'], scale)
+            # if 'baseline_rotation' in metadata:
+            #     baseline_rotation = metadata['baseline_rotation']
+            # else:
+            #     baseline_rotation = 'none'
+            # if 'exp_rotation' in metadata:
+            #     exp_rotation = metadata['exp_rotation']
+            # else:
+            #     exp_rotation = 'none'
+            # if 'perturbation_rotation_x' in metadata:
+            #     x_rot = metadata['perturbation_rotation_x']
+            #     z_rot = metadata['perturbation_rotation_z']
+            # else:
+            #     x_rot = 0
+            #     z_rot = 0
+            # if 'pertubation_rotation' in metadata:
+            #     y_rot = metadata['pertubation_rotation']
+            # else:
+            #     y_rot = 0
+            # exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+            # user_screen = np.dot(user_world_cycles, exp_mapping)
+
+            # data['task']['disturbance'] = data['bmi3d_task']['cursor'] - user_screen
+            # remove data['task']['current_disturbance']
+
     else:
         warnings.warn("No task data found! Cannot accurately prepare bmi3d data")
         preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
@@ -625,6 +666,47 @@ def _prepare_bmi3d_v1(data, metadata):
     # Add task data
     if 'bmi3d_task' in data:
         task = data['bmi3d_task']
+        ### if task is tracking and date is before xxx: ###
+
+            # data['task']['target'] = data['bmi3d_task']['current_target_validate]
+            # remove data['task']['current_target']
+            # remove data['task']['current_target_validate']
+
+            # TODO: following transformation only works for singular mappings, not incremental mappings! TODO: might need to put this after clean_hand_position is set below
+            # if 'incremental_rotation' in metadata['features']:
+            #     warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
+            # if 'exp_gain' in metadata:
+            #     scale = metadata['scale']
+            #     exp_gain = metadata['exp_gain']
+            # else:
+            #     scale = np.sign(metadata['scale'])
+            #     exp_gain = np.abs(metadata['scale'])
+            # user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], metadata['rotation'], 
+            #                                         metadata['offset'], scale)
+            # if 'baseline_rotation' in metadata:
+            #     baseline_rotation = metadata['baseline_rotation']
+            # else:
+            #     baseline_rotation = 'none'
+            # if 'exp_rotation' in metadata:
+            #     exp_rotation = metadata['exp_rotation']
+            # else:
+            #     exp_rotation = 'none'
+            # if 'perturbation_rotation_x' in metadata:
+            #     x_rot = metadata['perturbation_rotation_x']
+            #     z_rot = metadata['perturbation_rotation_z']
+            # else:
+            #     x_rot = 0
+            #     z_rot = 0
+            # if 'pertubation_rotation' in metadata:
+            #     y_rot = metadata['pertubation_rotation']
+            # else:
+            #     y_rot = 0
+            # exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+            # user_screen = np.dot(user_world_cycles, exp_mapping)
+
+            # data['task']['disturbance'] = data['bmi3d_task']['cursor'] - user_screen
+            # remove data['task']['current_disturbance']
+
     elif 'timestamp_sync' in corrected_clock.dtype.names:
         warnings.warn("No task data found! Reconstructing from sync data")
         preproc_errors.append("No hdf task data found! Attempted to reconstruct from sync data")
