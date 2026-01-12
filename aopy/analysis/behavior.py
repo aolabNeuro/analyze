@@ -275,7 +275,7 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
 
     return segment_duration, target_codes
 
-def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0, init_pos_trial=None, butter_order=4, low_cut=20, thr=None):
+def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0, init_pos_trial=None, butter_order=4, low_cut=20, thr=None, return_speed=False):
     '''
     Compute movement onset when cursor speed crosses threshold based on mean and standard deviation in baseline period.
     The low-pass filter is applied to the cursor trajectories first because the trajectories are sometimes jittered
@@ -297,18 +297,21 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
         numsd (float, optional) : for determining threshold at each trial (default is 3.0)
         init_pos_trial ((ntr, 3), optional) : If initial target position is different for each trial, 
                 you should specify initial target position (x,y,z coordinates) for each trial. If you don't specify init_pos_trial,
-                this function assume that initial target positon is always the origin (0,0,0). (default is None)
+                this function assumes that initial target positon is always the origin (0,0,0). (default is None)
         butter_order (int or list, optional) : the order for the butterworth filter. If it is a list, the first element is used for 
-                filtering cursor position and the second one is used for filtering speed. 
+                filtering cursor position and the second one is used for filtering speed. The list length must be 2.
                 If it is int, the same filtering parameter for both filtering is used (default is 4)
         low_cut (float or list, optional) : cut off frequency for low pass filter in Hz. If it is a list, the first element is used for 
-                filtering cursor position and the second one is used for filtering speed. 
+                filtering cursor position and the second one is used for filtering speed. The list length must be 2.
                 If it is float, the same filtering parameter for both filtering is used (default is 20)
         thr (float, optional) : thr when you want to use constant threshold across trials. The unit is cm/s. 
                 If thr=None, thr is computed by mean + numsd*std in the period from target onset to gocue.
+        return_speed (bool, optional) : whether to return speed for all trials. Default is False.
         
     Returns:
-        movement_onset (ntr) : movement onset relative to trial start time in sec
+        tuple: Tuple containing:
+            | **movement_onset (ntr):** movement onset relative to trial start time in sec
+            | **(Optional) speed (ntr):** speed information in cm/sec
     '''
     
     target_from_start = target_onset - trial_start # target onset relative to trial start time
@@ -318,6 +321,7 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
     # Set filtering parameters 
     if isinstance(butter_order, list) or isinstance(butter_order, tuple):
         assert len(butter_order) == len(low_cut)
+        assert len(butter_order) == 2
         b1, a1 = signal.butter(butter_order[0], low_cut[0], btype='lowpass', fs=fs) # filter for position
         b2, a2 = signal.butter(butter_order[1], low_cut[1], btype='lowpass', fs=fs) # filter for speed
     else:
@@ -328,26 +332,31 @@ def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=
         init_pos_trial = np.zeros((cursor_traj.shape[0], cursor_traj[0].shape[-1]))
         
     movement_onset = []
+    speed = []
     for itr in range(cursor_traj.shape[0]):
         # compute speed
         filt_cursor_traj = signal.filtfilt(b1, a1, cursor_traj[itr], axis=0)
         dist = np.linalg.norm(filt_cursor_traj-init_pos_trial[itr],axis=1)
         speed_tmp = np.diff(dist)/(1/fs)
         speed_tmp = np.insert(speed_tmp,0,speed_tmp[0]) # complement the first data point
-        speed = signal.filtfilt(b2, a2, speed_tmp, axis=0)
-        
+        speed_single = signal.filtfilt(b2, a2, speed_tmp, axis=0)
+        speed.append(speed_single)
+
         # compute threshold based on mean and std in baseline
         t_cursor = np.arange(dist.shape[0])*dt
         if thr is None:
             baseline_idx = (t_cursor<gocue_from_start[itr]) & (t_cursor>target_from_start[itr])
-            baseline_speed = np.mean(speed[baseline_idx])
-            baseline_std = np.std(speed[baseline_idx],ddof=1)
+            baseline_speed = np.mean(speed_single[baseline_idx])
+            baseline_std = np.std(speed_single[baseline_idx],ddof=1)
             thr = baseline_speed + numsd*baseline_std
         
         # get movement onset
-        movement_onset.append(t_cursor[np.where((speed>thr)&(t_cursor>target_from_start[itr]))[0][0]])
-        
-    return np.array(movement_onset)
+        movement_onset.append(t_cursor[np.where((speed_single>thr)&(t_cursor>target_from_start[itr]))[0][0]])
+    
+    if return_speed:
+        return np.array(movement_onset), np.array(speed, object)
+    else:
+        return np.array(movement_onset)
 
 def get_cursor_leave_time(cursor_traj, samplerate, target_radius, cursor_radius=0):
     '''
