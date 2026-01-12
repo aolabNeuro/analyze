@@ -275,40 +275,66 @@ def calc_segment_duration(events, event_times, start_events, end_events, target_
 
     return segment_duration, target_codes
 
-def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0, butter_order=4, low_cut=20, thr=None):
+def get_movement_onset(cursor_traj, fs, trial_start, target_onset, gocue, numsd=3.0, init_pos_trial=None, butter_order=4, low_cut=20, thr=None):
     '''
     Compute movement onset when cursor speed crosses threshold based on mean and standard deviation in baseline period.
-    Speed is estimated from cursor trajectories and low-pass filtered to remove noise.
-    Baseline is defined as the period between target onset and gocue because speed still exists soon after the cursor enters the center target.
+    The low-pass filter is applied to the cursor trajectories first because the trajectories are sometimes jittered
+    Speed is estimated from the low-pass filtered cursor position and then low-pass filtered again to remove noise.
+    Baseline is defined as the period between target onset and gocue 
+    In default, the threshold is computed in each trial. If you want to use the constant threshold across trials, you should set thr.
+
+    Note:
+        When the cursor speed in the baseline is too stationary in a trial, the default threshold computed by (mean + numsd*sdd) 
+        often get very small and sensitive to small changes in speed and can't detect actual movement onset. 
+        In this case, you should use thr to set the constant threshold. Some papers use 2.5 cm/s or 20% peak speed as threshold 
     
     Args:
         cursor_traj ((ntr,) np object array) : cursor trajectory that begins with the time when the cursor enters the center target
         fs (float) : sampling rate in Hz
-        trial_start (ntr) : trial start time (the time when the cursor enters the center target) relative to experiment start time in sec
+        trial_start (ntr) : trial start time relative to experiment start time in sec
         target_onset (ntr) : target onset relative to experiment start time in sec
         gocue (ntr) : gocue (the time when the center target disappears) relative to experiment start time in sec
-        numsd (float) : for determining threshold at each trial
-        butter_order (int) : the order for the butterworth filter
-        low_cut (float) : cut off frequency for low pass filter in Hz
-        thr (float) : thr when you want to use constant threshold across trials. If thr=None, thr is computed by mean + numsd*std in the period from target onset to gocue.
+        numsd (float, optional) : for determining threshold at each trial (default is 3.0)
+        init_pos_trial ((ntr, 3), optional) : If initial target position is different for each trial, 
+                you should specify initial target position (x,y,z coordinates) for each trial. If you don't specify init_pos_trial,
+                this function assume that initial target positon is always the origin (0,0,0). (default is None)
+        butter_order (int or list, optional) : the order for the butterworth filter. If it is a list, the first element is used for 
+                filtering cursor position and the second one is used for filtering speed. 
+                If it is int, the same filtering parameter for both filtering is used (default is 4)
+        low_cut (float or list, optional) : cut off frequency for low pass filter in Hz. If it is a list, the first element is used for 
+                filtering cursor position and the second one is used for filtering speed. 
+                If it is float, the same filtering parameter for both filtering is used (default is 20)
+        thr (float, optional) : thr when you want to use constant threshold across trials. The unit is cm/s. 
+                If thr=None, thr is computed by mean + numsd*std in the period from target onset to gocue.
         
     Returns:
-        movement_onset (ntr) : movement onset relative to trial start time (the time when the cursor enters the center target) in sec
+        movement_onset (ntr) : movement onset relative to trial start time in sec
     '''
     
     target_from_start = target_onset - trial_start # target onset relative to trial start time
     gocue_from_start = gocue - trial_start # gocue relative to trial start time
     dt = 1/fs
     
-    b, a = signal.butter(butter_order, low_cut, btype='lowpass', fs=fs)
-
+    # Set filtering parameters 
+    if isinstance(butter_order, list) or isinstance(butter_order, tuple):
+        assert len(butter_order) == len(low_cut)
+        b1, a1 = signal.butter(butter_order[0], low_cut[0], btype='lowpass', fs=fs) # filter for position
+        b2, a2 = signal.butter(butter_order[1], low_cut[1], btype='lowpass', fs=fs) # filter for speed
+    else:
+        b1, a1 = signal.butter(butter_order, low_cut, btype='lowpass', fs=fs)
+        b2, a2 = signal.butter(butter_order, low_cut, btype='lowpass', fs=fs)
+        
+    if init_pos_trial is None:
+        init_pos_trial = np.zeros((cursor_traj.shape[0], cursor_traj[0].shape[-1]))
+        
     movement_onset = []
     for itr in range(cursor_traj.shape[0]):
         # compute speed
-        dist = np.linalg.norm(cursor_traj[itr],axis=1)
+        filt_cursor_traj = signal.filtfilt(b1, a1, cursor_traj[itr], axis=0)
+        dist = np.linalg.norm(filt_cursor_traj-init_pos_trial[itr],axis=1)
         speed_tmp = np.diff(dist)/(1/fs)
         speed_tmp = np.insert(speed_tmp,0,speed_tmp[0]) # complement the first data point
-        speed = signal.filtfilt(b, a, speed_tmp, axis=0)
+        speed = signal.filtfilt(b2, a2, speed_tmp, axis=0)
         
         # compute threshold based on mean and std in baseline
         t_cursor = np.arange(dist.shape[0])*dt

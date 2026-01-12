@@ -2278,7 +2278,10 @@ class BehaviorMetricsTests(unittest.TestCase):
         gocue = np.array([4])
         movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=20.0, butter_order=4, low_cut=20, thr=None)
         self.assertTrue((movement_onset > 5)*(movement_onset < 5.1))
-        
+
+        movement_onset = aopy.analysis.get_movement_onset(cursor_test, fs, trial_start, target_onset, gocue, numsd=20.0, butter_order=[4,4], low_cut=[20,20], thr=None)
+        self.assertTrue((movement_onset > 5)*(movement_onset < 5.1))
+
         fs = 1
         cursor_test = np.array([np.array([[0,0,0,0,0,1,1,1,1,1],[0,0.5,0.5,0,0,1,1,1,1,1,]]).T,\
             np.array([[0.5,0,0,0,0,0,0,-1,-1,-1],[0,0.5,0,0,0,0,0,1,1,1,]]).T])
