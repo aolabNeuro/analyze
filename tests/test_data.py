@@ -1086,15 +1086,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         ids = [20778,]
         dates = ['2025-06-12']
 
-        df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'])
+        df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'], version = "v1")
         self.assertEqual(len(df), 212) #check correct length 
-        self.assertEqual(len(df.columns), 31)  #check correct number of columns
+        self.assertEqual(len(df.columns), 38)  #check correct number of columns
 
         # Visualization Check 
         df_hc = df[df['hold_completed']].reset_index()
         example_reaches = df_hc[0:6]
         example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
-                                               example_reaches['date'], example_reaches['auditory_start_time'], 
+                                               example_reaches['date'], example_reaches['ready_start_time'], 
                                                example_reaches['trial_end_time'], datatype = 'cursor')
         
         example_reaches['cursor_traj'] = example_traj
@@ -1103,6 +1103,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         color_dict = {'ready': 'red', 'set': 'orange', 'go': 'green'}
         style_option = {'reward': '-', 'penalty': '--'}
         tone_space = 500 #space between tones is 0.5 seconds or 500 samples 
+        tarcir = []
 
         for idx, traj in enumerate(example_traj):
 
@@ -1112,8 +1113,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
                 style = style_option['penalty']
 
             tarloc = example_reaches.loc[idx, 'target_location']
-            tarcir = plt.Circle((tarloc[0], tarloc[1]), 1.0, color='gray', fill=False)
-            ax.add_patch(tarcir)
+            tarcir.append(tarloc)
             n = traj.shape[0]
 
             # Plot first 500 samples (the ready)
@@ -1126,10 +1126,10 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
             if n > 2*tone_space:
                 ax.plot(traj[2*tone_space:min(3*tone_space, n), 0], traj[2*tone_space:min(3*tone_space, n), 1], color=color_dict['go'], linestyle =style, linewidth = 3)
 
-        cir = plt.Circle((0, 0), 1.5, color='b', fill=False)
-        ax.add_patch(cir)
-        ax.set_xlim([-10,10])
-        ax.set_ylim([-10,10])
+        tarcir.append([0,0,0]) #add center target circle
+
+        visualization.plot_circles(tarcir, circle_radius = 1.0, circle_color = 'm', bounds = [-10,10,-10,10], ax = ax)
+
         ax.set_aspect('equal', adjustable='box')
         plt.xlabel('X Position')
         plt.ylabel('Y Position')
