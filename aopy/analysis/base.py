@@ -2562,6 +2562,180 @@ def simulate_ideal_trajectories(targets, origin=[0.0, 0.0, 0.0], resolution=1000
         
     return np.array(trajectories)
 
+def find_submovement_start(trajectories, speeds, origins=None, speed_threshold=2.5, prominence_fraction=0.5, distance_threshold=5.0):
+    """
+    Identifies the index in each trial where the initial reach ends and submovements begin.
+    Based on method by Rouse et al., 2022
+    https://pmc.ncbi.nlm.nih.gov/articles/PMC9014981/
+
+    Args:
+        trajectories (list of numpy.ndarray): List of N trial trajectories, where each element 
+            is an array of shape (T, D) with T time points and D spatial dimensions.
+        speeds (list of numpy.ndarray): List of speed profiles, one per trial, each of length T.
+        origins (numpy.ndarray or None, optional): Array of shape (N, 3) specifying the 
+            origin (starting position) for each trial. If None, the origin is assumed to be (0,0,0) 
+            for all trials. Default is None.
+        speed_threshold (float, optional): Minimum peak speed required to consider a peak as 
+            part of the initial reach. Default is 2.5.
+        prominence_fraction (float, optional): Minimum fraction of a peak's height that its 
+            prominence must reach to be considered significant. Default is 0.5.
+        distance_threshold (float, optional): Minimum Euclidean distance from the origin at the 
+            trough following a peak for it to be considered the end of the initial reach. Default is 5.0.
+
+    Returns:
+        numpy.ndarray: Array of integers of length N, where each value is the index (time point) 
+        marking the end of the initial reach and the start of submovements. A value of 0 indicates 
+        that no submovement split was detected for that trial.
+
+    Example:
+    
+    .. code-block:: python
+    
+        subject = 'MCP015'
+        preproc_dir = '/media/moor-data/preprocessed-human'
+
+        entries = db.lookup_mc_sessions(subject=subject)
+        subjects, ids, dates = db.list_entry_details(entries)
+        df = aopy.data.tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates,
+                                                         metadata=['session', 'target_radius', 'scale'])
+        df = df[df['reach_completed'] & df['session'].isin(['a1','a2','a3'])].reset_index()
+
+        max_gap = 0.13 # Tolerate up to 0.13 seconds of missing data
+        fs = 1000 # Hz
+
+        drop = pd.Series(aopy.postproc.has_missing_data(preproc_dir, df['subject'],
+                                         df['te_id'],
+                                         df['date'],
+                                         df['go_cue_time'],
+                                         df['reach_end_time'],
+                                         datatype='user_world', samplerate=1000,
+                                         max_gap=max_gap),
+                                         index=df.index)
+        df = df.drop(index=drop[drop].index)
+
+        df.loc[df['reach_completed'], 'cursor_traj'] = aopy.data.bmi3d.tabulate_kinematic_data(
+                    preproc_dir, df['subject'], df['te_id'],
+                    df['date'], df['go_cue_time'], df['reach_end_time'],
+                    datatype='cursor')
+
+        df.loc[df['reach_completed'], 'cursor_speed'] = aopy.data.bmi3d.tabulate_kinematic_data(
+                    preproc_dir, df['subject'], df['te_id'],
+                    df['date'], df['go_cue_time'], df['reach_end_time'],
+                    filter_kinematics=True, low_cut=12, buttord=2,
+                    deriv=1, norm=True, datatype='cursor')
+
+        cursor_traj = np.array(df['cursor_traj'], dtype='object')
+        cursor_speed = np.array(df['cursor_speed'], dtype='object')
+
+        split_indices = find_submovement_start(cursor_traj, cursor_speed)
+
+        initial_reaches = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+        submovements = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+
+        initial_speed = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+        submovement_speed = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+
+        initial_colors = ('b','b','b','b','b','b','b','b','b')
+        submovement_colors = ('r','r','r','r','r','r','r','r','r')
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
+
+        target_locs = [np.array(target) for target in df[df['subject']==subject].sort_values(by='target_idx')['target_location'].apply(lambda x: tuple(x)).unique()]
+        target_ids = df['target_idx'].to_numpy()
+
+        initial_reaches = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+        submovements = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+
+        initial_speed = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+        submovement_speed = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+
+        ax1.set_title(f'Baseline Cursor')
+        aopy.visualization.color_trajectories(initial_reaches[:8], target_ids[:8], initial_colors, ax=ax1)
+        aopy.visualization.color_trajectories(submovements[:8], target_ids[:8], submovement_colors, ax=ax1)
+        aopy.visualization.color_targets(target_locs, np.arange(1,9), target_colors, target_radius=2, bounds=(-11,11,-11,11,-11,11), ax=ax1)
+
+        ax2.set_title(f'Baseline Speed')
+        ax2.set_xlabel(f'time (s)')
+        ax2.set_ylabel(f'speed (cm/s)')
+        for initial,submov in zip(initial_speed[:8], submovement_speed[:8]):
+            initial_time = np.arange(len(initial)) / 1000
+            submovement_time = np.arange(len(initial),len(initial)+len(submov)) / 1000
+            ax2.plot(initial_time, initial, color='b', alpha=0.25)
+            ax2.plot(submovement_time, submov, color='r', alpha=0.25)
+            
+    .. image:: _images/reach_submovements.png
+        
+    """
+    
+    if origins is None:
+        origins = np.zeros((len(trajectories), 3), dtype=float)
+                   
+    if len(trajectories) != len(origins):
+        raise ValueError("Number of trials must be consistent between trajectories and origins.")
+    
+    from scipy.signal import find_peaks, peak_prominences
+    
+    split_indices = []
+    
+    for T,traj in enumerate(trajectories):
+    
+        trajectory = np.asarray(traj)
+        speed = np.asarray(speeds[T])
+        if trajectory.shape[0] != speed.shape[0]:
+            raise ValueError("Position and speed vectors must be the same length.")
+
+        N = len(speed)
+        if N < 3:
+            split_indices.append(len(traj))  # not enough samples to define peaks & troughs
+            continue
+
+        # 1) Find peaks in speed and get their heights
+        peak_idx, peak_properties = find_peaks(speed, height=speed_threshold)
+        if peak_idx.size == 0:
+            split_indices.append(len(traj))
+            continue
+
+        # 2) Compute prominences for those peaks
+        prominences, left_bases, right_bases = peak_prominences(speed, peak_idx)
+
+        # 3) Keep peaks with prominence >= (prominence_fraction * peak_height)
+        peak_heights = peak_properties["peak_heights"]
+        keep = ( prominences >= (prominence_fraction * peak_heights) )
+        peak_idx = peak_idx[keep]
+        if peak_idx.size == 0:
+            split_indices.append(len(traj))
+            continue
+
+        # 4) Find troughs (local minima) in speed
+        trough_idx = find_peaks(-speed)[0]  # peaks of -speed are minima of speed
+        if trough_idx.size == 0:
+            split_indices.append(len(traj))
+            continue
+
+        # 5) For each qualifying peak in chronological order, find the first trough after it.
+        peak_idx = np.sort(peak_idx)
+        no_initial_peak = True
+        for p in peak_idx:
+            # first trough strictly after the peak
+            after = trough_idx[trough_idx > p]
+            if after.size == 0:
+                continue
+            t = after[0]
+
+            # Check the "initial peak" criterion: the trough position is >= distance_threshold
+            if np.linalg.norm(trajectory[t]) >= distance_threshold:
+                split_indices.append(int(t))
+                no_initial_peak = False
+                break
+                
+        # If none of the criteria are met, set idx to zero (no submovements detected)
+        if no_initial_peak:
+            split_indices.append(len(traj))
+            continue
+                
+    return np.array(split_indices)
+
+
 def calc_statistic_random_trials(data, n_trials=300, 
                                  statistic=partial(np.mean, axis=0),
                                  rng=None):

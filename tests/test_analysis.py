@@ -2417,6 +2417,61 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertTrue(corr[0,0]==corr[1,1]==1)
         self.assertAlmostEqual(corr[0,1],corr[1,0])
 
+    def test_find_submovement_start(self):
+
+        import pickle
+        import h5py
+        import seaborn as sns
+
+        with open(f'{data_dir}/human_centerout/MCP015/MCP015_testdata.pkl', 'rb') as f:
+                subj_data = pickle.load(f)
+                
+        df = subj_data['df']
+
+        cursor_traj = np.array(df['cursor_traj'], dtype='object')
+        cursor_speed = np.array(df['cursor_speed'], dtype='object')
+
+        split_indices = aopy.analysis.find_submovement_start(cursor_traj, cursor_speed)
+
+        initial_reaches = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+        submovements = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+
+        initial_speed = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+        submovement_speed = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+
+        initial_colors = ('b','b','b','b','b','b','b','b','b')
+        submovement_colors = ('r','r','r','r','r','r','r','r','r')
+        target_colors = sns.color_palette(n_colors=9)
+        target_colors[0] = (1.0, 1.0, 1.0, 0.0)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4), constrained_layout=True)
+
+        target_locs = [np.array(target) for target in df.sort_values(by='target_idx')['target_location'].apply(lambda x: tuple(x)).unique()]
+        target_ids = df['target_idx'].to_numpy()
+
+        initial_reaches = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+        submovements = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_traj)], dtype='object')
+
+        initial_speed = np.array([traj[:idx] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+        submovement_speed = np.array([traj[idx:] for idx,traj in zip(split_indices,cursor_speed)], dtype='object')
+
+        ax1.set_title(f'Baseline Cursor')
+        aopy.visualization.color_trajectories(initial_reaches[:8], target_ids[:8], initial_colors, ax=ax1)
+        aopy.visualization.color_trajectories(submovements[:8], target_ids[:8], submovement_colors, ax=ax1)
+        aopy.visualization.color_targets(target_locs, np.arange(1,9), target_colors, target_radius=2, bounds=(-11,11,-11,11,-11,11), ax=ax1)
+
+        ax2.set_title(f'Baseline Speed')
+        ax2.set_xlabel(f'time (s)')
+        ax2.set_ylabel(f'speed (cm/s)')
+        for initial,submov in zip(initial_speed[:8], submovement_speed[:8]):
+            initial_time = np.arange(len(initial)) / 1000
+            submovement_time = np.arange(len(initial),len(initial)+len(submov)) / 1000
+            ax2.plot(initial_time, initial, color='b', alpha=0.25)
+            ax2.plot(submovement_time, submov, color='r', alpha=0.25)
+
+        filename = 'reach_submovements.png'
+        savefig(docs_dir, filename)
+
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):
         freqs = np.linspace(0,1,20)
