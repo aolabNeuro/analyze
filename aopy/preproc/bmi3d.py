@@ -414,49 +414,137 @@ def _prepare_bmi3d_v0(data, metadata):
         preproc_errors.append("No event data found! Cannot accurately prepare bmi3d data")
         data['events'] = np.zeros((0,), dtype=[('time', 'u8'), ('timestamp', 'f8'), ('code', 'u1'), ('event', 'S32'), ('data', 'u4')])
 
+    # Add task data
     if 'bmi3d_task' in data:
-        data['task'] = data['bmi3d_task']
-        ### if task is tracking and date is before xxx: ###
+        task = data['bmi3d_task']
+        
+        # special handling for an old version of the tracking task
+        if 'generator' in metadata and metadata['generator']=='tracking_target_chain':   
+            if 'current_target' in task.dtype.names:
+                # list of task data fields to keep
+                keys = list(task.dtype.names)
+                keys.remove('current_target')
+                keys.remove('current_disturbance')
+                keys.remove('current_target_validate')
 
-            # data['task']['target'] = data['bmi3d_task']['current_target_validate]
-            # remove data['task']['current_target']
-            # remove data['task']['current_target_validate']
+                # list of task data fields to create/correct
+                dtypes = [(key, task.dtype.fields[key][0]) for key in keys]
+                dtypes.append(('user_screen', 'f8', (3,)))
+                dtypes.append(('target', 'f8', (3,)))
+                dtypes.append(('disturbance', 'f8', (3,)))
 
-            # TODO: following transformation only works for singular mappings, not incremental mappings! TODO: might need to put this after clean_hand_position is set below
-            # if 'incremental_rotation' in metadata['features']:
-            #     warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
-            # if 'exp_gain' in metadata:
-            #     scale = metadata['scale']
-            #     exp_gain = metadata['exp_gain']
-            # else:
-            #     scale = np.sign(metadata['scale'])
-            #     exp_gain = np.abs(metadata['scale'])
-            # user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], metadata['rotation'], 
-            #                                         metadata['offset'], scale)
-            # if 'baseline_rotation' in metadata:
-            #     baseline_rotation = metadata['baseline_rotation']
-            # else:
-            #     baseline_rotation = 'none'
-            # if 'exp_rotation' in metadata:
-            #     exp_rotation = metadata['exp_rotation']
-            # else:
-            #     exp_rotation = 'none'
-            # if 'perturbation_rotation_x' in metadata:
-            #     x_rot = metadata['perturbation_rotation_x']
-            #     z_rot = metadata['perturbation_rotation_z']
-            # else:
-            #     x_rot = 0
-            #     z_rot = 0
-            # if 'pertubation_rotation' in metadata:
-            #     y_rot = metadata['pertubation_rotation']
-            # else:
-            #     y_rot = 0
-            # exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
-            # user_screen = np.dot(user_world_cycles, exp_mapping)
+                # construct corrected task data
+                corrected_task = np.zeros(len(task), dtype=dtypes)
+                for key in keys:
+                    corrected_task[key] = task[key]
 
-            # data['task']['disturbance'] = data['bmi3d_task']['cursor'] - user_screen
-            # remove data['task']['current_disturbance']
+                # transform manual_input (user_raw) to user_world to user_screen
+                if metadata['sync_protocol_version'] < 14 and isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+                    clean_hand_position = aopy.preproc.bmi3d._correct_hand_traj(task['manual_input'], task['cursor'])
+                    if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
+                        user_raw = clean_hand_position
+                elif isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+                    user_raw = task['manual_input']
+                    
+                if 'exp_gain' in metadata:
+                    scale = metadata['scale']
+                    exp_gain = metadata['exp_gain']
+                else:
+                    scale = np.sign(metadata['scale'])
+                    exp_gain = np.abs(metadata['scale'])
+                user_world = aopy.postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
+                
+                if 'baseline_rotation' in metadata:
+                    baseline_rotation = metadata['baseline_rotation']
+                else:
+                    baseline_rotation = 'none'
+                if 'exp_rotation' in metadata:
+                    exp_rotation = metadata['exp_rotation']
+                else:
+                    exp_rotation = 'none'
+                
+                # fixed perturbations
+                if 'perturbation_rotation_x' in metadata:
+                    x_rot = metadata['perturbation_rotation_x']
+                    z_rot = metadata['perturbation_rotation_z']
+                else:
+                    x_rot = 0
+                    z_rot = 0
+                if 'pertubation_rotation' in metadata:
+                    y_rot = metadata['pertubation_rotation']
+                else:
+                    y_rot = 0
+                exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                user_screen = np.dot(user_world, exp_mapping)
+                    
+                # incremental perturbations
+                if b'incremental_rotation' in metadata['features']:
+                    x_fixed = metadata['init_rotation_x']==metadata['final_rotation_x']
+                    y_fixed = metadata['init_rotation_y']==metadata['final_rotation_y']
+                    z_fixed = metadata['init_rotation_z']==metadata['final_rotation_z']
+                    if y_fixed and z_fixed and not x_fixed:
+                        start_deg = metadata['init_rotation_x']
+                        end_deg = metadata['final_rotation_x']
+                        delta_deg = metadata['delta_rotation_x']
+                    elif x_fixed and z_fixed and not y_fixed:
+                        start_deg = metadata['init_rotation_y']
+                        end_deg = metadata['final_rotation_y']
+                        delta_deg = metadata['delta_rotation_y']
+                    elif x_fixed and y_fixed and not z_fixed:
+                        start_deg = metadata['init_rotation_z']
+                        end_deg = metadata['final_rotation_z']
+                        delta_deg = metadata['delta_rotation_z']
 
+                    trials_per_inc = metadata['trials_per_increment']
+                    n_inc = int((end_deg-start_deg)/delta_deg+1)
+                    rotations = ( np.tile(np.linspace(start_deg, end_deg, n_inc), (trials_per_inc,1)) ).flatten('F') # column-major order
+
+                    states = data['bmi3d_state']['msg'] # bmi3d state
+                    state_cycles = data['bmi3d_state']['time'] # bmi3d cycle number
+                    post_reward_cycles = state_cycles[np.where(states==b'reward')[0]+1] # bmi3d cycle number of the wait state following each reward
+
+                    reward_rotations = []
+                    if len(rotations) > len(post_reward_cycles):
+                        remainder = len(rotations) - len(post_reward_cycles)
+                        rotations = np.delete(rotations, np.s_[-remainder:])
+                    elif len(rotations) < len(post_reward_cycles):
+                        remainder = len(post_reward_cycles) - len(rotations)
+                        rotations = np.concatenate((rotations, np.ones((remainder))*inc_rotations[-1]))
+                    reward_rotations.extend(rotations)
+
+                    # find bmi3d cycle number where mapping changes
+                    change_idx = abs(np.diff(reward_rotations,append=np.nan))>0
+                    change_cycles = post_reward_cycles[change_idx]
+                    change_cycles = np.hstack((0, change_cycles, len(user_world)-1))
+                    
+                    # transform user_world to user_screen in increments
+                    user_screen = np.zeros(user_world.shape)
+                    for i,idx in enumerate(change_cycles[:-1]):
+                        if idx==0:
+                            x_rot = metadata['init_rotation_x']
+                            y_rot = metadata['init_rotation_y']
+                            z_rot = metadata['init_rotation_z']
+                        else:
+                            if y_fixed and z_fixed and not x_fixed:
+                                x_rot += delta_deg
+                            elif x_fixed and z_fixed and not y_fixed:
+                                y_rot += delta_deg
+                            elif x_fixed and y_fixed and not z_fixed:
+                                z_rot += delta_deg
+                        exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                        user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
+                    
+                corrected_task['user_screen'] = user_screen
+                corrected_task['target'] = task['current_target_validate']
+                corrected_task['disturbance'] = corrected_task['cursor'] - corrected_task['user_screen']
+                data['task'] = corrected_task
+                
+            elif 'target' in task.dtype.names:
+                data['task'] = task
+                
+        # all other tasks, by default
+        else:
+            data['task'] = task
     else:
         warnings.warn("No task data found! Cannot accurately prepare bmi3d data")
         preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
@@ -666,46 +754,134 @@ def _prepare_bmi3d_v1(data, metadata):
     # Add task data
     if 'bmi3d_task' in data:
         task = data['bmi3d_task']
-        ### if task is tracking and date is before xxx: ###
+        
+        # special handling for an old version of the tracking task
+        if 'generator' in metadata and metadata['generator']=='tracking_target_chain':   
+            if 'current_target' in task.dtype.names:
+                # list of task data fields to keep
+                keys = list(task.dtype.names)
+                keys.remove('current_target')
+                keys.remove('current_disturbance')
+                keys.remove('current_target_validate')
 
-            # data['task']['target'] = data['bmi3d_task']['current_target_validate]
-            # remove data['task']['current_target']
-            # remove data['task']['current_target_validate']
+                # list of task data fields to create/correct
+                dtypes = [(key, task.dtype.fields[key][0]) for key in keys]
+                dtypes.append(('user_screen', 'f8', (3,)))
+                dtypes.append(('target', 'f8', (3,)))
+                dtypes.append(('disturbance', 'f8', (3,)))
 
-            # TODO: following transformation only works for singular mappings, not incremental mappings! TODO: might need to put this after clean_hand_position is set below
-            # if 'incremental_rotation' in metadata['features']:
-            #     warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
-            # if 'exp_gain' in metadata:
-            #     scale = metadata['scale']
-            #     exp_gain = metadata['exp_gain']
-            # else:
-            #     scale = np.sign(metadata['scale'])
-            #     exp_gain = np.abs(metadata['scale'])
-            # user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], metadata['rotation'], 
-            #                                         metadata['offset'], scale)
-            # if 'baseline_rotation' in metadata:
-            #     baseline_rotation = metadata['baseline_rotation']
-            # else:
-            #     baseline_rotation = 'none'
-            # if 'exp_rotation' in metadata:
-            #     exp_rotation = metadata['exp_rotation']
-            # else:
-            #     exp_rotation = 'none'
-            # if 'perturbation_rotation_x' in metadata:
-            #     x_rot = metadata['perturbation_rotation_x']
-            #     z_rot = metadata['perturbation_rotation_z']
-            # else:
-            #     x_rot = 0
-            #     z_rot = 0
-            # if 'pertubation_rotation' in metadata:
-            #     y_rot = metadata['pertubation_rotation']
-            # else:
-            #     y_rot = 0
-            # exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
-            # user_screen = np.dot(user_world_cycles, exp_mapping)
+                # construct corrected task data
+                corrected_task = np.zeros(len(task), dtype=dtypes)
+                for key in keys:
+                    corrected_task[key] = task[key]
 
-            # data['task']['disturbance'] = data['bmi3d_task']['cursor'] - user_screen
-            # remove data['task']['current_disturbance']
+                # transform manual_input (user_raw) to user_world to user_screen
+                if metadata['sync_protocol_version'] < 14 and isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+                    clean_hand_position = aopy.preproc.bmi3d._correct_hand_traj(task['manual_input'], task['cursor'])
+                    if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
+                        user_raw = clean_hand_position
+                elif isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
+                    user_raw = task['manual_input']
+                    
+                if 'exp_gain' in metadata:
+                    scale = metadata['scale']
+                    exp_gain = metadata['exp_gain']
+                else:
+                    scale = np.sign(metadata['scale'])
+                    exp_gain = np.abs(metadata['scale'])
+                user_world = aopy.postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
+                
+                if 'baseline_rotation' in metadata:
+                    baseline_rotation = metadata['baseline_rotation']
+                else:
+                    baseline_rotation = 'none'
+                if 'exp_rotation' in metadata:
+                    exp_rotation = metadata['exp_rotation']
+                else:
+                    exp_rotation = 'none'
+                
+                # fixed perturbations
+                if 'perturbation_rotation_x' in metadata:
+                    x_rot = metadata['perturbation_rotation_x']
+                    z_rot = metadata['perturbation_rotation_z']
+                else:
+                    x_rot = 0
+                    z_rot = 0
+                if 'pertubation_rotation' in metadata:
+                    y_rot = metadata['pertubation_rotation']
+                else:
+                    y_rot = 0
+                exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                user_screen = np.dot(user_world, exp_mapping)
+                    
+                # incremental perturbations
+                if b'incremental_rotation' in metadata['features']:
+                    x_fixed = metadata['init_rotation_x']==metadata['final_rotation_x']
+                    y_fixed = metadata['init_rotation_y']==metadata['final_rotation_y']
+                    z_fixed = metadata['init_rotation_z']==metadata['final_rotation_z']
+                    if y_fixed and z_fixed and not x_fixed:
+                        start_deg = metadata['init_rotation_x']
+                        end_deg = metadata['final_rotation_x']
+                        delta_deg = metadata['delta_rotation_x']
+                    elif x_fixed and z_fixed and not y_fixed:
+                        start_deg = metadata['init_rotation_y']
+                        end_deg = metadata['final_rotation_y']
+                        delta_deg = metadata['delta_rotation_y']
+                    elif x_fixed and y_fixed and not z_fixed:
+                        start_deg = metadata['init_rotation_z']
+                        end_deg = metadata['final_rotation_z']
+                        delta_deg = metadata['delta_rotation_z']
+
+                    trials_per_inc = metadata['trials_per_increment']
+                    n_inc = int((end_deg-start_deg)/delta_deg+1)
+                    rotations = ( np.tile(np.linspace(start_deg, end_deg, n_inc), (trials_per_inc,1)) ).flatten('F') # column-major order
+
+                    states = data['bmi3d_state']['msg'] # bmi3d state
+                    state_cycles = data['bmi3d_state']['time'] # bmi3d cycle number
+                    post_reward_cycles = state_cycles[np.where(states==b'reward')[0]+1] # bmi3d cycle number of the wait state following each reward
+
+                    reward_rotations = []
+                    if len(rotations) > len(post_reward_cycles):
+                        remainder = len(rotations) - len(post_reward_cycles)
+                        rotations = np.delete(rotations, np.s_[-remainder:])
+                    elif len(rotations) < len(post_reward_cycles):
+                        remainder = len(post_reward_cycles) - len(rotations)
+                        rotations = np.concatenate((rotations, np.ones((remainder))*inc_rotations[-1]))
+                    reward_rotations.extend(rotations)
+
+                    # find bmi3d cycle number where mapping changes
+                    change_idx = abs(np.diff(reward_rotations,append=np.nan))>0
+                    change_cycles = post_reward_cycles[change_idx]
+                    change_cycles = np.hstack((0, change_cycles, len(user_world)-1))
+                    
+                    # transform user_world to user_screen in increments
+                    user_screen = np.zeros(user_world.shape)
+                    for i,idx in enumerate(change_cycles[:-1]):
+                        if idx==0:
+                            x_rot = metadata['init_rotation_x']
+                            y_rot = metadata['init_rotation_y']
+                            z_rot = metadata['init_rotation_z']
+                        else:
+                            if y_fixed and z_fixed and not x_fixed:
+                                x_rot += delta_deg
+                            elif x_fixed and z_fixed and not y_fixed:
+                                y_rot += delta_deg
+                            elif x_fixed and y_fixed and not z_fixed:
+                                z_rot += delta_deg
+                        exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                        user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
+                    
+                corrected_task['user_screen'] = user_screen
+                corrected_task['target'] = task['current_target_validate']
+                corrected_task['disturbance'] = corrected_task['cursor'] - corrected_task['user_screen']
+                data['task'] = corrected_task
+                
+            elif 'target' in task.dtype.names:
+                data['task'] = task
+                
+        # all other tasks, by default
+        else:
+            data['task'] = task
 
     elif 'timestamp_sync' in corrected_clock.dtype.names:
         warnings.warn("No task data found! Reconstructing from sync data")
