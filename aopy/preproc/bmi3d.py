@@ -15,6 +15,7 @@ import sympy
 
 from .. import precondition
 from .. import data as aodata
+from .. import postproc
 from .. import utils
 from .. import analysis
 from .. import visualization
@@ -440,7 +441,7 @@ def _prepare_bmi3d_v0(data, metadata):
 
                 # transform manual_input (user_raw) to user_world to user_screen
                 if metadata['sync_protocol_version'] < 14 and isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
-                    clean_hand_position = aopy.preproc.bmi3d._correct_hand_traj(task['manual_input'], task['cursor'])
+                    clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
                     if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
                         user_raw = clean_hand_position
                 elif isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
@@ -452,7 +453,7 @@ def _prepare_bmi3d_v0(data, metadata):
                 else:
                     scale = np.sign(metadata['scale'])
                     exp_gain = np.abs(metadata['scale'])
-                user_world = aopy.postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
+                user_world = postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
                 
                 if 'baseline_rotation' in metadata:
                     baseline_rotation = metadata['baseline_rotation']
@@ -474,7 +475,7 @@ def _prepare_bmi3d_v0(data, metadata):
                     y_rot = metadata['pertubation_rotation']
                 else:
                     y_rot = 0
-                exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                 user_screen = np.dot(user_world, exp_mapping)
                     
                 # incremental perturbations
@@ -531,7 +532,7 @@ def _prepare_bmi3d_v0(data, metadata):
                                 y_rot += delta_deg
                             elif x_fixed and y_fixed and not z_fixed:
                                 z_rot += delta_deg
-                        exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
                 corrected_task['user_screen'] = user_screen
@@ -777,7 +778,7 @@ def _prepare_bmi3d_v1(data, metadata):
 
                 # transform manual_input (user_raw) to user_world to user_screen
                 if metadata['sync_protocol_version'] < 14 and isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
-                    clean_hand_position = aopy.preproc.bmi3d._correct_hand_traj(task['manual_input'], task['cursor'])
+                    clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
                     if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
                         user_raw = clean_hand_position
                 elif isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
@@ -789,7 +790,7 @@ def _prepare_bmi3d_v1(data, metadata):
                 else:
                     scale = np.sign(metadata['scale'])
                     exp_gain = np.abs(metadata['scale'])
-                user_world = aopy.postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
+                user_world = postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
                 
                 if 'baseline_rotation' in metadata:
                     baseline_rotation = metadata['baseline_rotation']
@@ -811,7 +812,7 @@ def _prepare_bmi3d_v1(data, metadata):
                     y_rot = metadata['pertubation_rotation']
                 else:
                     y_rot = 0
-                exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                 user_screen = np.dot(user_world, exp_mapping)
                     
                 # incremental perturbations
@@ -868,7 +869,7 @@ def _prepare_bmi3d_v1(data, metadata):
                                 y_rot += delta_deg
                             elif x_fixed and y_fixed and not z_fixed:
                                 z_rot += delta_deg
-                        exp_mapping = aopy.postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+                        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
                 corrected_task['user_screen'] = user_screen
