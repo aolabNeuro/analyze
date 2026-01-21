@@ -761,7 +761,9 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
                                                   exp_metadata['offset'], scale)
     elif datatype == 'cursor':
         data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (bmi3d coords: x,z,y) on each bmi3d cycle
-    elif datatype in ['user_screen', 'intended_cursor']:
+    elif datatype in ['user_screen', 'user', 'intended_cursor']:
+        if datatype == 'user':
+            warnings.warn("'User' is not recommended. Use 'intended_cursor' instead for clarity.")
         # 3d user input converted to screen coordinates
         if 'user_screen' in exp_data['task'].dtype.names:
             data_cycles = exp_data['task']['user_screen'][:,[0,2,1]] # user position (bmi3d coords: x,z,y) on each bmi3d cycle

@@ -420,32 +420,35 @@ def _prepare_bmi3d_v0(data, metadata):
         task = data['bmi3d_task']
         
         # special handling for an old version of the tracking task
-        if 'generator' in metadata and metadata['generator']=='tracking_target_chain':   
+        if 'generator' in metadata and metadata['generator']=='tracking_target_chain':
             if 'current_target' in task.dtype.names:
+                # task data from bmi3d has bugs in saved reference and disturbance
+                bmi3d_task = data['bmi3d_task']
+                
                 # list of task data fields to keep
-                keys = list(task.dtype.names)
+                keys = list(bmi3d_task.dtype.names)
                 keys.remove('current_target')
                 keys.remove('current_disturbance')
                 keys.remove('current_target_validate')
 
                 # list of task data fields to create/correct
-                dtypes = [(key, task.dtype.fields[key][0]) for key in keys]
+                dtypes = [(key, bmi3d_task.dtype.fields[key][0]) for key in keys]
                 dtypes.append(('user_screen', 'f8', (3,)))
                 dtypes.append(('target', 'f8', (3,)))
                 dtypes.append(('disturbance', 'f8', (3,)))
 
                 # construct corrected task data
-                corrected_task = np.zeros(len(task), dtype=dtypes)
+                task = np.zeros(len(bmi3d_task), dtype=dtypes)
                 for key in keys:
-                    corrected_task[key] = task[key]
+                    task[key] = bmi3d_task[key]
 
                 # transform manual_input (user_raw) to user_world to user_screen
-                if metadata['sync_protocol_version'] < 14 and isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
-                    clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
+                if metadata['sync_protocol_version'] < 14 and isinstance(bmi3d_task, np.ndarray) and 'manual_input' in bmi3d_task.dtype.names:
+                    clean_hand_position = _correct_hand_traj(bmi3d_task['manual_input'], bmi3d_task['cursor'])
                     if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
                         user_raw = clean_hand_position
-                elif isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
-                    user_raw = task['manual_input']
+                elif isinstance(bmi3d_task, np.ndarray) and 'manual_input' in bmi3d_task.dtype.names:
+                    user_raw = bmi3d_task['manual_input']
                     
                 if 'exp_gain' in metadata:
                     scale = metadata['scale']
@@ -535,17 +538,12 @@ def _prepare_bmi3d_v0(data, metadata):
                         exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
-                corrected_task['user_screen'] = user_screen
-                corrected_task['target'] = task['current_target_validate']
-                corrected_task['disturbance'] = corrected_task['cursor'] - corrected_task['user_screen']
-                data['task'] = corrected_task
-                
-            elif 'target' in task.dtype.names:
-                data['task'] = task
-                
-        # all other tasks, by default
-        else:
-            data['task'] = task
+                task['user_screen'] = user_screen
+                task['target'] = bmi3d_task['current_target_validate']
+                task['disturbance'] = task['cursor'] - task['user_screen']
+
+        data['task'] = task
+
     else:
         warnings.warn("No task data found! Cannot accurately prepare bmi3d data")
         preproc_errors.append("No task data found! Cannot accurately prepare bmi3d data")
@@ -757,32 +755,35 @@ def _prepare_bmi3d_v1(data, metadata):
         task = data['bmi3d_task']
         
         # special handling for an old version of the tracking task
-        if 'generator' in metadata and metadata['generator']=='tracking_target_chain':   
+        if 'generator' in metadata and metadata['generator']=='tracking_target_chain':
             if 'current_target' in task.dtype.names:
+                # task data from bmi3d has bugs in saved reference and disturbance
+                bmi3d_task = data['bmi3d_task']
+
                 # list of task data fields to keep
-                keys = list(task.dtype.names)
+                keys = list(bmi3d_task.dtype.names)
                 keys.remove('current_target')
                 keys.remove('current_disturbance')
                 keys.remove('current_target_validate')
 
                 # list of task data fields to create/correct
-                dtypes = [(key, task.dtype.fields[key][0]) for key in keys]
+                dtypes = [(key, bmi3d_task.dtype.fields[key][0]) for key in keys]
                 dtypes.append(('user_screen', 'f8', (3,)))
                 dtypes.append(('target', 'f8', (3,)))
                 dtypes.append(('disturbance', 'f8', (3,)))
 
                 # construct corrected task data
-                corrected_task = np.zeros(len(task), dtype=dtypes)
+                task = np.zeros(len(bmi3d_task), dtype=dtypes)
                 for key in keys:
-                    corrected_task[key] = task[key]
+                    task[key] = bmi3d_task[key]
 
                 # transform manual_input (user_raw) to user_world to user_screen
-                if metadata['sync_protocol_version'] < 14 and isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
-                    clean_hand_position = _correct_hand_traj(task['manual_input'], task['cursor'])
+                if metadata['sync_protocol_version'] < 14 and isinstance(bmi3d_task, np.ndarray) and 'manual_input' in bmi3d_task.dtype.names:
+                    clean_hand_position = _correct_hand_traj(bmi3d_task['manual_input'], bmi3d_task['cursor'])
                     if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
                         user_raw = clean_hand_position
-                elif isinstance(task, np.ndarray) and 'manual_input' in task.dtype.names:
-                    user_raw = task['manual_input']
+                elif isinstance(bmi3d_task, np.ndarray) and 'manual_input' in bmi3d_task.dtype.names:
+                    user_raw = bmi3d_task['manual_input']
                     
                 if 'exp_gain' in metadata:
                     scale = metadata['scale']
@@ -872,17 +873,9 @@ def _prepare_bmi3d_v1(data, metadata):
                         exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
-                corrected_task['user_screen'] = user_screen
-                corrected_task['target'] = task['current_target_validate']
-                corrected_task['disturbance'] = corrected_task['cursor'] - corrected_task['user_screen']
-                data['task'] = corrected_task
-                
-            elif 'target' in task.dtype.names:
-                data['task'] = task
-                
-        # all other tasks, by default
-        else:
-            data['task'] = task
+                task['user_screen'] = user_screen
+                task['target'] = bmi3d_task['current_target_validate']
+                task['disturbance'] = task['cursor'] - task['user_screen']
 
     elif 'timestamp_sync' in corrected_clock.dtype.names:
         warnings.warn("No task data found! Reconstructing from sync data")
