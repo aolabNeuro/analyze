@@ -1082,13 +1082,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
     
     def test_tabulate_readyset_data(self):
 
-        subjects = ['churro']
-        ids = [20778,]
-        dates = ['2025-06-12']
+        subjects = ['GE021']
+        ids = [4859,]
+        dates = ['2025-12-18']
 
-        df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'], version = "v1")
-        self.assertEqual(len(df), 212) #check correct length 
-        self.assertEqual(len(df.columns), 38)  #check correct number of columns
+        df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'])
+        self.assertEqual(len(df), 102) #check correct length 
+        self.assertEqual(len(df.columns), 37)  #check correct number of columns
 
         # Visualization Check 
         df_hc = df[df['hold_completed']].reset_index()
@@ -1150,14 +1150,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         figname = 'tabulate_behavior_readyset.png' 
         visualization.savefig(docs_dir, figname, transparent = False)
 
-        #test for newer version
-        subjects = ['GE021']
-        ids = [4859,]
-        dates = ['2025-12-18']
+        #test for old version
+        subjects = ['churro']
+        ids = [20778,]
+        dates = ['2025-06-12']
 
-        df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'], version = "v2")
-        self.assertEqual(len(df), 102) #check correct length 
-        self.assertEqual(len(df.columns), 37)  #check correct number of columns
+        df = tabulate_readyset_old(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'])
+        self.assertEqual(len(df), 212) #check correct length 
+        self.assertEqual(len(df.columns), 38)  #check correct number of columns
 
 
     def test_tabulate_kinematic_data(self):

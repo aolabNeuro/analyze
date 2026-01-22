@@ -2663,7 +2663,7 @@ def tabulate_behavior_data_random_targets(preproc_dir, subjects, ids, dates, met
     df = pd.concat([df, new_df], ignore_index = True)
     return df
 
-def tabulate_readyset_v1(preproc_dir, subjects, ids, dates, metadata=[], df=None):
+def tabulate_readyset_old(preproc_dir, subjects, ids, dates, metadata=[], df=None):
     '''
     Wrapper around tabulate_behavior_data() specifically for readysetgo center-out experiments. 
     Modified version of the existing tabulate_behavior_data_center_out wrapper.
@@ -2733,6 +2733,10 @@ def tabulate_readyset_v1(preproc_dir, subjects, ids, dates, metadata=[], df=None
         warnings.warn("No trials found")
     if (new_df['ready_set_sound'].unique() != 'tones.wav').all(): #spacing will be different if a different wave file was used 
         warnings.warn("Not all ready_set_sound wavefiles are 'tones.wav', spacing for dataframe will not be accurate!")
+        return df
+    cutoff_date = pd.to_datetime('2025-08-25').date()
+    if (new_df['date'].apply(lambda x: pd.to_datetime(x).date()) >= cutoff_date).any():
+        warnings.warn("Some dates are on or after 2025-08-25, this wrapper is only for data prior to that date. Please use tabulate_behavior_data_readyset instead.")
         return df
 
     # Add target info
@@ -2851,7 +2855,7 @@ def tabulate_readyset_v1(preproc_dir, subjects, ids, dates, metadata=[], df=None
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
-def tabulate_readyset_v2(preproc_dir, subjects, ids, dates, metadata=[], df=None):
+def tabulate_behavior_data_readyset(preproc_dir, subjects, ids, dates, metadata=[], df=None):
     '''
     Wrapper around tabulate_behavior_data() specifically for readysetgo center-out experiments.  
     Modified version of the existing tabulate_behavior_data_center_out wrapper.
@@ -3035,32 +3039,6 @@ def tabulate_readyset_v2(preproc_dir, subjects, ids, dates, metadata=[], df=None
     df = pd.concat([df, new_df], ignore_index=True)
     return df
 
-def tabulate_behavior_data_readyset(preproc_dir, subjects, ids, dates, metadata=[], version = " ",
-                                      df=None):
-    '''
-    Wrapper around tabulate_behavior_data() specifically for readysetgo center-out experiments.  
-    Depending on when the data was collected (prior to or after August 2025), different task parameters are used to construct the dataframe.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subjects (list of str): Subject name for each recording
-        ids (list of int): Block number of Task entry object for each recording
-        dates (list of str): Date for each recording
-        metadata (list, optional): list of metadata keys that should be included in the df
-        version (str, optional): version of readyset task to use ('v2' or 'v1'). Default to using version 2.
-        df (DataFrame, optional): pandas DataFrame object to append. Defaults to None.
-
-    Returns:
-        pd.DataFrame: pandas DataFrame containing the concatenated trial data with columns. See tabulate_readyset_v1() and tabulate_readyset_v2() for details.
-     '''
-
-    version = version.lower() 
-
-    if version == "v1":
-        df = tabulate_readyset_v1(preproc_dir, subjects, ids, dates, metadata, df)
-    else:
-        df = tabulate_readyset_v2(preproc_dir, subjects, ids, dates, metadata, df)
-    return df
 
 def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
                        debug=True, df=None, **kwargs):
