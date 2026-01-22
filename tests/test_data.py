@@ -1092,7 +1092,7 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         # Visualization Check 
         df_hc = df[df['hold_completed']].reset_index()
-        example_reaches = df_hc[0:6]
+        example_reaches = df_hc[0:6].copy()
         example_traj = tabulate_kinematic_data(data_dir, example_reaches['subject'], example_reaches['te_id'],
                                                example_reaches['date'], example_reaches['ready_start_time'], 
                                                example_reaches['trial_end_time'], datatype = 'cursor')
@@ -1149,6 +1149,15 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
 
         figname = 'tabulate_behavior_readyset.png' 
         visualization.savefig(docs_dir, figname, transparent = False)
+
+        #test for newer version
+        subjects = ['GE021']
+        ids = [4859,]
+        dates = ['2025-12-18']
+
+        df = tabulate_behavior_data_readyset(data_dir, subjects, ids, dates, metadata = ['target_radius' , 'pertubation_rotation'], version = "v2")
+        self.assertEqual(len(df), 102) #check correct length 
+        self.assertEqual(len(df.columns), 37)  #check correct number of columns
 
 
     def test_tabulate_kinematic_data(self):
