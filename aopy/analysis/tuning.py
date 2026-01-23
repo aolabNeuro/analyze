@@ -279,5 +279,5 @@ def calc_dprime(*dist):
         raise ValueError('Input distributions must all have the same number of channels.')
     peak_to_peak_dist = np.max(means, axis=0) - np.min(means, axis=0)
     n_trials = np.sum([len(d) for d in dist])
-    pooled_std = np.sum([len(d)*np.std(d, axis=0)/n_trials for d in dist], axis=0)
+    pooled_std = np.sqrt(np.sum([len(d)*np.var(d, axis=0)/n_trials for d in dist], axis=0))
     return peak_to_peak_dist / pooled_std
