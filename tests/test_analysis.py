@@ -345,11 +345,11 @@ class TestTuning(unittest.TestCase):
         # Recalculate by hand
         m1 = np.mean(noise_dist, axis=0)
         m2 = np.mean(signal_dist, axis=0)
-        s1 = np.std(noise_dist, axis=0)
-        s2 = np.std(signal_dist, axis=0)
+        s1 = np.var(noise_dist, axis=0)
+        s2 = np.var(signal_dist, axis=0)
         mean_diff = m2 - m1
         sd_sum = (len(noise_dist) * s1 + (len(signal_dist) * s2))
-        sd_pooled = sd_sum/(len(noise_dist) + len(signal_dist))
+        sd_pooled = np.sqrt(sd_sum/(len(noise_dist) + len(signal_dist)))
         dprime_hand = mean_diff / sd_pooled
 
         np.testing.assert_allclose(dprime, dprime_hand)
