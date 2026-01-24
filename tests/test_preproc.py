@@ -1449,11 +1449,12 @@ class ProcTests(unittest.TestCase):
         files = {'ecube': ecube_files, 'neuropixels':np_recorddir}
         kilosort_dir = Path(data_dir)/'kilosort'
         save_dir = Path(data_dir)/'test'
-
         datatype = 'ap'
+        
         result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', datatype)
 
-        proc_ap(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=1.)
+        max_memory_gb1 = 1.
+        proc_ap(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=max_memory_gb1)
         ap_data1, ap_metadata1 = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
         ap_data2, ap_metadata2 = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
 
@@ -1463,7 +1464,26 @@ class ProcTests(unittest.TestCase):
         self.assertEqual(ap_data2.shape[1], ap_metadata2['n_channels'])
         self.assertIn('ap_samplerate', ap_metadata2)
         self.assertIn('sync_timestamps', ap_metadata2)
+        
+        # Test when the batch size is small to save memory
+        max_memory_gb3 = 0.0001
+        proc_ap(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=max_memory_gb3)
+        ap_data3, ap_metadata3 = load_preproc_ap_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        
+        # Check batch size when the different batch size is used
+        n_samples1, n_channels1 = ap_data1.shape
+        chunk_size1 = int (max_memory_gb1*1e9 / (n_samples1*np.dtype(np.int16).itemsize))
+        Nbatches1 = np.ceil(n_channels1/chunk_size1).astype(int)
+        print(Nbatches1)
+        
+        n_samples3, n_channels3 = ap_data3.shape
+        chunk_size3 = int (max_memory_gb3*1e9 / (n_samples3*np.dtype(np.int16).itemsize))
+        Nbatches3 = np.ceil(n_channels3/chunk_size3).astype(int)
+        print(Nbatches3)        
 
+        self.assertNotEqual(Nbatches1, Nbatches3) # check if batch size is different
+        self.assertTrue(np.all(ap_data1 == ap_data3)) # check if data is the same when different batch size is used
+        
         # Delete the file because its size is big
         result_hdffile = save_dir / result_filename
         result_hdffile.unlink()
@@ -1510,6 +1530,7 @@ class ProcTests(unittest.TestCase):
         self.assertEqual(lfp_metadata['lfp_samplerate'], 1000)
         self.assertEqual(lfp_metadata['samplerate'], 1000)
 
+        ###################################################
         # Test proc from lfp data in neuropixels
         np_recorddir = '2024-08-27_Neuropixel_test_te0001'
         ecube_files = '2024-08-27_BMI3D_te0001'
@@ -1519,8 +1540,9 @@ class ProcTests(unittest.TestCase):
 
         datatype = 'lfp'
         result_filename = aodata.get_preprocessed_filename('test', '0001', '2024-08-27', datatype)
-
-        proc_lfp(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=1.)
+        
+        max_memory_gb1 = 1.
+        proc_lfp(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=max_memory_gb1)
         lfp_data1, lfp_metadata1 = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
         lfp_data2, lfp_metadata2 = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=2)
 
@@ -1531,10 +1553,27 @@ class ProcTests(unittest.TestCase):
         self.assertIn('lfp_samplerate', lfp_metadata2)
         self.assertIn('sync_timestamps', lfp_metadata2)
 
+        max_memory_gb3 = 0.0001
+        proc_lfp(data_dir,files,save_dir,result_filename,kilosort_dir=kilosort_dir,overwrite=True,max_memory_gb=max_memory_gb3)
+        lfp_data3, lfp_metadata3 = load_preproc_lfp_data(data_dir, 'test', '0001', '2024-08-27', drive_number=1)
+        
+        # Check batch size when the different batch size is used
+        n_samples1, n_channels1 = lfp_data1.shape
+        chunk_size1 = int (max_memory_gb1*1e9 / (n_samples1*np.dtype(np.int16).itemsize))
+        Nbatches1 = np.ceil(n_channels1/chunk_size1).astype(int)
+        
+        n_samples3, n_channels3 = lfp_data3.shape
+        chunk_size3 = int (max_memory_gb3*1e9 / (n_samples3*np.dtype(np.int16).itemsize))
+        Nbatches3 = np.ceil(n_channels3/chunk_size3).astype(int)
+        
+        self.assertNotEqual(Nbatches1, Nbatches3) # check if batch size is different 
+        self.assertTrue(np.all(lfp_data1 == lfp_data3)) # check if data is the same when different batch size is used
+        
         # Delete the file because its size is big
         result_hdffile = save_dir / result_filename
         result_hdffile.unlink()
 
+        ###################################################################
         # Compare the two files
         ecube_lfp_data = load_hdf_data(write_dir, ecube_result_filename, 'drive1/lfp_data')
         bb_lfp_data = load_hdf_data(write_dir, bb_result_filename, 'drive1/lfp_data')

@@ -222,7 +222,7 @@ def sync_ts_data_timestamps(data, sync_timestamps):
     
     if data.ndim == 1:
         data = data[:,np.newaxis]
-        nch = data.shape[1]
+    nch = data.shape[1]
 
     # When the initial timestamp is more than 0, pad np.nan so that data could begin at time 0
     if sync_timestamps[0]>=0:
@@ -368,7 +368,7 @@ def proc_neuropixel_spikes(datadir,np_recorddir,ecube_files,kilosort_dir,port_nu
     
     return spike_group, waveform_group, metadata
 
-def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,port_number,result_filename,delete_file=True,node_idx=0,ex_idx=0,max_memory_gb=1.):
+def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,port_number,result_filename,delete_file=True,node_idx=0,ex_idx=0,max_memory_gb=1., max_memory_gb_destriping=1.):
     '''
     Prerocess neuropixels time-series data saved by openephys. 
     To use this function when datatype is 'ap', kilosort must be applied before this function.
@@ -420,6 +420,10 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,po
     on_times_np, off_times_np = aodata.get_neuropixel_digital_input_times(datadir,np_recorddir,datatype=datatype,port_number=port_number)
     on_times_ecube, off_times_ecube = aodata.get_ecube_digital_input_times(datadir,ecube_files,ch=-1)
     sync_timestamps,_ = aodata.preproc.sync_neuropixel_ecube(raw_timestamp,on_times_np,off_times_np,on_times_ecube,off_times_ecube,bar_duration=0.0185,verbose=True)
+
+    # Compute batch size to save memory
+    channel_chunk_size = int (max_memory_gb*1e9 / (data.shape[0]*np.dtype(np.int16).itemsize))
+    Nbatches = np.ceil(metadata['n_channels']/channel_chunk_size).astype(int)
     
     kilosort_portdir = Path(kilosort_dir)/np_recorddir.split('/')[-1]/f'port{port_number}'
     hdf = h5py.File(result_filename, 'a')
@@ -430,18 +434,19 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,po
         # Destripe LFP
         lfp_destriped_path = kilosort_portdir / 'lfp_destriped.dat'
         print(f'Destriping LFP data')
-        destripe_lfp_batch(data, lfp_destriped_path, metadata['samplerate'], metadata['microvoltsperbit'][0], max_memory_gb=max_memory_gb)
+        destripe_lfp_batch(data, lfp_destriped_path, metadata['samplerate'], metadata['microvoltsperbit'][0], max_memory_gb=max_memory_gb_destriping)
         lfp_destriped = np.memmap(lfp_destriped_path, dtype=np.int16, shape=data.shape)
 
         # Process data in each channel to save memory
         print(f'Filtering and synchronizing LFP data')
-        for ich in range(metadata['n_channels']):
+        for ibatch in range(Nbatches):
             # filter_lfp applies both filtering and downsampling
-            data_filt, _ = filter_lfp(lfp_destriped[:,ich], metadata['samplerate'], lfp_samplerate=down_samplerate, low_cut=500., buttord=4)
+            data_filt, _ = filter_lfp(lfp_destriped[:,ibatch*channel_chunk_size:(ibatch+1)*channel_chunk_size], \
+                                      metadata['samplerate'], lfp_samplerate=down_samplerate, low_cut=500., buttord=4)
             sync_data, sync_timestamps_new = sync_ts_data_timestamps(data_filt, sync_timestamps)
-            if ich == 0:
+            if ibatch == 0:
                 dset = hdf.create_dataset(f'drive{port_number}/{datatype}_data', (sync_data.shape[0], metadata['n_channels']), dtype=np.int16)
-            dset[:,ich] = np.squeeze(sync_data)
+            dset[:,ibatch*channel_chunk_size:(ibatch+1)*channel_chunk_size] = np.squeeze(sync_data)
         
         # Delete files created by destripe_lfp_batch
         if delete_file:
@@ -453,25 +458,28 @@ def proc_neuropixel_ts(datadir,np_recorddir,ecube_files,kilosort_dir,datatype,po
         # Multiply inverse whitening matrix to whitened spike band time series
         try:
             inverse_mat_path = kilosort_portdir / 'kilosort4' / 'whitening_mat_inv.npy'
-            inverse_mat = np.load(inverse_mat_path)   
+            inverse_mat = np.load(inverse_mat_path) # this is an inverse of the whitening matrix used in kilosort
+            temp_wh_path = kilosort_portdir / 'kilosort4' / 'temp_wh.dat'
+            temp_wh = np.memmap(temp_wh_path, dtype=np.int16, mode='r', shape=data.shape) # this is the whitened time-series data
         except:
-            raise ValueError(f'inv_matrix {inverse_mat_path} is not found. Please run kilosort first.')
+            raise ValueError(f'inv_matrix {inverse_mat_path} or temp_wh {temp_wh_path} is not found. Please run kilosort first.')
         
         inv_temp_wh_path = kilosort_portdir / 'inv_temp_wh.dat'
         print(f'Multiplyng inverse matrix by whitened ap data')
-        multiply_mat_batch(data, inverse_mat, inv_temp_wh_path, scale = 1/200, max_memory_gb=max_memory_gb)
+        multiply_mat_batch(temp_wh, inverse_mat, inv_temp_wh_path, scale = 1/200, max_memory_gb=max_memory_gb)
         inv_temp_wh = np.memmap(inv_temp_wh_path, dtype=np.int16, shape=data.shape)
 
         # Process data in each channel to save memory
         print(f'Filtering and synchronizing AP data')
-        for ich in range(metadata['n_channels']):
+        for ibatch in range(Nbatches):
             # filter_spikes only applies filtering, not downsampling
-            tmp = filter_spikes(inv_temp_wh[:,ich], metadata['samplerate'], low_pass=300, high_pass=5000, buttord=4)
+            tmp = filter_spikes(inv_temp_wh[:,ibatch*channel_chunk_size:(ibatch+1)*channel_chunk_size], \
+                                metadata['samplerate'], low_pass=300, high_pass=5000, buttord=4)
             data_filt = downsample(tmp, metadata['samplerate'], down_samplerate)
             sync_data, sync_timestamps_new = sync_ts_data_timestamps(data_filt, sync_timestamps)
-            if ich == 0:
+            if ibatch == 0:
                 dset = hdf.create_dataset(f'drive{port_number}/{datatype}_data', (sync_data.shape[0], metadata['n_channels']), dtype=np.int16)
-            dset[:,ich] = np.squeeze(sync_data)
+            dset[:,ibatch*channel_chunk_size:(ibatch+1)*channel_chunk_size] = np.squeeze(sync_data)
         
         # Delete files created by multiply_mat_batch
         if delete_file:
