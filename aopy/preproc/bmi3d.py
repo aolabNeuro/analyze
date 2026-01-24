@@ -538,9 +538,14 @@ def _prepare_bmi3d_v0(data, metadata):
                         exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
-                task['user_screen'] = user_screen
+                task['user_screen'] = user_screen[:,[0,2,1]] # reorder to match bmi3d coords (x: right/left, y: into/out of the screen, z: up/down)
                 task['target'] = bmi3d_task['current_target_validate']
-                task['disturbance'] = task['cursor'] - task['user_screen']
+                
+                user_screen_bounded = np.zeros(task['user_screen'].shape)
+                for i in range(task['user_screen'].shape[1]):
+                    user_screen_bounded[:,i] = np.clip(task['user_screen'][:,i], metadata['cursor_bounds'][i*2], metadata['cursor_bounds'][i*2+1])
+                task['disturbance'] = task['cursor'] - user_screen_bounded # cursor = user + dis
+                task['disturbance'][:,[0,1]] = 0 # zero disturbance along x and y in bmi3d coords
 
         data['task'] = task
 
@@ -879,7 +884,8 @@ def _prepare_bmi3d_v1(data, metadata):
                 user_screen_bounded = np.zeros(task['user_screen'].shape)
                 for i in range(task['user_screen'].shape[1]):
                     user_screen_bounded[:,i] = np.clip(task['user_screen'][:,i], metadata['cursor_bounds'][i*2], metadata['cursor_bounds'][i*2+1])
-                task['disturbance'] = task['cursor'] - user_screen_bounded                
+                task['disturbance'] = task['cursor'] - user_screen_bounded # cursor = user + dis
+                task['disturbance'][:,[0,1]] = 0 # zero disturbance along x and y in bmi3d coords
 
     elif 'timestamp_sync' in corrected_clock.dtype.names:
         warnings.warn("No task data found! Reconstructing from sync data")
