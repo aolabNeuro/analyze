@@ -791,7 +791,7 @@ def _prepare_bmi3d_v1(data, metadata):
                 else:
                     scale = np.sign(metadata['scale'])
                     exp_gain = np.abs(metadata['scale'])
-                user_world = postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
+                user_world = postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale) # intuitive world coords (x: right/left, y: up/down, z: forward/backward)
                 
                 if 'baseline_rotation' in metadata:
                     baseline_rotation = metadata['baseline_rotation']
@@ -814,7 +814,7 @@ def _prepare_bmi3d_v1(data, metadata):
                 else:
                     y_rot = 0
                 exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
-                user_screen = np.dot(user_world, exp_mapping)
+                user_screen = np.dot(user_world, exp_mapping) # intuitive screen coords (x: right/left, y: up/down, z: into/out of the screen)
                     
                 # incremental perturbations
                 if b'incremental_rotation' in metadata['features']:
@@ -873,7 +873,7 @@ def _prepare_bmi3d_v1(data, metadata):
                         exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
-                task['user_screen'] = user_screen
+                task['user_screen'] = user_screen[:,[0,2,1]] # reorder to match bmi3d coords (x: right/left, y: into/out of the screen, z: up/down)
                 task['target'] = bmi3d_task['current_target_validate']
                 task['disturbance'] = task['cursor'] - task['user_screen']
 
