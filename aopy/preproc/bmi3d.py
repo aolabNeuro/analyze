@@ -875,7 +875,11 @@ def _prepare_bmi3d_v1(data, metadata):
                     
                 task['user_screen'] = user_screen[:,[0,2,1]] # reorder to match bmi3d coords (x: right/left, y: into/out of the screen, z: up/down)
                 task['target'] = bmi3d_task['current_target_validate']
-                task['disturbance'] = task['cursor'] - task['user_screen']
+                
+                user_screen_bounded = np.zeros(task['user_screen'].shape)
+                for i in range(task['user_screen'].shape[1]):
+                    user_screen_bounded[:,i] = np.clip(task['user_screen'][:,i], metadata['cursor_bounds'][i*2], metadata['cursor_bounds'][i*2+1])
+                task['disturbance'] = task['cursor'] - user_screen_bounded                
 
     elif 'timestamp_sync' in corrected_clock.dtype.names:
         warnings.warn("No task data found! Reconstructing from sync data")
