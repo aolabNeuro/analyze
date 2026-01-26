@@ -443,12 +443,7 @@ def _prepare_bmi3d_v0(data, metadata):
                     task[key] = bmi3d_task[key]
 
                 # transform manual_input (user_raw) to user_world to user_screen
-                if metadata['sync_protocol_version'] < 14 and isinstance(bmi3d_task, np.ndarray) and 'manual_input' in bmi3d_task.dtype.names:
-                    clean_hand_position = _correct_hand_traj(bmi3d_task['manual_input'], bmi3d_task['cursor'])
-                    if np.count_nonzero(~np.isnan(clean_hand_position)) > 2*clean_hand_position.ndim:
-                        user_raw = clean_hand_position
-                elif isinstance(bmi3d_task, np.ndarray) and 'manual_input' in bmi3d_task.dtype.names:
-                    user_raw = bmi3d_task['manual_input']
+                user_raw = bmi3d_task['manual_input']
                     
                 if 'exp_gain' in metadata:
                     scale = metadata['scale']
@@ -456,7 +451,7 @@ def _prepare_bmi3d_v0(data, metadata):
                 else:
                     scale = np.sign(metadata['scale'])
                     exp_gain = np.abs(metadata['scale'])
-                user_world = postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale)
+                user_world = postproc.bmi3d.convert_raw_to_world_coords(user_raw, metadata['rotation'], metadata['offset'], scale) # intuitive world coords (x: right/left, y: up/down, z: forward/backward)
                 
                 if 'baseline_rotation' in metadata:
                     baseline_rotation = metadata['baseline_rotation']
@@ -479,7 +474,7 @@ def _prepare_bmi3d_v0(data, metadata):
                 else:
                     y_rot = 0
                 exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
-                user_screen = np.dot(user_world, exp_mapping)
+                user_screen = np.dot(user_world, exp_mapping) # intuitive screen coords (x: right/left, y: up/down, z: into/out of the screen)
                     
                 # incremental perturbations
                 if b'incremental_rotation' in metadata['features']:
@@ -539,13 +534,13 @@ def _prepare_bmi3d_v0(data, metadata):
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
                 task['user_screen'] = user_screen[:,[0,2,1]] # reorder to match bmi3d coords (x: right/left, y: into/out of the screen, z: up/down)
-                task['target'] = bmi3d_task['current_target_validate']
+                task['target'] = bmi3d_task['current_target_validate'] # this comes from target.get_position() and reflects actual reference
                 
-                user_screen_bounded = np.zeros(task['user_screen'].shape)
-                for i in range(task['user_screen'].shape[1]):
-                    user_screen_bounded[:,i] = np.clip(task['user_screen'][:,i], metadata['cursor_bounds'][i*2], metadata['cursor_bounds'][i*2+1])
-                task['disturbance'] = task['cursor'] - user_screen_bounded # cursor = user + dis
-                task['disturbance'][:,[0,1]] = 0 # zero disturbance along x and y in bmi3d coords
+                # clip cursor and user_screen to screen bounds to calculate actual disturbance
+                bounds = np.hstack((np.zeros(4), metadata['cursor_bounds'][-2:])) # disturbance is 0 along bmi3d x axis (right/left) and y axis (into/out of the screen)
+                cursor_bounded = np.array([np.clip(task['cursor'][:,i], bounds[i*2], bounds[i*2+1]) for i in range(3)]).T
+                user_bounded = np.array([np.clip(task['user_screen'][:,i], bounds[i*2], bounds[i*2+1]) for i in range(3)]).T
+                task['disturbance'] = cursor_bounded - user_bounded # only bmi3d z axis has non-zero values but all axes retain existing NaN values from user_screen
 
         data['task'] = task
 
@@ -879,13 +874,13 @@ def _prepare_bmi3d_v1(data, metadata):
                         user_screen[change_cycles[i]:change_cycles[i+1]] = np.dot(user_world[change_cycles[i]:change_cycles[i+1]], exp_mapping)
                     
                 task['user_screen'] = user_screen[:,[0,2,1]] # reorder to match bmi3d coords (x: right/left, y: into/out of the screen, z: up/down)
-                task['target'] = bmi3d_task['current_target_validate']
+                task['target'] = bmi3d_task['current_target_validate'] # this comes from target.get_position() and reflects actual reference
                 
-                user_screen_bounded = np.zeros(task['user_screen'].shape)
-                for i in range(task['user_screen'].shape[1]):
-                    user_screen_bounded[:,i] = np.clip(task['user_screen'][:,i], metadata['cursor_bounds'][i*2], metadata['cursor_bounds'][i*2+1])
-                task['disturbance'] = task['cursor'] - user_screen_bounded # cursor = user + dis
-                task['disturbance'][:,[0,1]] = 0 # zero disturbance along x and y in bmi3d coords
+                # clip cursor and user_screen to screen bounds to calculate actual disturbance
+                bounds = np.hstack((np.zeros(4), metadata['cursor_bounds'][-2:])) # disturbance is 0 along bmi3d x axis (right/left) and y axis (into/out of the screen)
+                cursor_bounded = np.array([np.clip(task['cursor'][:,i], bounds[i*2], bounds[i*2+1]) for i in range(3)]).T
+                user_bounded = np.array([np.clip(task['user_screen'][:,i], bounds[i*2], bounds[i*2+1]) for i in range(3)]).T
+                task['disturbance'] = cursor_bounded - user_bounded # only bmi3d z axis has non-zero values but all axes retain existing NaN values from user_screen
 
     elif 'timestamp_sync' in corrected_clock.dtype.names:
         warnings.warn("No task data found! Reconstructing from sync data")
