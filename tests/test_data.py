@@ -552,16 +552,17 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         visualization.savefig(docs_dir, filename, transparent=False)
 
         # Test with tracking task data (rig1)
-        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 8461, '2023-02-25')
+        exp_data, exp_metadata = load_preproc_exp_data(data_dir, 'test', 18909, '2024-12-11')
         # check this is an experiment with reference & disturbance
         assert exp_metadata['trajectory_amplitude'] > 0
         assert exp_metadata['disturbance_amplitude'] > 0 & json.loads(exp_metadata['sequence_params'])['disturbance']
 
-        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user + dis
-        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be non-0s
-        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor - dis
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps'])
+        # all kinematics (except hand) are returned in reordered bmi3d coords: x (right/left), z (up/down), y (into/out of the screen)
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # first 2 axes may be non-0, z axis should equal user + dis
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps']) # only z axis should be non-0
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # only z axis should be non-0
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # all 3 axes may be non-0
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps']) # all 3 axes may be non-0
 
         self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(ref_interp.shape[1], 3)
@@ -570,14 +571,14 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
-        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
-        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+        np.testing.assert_allclose(cursor_interp[:,2], 0)
+        np.testing.assert_allclose(ref_interp[:,[0,2]], 0)
+        np.testing.assert_allclose(dis_interp[:,[0,2]], 0)
 
-        n_sec = 120
-        time = np.arange(exp_metadata['fps']*n_sec)/exp_metadata['fps']
+        time = np.arange(0,len(cursor_interp)/exp_metadata['fps'],1/exp_metadata['fps'])
         plt.figure()
-        plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
-        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
+        plt.plot(time, cursor_interp[:,1], color='blueviolet', label='cursor')
+        plt.plot(time, ref_interp[:,1], color='darkorange', label='ref')
         plt.xlabel('time (s)')
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
@@ -585,9 +586,9 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         visualization.savefig(docs_dir, filename, transparent=False)
 
         plt.figure()
-        plt.plot(time, user_interp[:int(exp_metadata['fps']*n_sec),1], color='darkturquoise', label='user')
-        plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
-        plt.plot(time, dis_interp[:int(exp_metadata['fps']*n_sec),1], color='tab:red', linestyle='--', label='dis')
+        plt.plot(time, user_interp[:,1], color='darkturquoise', label='user')
+        plt.plot(time, ref_interp[:,1], color='darkorange', label='ref')
+        plt.plot(time, dis_interp[:,1], color='tab:red', linestyle='--', label='dis')
         plt.xlabel('time (s)')
         plt.ylabel('y position (cm)'); plt.ylim(-10,10)
         plt.legend()
@@ -599,12 +600,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         # check this is an experiment with reference & NO disturbance
         assert exp_metadata['trajectory_amplitude'] > 0
         assert not json.loads(exp_metadata['sequence_params'])['disturbance']
-        
-        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # should equal user
-        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps'])
-        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # should be 0s
-        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # should equal cursor
-        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps']) # x dim (out of screen) should be 0s
+
+        # all kinematics (except hand) are returned in reordered bmi3d coords: x (right/left), z (up/down), y (into/out of the screen)
+        cursor_interp = get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=exp_metadata['fps']) # first 2 axes may be non-0, z axis should equal user (no dis)
+        ref_interp = get_interp_task_data(exp_data, exp_metadata, datatype='reference', samplerate=exp_metadata['fps']) # only z axis should be non-0
+        dis_interp = get_interp_task_data(exp_data, exp_metadata, datatype='disturbance', samplerate=exp_metadata['fps']) # all 3 axes should be 0 (no dis)
+        user_interp = get_interp_task_data(exp_data, exp_metadata, datatype='user', samplerate=exp_metadata['fps']) # all 3 axes may be non-0, z axis should equal cursor
+        hand_interp = get_interp_task_data(exp_data, exp_metadata, datatype='manual_input', samplerate=exp_metadata['fps']) # first 2 axes may be non-0
 
         self.assertEqual(cursor_interp.shape[1], 3)
         self.assertEqual(ref_interp.shape[1], 3)
@@ -613,9 +615,13 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         self.assertEqual(hand_interp.shape[1], 3)
         self.assertEqual(len(cursor_interp), len(ref_interp))
         self.assertEqual(len(ref_interp), len(dis_interp))
-        self.assertAlmostEqual(sum(ref_interp[:,0]), 0)
-        self.assertAlmostEqual(sum(dis_interp[:,0]), 0)
+        np.testing.assert_allclose(cursor_interp[:,2], 0)
+        np.testing.assert_allclose(ref_interp[:,[0,2]], 0)
+        np.testing.assert_allclose(dis_interp[:,[0,1,2]], 0)
+        np.testing.assert_allclose(hand_interp[:,2], 0)
 
+        n_sec = 120
+        time = np.arange(exp_metadata['fps']*n_sec)/exp_metadata['fps']
         plt.figure()
         plt.plot(time, cursor_interp[:int(exp_metadata['fps']*n_sec),1], color='blueviolet', label='cursor')
         plt.plot(time, ref_interp[:int(exp_metadata['fps']*n_sec),1], color='darkorange', label='ref')
