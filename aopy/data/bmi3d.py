@@ -2956,11 +2956,15 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
         .. image:: _images/kinematics_interpolation.png
     '''
 
-    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
-    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, datatype, 
+    if isinstance(samplerate, int) or isinstance(samplerate, float):
+        samplerate = np.tile(samplerate, len(subjects))
+
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times) == len(samplerate)
+    
+    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, fs, datatype, 
                                        deriv=deriv, norm=norm, filter_kinematics=filter_kinematics,
                                        **kwargs)[0] 
-                for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
+                for s, t, d, ts, te, fs in zip(subjects, te_ids, dates, start_times, end_times, samplerate)]
     trajectories = np.array(segments, dtype='object')
     return trajectories
 
