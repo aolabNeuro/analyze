@@ -542,23 +542,21 @@ def tablet_engagement(user_traj, frames_inactive=8):
         list: tablet disengagement bins
     '''
     
-    delta_t = frames_inactive # how many frames 
-    idx = 0
+    overall_idx = 0
     bins = []
-    num_trials = len(user_traj)
-    
-    idx += num_trials 
-    for idx, trial in enumerate(user_traj):
+
+    for trial_idx, trial in enumerate(user_traj):
         since_last_movement = 0
         for frame_idx, frame_info in enumerate(trial):
             # if frame is equal to prev frame: since_last += 1
             if frame_idx == 0:
                 since_last_movement = 8 
-            elif frame_idx > 0 and (frame_info == trial[frame_idx - 1]).all():
+            elif (frame_info == trial[frame_idx - 1]).all():
                 since_last_movement += 1
-                if since_last_movement >= 8:
-                    #add overall_idx to bin
+                if since_last_movement >= frames_inactive:
+                    #add idx to bin
                     bins.append(overall_idx)
             else:
                 since_last_movement = 0
             overall_idx += 1
+    return bins
