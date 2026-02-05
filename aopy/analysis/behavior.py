@@ -549,9 +549,7 @@ def tablet_engagement(user_traj, frames_inactive=8):
         since_last_movement = 0
         for frame_idx, frame_info in enumerate(trial):
             # if frame is equal to prev frame: since_last += 1
-            if frame_idx == 0:
-                since_last_movement = 8 
-            elif (frame_info == trial[frame_idx - 1]).all():
+            if (frame_info == trial[frame_idx - 1]).all():
                 since_last_movement += 1
                 if since_last_movement >= frames_inactive:
                     #add idx to bin

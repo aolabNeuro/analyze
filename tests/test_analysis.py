@@ -2417,6 +2417,21 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertTrue(corr[0,0]==corr[1,1]==1)
         self.assertAlmostEqual(corr[0,1],corr[1,0])
 
+    def test_tablet_engagement(self):
+        trial0 = np.array([[0,0,0], [0,1,0], [0,2,0], [0,3,0]], dtype=int)
+        trial1 = np.array([[0,5,0]]*10 + [[0,6,0]] + [[0,6,0]]*9, dtype=int)
+        trial2 = np.array([[0,9,0]]*3, dtype=int)
+
+        user_traj = [trial0, trial1, trial2]
+
+        bins = aopy.analysis.behavior.tablet_engagement(user_traj, frames_inactive=8)
+        expected_bins = [12, 13, 22, 23]
+        self.assertEqual(bins, expected_bins)
+        
+        n_frames = sum(len(trial) for trial in user_traj)
+        self.assertEqual(n_frames, 27)
+        self.assertLess(max(bins), n_frames)
+
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):
         freqs = np.linspace(0,1,20)
