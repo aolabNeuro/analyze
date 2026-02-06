@@ -3215,7 +3215,8 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
         dates (list of str): Date for each recording
         start_times (list of float): times in the recording at which the desired segments starts
         end_times (list of float): times in the recording at which the desired segments ends
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
+        samplerate (float or list of float, optional): samplerate of the data in Hz. 
+            Can choose to use a fixed samplerate for all segments or specify a different samplerate for each segment. Default 1000.
         datatype (str, optional): type of kinematics to tabulate. Defaults to 'cursor'.  
         deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
         norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
@@ -3333,11 +3334,15 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
         .. image:: _images/kinematics_interpolation.png
     '''
 
-    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times)
-    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, samplerate, datatype, 
+    if isinstance(samplerate, int) or isinstance(samplerate, float):
+        samplerate = np.tile(samplerate, len(subjects))
+
+    assert len(subjects) == len(te_ids) == len(dates) == len(start_times) == len(end_times) == len(samplerate)
+    
+    segments = [_get_kinematic_segment(preproc_dir, s, t, d, ts, te, fs, datatype, 
                                        deriv=deriv, norm=norm, filter_kinematics=filter_kinematics,
                                        **kwargs)[0] 
-                for s, t, d, ts, te in zip(subjects, te_ids, dates, start_times, end_times)]
+                for s, t, d, ts, te, fs in zip(subjects, te_ids, dates, start_times, end_times, samplerate)]
     trajectories = np.array(segments, dtype='object')
     return trajectories
 
