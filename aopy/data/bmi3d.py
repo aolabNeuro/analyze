@@ -3215,7 +3215,8 @@ def tabulate_kinematic_data(preproc_dir, subjects, te_ids, dates, start_times, e
         dates (list of str): Date for each recording
         start_times (list of float): times in the recording at which the desired segments starts
         end_times (list of float): times in the recording at which the desired segments ends
-        samplerate (float, optional): optionally choose the samplerate of the data in Hz. Default 1000.
+        samplerate (float or list of float, optional): samplerate of the data in Hz. 
+            Can choose to use a fixed samplerate for all segments or specify a different samplerate for each segment. Default 1000.
         datatype (str, optional): type of kinematics to tabulate. Defaults to 'cursor'.  
         deriv (int, optional): order of the derivative to compute. Default 0, no derivative.
         norm (bool, optional): if the output segments should be vector normalized at each timepoint. Default False.
