@@ -165,7 +165,7 @@ def get_minimum_trials_per_target(target_idx, cond_mask=None):
     if cond_mask is None:
         min_trial = min([sum(target_idx == itarget) for itarget in np.unique(target_idx)])
     else:
-        min_trial = min([sum(target_idx[cond_mask] == itarget) for itarget in np.unique(target_idx)])
+        min_trial = min([sum(target_idx[cond_mask] == itarget) for itarget in np.unique(target_idx[cond_mask])])
     
     return min_trial
 
