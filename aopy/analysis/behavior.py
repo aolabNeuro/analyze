@@ -527,3 +527,34 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
         traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[:, itrial])
     
     return traj_correlation
+
+def tablet_engagement(user_traj, frames_inactive=8):
+    '''
+    Computes whether or not the tablet is being actively engaged by the user by looking at frames within cursor segments
+    and comparing to previous frames to see if there was any change.
+    Disengaged periods are binned.
+
+    Args:
+        user_traj (nt,ndim): user trajectory over a trial segment
+        frames_inactive (int): number of consecutive frames with no movement to consider disengaged
+
+    Returns:
+        list: tablet disengagement bins
+    '''
+    
+    overall_idx = 0
+    bins = []
+
+    for trial_idx, trial in enumerate(user_traj):
+        since_last_movement = 0
+        for frame_idx, frame_info in enumerate(trial):
+            # if frame is equal to prev frame: since_last += 1
+            if (frame_info == trial[frame_idx - 1]).all():
+                since_last_movement += 1
+                if since_last_movement >= frames_inactive:
+                    #add idx to bin
+                    bins.append(overall_idx)
+            else:
+                since_last_movement = 0
+            overall_idx += 1
+    return bins
