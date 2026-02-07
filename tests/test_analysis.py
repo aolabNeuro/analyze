@@ -2417,6 +2417,19 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertTrue(corr[0,0]==corr[1,1]==1)
         self.assertAlmostEqual(corr[0,1],corr[1,0])
 
+    def test_RTs_delay(self):
+        test_data = np.array([1,10,30])
+        sliding_variables = np.array([10,10,20])
+
+        test_win_size = 10
+        A,B,C = aopy.analysis.sliding_window_stats(test_data, sliding_variables, test_win_size, len(sliding_variables))
+
+        np.testing.assert_equal(A[0], np.mean([test_data[0],test_data[1]]))
+        np.testing.assert_equal(A[1], np.mean(test_data))
+        np.testing.assert_equal(A[2], test_data[2])
+        np.testing.assert_equal(A.shape, B.shape)
+        np.testing.assert_equal(C, np.array([10,15,20]))
+
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):
         freqs = np.linspace(0,1,20)
