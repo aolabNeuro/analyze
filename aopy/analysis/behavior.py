@@ -527,3 +527,50 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
         traj_correlation[itrial,:] = np.sum(temp_corrs, axis=1) / np.sum(trial_variance[:, itrial])
     
     return traj_correlation
+
+def sliding_window_stats(data, sliding_variables, window_size, nwin):
+    '''
+    Compute sliding-window mean and standard deviation of trial-wise data (e.g., reaction times) along a continuous variable (e.g., delay)
+    
+    Args:
+        data (ntr): Trial-wise values to be averaged (e.g., reaction times)
+        sliding_variables (ntr): Continuous variable defining the sliding-window axis (e.g., delay)
+        window_size (float): Width of the sliding window (± window_size/2)
+        nwin (int): Number of window centers
+    
+    Returns: 
+        tuple: A tuple containing:
+            | **m_data (nwin):** Sliding-window mean of data
+            | **std_data (nwin):** Sliding-window standard deviation of data.
+            | **sliding_axis (nwin):** Evenly-distributed centers of sliding_window
+
+    Examples:
+
+        You can see the relationship between RTs (ntr shape) and delay period (ntr shape)
+
+        .. code-block:: python
+
+            m_RTs, std_RTs, delay_axis = sliding_window_stats(RTs, delay_period, 0.1, 100)
+
+            fig, ax = plt.subplots()
+            ax.plot(delay_axis*1000, m_RTs*1000)
+            ax.fill_between(delay_axis*1000, (m_RTs+std_RTs)*1000, (m_RTs-std_RTs)*1000, alpha=0.2)
+
+        .. image:: _images/RTs_delay.png
+
+    '''
+    
+    data = np.array(data)
+    sliding_variables = np.array(sliding_variables)
+
+    sliding_axis = np.linspace(sliding_variables.min(), sliding_variables.max(), nwin)
+
+    diff = np.abs(sliding_variables[:, None] - sliding_axis[None, :])
+    mask = diff <= window_size/2
+
+    values = np.where(mask, data[:, None], np.nan)
+
+    m_data = np.nanmean(values, axis=0)
+    std_data = np.nanstd(values, axis=0)
+    
+    return m_data, std_data, sliding_axis
