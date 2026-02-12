@@ -2424,13 +2424,24 @@ class BehaviorMetricsTests(unittest.TestCase):
 
         user_traj = [trial0, trial1, trial2]
 
-        bins = aopy.analysis.behavior.tablet_engagement(user_traj, frames_inactive=8)
-        expected_bins = [12, 13, 22, 23]
-        self.assertEqual(bins, expected_bins)
+        bins = tablet_engagement(user_traj, frames_inactive=8)
+        
+        expected_bins = [
+            np.array([], dtype=int),
+            np.array([8, 9, 18, 19], dtype=int),
+            np.array([], dtype=int)
+        ]
+        
+        self.assertEqual(len(bins), len(expected_bins))
+        for b, e in zip(bins, expected_bins):
+            np.testing.assert_array_equal(b, e)
         
         n_frames = sum(len(trial) for trial in user_traj)
         self.assertEqual(n_frames, 27)
-        self.assertLess(max(bins), n_frames)
+
+        for trial, b in zip(user_traj, bins):
+            if len(b) > 0:
+                self.assertLess(max(b), len(trial))
 
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):
