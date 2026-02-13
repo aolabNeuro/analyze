@@ -557,4 +557,4 @@ def tablet_engagement(user_traj, frames_inactive=8):
                     bins[trial_idx].append(frame_idx)
             else:
                 since_last_movement = 0
-    return [np.asarray(frames) for frames in bins]
+    return [np.asarray(frames, dtype=int) for frames in bins]
