@@ -539,11 +539,12 @@ def tablet_engagement(user_traj, frames_inactive=8):
         frames_inactive (int): number of consecutive frames with no movement to consider disengaged
 
     Returns:
-        list: tablet disengagement bins
+        list of np.ndarray: disengaged frame indices for each trial. The return list has same length as
+        'user_traj', and element 'i' is a 1D array of frame indices (within trial i) that are classified as
+        disengaged.
     '''
     
-    overall_idx = 0
-    bins = []
+    bins = [[] for i in range(len(user_traj))]
 
     for trial_idx, trial in enumerate(user_traj):
         since_last_movement = 0
@@ -552,9 +553,8 @@ def tablet_engagement(user_traj, frames_inactive=8):
             if (frame_info == trial[frame_idx - 1]).all():
                 since_last_movement += 1
                 if since_last_movement >= frames_inactive:
-                    #add idx to bin
-                    bins.append(overall_idx)
+                    #store disengaged frame index
+                    bins[trial_idx].append(frame_idx)
             else:
                 since_last_movement = 0
-            overall_idx += 1
-    return bins
+    return [np.asarray(frames) for frames in bins]
