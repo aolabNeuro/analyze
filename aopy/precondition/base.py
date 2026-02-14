@@ -396,7 +396,7 @@ def detect_spikes(spike_filt_data, samplerate, threshold, above_thresh=True,  wf
 
     return spike_times, spike_waveforms
 
-def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above_thresh=True,  wf_length=1000, tbefore_wf=200):
+def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above_thresh=True, use_abs=False, wf_length=1000, tbefore_wf=200):
     '''
     This function is based on detect_spikes and calculates spike times while dividing data into chunks to deal with memory issues.
     This may work for numpy memmap array
@@ -404,11 +404,12 @@ def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above
     Args:
         spike_filt_data (nt,nch): Time series neural data to detect spikes and extract waveforms from.
         samplerate (float): Sampling rate [Hz]
-        threshold (float): Threshold that input data must cross to indicate a spike for each channel.
-        chunksize (int): Chunk size to process data by chunk
-        above_thresh (bool): If True, only spikes above the threshold will be detected. If false, only spikes below threshold will be detected. 
-        wf_length (float): Length of waveforms to output :math:`[\\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\\mu s`
-        tbefore_wf (float): Length of waveform to include before spike detection time :math:`[\\mu s]`. Defaults to 200 :math:`\\mu s`  
+        threshold (nch): Threshold that input data must cross to indicate a spike for each channel. Must have same non time dimensions as spike_filt_data. 
+        chunksize (int): Chunk size to process data by chunk.
+        above_thresh (bool, optional): If True, only spikes above the threshold will be detected. If False, only spikes below threshold will be detected. Default is True.
+        use_abs (bool, optional): If True, both spikes above +threshold and below -threshold will be detected (this overrides above_thresh). Default is False.
+        wf_length (float, optional): Length of waveforms to output :math:`[\\mu s]`. Actual length will be rounded up. If set to 'None', waveforms will not be returned. Defaults to 1000 :math:`\\mu s`
+        tbefore_wf (float, optional): Length of waveform to include before spike detection time :math:`[\\mu s]`. Defaults to 200 :math:`\\mu s`
         
     Returns: 
         tuple: Tuple containing:
@@ -438,6 +439,8 @@ def detect_spikes_chunk(spike_filt_data, samplerate, threshold, chunksize, above
             data_above_thresh_mask = data > threshold
         else:        
             data_above_thresh_mask = data < threshold
+        if use_abs:
+            data_above_thresh_mask = abs(data) > abs(threshold)
 
         # Spike times at each chunk (temp_spike_times: a list of array with different shape)
 
@@ -769,7 +772,7 @@ def filter_lfp(broadband_data, broadband_samplerate, lfp_samplerate=1000., low_c
     filtered_data = filtfilt(b, a, broadband_data, axis=0)
     return downsample(filtered_data, broadband_samplerate, lfp_samplerate), lfp_samplerate
 
-def filter_spikes(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
+def filter_ap(broadband_data, samplerate, low_pass=500, high_pass=7500, buttord=3):
     '''
     Band-pass filter broadband data at default 500-7500 Hz. Default filtering parameters taken
     from Stavisky, Kao, et al., 2015
