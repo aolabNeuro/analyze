@@ -445,6 +445,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int16
     samplerate = metadata['samplerate']
     n_channels = int(metadata['n_channels'])
     n_samples = int(metadata['n_samples'])
+
     if 'rms_multiplier' in detect_kwargs:
         rms_multiplier = detect_kwargs.pop('rms_muliplier')
     else:
@@ -453,6 +454,11 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int16
         refractory_period = detect_kwargs.pop('refractory_period')
     else:
         refractory_period = 1000 # time in us
+    if 'filter_refractory_violations' in detect_kwargs:
+        filter_refractory_violations = detect_kwargs.pop('filter_refractory_violations')
+    else:
+        filter_refractory_violations = True
+
     if 'wf_length' not in detect_kwargs:
         detect_kwargs['wf_length'] = 2000 # time in us
     if 'tbefore_wf' not in detect_kwargs:
@@ -474,10 +480,15 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int16
         raise ValueError(f'ap_data not found in file {ap_filepath}')
     ap_data = ap_hdf[f'drive{drive_number}/ap_data']
 
-    # Detect spikes above & below threshold
+    # Detect spikes below threshold
     threshold = precondition.calc_spike_threshold(ap_data, high_threshold=False, rms_multiplier=rms_multiplier)
     spike_times, spike_waveforms = precondition.detect_spikes_chunk(ap_data, samplerate, 
-                                                                threshold, chunksize, above_thresh=False, use_abs=True, **detect_kwargs)
+                                                                threshold, chunksize, above_thresh=False, **detect_kwargs)
+    
+    # Detect spikes above & below threshold
+    # threshold = precondition.calc_spike_threshold(ap_data, high_threshold=False, rms_multiplier=rms_multiplier)
+    # spike_times, spike_waveforms = precondition.detect_spikes_chunk(ap_data, samplerate, 
+                                                                # threshold, chunksize, above_thresh=False, use_abs=True, **detect_kwargs)
 
     # Re-center spike window around the most extreme value (not just the threshold crossing)
 
@@ -489,12 +500,15 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int16
         if len(spike_times[ichan]) < 1:
             times = np.array([])
             waveforms = np.array([])
-        else:
+        elif filter_refractory_violations:
             times, idx = precondition.filter_spike_times_fast(spike_times[ichan], refractory_period=refractory_period)
             if len(times) < 1:
                 waveforms = np.array([])
             else:
                 waveforms = spike_waveforms[ichan][idx,:]
+        else:
+            times = spike_times[ichan]
+            waveforms = spike_waveforms[ichan]
         
         spike_group.create_dataset(f'{ichan}', data=times)
         waveform_group.create_dataset(f'{ichan}', data=waveforms)
@@ -503,7 +517,7 @@ def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int16
     # Append the spike metadata to the file
     spike_metadata = metadata
     spike_metadata['spike_threshold'] = threshold
-    spike_metadata['refractory_violations_removed'] = True
+    spike_metadata['refractory_violations_removed'] = filter_refractory_violations
     spike_metadata['refractory_period'] = refractory_period
     spike_metadata['spike_pos'] = {chan_number: chan_number for chan_number in range(n_channels)} # channel identity of each unit (here, iunit=ichan)
     spike_metadata.update(detect_kwargs)
