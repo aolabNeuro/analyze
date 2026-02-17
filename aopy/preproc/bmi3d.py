@@ -192,7 +192,7 @@ def _correct_tracking_task_data(data, metadata, contains_hand=True):
             rotations = np.delete(rotations, np.s_[-remainder:])
         elif len(rotations) < len(post_reward_cycles):
             remainder = len(post_reward_cycles) - len(rotations)
-            rotations = np.concatenate((rotations, np.ones((remainder))*inc_rotations[-1]))
+            rotations = np.concatenate((rotations, np.ones((remainder))*rotations[-1]))
         reward_rotations.extend(rotations)
 
         # find bmi3d cycle number where mapping changes
