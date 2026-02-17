@@ -750,7 +750,7 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
     # Fetch the relevant BMI3D data
     if datatype in ['hand', 'user_raw', 'manual_input']:
         warnings.warn("Raw hand position is not recommended for analysis. Use 'user_world' instead for 3D world coordinate inputs.")
-        data_cycles = exp_data['clean_hand_position'] # 3d hand position (e.g. raw optitrack coords: x,y,z) on each bmi3d cycle
+        data_cycles = exp_data['clean_hand_position'] # 3d user input (e.g. hand position in raw optitrack coords: x,y,z) on each bmi3d cycle
     elif datatype == 'user_world':
         # 3d user input converted to world coordinates
         if 'exp_gain' in exp_metadata:
@@ -760,49 +760,59 @@ def get_interp_task_data(exp_data, exp_metadata, datatype='cursor', samplerate=1
         data_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
                                                   exp_metadata['offset'], scale)
     elif datatype == 'cursor':
-        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (from bmi3d coords: x,z,y) on each bmi3d cycle
-    elif datatype == 'user_screen':
-        # 3d user input converted to screen coordinates. Only works for singular mappings, not incremental mappings.
-        if 'incremental_rotation' in exp_metadata['features']:
-            warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
-        if 'exp_gain' in exp_metadata:
-            scale = exp_metadata['scale']
-            exp_gain = exp_metadata['exp_gain']
-        else:
-            scale = np.sign(exp_metadata['scale'])
-            exp_gain = np.abs(exp_metadata['scale'])
-        user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
-                                                  exp_metadata['offset'], scale)
-        if 'baseline_rotation' in exp_metadata:
-            baseline_rotation = exp_metadata['baseline_rotation']
-        else:
-            baseline_rotation = 'none'
-        if 'exp_rotation' in exp_metadata:
-            exp_rotation = exp_metadata['exp_rotation']
-        else:
-            exp_rotation = 'none'
-        if 'perturbation_rotation_x' in exp_metadata:
-            x_rot = exp_metadata['perturbation_rotation_x']
-            z_rot = exp_metadata['perturbation_rotation_z']
-        else:
-            x_rot = 0
-            z_rot = 0
-        if 'pertubation_rotation' in exp_metadata:
-            y_rot = exp_metadata['pertubation_rotation']
-        else:
-            y_rot = 0
-        exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
-        data_cycles = np.dot(user_world_cycles, exp_mapping)
-    elif datatype in ['user', 'intended_cursor']:
+        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] # cursor position (bmi3d coords: x,z,y) on each bmi3d cycle
+    elif datatype in ['user_screen', 'user', 'intended_cursor']:
         if datatype == 'user':
-            warnings.warn("User input is not recommended. Use 'intended_cursor' instead for clarity.")
-        dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['cursor'][:,[0,2,1]] - exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # cursor position before disturbance added (bmi3d coords: x,z,y)
-    elif datatype == 'reference':
-        data_cycles =  exp_data['task']['current_target'][:,[0,2,1]] # target position (bmi3d coords: x,z,y)
+            warnings.warn("'user' is not recommended. Use 'intended_cursor' instead for clarity.")
+        
+        # 3d user input converted to screen coordinates
+        if 'user_screen' in exp_data['task'].dtype.names:
+            data_cycles = exp_data['task']['user_screen'][:,[0,2,1]] # user position (bmi3d coords: x,z,y) on each bmi3d cycle
+        else:
+            # Must be calculated before user_screen was saved in task data. Only works for singular, not incremental, mappings.
+            if b'incremental_rotation' in exp_metadata['features']:
+                warnings.warn("User input in screen coordinates is not recommended for incremental mappings. Use 'intended_cursor' instead.")
+            if 'exp_gain' in exp_metadata:
+                scale = exp_metadata['scale']
+                exp_gain = exp_metadata['exp_gain']
+            else:
+                scale = np.sign(exp_metadata['scale'])
+                exp_gain = np.abs(exp_metadata['scale'])
+            user_world_cycles = postproc.bmi3d.convert_raw_to_world_coords(exp_data['clean_hand_position'], exp_metadata['rotation'], 
+                                                    exp_metadata['offset'], scale)
+            if 'baseline_rotation' in exp_metadata:
+                baseline_rotation = exp_metadata['baseline_rotation']
+            else:
+                baseline_rotation = 'none'
+            if 'exp_rotation' in exp_metadata:
+                exp_rotation = exp_metadata['exp_rotation']
+            else:
+                exp_rotation = 'none'
+            if 'perturbation_rotation_x' in exp_metadata:
+                x_rot = exp_metadata['perturbation_rotation_x']
+                z_rot = exp_metadata['perturbation_rotation_z']
+            else:
+                x_rot = 0
+                z_rot = 0
+            if 'pertubation_rotation' in exp_metadata:
+                y_rot = exp_metadata['pertubation_rotation']
+            else:
+                y_rot = 0
+            exp_mapping = postproc.bmi3d.get_world_to_screen_mapping(exp_rotation, x_rot, y_rot, z_rot, exp_gain, baseline_rotation)
+            data_cycles = np.dot(user_world_cycles, exp_mapping)
+    elif datatype in ['reference', 'target']:
+        try:
+            data_cycles =  exp_data['task']['target'][:,[0,2,1]] # reference, i.e. target position (bmi3d coords: x,z,y) on each bmi3d cycle
+        except:
+            warnings.warn("It is recommended to re-preprocess this entry! It contains bugs in how the reference & disturbance were saved by bmi3d.")
+            data_cycles =  exp_data['task']['current_target'][:,[0,2,1]]
     elif datatype == 'disturbance':
         dis_on = int(json.loads(exp_metadata['sequence_params'])['disturbance']) # whether disturbance was turned on (0 or 1)
-        data_cycles = exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on # disturbance value (bmi3d coords: x,z,y)
+        try:
+            data_cycles = exp_data['task']['disturbance'][:,[0,2,1]]*dis_on # disturbance, i.e. cursor offset (bmi3d coords: x,z,y) on each bmi3d cycle
+        except:
+            warnings.warn("It is recommended to re-preprocess this entry! It contains bugs in how the reference & disturbance were saved by bmi3d.")
+            data_cycles = exp_data['task']['current_disturbance'][:,[0,2,1]]*dis_on
     elif datatype == 'targets':
         data_cycles = get_target_events(exp_data, exp_metadata)
         clock = exp_data['events']['timestamp']
