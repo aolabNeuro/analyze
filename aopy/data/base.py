@@ -301,7 +301,7 @@ def load_preproc_lfp_data(preproc_dir, subject, te_id, date, drive_number=None, 
 
 def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
     '''
-    Loads spike band time series from a preprocessed file. When drive_number is None, load lfp_data and lfp_metadata directly.
+    Loads AP band data from a preprocessed file. When drive_number is None, load ap_data and ap_metadata directly.
     Please specify drive_number when there are drives in hdf files.
 
     Args:
@@ -326,9 +326,10 @@ def load_preproc_ap_data(preproc_dir, subject, te_id, date, drive_number=None, c
     metadata = load_hdf_group(preproc_dir, filename, os.path.join(data_group, 'ap_metadata'), cached=cached)
     return data, metadata
 
-def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
+def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
     '''
-    Loads spike data from a preprocessed file.
+    Loads spike times from a preprocessed file. When drive_number is None, load ap_data and ap_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
 
     Args:
         preproc_dir (str): base directory where the files live
@@ -337,38 +338,63 @@ def load_preproc_spike_data(preproc_dir, subject, te_id, date, drive_number=1, c
         date (str): Date of recording
         drive_number (int): drive number for multiple recordings. 1-based indexing.
         cached (bool, optional): whether to allow loading cached version of data (default True)
+
+    Raises:
+        ValueError: if drives are detected when drive number is None.
         
     Returns:
-        dict: spike data
+        dict: Dictionary of spike times
         dict: Dictionary of spike metadata
-    '''
-    filename = get_preprocessed_filename(subject, te_id, date,'spike')
-    preproc_dir = os.path.join(preproc_dir, subject)
-    spikes =load_hdf_group(preproc_dir, filename, f'drive{drive_number}/spikes', cached=cached)
-    metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/metadata', cached=cached)
-    
-    return spikes, metadata
-
-def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number=1, cached=True):
-    '''
-    Loads spike waveforms from a preprocessed file.
-
-    Args:
-        preproc_dir (str): base directory where the files live
-        subject (str): Subject name
-        te_id (int): Block number of Task entry object 
-        date (str): Date of recording
-        drive_number (int): drive number for multiple recordings. 1-based indexing.
-        cached (bool, optional): whether to allow loading cached version of data (default True)
-        
-    Returns:
-        dict: spike waveforms
     '''
     filename = get_preprocessed_filename(subject, te_id, date, 'spike')
     preproc_dir = os.path.join(preproc_dir, subject)
-    waveforms = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/waveforms', cached=cached)
 
-    return waveforms
+    group_names = list_root_groups(preproc_dir, filename)
+        
+    if drive_number:
+        data = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/spikes', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/metadata', cached=cached)
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+                      
+        data = load_hdf_group(preproc_dir, filename, 'spikes', cached=cached)
+        metadata = load_hdf_group(preproc_dir, filename, 'metadata', cached=cached)
+    return data, metadata
+
+def load_spike_waveforms(preproc_dir, subject, te_id, date, drive_number=None, cached=True):
+    '''
+    Loads spike waveforms from a preprocessed file. When drive_number is None, load ap_data and ap_metadata directly.
+    Please specify drive_number when there are drives in hdf files.
+
+    Args:
+        preproc_dir (str): base directory where the files live
+        subject (str): Subject name
+        te_id (int): Block number of Task entry object 
+        date (str): Date of recording
+        drive_number (int): drive number for multiple recordings. 1-based indexing.
+        cached (bool, optional): whether to allow loading cached version of data (default True)
+        
+    Returns:
+        dict: Dictionary of spike waveforms
+    '''
+    filename = get_preprocessed_filename(subject, te_id, date, 'spike')
+    preproc_dir = os.path.join(preproc_dir, subject)
+
+    group_names = list_root_groups(preproc_dir, filename)
+        
+    if drive_number:
+        data = load_hdf_group(preproc_dir, filename, f'drive{drive_number}/waveforms', cached=cached)
+    else:
+        if 'drive2' in group_names:
+            raise ValueError('Multiple drives detected. Please set drive_number')
+        if 'drive1' in group_names:
+            raise ValueError('Drive detected. Please set drive_number') 
+                      
+        data = load_hdf_group(preproc_dir, filename, 'waveforms', cached=cached)
+    return data
     
 ###############################################################################
 # Loading / saving data

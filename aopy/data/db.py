@@ -462,6 +462,9 @@ class BMI3DTaskEntry():
         if 'record_headstage' in params and params['record_headstage']:
             sources.append('broadband')
             sources.append('lfp')
+            if 'drmap_drive_type' in params and params['drmap_drive_type']=='fma_implant':
+                sources.append('ap')
+                sources.append('spike')
         if 'neuropixels' in self.features:
             sources.append('spike')
             sources.append('lfp')
