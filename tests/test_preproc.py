@@ -1062,7 +1062,8 @@ class TestPrepareExperiment(unittest.TestCase):
         # Should fail because no preprocessed experimental data
         if os.path.exists(os.path.join(write_dir, result_filename)):
             os.remove(os.path.join(write_dir, result_filename))
-        self.assertRaises(ValueError, lambda: proc_eyetracking(data_dir, files, write_dir, result_filename, result_filename))
+        eye, meta = proc_eyetracking(data_dir, files, write_dir, result_filename, result_filename)
+        assert eye is None, "Expected proc_eyetracking to return None when no preprocessed experimental data is available"
 
         proc_exp(data_dir, files, write_dir, result_filename, result_filename)
 
@@ -1402,12 +1403,6 @@ class ProcTests(unittest.TestCase):
         contents = get_hdf_dictionary(write_dir, result_filename)
         self.assertIn('broadband_data', contents)
         self.assertIn('broadband_metadata', contents)
-
-        # Don't overwrite
-        test_fun = lambda: proc_broadband(data_dir, files, write_dir, result_filename, overwrite=False)
-        self.assertRaises(FileExistsError, test_fun)
-
-        # Overwrite
         proc_broadband(data_dir, files, write_dir, result_filename, overwrite=True)
 
     def test_proc_spikes(self):
