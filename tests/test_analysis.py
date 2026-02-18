@@ -2417,6 +2417,33 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertTrue(corr[0,0]==corr[1,1]==1)
         self.assertAlmostEqual(corr[0,1],corr[1,0])
 
+<<<<<<< HEAD
+    def test_tablet_engagement(self):
+        trial0 = np.array([[0,0,0], [0,1,0], [0,2,0], [0,3,0]], dtype=int)
+        trial1 = np.array([[0,5,0]]*10 + [[0,6,0]] + [[0,6,0]]*9, dtype=int)
+        trial2 = np.array([[0,9,0]]*3, dtype=int)
+
+        user_traj = [trial0, trial1, trial2]
+
+        bins = tablet_engagement(user_traj, frames_inactive=8)
+        
+        expected_bins = [
+            np.array([], dtype=int),
+            np.array([8, 9, 18, 19], dtype=int),
+            np.array([], dtype=int)
+        ]
+        
+        self.assertEqual(len(bins), len(expected_bins))
+        for b, e in zip(bins, expected_bins):
+            np.testing.assert_array_equal(b, e)
+        
+        n_frames = sum(len(trial) for trial in user_traj)
+        self.assertEqual(n_frames, 27)
+
+        for trial, b in zip(user_traj, bins):
+            if len(b) > 0:
+                self.assertLess(max(b), len(trial))
+=======
     def test_RTs_delay(self):
         test_data = np.array([1,10,30])
         sliding_variables = np.array([10,10,20])
@@ -2429,6 +2456,7 @@ class BehaviorMetricsTests(unittest.TestCase):
         np.testing.assert_equal(A[2], test_data[2])
         np.testing.assert_equal(A.shape, B.shape)
         np.testing.assert_equal(C, np.array([10,15,20]))
+>>>>>>> master
 
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):
