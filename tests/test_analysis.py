@@ -2417,6 +2417,7 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertTrue(corr[0,0]==corr[1,1]==1)
         self.assertAlmostEqual(corr[0,1],corr[1,0])
 
+<<<<<<< HEAD
     def test_tablet_engagement(self):
         trial0 = np.array([[0,0,0], [0,1,0], [0,2,0], [0,3,0]], dtype=int)
         trial1 = np.array([[0,5,0]]*10 + [[0,6,0]] + [[0,6,0]]*9, dtype=int)
@@ -2442,6 +2443,20 @@ class BehaviorMetricsTests(unittest.TestCase):
         for trial, b in zip(user_traj, bins):
             if len(b) > 0:
                 self.assertLess(max(b), len(trial))
+=======
+    def test_RTs_delay(self):
+        test_data = np.array([1,10,30])
+        sliding_variables = np.array([10,10,20])
+
+        test_win_size = 10
+        A,B,C = aopy.analysis.sliding_window_stats(test_data, sliding_variables, test_win_size, len(sliding_variables))
+
+        np.testing.assert_equal(A[0], np.mean([test_data[0],test_data[1]]))
+        np.testing.assert_equal(A[1], np.mean(test_data))
+        np.testing.assert_equal(A[2], test_data[2])
+        np.testing.assert_equal(A.shape, B.shape)
+        np.testing.assert_equal(C, np.array([10,15,20]))
+>>>>>>> master
 
 class ControlTheoreticAnalysisTests(unittest.TestCase):
     def test_get_machine_dynamics(self):

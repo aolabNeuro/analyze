@@ -2055,6 +2055,17 @@ def advance_plot_color(ax, n):
         .. image:: _images/advance_plot_color.png
         
     '''
+    if n <= 0:
+        return
+
+    # Matplotlib's internal color cycle handling changed; prefer the helper if available.
+    get_next_color = getattr(getattr(ax, "_get_lines", None), "get_next_color", None)
+    if callable(get_next_color):
+        for _ in range(n):
+            get_next_color()
+        return
+
+    # Fallback for older Matplotlib versions.
     for _ in range(n):
         next(ax._get_lines.prop_cycler)
 
