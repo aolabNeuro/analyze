@@ -532,7 +532,7 @@ def tablet_engagement(user_traj, samplerate, time_inactive=1):
     '''
     Computes whether or not the tablet is being actively engaged by the user by looking at frames within cursor segments
     and comparing to previous frames to see if there was any change.
-    Engaged indices are labaled as 1s, while disengaged indices are labeled as 0.
+    Engaged indices are labeled as 1s, while disengaged indices are labeled as 0s.
 
     Args:
         user_traj (list of (nt,ndim) arrays): user trajectory over a trial segment; list length = n_trials, each trial is (nt, ndim)
