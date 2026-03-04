@@ -2417,6 +2417,38 @@ class BehaviorMetricsTests(unittest.TestCase):
         self.assertTrue(corr[0,0]==corr[1,1]==1)
         self.assertAlmostEqual(corr[0,1],corr[1,0])
 
+    def test_tablet_engagement(self):
+        trial0 = np.array([[0,0,0], [0,1,0], [0,2,0], [0,3,0]], dtype=int)
+        trial1 = np.array([[0,5,0]]*10 + [[0,6,0]] + [[0,6,0]]*9, dtype=int)
+        trial2 = np.array([[0,9,0]]*3, dtype=int)
+
+        user_traj = [trial0, trial1, trial2]
+
+        # fake per-trial samplerate (Hz), same order/length as user_traj
+        samplerate = np.array([8, 8, 8], dtype=float)
+        time_inactive = 1  # seconds -> frames_inactive = ceil(1 * 8) = 8
+
+        bins = aopy.analysis.behavior.tablet_engagement(user_traj, samplerate=samplerate, time_inactive=time_inactive)
+
+        # expected output is per-trial 0/1 label arrays, same length as each trial
+        expected_bins = [
+            np.array([0, 1, 1, 1], dtype=int),                  # moving after frame 0
+            np.array([0]*10 + [1]*8 + [0, 0], dtype=int),       # long still (0), change (1), long still (0 at end)
+            np.array([0, 0, 0], dtype=int)                      # always still -> disengaged
+        ]
+
+        self.assertEqual(len(bins), len(expected_bins))
+        for b, e in zip(bins, expected_bins):
+            np.testing.assert_array_equal(b, e)
+
+        n_frames = sum(len(trial) for trial in user_traj)
+        self.assertEqual(n_frames, 27)
+
+        # ensure output shape matches input shape per trial
+        for trial, b in zip(user_traj, bins):
+            self.assertEqual(len(b), len(trial))
+            self.assertTrue(np.all((b == 0) | (b == 1)))
+
     def test_RTs_delay(self):
         test_data = np.array([1,10,30])
         sliding_variables = np.array([10,10,20])

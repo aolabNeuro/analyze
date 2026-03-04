@@ -528,6 +528,56 @@ def correlate_trajectories(trajectories, center=True, verbose=False):
     
     return traj_correlation
 
+def tablet_engagement(user_traj, samplerate, time_inactive=1):
+    '''
+    Computes whether or not the tablet is being actively engaged by the user by looking at frames within cursor segments
+    and comparing to previous frames to see if there was any change.
+    Engaged indices are labeled as 1s, while disengaged indices are labeled as 0s.
+
+    Args:
+        user_traj (list of (nt,ndim) arrays): user trajectory over a trial segment; list length = n_trials, each trial is (nt, ndim)
+        samplerate (array-like): samplerate (Hz) for each trial, same order/length as user_traj
+        time_inactive (float): length of time (seconds) with no movement to consider disengaged
+
+
+    Returns:
+        list of np.ndarray: per trial engagement labeles. The return list has the same length as user_traj,
+        and element i is a 1D array of length nt with 1 = engaged and 0 = disengaged.
+
+    Notes:
+        The first frame of each trial is labeled 0 (disengaged) by convention, and inactivity counting is initialized
+        so that if frame 1 shows no movement relative to frame 0, it can be classified as disengaged immediately
+        when the time threshold corresponds to 1 frame.
+        Intended only for tablet data.
+    '''
+    
+    bins = [[] for i in range(len(user_traj))]
+    
+    for trial_idx, trial in enumerate(user_traj):
+
+        sr = samplerate.iloc[trial_idx] if hasattr(samplerate, "iloc") else samplerate[trial_idx]
+        frames_inactive = max(1, int(np.ceil(time_inactive * sr)))
+        since_last_movement = 0 # reset per trial
+
+        for frame_idx, frame_info in enumerate(trial):
+            # set first frame to disengaged
+            if frame_idx == 0:
+                    bins[trial_idx].append(0)
+                    since_last_movement = frames_inactive - 1 # if next no movement in next frame, will be disengaged
+                
+            # if frame is equal to prev frame: since_last += 1
+            elif (frame_info == trial[frame_idx - 1]).all():
+                since_last_movement += 1
+                if since_last_movement >= frames_inactive:
+                    bins[trial_idx].append(0)  # disengaged
+                else:
+                    bins[trial_idx].append(1)  # still, but not for long enough to be disengaged
+            else:
+                bins[trial_idx].append(1)      # engaged
+                since_last_movement = 0
+                
+    return [np.asarray(frames, dtype=int) for frames in bins]
+
 def sliding_window_stats(data, sliding_variables, window_size, nwin):
     '''
     Compute sliding-window mean and standard deviation of trial-wise data (e.g., reaction times) along a continuous variable (e.g., delay)
