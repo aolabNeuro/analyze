@@ -308,10 +308,10 @@ class FilterTests(unittest.TestCase):
         self.assertEqual(filt.shape, (100000/25, 2))
         self.assertAlmostEqual(np.mean(test_data), np.mean(filt), places=3)
 
-    def test_filter_spikes(self):
+    def test_filter_ap(self):
 
         test_data = np.random.uniform(size=(100000,2))
-        filt = precondition.filter_spikes(test_data, 25000)
+        filt = precondition.filter_ap(test_data, 25000)
         self.assertEqual(filt.shape, test_data.shape)
         self.assertNotAlmostEqual(np.mean(test_data), np.mean(filt), places=3) # After filtering these should be different
 

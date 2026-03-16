@@ -217,7 +217,7 @@ def filter_lfp_from_broadband(broadband_filepath, result_filepath, drive_number=
         MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
 
     Note:
-        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_lfp` wrapper.
     '''
     lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
 
@@ -295,7 +295,7 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_
         MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
 
     Note:
-        This function is used in the :func:`~aopy.preproc.warppers.proc_lfp` wrapper.
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_lfp` wrapper.
     '''
     lfp_samplerate = filter_kwargs.pop('lfp_samplerate', 1000)
 
@@ -343,6 +343,186 @@ def filter_lfp_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_
     lfp_metadata.update(filter_kwargs)
     
     return dset, lfp_metadata
+
+def filter_ap_from_broadband(broadband_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    '''
+    Filters action potential (AP) band data from a given broadband signal file into an hdf file.
+
+    Args:
+        broadband_filepath (str): Path to the input broadband signal file.
+        result_filepath (str): Path to save the filtered AP data.
+        mean_subtract (bool, optional): Whether to subtract the mean from the filtered AP signal.
+                                        Default is True.
+        dtype (str, optional): Data type for the filtered AP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **filter_kwargs: Additional keyword arguments to customize the filtering process.
+                        These arguments will be passed to the filtering function.
+
+    Raises:
+        IOError: If the input broadband file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the filtering process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_ap` wrapper.
+    '''
+    metadata = base.load_hdf_group('', broadband_filepath, 'broadband_metadata')
+    samplerate = metadata['samplerate']
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
+    if 'low_pass' not in filter_kwargs:
+        filter_kwargs['low_pass'] = 300
+    if 'high_pass' not in filter_kwargs:
+        filter_kwargs['high_pass'] = 10000
+    if 'buttord' not in filter_kwargs:
+        filter_kwargs['buttord'] = 3
+
+    # Create an hdf dataset
+    ap_hdf = h5py.File(result_filepath, 'a')
+    dset = ap_hdf.create_dataset(f'drive{drive_number}/ap_data', (n_samples, n_channels), dtype=dtype)
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize)
+    channel_chunksize = max(min(n_channels, max_samples // n_samples), 1)
+    time_chunksize = min(n_samples, max_samples // channel_chunksize)
+    print(f"{channel_chunksize} channels and {time_chunksize} samples in each chunk")
+    
+    # Load the broadband dataset
+    bb_hdf = h5py.File(broadband_filepath, 'r')
+    if 'broadband_data' not in bb_hdf:
+        raise ValueError(f'broadband_data not found in file {broadband_filepath}')
+    bb_data = bb_hdf['broadband_data']
+    
+    # Filter broadband data into AP directly into the hdf file
+    n_samples_read = 0
+    while n_samples_read < n_samples:
+        n_ch = 0
+        while n_ch < n_channels:
+            broadband_chunk = bb_data[n_samples_read:n_samples_read+time_chunksize, n_ch:n_ch+channel_chunksize]
+            ap_chunk = precondition.filter_ap(broadband_chunk, samplerate, **filter_kwargs)
+            assert ap_chunk.shape == broadband_chunk.shape
+            dset[n_samples_read:n_samples_read+time_chunksize,n_ch:n_ch+channel_chunksize] = ap_chunk
+            n_ch += channel_chunksize
+        n_samples_read += time_chunksize
+        
+    if mean_subtract:
+        dset -= np.mean(dset, axis=0, dtype=dtype) # hopefully this isn't constrained by memory
+    ap_hdf.close()
+    bb_hdf.close()
+
+    # Append the ap metadata to the file
+    ap_metadata = metadata
+    ap_metadata['ap_samplerate'] = samplerate
+    ap_metadata['samplerate'] = samplerate
+    ap_metadata['n_samples'] = n_samples
+    ap_metadata.update(filter_kwargs)
+    
+    return dset, ap_metadata
+
+def filter_ap_from_ecube(ecube_filepath, result_filepath, drive_number=1, mean_subtract=True, dtype='int16', max_memory_gb=1., **filter_kwargs):
+    # TODO
+    pass
+
+def proc_ecube_spikes(ap_filepath, result_filepath, drive_number=1, dtype='int16', max_memory_gb=1., **detect_kwargs):
+    '''
+    Detects spikes using threshold crossings in a given action potential (AP) band file and saves the spike times and waveforms into an hdf file.
+
+    Args:
+        ap_filepath (str): Path to the input AP band file.
+        result_filepath (str): Path to save the detected spike times and waveforms.
+        dtype (str, optional): Data type for the filtered AP signal. Default is 'int16'.
+        max_memory_gb (float, optional): Maximum memory (in gigabytes) to use for filtering. Default is 1.0 GB.
+        **detect_kwargs: Additional keyword arguments to customize the spike detection process.
+                        These arguments will be passed to :func:`~aopy.precondition.calc_spike_threshold` and :func:`~aopy.precondition.detect_spikes_chunk`.
+
+    Raises:
+        IOError: If the input AP band file is not found.
+        MemoryError: If the specified max_memory_gb is insufficient for the spike detection process.
+
+    Note:
+        This function is used in the :func:`~aopy.preproc.wrappers.proc_spikes` wrapper.
+    '''
+    metadata = base.load_hdf_group('', ap_filepath, f'drive{drive_number}/ap_metadata')
+    samplerate = metadata['samplerate']
+    n_channels = int(metadata['n_channels'])
+    n_samples = int(metadata['n_samples'])
+
+    if 'rms_multiplier' in detect_kwargs:
+        rms_multiplier = detect_kwargs.pop('rms_muliplier')
+    else:
+        rms_multiplier = 5
+    if 'refractory_period' in detect_kwargs:
+        refractory_period = detect_kwargs.pop('refractory_period')
+    else:
+        refractory_period = 1000 # time in us
+    if 'filter_refractory_violations' in detect_kwargs:
+        filter_refractory_violations = detect_kwargs.pop('filter_refractory_violations')
+    else:
+        filter_refractory_violations = True
+
+    if 'wf_length' not in detect_kwargs:
+        detect_kwargs['wf_length'] = 2000 # time in us
+    if 'tbefore_wf' not in detect_kwargs:
+        detect_kwargs['tbefore_wf'] = 1000 # time in us
+
+    # Create an hdf dataset
+    hdf = h5py.File(result_filepath, 'a', track_order=True) 
+    spike_group = hdf.create_group(f'drive{drive_number}/spikes', track_order=True)
+    waveform_group = hdf.create_group(f'drive{drive_number}/waveforms', track_order=True)
+
+    # Figure out how much data we can load at once
+    max_samples = int(max_memory_gb * 1e9 / np.dtype(dtype).itemsize / n_channels)
+    chunksize = min(n_samples, max_samples)
+    print(f"{n_channels} channels and {chunksize} samples in each chunk")
+
+    # Load the AP band dataset
+    ap_hdf = h5py.File(ap_filepath, 'r')
+    if f'drive{drive_number}/ap_data' not in ap_hdf:
+        raise ValueError(f'ap_data not found in file {ap_filepath}')
+    ap_data = ap_hdf[f'drive{drive_number}/ap_data']
+
+    # Detect spikes below threshold
+    threshold = precondition.calc_spike_threshold(ap_data, high_threshold=False, rms_multiplier=rms_multiplier)
+    spike_times, spike_waveforms = precondition.detect_spikes_chunk(ap_data, samplerate, 
+                                                                threshold, chunksize, above_thresh=False, **detect_kwargs)
+    
+    # Detect spikes above & below threshold
+    # threshold = precondition.calc_spike_threshold(ap_data, high_threshold=False, rms_multiplier=rms_multiplier)
+    # spike_times, spike_waveforms = precondition.detect_spikes_chunk(ap_data, samplerate, 
+                                                                # threshold, chunksize, above_thresh=False, use_abs=True, **detect_kwargs)
+
+    # Re-center spike window around the most extreme value (not just the threshold crossing)
+
+    # Filter out refractory violations and save directly into hdf file
+    assert n_channels == len(spike_times)
+    for ichan in range(n_channels):
+        print(f"{len(spike_times[ichan])} threshold crossings detected on channel {ichan}")
+
+        if len(spike_times[ichan]) < 1:
+            times = np.array([])
+            waveforms = np.array([])
+        elif filter_refractory_violations:
+            times, idx = precondition.filter_spike_times_fast(spike_times[ichan], refractory_period=refractory_period)
+            if len(times) < 1:
+                waveforms = np.array([])
+            else:
+                waveforms = spike_waveforms[ichan][idx,:]
+        else:
+            times = spike_times[ichan]
+            waveforms = spike_waveforms[ichan]
+        
+        spike_group.create_dataset(f'{ichan}', data=times)
+        waveform_group.create_dataset(f'{ichan}', data=waveforms)
+    hdf.close()
+
+    # Append the spike metadata to the file
+    spike_metadata = metadata
+    spike_metadata['spike_threshold'] = threshold
+    spike_metadata['refractory_violations_removed'] = filter_refractory_violations
+    spike_metadata['refractory_period'] = refractory_period
+    spike_metadata['spike_pos'] = {chan_number: chan_number for chan_number in range(n_channels)} # channel identity of each unit (here, iunit=ichan)
+    spike_metadata.update(detect_kwargs)
+
+    return spike_group, waveform_group, spike_metadata
 
 def _process_channels(data_dir, data_source, channels, n_samples, dtype=None, debug=False, **dataset_kwargs):
     '''
