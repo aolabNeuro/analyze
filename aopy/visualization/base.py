@@ -869,7 +869,7 @@ def annotate_spatial_map(elec_pos, text, color, annotation_style='text', fontsiz
     else:
         raise ValueError("annotation_style must be either 'text' or 'marker'.")
 
-def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, elecs=None, drive_type='ECoG244', theta=0, color='k', 
+def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, electrode_idx=None, labels=None, drive_type='ECoG244', theta=0, color='k', 
                                   annotation_style='text', fontsize=6, marker='o', markersize=0.25,
                                   ax=None, **kwargs):
     '''
@@ -883,7 +883,7 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, elecs=None, drive_t
         acq_ch ((nacq,) array or list, optional): If provided, specifies the acquisition channel numbers to
             be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
             annotated by default.
-        elecs ((nelec,) array or list, optional): If provided, specifies the electrode IDs (0-indexed) to
+        electrode_idx ((electrode_idx,) array or list, optional): If provided, specifies the electrode IDs (0-indexed) to
             be annotated. Only the specified electrodes will be annotated, labeled by their electrode ID.
             If neither acq_idx, acq_ch, nor elecs is provided, all channel numbers will be annotated by default.
         drive_type (str, optional): Drive type of the channels to plot. See :func:`aopy.data.base.load_chmap`.
@@ -921,29 +921,34 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, elecs=None, drive_t
         ax = plt.gca()
 
     # Validate mutual exclusivity
-    n_specified = sum(x is not None for x in [acq_idx, acq_ch, elecs])
+    n_specified = sum(x is not None for x in [acq_idx, acq_ch, electrode_idx])
     if n_specified > 1:
         raise ValueError("Please specify only one of acq_idx, acq_ch, or elecs.")
 
-    if elecs is not None:
-        elecs = np.array(elecs)
+    if electrode_idx is not None:
+        electrode_idx = np.array(electrode_idx)
         elec_pos, acq_ch_full, elecs_full = aodata.load_chmap(drive_type, None, theta)
-        mask = np.isin(elecs_full, elecs)
-        elec_pos = elec_pos[mask]
-        labels = elecs_full[mask]
+        #mask = np.isin(elecs_full, elecs)
+        elec_pos = elec_pos[electrode_idx]
+        if labels is None:
+            labels = acq_ch_full[electrode_idx]
         use_acq_idx = False
+
     else:
         if acq_idx is not None:
             acq_ch = np.array(acq_idx) + 1  # Convert index to channel number
         # Legacy path: load_chmap filters by acq_ch subset
         elec_pos, acq_ch, _ = aodata.load_chmap(drive_type, acq_ch, theta)
-        labels = acq_ch
-        use_acq_idx = acq_idx is not None
+        if labels is None:
+            labels = acq_ch
+            use_acq_idx = acq_idx is not None
+        else:
+            use_acq_idx = False
     
     # Annotate each channel
     if isinstance(color, str) or len(color) < len(elec_pos):
         color = np.repeat(np.array(color), len(elec_pos))
-    for pos, ch, ch_color in zip(elec_pos, acq_ch, color):
+    for pos, ch, ch_color in zip(elec_pos, labels, color):
         if acq_idx is not None:
             ch = ch - 1 # change back from channel numbers to indices
         annotate_spatial_map(pos, ch, ch_color, annotation_style=annotation_style, fontsize=fontsize,
