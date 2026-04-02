@@ -944,7 +944,6 @@ class KinematicsPlottingTests(unittest.TestCase):
 
 class TestPlotUtils(unittest.TestCase):
 
-    @unittest.skip("bug in new versions of matplotlib, waiting for resolution")
     def test_advance_plot_color(self):
         plt.subplots()
         aopy.visualization.advance_plot_color(plt.gca(), 1)
