@@ -112,7 +112,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             overwrite=overwrite,
             filter_kwargs=kwargs # pass any remaining kwargs to the filtering function
         )
-        lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date)
+        lfp_data, lfp_metadata = aodata.load_preproc_lfp_data(preproc_dir_base, subject, te_id, date, drive_number=1)
         assert lfp_data.shape == (lfp_metadata['n_samples'], lfp_metadata['n_channels'])
     if 'spikes' in preproc_jobs:
         print('processing spike data...')
@@ -254,7 +254,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         debug (bool, optional): if true, prints additional debug messages
         overwrite (bool, optional): whether to recalculated and overwrite existing preprocessed eyetracking data
         save_res (bool, optional): whether to save the calculated eyetracking data
-        **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproccalc_eye_calibration()`
+        **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproc.calc_eye_calibration()`
 
     Returns:
         eye_dict (dict): all the data pertaining to eye tracking, calibration
