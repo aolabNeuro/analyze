@@ -228,6 +228,41 @@ def _correct_tracking_task_data(data, metadata, contains_hand=True):
     
     return task
 
+def _correct_touch_app_data(original_task):
+    '''
+    This function replaces NaN values in cursor data saved by an older version of the tablet touch app (where the cursor would disappear whenever
+    there was no touch).
+    Before the first touch input, cursor values remain NaN but the 'plant_visible' field is updated to False to indicate that the cursor
+    was hidden. After the first touch input, NaN cursor values are replaced with the last valid cursor position and 'plant_visible' is set to False.
+    This function does not affect the 'user_screen' field, which is NaN when there is no touch input.  
+
+    Args:
+        original_task (nt,): original array of task data with specified dtypes
+
+    Returns:
+        task (nt,): corrected array of task data with specified dtypes
+    '''
+    # list of task data fields to keep
+    keys = list(original_task.dtype.names)
+    dtypes = [(key, original_task.dtype.fields[key][0]) for key in keys]
+
+    # construct corrected task data
+    task = np.zeros(len(original_task), dtype=dtypes)
+    for key in keys:
+        task[key] = original_task[key]
+
+    # indicate that cursor was hidden when NaN
+    original_cursor = pd.DataFrame(original_task['cursor'])
+    nan_idx = np.where(np.isnan(original_cursor).any(axis=1))[0]
+    task['plant_visible'][nan_idx] = False
+    
+    # replace NaNs in cursor with last valid value
+    corrected_cursor = original_cursor.ffill()
+    task['cursor'] = np.array(corrected_cursor)
+    
+    print('...correcting touch app data')
+    return task
+
 def parse_bmi3d(data_dir, files):
     '''
     Wrapper around version-specific bmi3d parsers
@@ -565,6 +600,10 @@ def _prepare_bmi3d_v0(data, metadata):
             if 'current_target' in task.dtype.names:
                 # task data from bmi3d has bugs in saved reference and disturbance
                 task = _correct_tracking_task_data(data, metadata, contains_hand=False)
+        
+        # special handling for an early version of tablet touch app
+        if 'tablet_touch' in metadata['features']:
+            task = _correct_touch_app_data(task)
 
         data['task'] = task
     else:
