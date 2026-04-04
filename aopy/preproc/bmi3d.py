@@ -161,7 +161,7 @@ def _correct_tracking_task_data(data, metadata, contains_hand=True):
     user_screen = np.dot(user_world, exp_mapping) # intuitive screen coords (x: right/left, y: up/down, z: into/out of the screen)
         
     # incremental perturbations
-    if b'incremental_rotation' in metadata['features']:
+    if 'incremental_rotation' in metadata['features']:
         x_fixed = metadata['init_rotation_x']==metadata['final_rotation_x']
         y_fixed = metadata['init_rotation_y']==metadata['final_rotation_y']
         z_fixed = metadata['init_rotation_z']==metadata['final_rotation_z']
@@ -226,6 +226,7 @@ def _correct_tracking_task_data(data, metadata, contains_hand=True):
     user_bounded = np.array([np.clip(task['user_screen'][:,i], bounds[i*2], bounds[i*2+1]) for i in range(3)]).T
     task['disturbance'] = cursor_bounded - user_bounded # only bmi3d z axis has non-zero values but all axes retain existing NaN values from user_screen
     
+    print('...correcting tracking task frame shift')
     return task
 
 def _correct_touch_app_data(original_task):
