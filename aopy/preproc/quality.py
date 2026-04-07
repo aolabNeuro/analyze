@@ -428,7 +428,8 @@ def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
         bad_all_ch_mask (nt, nch): boolean array indicated separate channel saturation detected
 
     """
-    print("Running saturated data segment detection:")
+    if verbose:
+        print("Running saturated data segment detection:")
     num_samp, num_ch = np.shape(data)
     if not bad_channels:
         bad_channels = np.zeros(num_ch)
