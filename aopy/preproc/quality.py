@@ -409,7 +409,7 @@ def histogram_defined_noise_levels(data, nbin=20):
 
 # py version of saturatedTimeDetection.m - get indeces of saturated data segments
 def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
-                            win_n=20):
+                            win_n=20, verbose=True):
 
     """saturated_data_detection
 
@@ -421,13 +421,15 @@ def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
         bad_channels (bool array, optional): boolean array indicating bad data channels. Default: None
         adapt_tol (float, optional): detection tolerance. Default: 1e-8
         win_n (int, optional): sample length of detection window. Default: 20
+        verbose (bool, optional): if True, print progress bar. Default: True
 
     Returns:
         sat_data_mask (nt): boolean array indicating saturated data detection
         bad_all_ch_mask (nt, nch): boolean array indicated separate channel saturation detected
 
     """
-    print("Running saturated data segment detection:")
+    if verbose:
+        print("Running saturated data segment detection:")
     num_samp, num_ch = np.shape(data)
     if not bad_channels:
         bad_channels = np.zeros(num_ch)
@@ -436,7 +438,8 @@ def saturated_data_detection(data, srate, bad_channels=None, adapt_tol=1e-8 ,
     mask = [bool(not x) for x in bad_channels]
 
     for ch_i in np.arange(num_ch)[mask]:
-        utils.print_progress_bar(ch_i, num_ch)
+        if verbose:
+            utils.print_progress_bar(ch_i, num_ch)
         ch_data = data_rect[:, ch_i]
         θ1 = 50 # initialize threshold value
         θ0 = 0
