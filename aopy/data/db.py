@@ -151,6 +151,24 @@ def lookup_decoders(id=None, parent_id=None, **kwargs):
     records = bmi3d.models.Decoder.objects.using(dbname).filter(**kwargs)
     return [BMI3DDecoder(r) for r in records]
 
+def safe_get_task_param(entry, paramname):
+    '''
+    Safely get a task parameter from a database entry, returning pd.NA if the parameter is not found
+
+    Args:
+        entry (TaskEntry): database entry to get the parameter from
+        paramname (str): name of the parameter to get
+
+    Returns:
+        object: parameter value, or pd.NA if the parameter is not found
+    '''
+    try:
+        params = entry.task_params
+        if paramname not in params:
+            return pd.NA
+        return params[paramname]
+    except AttributeError:
+        return pd.NA
 '''
 Filter functions
 '''
