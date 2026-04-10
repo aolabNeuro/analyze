@@ -254,7 +254,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         debug (bool, optional): if true, prints additional debug messages
         overwrite (bool, optional): whether to recalculated and overwrite existing preprocessed eyetracking data
         save_res (bool, optional): whether to save the calculated eyetracking data
-        **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproccalc_eye_calibration()`
+        **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproc.calc_eye_calibration()`
 
     Returns:
         eye_dict (dict): all the data pertaining to eye tracking, calibration
@@ -284,8 +284,9 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         exp_data = aodata.load_hdf_group(result_dir, exp_filename, 'exp_data')
         exp_metadata = aodata.load_hdf_group(result_dir, exp_filename, 'exp_metadata')
     except (FileNotFoundError, ValueError):
-        raise ValueError(f"File {exp_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
-    
+        print(f"File {exp_filename} does not include preprocessed experimental data. Please call proc_exp() first.")
+        return None, {}
+
     # Parse the raw eye data; this could be extended in the future to support other eyetracking hardware
     try:
         eye_data, eye_metadata = parse_oculomatic(data_dir, files, debug=debug)
@@ -363,7 +364,8 @@ def proc_broadband(data_dir, files, result_dir, result_filename, overwrite=False
     if not overwrite and os.path.exists(filepath):
         contents = aodata.get_hdf_dictionary(result_dir, result_filename)
         if "broadband_data" in contents:
-            raise FileExistsError("File {} already preprocessed, doing nothing.".format(result_filename))
+            print("File {} already preprocessed, doing nothing.".format(result_filename))
+            return
     elif os.path.exists(filepath):
         os.remove(filepath) # maybe bad, since it deletes everything, not just broadband data
 
