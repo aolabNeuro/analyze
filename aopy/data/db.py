@@ -757,6 +757,18 @@ def group_entries(sessions, grouping_fn=lambda te: te.date):
         grouped_ids.append(tuple(keyed_ids[date]))
     return grouped_ids
 
+def _safe_get(e, attr):
+    try:
+        return getattr(e, attr)
+    except AttributeError:
+        return pd.NA
+
+def _clean_subject(s):
+    s = str(s)
+    if isinstance(s, str) and s.startswith('Subject[') and s.endswith(']'):
+        return s[8:-1]
+    return s
+
 def summarize_entries(entries, sum_trials=False):
     '''
     Generates a dataframe summarizing the subject, date, task, number of trials, 
@@ -793,16 +805,22 @@ def summarize_entries(entries, sum_trials=False):
 
     # Generate a summary dataframe
     desc = {
-        'subject': [e.subject for e in entries],
+        'subject': [_clean_subject(e.subject) for e in entries],
         'te_id': [e.id for e in entries],
-        'date': [e.date for e in entries],
-        'time': [e.datetime.time().replace(microsecond=0) for e in entries],
-        'task_name': [e.task_name for e in entries],
-        'task_desc': [e.task_desc for e in entries],
-        'n_rewards': [e.n_rewards for e in entries],
-        'n_trials': [e.n_trials for e in entries],
-        'duration_minutes': [np.round(e.duration/60, 1) for e in entries],
-    }
+        'date': [pd.Timestamp(e.date).date() for e in entries],
+        'time': [
+            e.datetime.time().replace(microsecond=0) if hasattr(e, 'datetime')
+            else pd.Timestamp(e.date).time().replace(microsecond=0)
+            for e in entries
+        ],
+        'task_name':        [_safe_get(e, 'task_name')  for e in entries],
+        'task_desc':        [_safe_get(e, 'task_desc')  for e in entries],
+        'n_rewards':        [_safe_get(e, 'n_rewards')  for e in entries],
+        'n_trials':         [_safe_get(e, 'n_trials')   for e in entries],
+        'duration_minutes': [np.round(_safe_get(e, 'duration') / 60, 1)
+                            if _safe_get(e, 'duration') is not pd.NA else pd.NA
+                            for e in entries],
+            }
     all_sessions = pd.DataFrame(desc)
     if sum_trials is False:
         return all_sessions
