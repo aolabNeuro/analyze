@@ -884,8 +884,14 @@ def annotate_spatial_map_channels(acq_idx=None, acq_ch=None, electrode_idx=None,
             be annotated. If neither acq_idx nor acq_ch is provided, all channel numbers will be 
             annotated by default.
         electrode_idx ((electrode_idx,) array or list, optional): If provided, specifies the electrode IDs (0-indexed) to
-            be annotated. Only the specified electrodes will be annotated, labeled by their electrode ID.
+            be annotated. This corresponds to the actual index position of ecog data after it has been indexed by acq_idx.
+            That is, the original loaded LFP/ephys is 255 x timestamps. acq_ch, as acquired from load_ch_maps, identifies the
+            240 channels that actually carry signal. electrod_idx matches the position index of this filtered data. Relevant
+            because the NWB files only contain the 240 actual recording channels.Only the specified electrodes will be annotated, labeled by their electrode ID.
             If neither acq_idx, acq_ch, nor elecs is provided, all channel numbers will be annotated by default.
+        labels (list of str, optional): A list of strings to appear on the plot for each channel. If None, 
+            will use acq_ch or electrode_idx values as labels. Default None. Should be of same size as the listed
+            channels
         drive_type (str, optional): Drive type of the channels to plot. See :func:`aopy.data.base.load_chmap`.
         color (str, optional): color to display the channels. Default 'k'.
         annotation_style (str, optional): style of annotation to use for stimulation site ['text', 'marker']. 
