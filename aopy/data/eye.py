@@ -5,7 +5,7 @@ import numpy as np
 from .base import get_preprocessed_filename, load_preproc_eye_data, save_hdf, find_preproc_ids_from_day
 from ..postproc import get_calibrated_eye_data
 
-def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False):
+def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False, overwrite=False):
     '''
     Finds files from the given subject and date with the best eye calibration and automatically 
     applies it to every recording on that day for that subject. If no good calibration is found,
@@ -15,8 +15,9 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
         preproc_dir (str): base directory where the files live
         subject (str): Subject name
         date (str): Date of recording
-        correlation_min (float, optional): correlation below which is unacceptable
-        dry_run (bool, optional): if True, files will not be modified. 
+        correlation_min (float, optional): correlation value below which is unacceptable
+        dry_run (bool, optional): if True, returns the task id with the best correlation but does not modify any files. Default is False
+        overwrite (bool, optional): if True, overwrites the existing external calibration. Default is False
         
     Raises:
         ValueError
@@ -28,7 +29,7 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
     '''
     
     # Find best calibration from the given subject and date 
-    te_ids = find_preproc_ids_from_day(preproc_dir, subject, date, 'eye')
+    te_ids = np.sort(find_preproc_ids_from_day(preproc_dir, subject, date, 'eye'))
     if len(te_ids) == 0:
         print(f"No preprocessed files found on {date}")
         return None, []
@@ -37,12 +38,12 @@ def proc_eye_day(preproc_dir, subject, date, correlation_min=0.9, dry_run=False)
     best_correlation = 0
     for te_id in te_ids:
         eye_data, eye_metadata = load_preproc_eye_data(preproc_dir, subject, te_id, date)
-        if 'external_calibration' in eye_metadata and eye_metadata['external_calibration']:
+        if 'external_calibration' in eye_metadata and eye_metadata['external_calibration'] and not overwrite:
             continue # ignore the file if it has already had another calibration applied to it
         if 'correlation_coeff' not in eye_data:
             continue # ignore if there isn't any calibration data
         correlation = np.mean(abs(eye_data['correlation_coeff']))
-        print(correlation)
+        print(f'{te_id}: {correlation}')
         if correlation > best_correlation and correlation < 1.0: # 1.0 correlations aren't valid
             best_id = te_id
             best_coeff = eye_data['coefficients']

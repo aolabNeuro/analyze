@@ -252,7 +252,7 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         result_dir (str): where to store the processed result 
         result_filename (str): what to call the preprocessed filename
         debug (bool, optional): if true, prints additional debug messages
-        overwrite (bool, optional): whether to recalculated and overwrite existing preprocessed eyetracking data
+        overwrite (bool, optional): whether to recalculate and overwrite existing preprocessed eyetracking data
         save_res (bool, optional): whether to save the calculated eyetracking data
         **kwargs (dict, optional): keyword arguments to pass to :func:`aopy.preproc.calc_eye_calibration()`
 
