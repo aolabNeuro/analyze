@@ -1466,7 +1466,10 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     # Find times to extract
     exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)    
     step = int(decoder.call_rate * decoder.binlen)
-    ts = exp_data['clock']['timestamp_sync'][::step]
+    try:
+        ts = exp_data['clock']['timestamp_sync'][::step]
+    except:
+        ts = exp_data['clock']['timestamp_bmi3d'][::step]
     ts = ts[ts > start_time]
     if end_time is not None:
         ts = ts[ts < end_time]
