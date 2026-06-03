@@ -429,6 +429,7 @@ def load_emg_data(data_dir, emg_filename):
     emg_metadata['data_source'] = os.path.join(data_dir, emg_filename)
     emg_data_reshape = emg_data.view((dtype, (len(emg_data.dtype),)))
     emg_data = emg_data_reshape[:,:nch]
+    emg_metadata['n_samples'] = emg_data.shape[0]
     return emg_data, emg_metadata
 
 def load_emg_analog(data_dir, emg_filename):
@@ -455,6 +456,7 @@ def load_emg_analog(data_dir, emg_filename):
     emg_metadata['data_source'] = os.path.join(data_dir, emg_filename)
     emg_data_reshape = emg_data.view((dtype, (len(emg_data.dtype),)))
     analog_data = emg_data_reshape[:,-24:-8] # AUX channels
+    emg_metadata['n_samples'] = analog_data.shape[0]
     return analog_data, emg_metadata
     
 def load_emg_digital(data_dir, emg_filename):
@@ -477,6 +479,7 @@ def load_emg_digital(data_dir, emg_filename):
         
     emg_metadata['n_channels'] = 16
     emg_metadata['data_source'] = os.path.join(data_dir, emg_filename)
+    emg_metadata['n_samples'] = digital_data.shape[0]
     return digital_data, emg_metadata
 
 def load_ecube_analog(path, data_dir, channels=None):
@@ -1405,7 +1408,7 @@ def get_spike_data_aligned(preproc_dir, subject, te_id, date, trigger_times, tim
 @lru_cache(maxsize=1)
 def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
                          start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
-                         decode=False, **kwargs):
+                         decode=False, verbose=True, **kwargs):
     '''
     Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
     Using this function, you can replicate closely the features that would have been extracted from 
@@ -1435,6 +1438,8 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
             a smoothing function.
         decode (bool, optional): whether to run the features through the decoder before resampling. Only
             works if `channels` is None or `len(channels) == len(decoder.channels)`. Default False.
+        verbose (bool, optional): whether to display a tqdm progress bar while extracting features.
+            Default True.
         kwargs: additional keyword arguments to pass to sample_timestamped_data 
 
     Returns:
@@ -1489,7 +1494,10 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
     if hasattr(f_extractor, 'bands'):
         n_freq = len(f_extractor.bands)
     cycle_data = np.zeros((len(ts), n_freq, n_ch))
-    for i, t in enumerate(ts):
+    iterator = enumerate(ts)
+    if verbose:
+        iterator = tqdm(iterator, total=len(ts), desc='Extracting LFP features')
+    for i, t in iterator:
         sample_num = int((t-ts_start_time-latency) * ts_samplerate)
         cont_samples = ts_data[max(0,sample_num-n_pts):min(ts_data.shape[0], sample_num)]
         if cont_samples.shape[0] < n_pts:
@@ -1515,7 +1523,7 @@ def _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate
 
 def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=None, channels=None,
                          start_time=None, end_time=None, latency=0.02, datatype='lfp', preproc=None, 
-                         **kwargs):
+                         verbose=True, **kwargs):
     '''
     Extracts features from a BMI3D experiment using data aligned to the timestamps of the experiment.
     Using this function, you can replicate closely the features that would have been extracted from 
@@ -1539,6 +1547,8 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
             by decimation.
         preproc (fn, optional): function mapping (state, fs) data to (state_new, fs_new). For example,
             a smoothing function.
+        verbose (bool, optional): whether to display a tqdm progress bar while extracting features.
+            Default True.
         kwargs: additional keyword arguments to pass to sample_timestamped_data 
 
     Returns:
@@ -1597,7 +1607,7 @@ def extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=
     '''
     return _extract_lfp_features(preproc_dir, subject, te_id, date, decoder, samplerate=samplerate, 
                                  channels=channels, start_time=start_time, end_time=end_time, latency=latency, 
-                                 datatype=datatype, preproc=preproc, **kwargs)
+                                 datatype=datatype, preproc=preproc, verbose=verbose, **kwargs)
 
 def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
     '''
