@@ -821,6 +821,30 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         expected_reward[[4,6,8,17,19,21]] = 0
         np.testing.assert_allclose(df['reward'], expected_reward)
 
+    def test_get_video_playback_chunks(self):
+        # Synthetic playback: strictly-advancing frames, a clear pause, then resume.
+        frames = np.concatenate([
+            np.arange(0, 50),        # chunk A: frames 0..49
+            np.full(40, 49),         # 40-cycle pause holding the last frame
+            np.arange(50, 100),      # chunk B: frames 50..99
+        ]).astype(float)
+        times = np.arange(len(frames)) / 24.0   # 24 fps timeline
+
+        chunks = get_video_playback_chunks(frames, times, min_gap_cycles=10)
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0]['start_frame'], 0)
+        self.assertEqual(chunks[-1]['end_frame'], 99)
+        self.assertLess(chunks[0]['end_time'], chunks[1]['start_time'])  # gap between chunks
+        np.testing.assert_allclose(chunks[0]['video_fps'], 24, atol=1)
+
+        # The pause threshold must exceed the natural sub-frame-rate stall. With 5 cycles per
+        # frame (e.g. 120 Hz task / 24 fps video), a threshold of 10 cycles keeps continuous
+        # playback as one chunk, while a threshold of 1 splits on every stall.
+        held = np.repeat(np.arange(0, 30), 5).astype(float)
+        held_t = np.arange(len(held)) / 120.0
+        self.assertEqual(len(get_video_playback_chunks(held, held_t, min_gap_cycles=10)), 1)
+        self.assertGreater(len(get_video_playback_chunks(held, held_t, min_gap_cycles=1)), 1)
+
     def test_tabulate_behavior_data_center_out(self):
 
         subjects = [self.subject, self.subject]

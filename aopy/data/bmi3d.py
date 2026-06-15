@@ -3725,6 +3725,180 @@ def tabulate_spike_data_segments(preproc_dir, subjects, te_ids, dates, start_tim
         
     return segments, bins
 
+def get_video_playback_chunks(frames, times, min_gap_cycles=1):
+    '''
+    Split a sequence of per-cycle video frame indices into continuous playback chunks.
+
+    A "chunk" is a continuous period during which the displayed video frame is advancing.
+    Chunks are separated by "pauses": runs of `min_gap_cycles` or more consecutive cycles
+    during which the frame index does not advance. Because the task loop (e.g. 120 Hz) usually
+    runs faster than the video (e.g. 24 fps), the displayed frame normally stalls for a few
+    cycles between advances, so `min_gap_cycles` must be larger than that natural stall to
+    distinguish a real pause from sub-frame-rate sampling. The frame index at the onset of a
+    pause is attributed to the pause rather than to the preceding chunk.
+
+    Args:
+        frames (n): video frame index displayed on each (valid) task cycle. Need not be strictly
+            monotonic; non-increasing steps are treated as non-advancing.
+        times (n): time (s) of each cycle, same length as `frames`.
+        min_gap_cycles (int, optional): minimum number of consecutive non-advancing cycles that
+            counts as a pause. Defaults to 1 (split on any stall).
+
+    Returns:
+        list of dict: one dict per chunk, each with keys:
+            | **chunk_idx (int):** chunk number (0-indexed within this sequence)
+            | **start_time (float):** time the chunk begins (s)
+            | **end_time (float):** time the chunk ends (s)
+            | **duration (float):** chunk duration (s)
+            | **start_frame (int):** first frame index in the chunk
+            | **end_frame (int):** last frame index in the chunk
+            | **frames_played (int):** number of frames advanced in the chunk
+            | **video_fps (float):** estimated playback rate (frames_played / duration), or nan
+    '''
+    frames = np.asarray(frames, dtype=float)
+    times = np.asarray(times, dtype=float)
+    n = len(frames)
+    if n == 0:
+        return []
+
+    # Pauses are runs of >= min_gap_cycles consecutive non-advancing cycles.
+    stalled = np.diff(frames) <= 0
+    pause_bounds = []
+    i = 0
+    while i < len(stalled):
+        if stalled[i]:
+            start = i
+            while i < len(stalled) and stalled[i]:
+                i += 1
+            if i - start >= min_gap_cycles:
+                pause_bounds.append((start, i))
+        else:
+            i += 1
+
+    # Chunks are the spans between pauses.
+    spans = []
+    prev_end = 0
+    for ps, pe in pause_bounds:
+        if ps > prev_end:
+            spans.append((prev_end, ps))
+        prev_end = pe
+    if prev_end < n:
+        spans.append((prev_end, n))
+
+    chunks = []
+    for chunk_idx, (a, b) in enumerate(spans):
+        chunk_t = times[a:b]
+        chunk_f = frames[a:b]
+        duration = chunk_t[-1] - chunk_t[0]
+        frames_played = int(chunk_f[-1] - chunk_f[0])
+        chunks.append({
+            'chunk_idx': chunk_idx,
+            'start_time': chunk_t[0],
+            'end_time': chunk_t[-1],
+            'duration': duration,
+            'start_frame': int(chunk_f[0]),
+            'end_frame': int(chunk_f[-1]),
+            'frames_played': frames_played,
+            'video_fps': frames_played / duration if duration > 0 else np.nan,
+        })
+    return chunks
+
+def tabulate_video_playback_chunks(preproc_dir, subjects, ids, dates, min_pause_dur=0.5,
+                                   use_sync_time=True, metadata=[], df=None,
+                                   return_bad_entries=False):
+    '''
+    Extract continuous video playback chunks from VideoPlayer (`built_in_tasks.passivetasks`)
+    sessions across experiments. Experiments are given as equal-length lists of subjects, task
+    entry ids, and dates. Within each session, the per-cycle `video_frame` index is split into
+    chunks separated by pauses (see :func:`get_video_playback_chunks`); the pause threshold is
+    given in seconds and converted to cycles using the session's task fps.
+
+    Args:
+        preproc_dir (str): base directory where the preprocessed files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        min_pause_dur (float, optional): minimum stall duration (s) to count as a pause.
+            Defaults to 0.5 s (well above the natural sub-frame-rate stall at typical fps).
+        use_sync_time (bool, optional): use the synced clock (`clock/timestamp_sync`, True,
+            default) or cycle time derived from the task fps (False) for the output times.
+        metadata (list, optional): list of metadata keys to include as columns in the df.
+        df (DataFrame, optional): pandas DataFrame to append to. Defaults to None.
+        return_bad_entries (bool, optional): if True, also return the list of entries that could
+            not be loaded or had no video data. Defaults to False.
+
+    Returns:
+        pd.DataFrame: one row per playback chunk with columns:
+            | **subject (str):** subject name
+            | **te_id (int):** task entry id
+            | **date (str):** date of recording
+            | **chunk_idx (int):** chunk number within the session (0-indexed)
+            | **start_time (float):** time the chunk begins (s)
+            | **end_time (float):** time the chunk ends (s)
+            | **duration (float):** chunk duration (s)
+            | **start_frame (int):** first frame index in the chunk
+            | **end_frame (int):** last frame index in the chunk
+            | **frames_played (int):** number of frames advanced in the chunk
+            | **video_fps (float):** estimated playback rate (frames_played / duration)
+            | **%metadata_key% :** requested metadata values for each key requested
+    '''
+    UINT64_MAX = np.iinfo(np.uint64).max  # init() stores -1 as this sentinel before playback
+    bad_entries = []
+    if df is None:
+        df = pd.DataFrame()
+
+    results = []
+    for subject, te, date in tqdm(list(zip(subjects, ids, dates))):
+
+        try:
+            exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            bad_entries.append([subject, date, te])
+            continue
+
+        if 'video_frame' not in exp_data['task'].dtype.names:
+            print(f"Entry {subject} {date} {te} has no video_frame data.")
+            bad_entries.append([subject, date, te])
+            continue
+
+        frames_raw = exp_data['task']['video_frame'].flatten()
+        valid = frames_raw != UINT64_MAX
+        if valid.sum() == 0:
+            continue  # task stopped before video playback started
+        frames = frames_raw[valid].astype(float)
+
+        fps = float(exp_metadata.get('fps', 120))
+        if use_sync_time:
+            times = exp_data['clock']['timestamp_sync'][valid]
+        else:
+            times = np.arange(len(frames_raw))[valid] / fps
+
+        min_gap_cycles = max(1, int(np.ceil(min_pause_dur * fps)))
+        chunks = get_video_playback_chunks(frames, times, min_gap_cycles=min_gap_cycles)
+        if len(chunks) == 0:
+            continue
+
+        chunk_df = pd.DataFrame(chunks)
+        chunk_df.insert(0, 'subject', subject)
+        chunk_df.insert(1, 'te_id', te)
+        chunk_df.insert(2, 'date', date)
+        for key in metadata:
+            if key in exp_metadata:
+                chunk_df[key] = [exp_metadata[key]] * len(chunk_df)
+            else:
+                chunk_df[key] = None
+                print(f"Entry {subject} {date} {te} does not have metadata {key}.")
+        results.append(chunk_df)
+
+    if len(results) > 0:
+        df = pd.concat([df] + results, ignore_index=True)
+
+    if return_bad_entries:
+        return df, bad_entries
+    return df
+
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''
     Load the default BMI3D task codes. File-specific codes can be found in exp_metadata['event_sync_dict']
