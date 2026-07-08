@@ -821,6 +821,22 @@ class TestGetPreprocDataFuncs(unittest.TestCase):
         expected_reward[[4,6,8,17,19,21]] = 0
         np.testing.assert_allclose(df['reward'], expected_reward)
 
+    def test_tabulate_video_playback_segments(self):
+        # Single VideoPlayer session (validation.mp4) with no pauses -> one continuous segment.
+        df = tabulate_video_playback_segments(
+            data_dir, ['daifuku'], [26967], ['2026-06-29'], metadata=['fps'])
+        self.assertEqual(len(df), 1)
+        row = df.iloc[0]
+        self.assertEqual(row['segment_idx'], 0)
+        self.assertEqual(row['start_frame'], 0)
+        self.assertEqual(row['end_frame'], 1913)
+        self.assertEqual(row['frames_played'], 1913)
+        self.assertGreater(row['duration'], 0)
+        # video_fps comes from measured timestamps (validation.mp4 is 60 fps),
+        # not the 120 Hz task loop.
+        np.testing.assert_allclose(row['video_fps'], 60, atol=1)
+        self.assertEqual(row['fps'], 120.0)  # nominal task fps, carried through as metadata
+
     def test_tabulate_behavior_data_center_out(self):
 
         subjects = [self.subject, self.subject]

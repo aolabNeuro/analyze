@@ -3725,6 +3725,146 @@ def tabulate_spike_data_segments(preproc_dir, subjects, te_ids, dates, start_tim
         
     return segments, bins
 
+def tabulate_video_playback_segments(preproc_dir, subjects, ids, dates, use_sync_time=True,
+                                     metadata=[], df=None, return_bad_entries=False):
+    '''
+    Extract continuous video playback segments from VideoPlayer (`built_in_tasks.passivetasks`)
+    sessions across experiments. Experiments are given as equal-length lists of subjects, task
+    entry ids, and dates. Within each session the video plays back continuously except while
+    the experiment is paused; a "segment" is one such continuous playback period.
+
+    Pauses are read from the events table, not inferred from frame timing: the task loop usually
+    runs faster than the video, so the displayed frame naturally stalls for several cycles
+    between advances and stalls alone do not indicate a pause. Segment boundaries prefer
+    ``PAUSE_START`` / ``PAUSE_END`` events (emitted by tasks with a dedicated pause state);
+    if those are absent, the generic ``PAUSE`` event (emitted on each play/pause toggle) is
+    paired instead. All times are taken from measured timestamps, never the nominal fps.
+
+    Args:
+        preproc_dir (str): base directory where the preprocessed files live
+        subjects (list of str): Subject name for each recording
+        ids (list of int): Block number of Task entry object for each recording
+        dates (list of str): Date for each recording
+        use_sync_time (bool, optional): use the synced clock (`timestamp_sync`, True, default)
+            or the bmi3d cycle clock (`timestamp_bmi3d`, False) for the output times. Both the
+            clock and the events table are read in the chosen time base.
+        metadata (list, optional): list of metadata keys to include as columns in the df.
+        df (DataFrame, optional): pandas DataFrame to append to. Defaults to None.
+        return_bad_entries (bool, optional): if True, also return the list of entries that could
+            not be loaded or had no video data. Defaults to False.
+
+    Returns:
+        pd.DataFrame: one row per playback segment with columns:
+            | **subject (str):** subject name
+            | **te_id (int):** task entry id
+            | **date (str):** date of recording
+            | **segment_idx (int):** segment number within the session (0-indexed)
+            | **start_time (float):** time the segment begins (s)
+            | **end_time (float):** time the segment ends (s)
+            | **duration (float):** segment duration (s)
+            | **start_frame (int):** first video frame index in the segment
+            | **end_frame (int):** last video frame index in the segment
+            | **frames_played (int):** number of frames advanced in the segment
+            | **video_fps (float):** measured playback rate (frames_played / duration)
+            | **%metadata_key% :** requested metadata values for each key requested
+    '''
+    UINT64_MAX = np.iinfo(np.uint64).max  # init() stores -1 as this sentinel before playback
+    time_field = 'timestamp_sync' if use_sync_time else 'timestamp_bmi3d'
+    bad_entries = []
+    if df is None:
+        df = pd.DataFrame()
+
+    results = []
+    for subject, te, date in tqdm(list(zip(subjects, ids, dates))):
+
+        try:
+            exp_data, exp_metadata = base.load_preproc_exp_data(preproc_dir, subject, te, date)
+        except:
+            print(f"Entry {subject} {date} {te} could not be loaded.")
+            traceback.print_exc()
+            bad_entries.append([subject, date, te])
+            continue
+
+        if 'video_frame' not in exp_data['task'].dtype.names:
+            print(f"Entry {subject} {date} {te} has no video_frame data.")
+            bad_entries.append([subject, date, te])
+            continue
+
+        # Per-cycle video frame index and measured cycle time (valid = playback has started).
+        frames_raw = exp_data['task']['video_frame'].flatten()
+        valid = frames_raw != UINT64_MAX
+        if valid.sum() == 0:
+            continue  # task stopped before playback started
+        frames = frames_raw[valid].astype(float)
+        times = np.asarray(exp_data['clock'][time_field])[valid]
+
+        # Pauses split playback into segments. Prefer PAUSE_START/PAUSE_END; otherwise pair the
+        # generic PAUSE toggle (alternating pause-on / pause-off). Times come from the events
+        # table in the same clock domain.
+        event_names = exp_data['events']['event']
+        event_times = np.asarray(exp_data['events'][time_field])
+        pauses = []
+        if np.any(event_names == b'PAUSE_START') and np.any(event_names == b'PAUSE_END'):
+            _, pause_times = get_trial_segments(event_names, event_times,
+                                                [b'PAUSE_START'], [b'PAUSE_END'])
+            pauses = [(a, b) for a, b in pause_times]
+        elif np.any(event_names == b'PAUSE'):
+            toggles = np.sort(event_times[event_names == b'PAUSE'])
+            pauses = [(toggles[i], toggles[i + 1]) for i in range(0, len(toggles) - 1, 2)]
+
+        # Segments are the playback span minus the pauses.
+        t0, t1 = times[0], times[-1]
+        clipped = sorted((max(a, t0), min(b, t1)) for a, b in pauses if b > t0 and a < t1)
+        seg_bounds = []
+        cur = t0
+        for pa, pb in clipped:
+            if pa > cur:
+                seg_bounds.append((cur, pa))
+            cur = max(cur, pb)
+        if cur < t1:
+            seg_bounds.append((cur, t1))
+
+        segs = []
+        for s, e in seg_bounds:
+            mask = (times >= s) & (times <= e)
+            if mask.sum() < 2:
+                continue
+            seg_t = times[mask]
+            seg_f = frames[mask]
+            duration = seg_t[-1] - seg_t[0]
+            frames_played = int(seg_f[-1] - seg_f[0])
+            segs.append({
+                'segment_idx': len(segs),
+                'start_time': seg_t[0],
+                'end_time': seg_t[-1],
+                'duration': duration,
+                'start_frame': int(seg_f[0]),
+                'end_frame': int(seg_f[-1]),
+                'frames_played': frames_played,
+                'video_fps': frames_played / duration if duration > 0 else np.nan,
+            })
+        if len(segs) == 0:
+            continue
+
+        seg_df = pd.DataFrame(segs)
+        seg_df.insert(0, 'subject', subject)
+        seg_df.insert(1, 'te_id', te)
+        seg_df.insert(2, 'date', date)
+        for key in metadata:
+            if key in exp_metadata:
+                seg_df[key] = [exp_metadata[key]] * len(seg_df)
+            else:
+                seg_df[key] = None
+                print(f"Entry {subject} {date} {te} does not have metadata {key}.")
+        results.append(seg_df)
+
+    if len(results) > 0:
+        df = pd.concat([df] + results, ignore_index=True)
+
+    if return_bad_entries:
+        return df, bad_entries
+    return df
+
 def load_bmi3d_task_codes(filename='task_codes.yaml'):
     '''
     Load the default BMI3D task codes. File-specific codes can be found in exp_metadata['event_sync_dict']
