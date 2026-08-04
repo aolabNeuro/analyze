@@ -58,8 +58,8 @@ def visualize_co_behavior_data(preproc_dir, te_ids):
     bounds = [-10, 10, -10, 10]
 
     categories = {'completed_trials': ('reward', True, 'go_cue_time'), 
-                  'failed_delay': ('delay_completed', False, 'center_target_on_time'),
-                  'failed_reach': ('reach_completed', False, 'go_cue_time')}
+                  'Pre-movement Failure': ('delay_completed', False, 'center_target_on_time'),
+                  'Post-movement Failure': ('reach_completed', False, 'go_cue_time')}
     
     for id in te_ids:
         entry = db.lookup_sessions(id=id)[0]
@@ -102,12 +102,15 @@ def visualize_co_behavior_data(preproc_dir, te_ids):
                 start_times, end_times,
                 datatype='eye'
             )
+            """
+            TODO: Add 3d hand movements 
             if False:#'optitrack' in b[1]['features'].astype('str'):
                 hand_segments_reward = aopy.data.tabulate_kinematic_data(
                                 preproc_dir, filtered_df['subject'], filtered_df['te_id'], filtered_df['date'],
                                 start_times, end_times,
                                 datatype='user_world'
                             )
+            """
             
             subject, te_id, date = aopy.data.db.list_entry_details([entry])
             targs = range(0,9)
@@ -124,5 +127,3 @@ def visualize_co_behavior_data(preproc_dir, te_ids):
             
             aopy.visualization.plot_targets(unique_targets, 2, bounds, ax=hand_ax)
             aopy.visualization.plot_trajectories(cursor_segments_reward, bounds, ax=hand_ax)
-        
-visualize_co_behavior_data(preproc_dir, te_ids)
