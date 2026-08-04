@@ -58,7 +58,7 @@ def visualize_co_behavior_data(preproc_dir, te_ids):
     bounds = [-10, 10, -10, 10]
 
     categories = {'completed_trials': ('reward', True, 'go_cue_time'), 
-                  'Pre-movement Failure': ('delay_completed', False, 'center_target_on_time'),
+                  'Pre-movement Failure': ('delay_completed', False, 'hold_start_time'),
                   'Post-movement Failure': ('reach_completed', False, 'go_cue_time')}
     
     for id in te_ids:
@@ -84,6 +84,7 @@ def visualize_co_behavior_data(preproc_dir, te_ids):
 
             start_times = filtered_df[start_event].values
             end_times = filtered_df['penalty_start_time'].values
+            end_times[np.isnan(end_times)] = filtered_df['reward_start_time'].values[np.isnan(end_times)]
             end_times[np.isnan(end_times)] = filtered_df['trial_end_time'].values[np.isnan(end_times)]
 
             if filtered_df.shape[0] == 0:
