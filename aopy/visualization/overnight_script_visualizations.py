@@ -57,9 +57,9 @@ def visualize_co_behavior_data(preproc_dir, te_ids):
     """
     bounds = [-10, 10, -10, 10]
 
-    categories = {'completed_trials': ('reward', True, 'go_cue_time'), 
-                  'Pre-movement Failure': ('delay_completed', False, 'hold_start_time'),
-                  'Post-movement Failure': ('reach_completed', False, 'go_cue_time')}
+    categories = {'completed_trials': ('reward', True, 'go_cue_time', 'reward_start_time'), 
+                  'Pre-movement Failure': ('delay_completed', False, 'hold_start_time', 'penalty_start_time'),
+                  'Post-movement Failure': ('reach_completed', False, 'go_cue_time', 'penalty_start_time')}
     
     for id in te_ids:
         entry = db.lookup_sessions(id=id)[0]
@@ -70,22 +70,24 @@ def visualize_co_behavior_data(preproc_dir, te_ids):
 
         b = aopy.data.base.load_preproc_exp_data(preproc_dir, df['subject'][0], df['te_id'][0], df['date'][0])
 
+
         bh_df = aopy.data.tabulate_behavior_data_center_out(preproc_dir, df['subject'], df['te_id'], df['date'])
+        bh_df = bh_df[bh_df['trial_initiated']].reset_index(drop=True)
 
         no_repeats_bool = np.ones((bh_df.shape[0],), dtype=bool)
 
         for i,key in enumerate(categories.keys()):
             print(f'Generating plots for {key}...')
-            inclusion_boolean, inclusion_value, start_event = categories[key]
+            inclusion_boolean, inclusion_value, start_event, end_event = categories[key]
 
             tmp_bool = bh_df[inclusion_boolean] == inclusion_value
 
             filtered_df = bh_df[tmp_bool & no_repeats_bool]
 
             start_times = filtered_df[start_event].values
-            end_times = filtered_df['penalty_start_time'].values
-            end_times[np.isnan(end_times)] = filtered_df['reward_start_time'].values[np.isnan(end_times)]
-            end_times[np.isnan(end_times)] = filtered_df['trial_end_time'].values[np.isnan(end_times)]
+            end_times = filtered_df[end_event].values
+            #end_times[np.isnan(end_times)] = filtered_df['reward_start_time'].values[np.isnan(end_times)]
+            #end_times[np.isnan(end_times)] = filtered_df['trial_end_time'].values[np.isnan(end_times)]
 
             if filtered_df.shape[0] == 0:
                 print(f'No trials found for {key}. Skipping...')
