@@ -346,6 +346,6 @@ def animate_behavior(targets, cursor, eye, samplerate, bounds,
                                     *circle_ts, history=history, ax=ax)      
     
     # Return the FuncAnimation object
-    nframes = np.min([len(t) for t in circle_ts])
+    nframes = min(len(t) for t in circle_ts)
     ani = FuncAnimation(fig, func, frames=nframes, interval=1000./samplerate)  
     return ani
