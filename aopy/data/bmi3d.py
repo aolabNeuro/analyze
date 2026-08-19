@@ -1642,6 +1642,26 @@ def get_target_locations(preproc_dir, subject, te_id, date, target_indices):
             raise ValueError(f"Target index {target_indices[i]} not found")
     return np.round(locations,4)
 
+def get_delay_periods(preproc_dir, subject, te_id, date):
+    '''
+    Loads one intended delay period per real trial from a preprocessed BMI3D file.
+
+    The BMI3D trials table contains two rows per trial, so every second delay
+    period is returned. Recordings before 2026-08-10 are treated as unreliable.
+    '''
+    data, _ = base.load_preproc_exp_data(preproc_dir, subject, te_id, date)
+
+    date = pd.Timestamp(date).date()
+    cutoff_date = pd.Timestamp("2026-08-10").date()
+
+    if date < cutoff_date:
+        return None
+
+    if 'delay_period' not in data['bmi3d_trials'].dtype.names:
+        return None
+
+    return np.asarray(data['bmi3d_trials']['delay_period']).squeeze()[::2]
+
 def get_trajectory_frequencies(preproc_dir, subject, te_id, date):
     '''
     For continuous tracking tasks, get the set of frequencies (in Hz) used to 
@@ -1888,6 +1908,7 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
             | **penalty_event (ntrial):** numeric code for the penalty event
             | **pause_start_time (ntrial):** time at which the pause occurred
             | **pause_event (ntrial):** numeric code for the pause event
+            | **delay_period (ntrial):** duration of the delay period
 
     Example:
 
@@ -2011,6 +2032,20 @@ def tabulate_behavior_data_center_out(preproc_dir, subjects, ids, dates, metadat
         if len(pause_times) > 0:
             new_df.loc[i, 'pause_start_time'] = pause_times[0]
             new_df.loc[i, 'pause_event'] = pause_events[0]
+
+    # Delay period
+    new_df['delay_period'] = np.nan
+
+    for subject, te_id, date in zip(subjects, ids, dates):
+        idx = (new_df['subject'] == subject) & (new_df['te_id'] == te_id) & (new_df['date'] == date)
+        delay_periods = get_delay_periods(preproc_dir, subject, te_id, date)
+
+        if delay_periods is not None:
+            delay_idx = 0
+            for row_idx in new_df.index[idx]:
+                if pd.isna(new_df.loc[row_idx, 'pause_event']) and delay_idx < len(delay_periods):
+                    new_df.loc[row_idx, 'delay_period'] = delay_periods[delay_idx]
+                    delay_idx += 1
 
     df = pd.concat([df, new_df], ignore_index=True)
     return df
