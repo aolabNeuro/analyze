@@ -366,8 +366,6 @@ class FilterTests(unittest.TestCase):
         fname = 'filter_kinematics_accel.png'
         savefig(docs_dir, fname, transparent=False)
 
-
-
 class SpikeDetectionTests(unittest.TestCase):
         
     def test_calc_spike_threshold(self):
