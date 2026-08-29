@@ -10,7 +10,7 @@ Examples:
 
 .. toctree::
     
-    examples/eyetracking_validation.ipynb
+    examples/eye_calibration_example.ipynb
 
 .. toctree::
 
