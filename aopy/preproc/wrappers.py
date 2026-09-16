@@ -7,6 +7,7 @@ import os
 from importlib.metadata import version
 import datetime
 import h5py
+import json
 from .base import *
 from .bmi3d import parse_bmi3d
 from .oculomatic import parse_oculomatic
@@ -66,6 +67,7 @@ def proc_single(data_dir, files, preproc_dir, subject, te_id, date, preproc_jobs
             data_dir,
             files,
             preproc_dir,
+            preproc_dir_base,
             exp_filename,
             eye_filename,
             overwrite=overwrite,
@@ -226,7 +228,7 @@ def proc_mocap(data_dir, files, result_dir, result_filename, overwrite=False):
         aodata.save_hdf(result_dir, result_filename, optitrack_data, "/mocap_data", append=True)
         aodata.save_hdf(result_dir, result_filename, optitrack_metadata, "/mocap_metadata", append=True)
 
-def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename, debug=True, overwrite=False, save_res=True, **kwargs):
+def proc_eyetracking(data_dir, files, result_dir, preproc_dir_base, exp_filename, result_filename, debug=True, overwrite=False, save_res=True, **kwargs):
     '''
     Loads eyedata from ecube analog signal and calculates calibration profile using least square fitting.
     Requires that experimental data has already been preprocessed in the same result hdf file.
@@ -298,40 +300,72 @@ def proc_eyetracking(data_dir, files, result_dir, exp_filename, result_filename,
         eye_data = None
         eye_metadata = {}
 
-    try:
-        # Calibrate the eye data
-        cursor_samplerate = exp_metadata['cursor_interp_samplerate']
-        cursor_data = exp_data['cursor_interp'][:,:2]
-        events = exp_data['events']
-        event_codes = events['code']
-        event_times = events['timestamp'] # time points in the ecube time frame
-        coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
-            cursor_data, cursor_samplerate, eye_data, eye_metadata['samplerate'], 
-            event_times, event_codes, return_datapoints=True, **kwargs)
-
-        calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
-        eye_dict = {
-            'eye_closed_mask': eye_mask,
-            'raw_data': eye_data,
-            'calibrated_data': calibrated_eye_data,
-            'coefficients': coeff,
-            'correlation_coeff': correlation_coeff,
-            'cursor_calibration_data': cursor_calibration_data,
-            'eye_calibration_data': eye_calibration_data
-        }
-        try:
-            eye_metadata['calibration_version'] = version('aolab-aopy')
-        except:
-            eye_metadata['calibration_version'] = 'unknown'
-        eye_metadata['calibration_date'] = datetime.datetime.now().isoformat()
-
-    except (KeyError, ValueError):
-        # If there is no cursor data or there aren't enough trials, this will fail. 
-        # We should still save the eye data, just don't include the calibrated data
+    if 'generator' in exp_metadata and 'tracking' in exp_metadata['generator']:
         eye_dict = {
             'eye_closed_mask': eye_mask,
             'raw_data': eye_data
         }
+    else:
+        try:
+            # # Calibrate the eye data
+            # cursor_samplerate = exp_metadata['cursor_interp_samplerate']
+            # cursor_data = exp_data['cursor_interp'][:,:2]
+            # events = exp_data['events']
+            # event_codes = events['code']
+            # event_times = events['timestamp'] # time points in the ecube time frame
+            # coeff, correlation_coeff, cursor_calibration_data, eye_calibration_data = calc_eye_calibration(
+            #     cursor_data, cursor_samplerate, eye_data, eye_metadata['samplerate'], 
+            #     event_times, event_codes, return_datapoints=True, **kwargs)
+
+            # calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
+            # eye_dict = {
+            #     'eye_closed_mask': eye_mask,
+            #     'raw_data': eye_data,
+            #     'calibrated_data': calibrated_eye_data,
+            #     'coefficients': coeff,
+            #     'correlation_coeff': correlation_coeff,
+            #     'cursor_calibration_data': cursor_calibration_data,
+            #     'eye_calibration_data': eye_calibration_data
+            # }
+
+            # Calibrate the eye data
+            if 'generator' in exp_metadata and 'corners' in exp_metadata['generator']:
+                ntarg = 4
+                target_pos = aodata.bmi3d.get_target_locations(preproc_dir_base, exp_metadata['subject'], exp_metadata['block_number'], exp_metadata['date'][:10], range(1,ntarg+1))
+            elif 'generator' in exp_metadata and 'centerout' in exp_metadata['generator']:
+                ntarg = json.loads(exp_metadata['sequence_params'])['ntargets']
+                target_pos = aodata.bmi3d.get_target_locations(preproc_dir_base, exp_metadata['subject'], exp_metadata['block_number'], exp_metadata['date'][:10], range(1,ntarg+1))
+            # else:
+            #     target_pos = []
+            events = exp_data['events']
+            event_codes = events['code']
+            event_times = events['timestamp'] # time points in the ecube time frame
+            coeff, correlation_coeff, eye_calibration_data = calc_eye_target_calibration(
+                eye_data, eye_metadata['samplerate'], 
+                event_times, event_codes, target_pos, return_datapoints=True, **kwargs)
+
+            calibrated_eye_data = postproc.get_calibrated_eye_data(eye_data, coeff)
+            eye_dict = {
+                'eye_closed_mask': eye_mask,
+                'raw_data': eye_data,
+                'calibrated_data': calibrated_eye_data,
+                'coefficients': coeff,
+                'correlation_coeff': correlation_coeff,
+                'eye_calibration_data': eye_calibration_data
+            }
+            try:
+                eye_metadata['calibration_version'] = version('aolab-aopy')
+            except:
+                eye_metadata['calibration_version'] = 'unknown'
+            eye_metadata['calibration_date'] = datetime.datetime.now().isoformat()
+
+        except (KeyError, ValueError):
+            # If there is no cursor data or there aren't enough trials, this will fail. 
+            # We should still save the eye data, just don't include the calibrated data
+            eye_dict = {
+                'eye_closed_mask': eye_mask,
+                'raw_data': eye_data
+            }
 
     # Save everything into the HDF file
     if save_res:
