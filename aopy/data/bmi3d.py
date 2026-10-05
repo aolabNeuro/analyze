@@ -3074,6 +3074,96 @@ def tabulate_behavior_data_readyset(preproc_dir, subjects, ids, dates, metadata=
     return df
 
 
+def tabulate_behavior_data_flash_targets(preproc_dir, subjects, ids, dates, metadata=[], df=None):
+    '''
+    Wrapper around tabulate_behavior_data() for flash targets task.
+
+    Each trial starts when the center target appears and ends at TRIAL_END,
+    PAUSE_START, or PAUSE. The task consists of center fixation followed by
+    a number of peripheral target flashes that are separated by off periods (both last 200ms),
+    a 200-ms buffer is included before the first flash and after the last flash.
+
+    Returns:
+        pd.DataFrame: tabulated behavioral data for each trial.
+    '''
+
+    # Use default "trial" definition
+    task_codes = load_bmi3d_task_codes()
+    trial_start_codes = [task_codes['CENTER_TARGET_ON']]
+    trial_end_codes = [task_codes['TRIAL_END'], task_codes['PAUSE_START'], task_codes['PAUSE']]
+    reward_codes = [task_codes['REWARD']]
+    penalty_codes = [task_codes['HOLD_PENALTY'], task_codes['TIMEOUT_PENALTY']]
+    target_codes = task_codes['PERIPHERAL_TARGET_ON']
+    target_codes = task_codes['PERIPHERAL_TARGET_ON']
+    target_off_codes = task_codes['PERIPHERAL_TARGET_OFF']
+    pause_codes = [task_codes['PAUSE_START'], task_codes['PAUSE_END'], task_codes['PAUSE']]
+
+    new_df = tabulate_behavior_data(preproc_dir, subjects, ids, dates, trial_start_codes, trial_end_codes, reward_codes, penalty_codes, metadata, df=None)
+    
+    if len(new_df) == 0:
+        warnings.warn("No trials found")
+        return df
+
+    # Add trial segment timing
+    new_df['target_indices'] = None
+    new_df['target_locations'] = None
+    new_df['center_target_on_time'] = np.nan
+    new_df['flash_on_times'] = None
+    new_df['flash_off_times'] = None
+    new_df['reward_start_time'] = np.nan
+    new_df['penalty_start_time'] = np.nan
+    new_df['penalty_event'] = np.nan
+    new_df['pause_start_time'] = np.nan
+    new_df['pause_event'] = np.nan
+    
+    for i in range(len(new_df)):
+        event_codes = new_df.loc[i, 'event_codes']
+        event_times = new_df.loc[i, 'event_times']
+
+        # center target appears
+        new_df.loc[i, 'center_target_on_time'] = event_times[0]
+        
+        # flash target indices and timing flash on/flash off
+        flash_idx = np.isin(event_codes, target_codes)
+        flash_codes = event_codes[flash_idx]
+        flash_times = event_times[flash_idx]
+        flash_off_idx = np.isin(event_codes, target_off_codes)
+        flash_off_times = event_times[flash_off_idx]
+        
+        new_df.at[i, 'target_indices'] = [code - target_codes[0] + 1 for code in flash_codes] 
+        new_df.at[i, 'flash_on_times'] = flash_times
+        new_df.at[i, 'flash_off_times'] = flash_off_times
+        
+        # reward start times
+        reward_times = event_times[np.isin(event_codes, [task_codes['REWARD']])]
+        if len(reward_times) > 0:
+            new_df.loc[i, 'reward_start_time'] = reward_times[0]
+
+        # penalty start times
+        penalty_idx = np.isin(event_codes, penalty_codes)
+        penalty_events = event_codes[penalty_idx]
+        penalty_times = event_times[penalty_idx]
+        if len(penalty_times) > 0:
+            new_df.loc[i, 'penalty_start_time'] = penalty_times[0]
+            new_df.loc[i, 'penalty_event'] = penalty_events[0]
+
+        # pause events
+        pause_idx = np.isin(event_codes, pause_codes)
+        pause_times = event_times[pause_idx]
+        pause_events = event_codes[pause_idx]
+        if len(pause_times) > 0:
+            new_df.loc[i, 'pause_start_time'] = pause_times[0]
+            new_df.loc[i, 'pause_event'] = pause_events[0]
+    
+    new_df['target_locations'] = [
+        get_target_locations(preproc_dir, s, te, d, t_idx) if len(t_idx) > 0 else np.empty((0, 3))
+        for s, te, d, t_idx in zip(new_df['subject'], new_df['te_id'], new_df['date'], new_df['target_indices'])
+    ]
+
+    df = pd.concat([df, new_df], ignore_index=True)
+    return df
+
+
 def tabulate_stim_data(preproc_dir, subjects, ids, dates, metadata=['stimulation_site'], 
                        debug=True, df=None, **kwargs):
     '''
