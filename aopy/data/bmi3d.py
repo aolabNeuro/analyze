@@ -3076,16 +3076,44 @@ def tabulate_behavior_data_readyset(preproc_dir, subjects, ids, dates, metadata=
 
 def tabulate_behavior_data_flash_targets(preproc_dir, subjects, ids, dates, metadata=[], df=None):
     '''
-    Wrapper around tabulate_behavior_data() for flash targets task.
+    Wrapper around :func:`tabulate_behavior_data` for flash targets task.
 
-    Each trial starts when the center target appears and ends at TRIAL_END,
-    PAUSE_START, or PAUSE. The task consists of center fixation followed by
-    a number of peripheral target flashes that are separated by off periods (both last 200ms),
-    a 200-ms buffer is included before the first flash and after the last flash.
+    Each trial begins with the presentation of a central target that the subject must
+    maintain fixation on. After the initial hold period, a specified number of peripheral targets
+    are flashed sequentially while central fixation is maintained. Each peripheral
+    target has a recorded target-on and target-off event. Before the first flash and after the final flash,
+    the subject maintains central fixation through a buffer period. At the end of the final buffer period,
+    a reward is given.
+
+    Args:
+        preproc_dir (str): Base directory containing preprocessed BMI3D files.
+        subjects (list): Subject names corresponding to each recording.
+        ids (list): Task entry IDs corresponding to each recording.
+        dates (list): Recording dates corresponding to each task entry.
+        metadata (list): Metadata fields to include in the output dataframe.
+        df (pd.DataFrame, optional): Existing dataframe to append the tabulated data to.
 
     Returns:
-        pd.DataFrame: tabulated behavioral data for each trial.
-    '''
+        pd.DataFrame: Tabulated behavioral data for each trial.
+            | **subject (str):** subject name
+            | **te_id (str):** task entry id
+            | **date (str):** date of recording
+            | **event_codes (ntrial):** numeric code segments for each trial
+            | **event_times (ntrial):** time segments for each trial
+            | **reward (ntrial):** boolean values indicating whether each trial was rewarded
+            | **penalty (ntrial):** boolean values indicating whether each trial was penalized
+            | **%metadata_key% (ntrial):** requested metadata values for each key requested
+            | **target_idx (ntrial):** index of the target that was presented
+            | **target_location (ntrial):** location of the target that was presented
+            | **center_target_on_time (ntrial):** time at which the trial started
+            | **flash_on_times (ntrial):** times at which the peripheral targets turned on sequentially
+            | **flash_off_times  (ntrial):** times at which the peripheral targets turned off sequentially
+            | **reward_start_time (ntrial):** time at which the reward was presented
+            | **penalty_start_time (ntrial):** time at which the penalty was presented
+            | **penalty_event (ntrial):** numeric code for the penalty event
+            | **pause_start_time (ntrial):** time at which the pause occurred
+            | **pause_event (ntrial):** numeric code for the pause event
+    ''' 
 
     # Use default "trial" definition
     task_codes = load_bmi3d_task_codes()
