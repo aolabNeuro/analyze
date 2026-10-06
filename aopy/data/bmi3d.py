@@ -59,15 +59,46 @@ def load_ecube_metadata(data_dir, data_source):
 
     # For now just load the metadata provieded by pyECubeSig
     # TODO: Really need the channel names and voltage per bit from the xml file
-    # For now I am hard coding these. Please change!
-    HEADSTAGE_VOLTSPERBIT = 1.907348633e-7
-    ANALOG_VOLTSPERBIT = 3.0517578125e-4
-    if data_source == 'Headstages':
-        voltsperbit = HEADSTAGE_VOLTSPERBIT
-    elif data_source == 'AnalogPanel':
-        voltsperbit = ANALOG_VOLTSPERBIT
-    else:
-        voltsperbit = None
+    assert isinstance(data_source, str), f"Expected string, got {type(var)}"
+    assert (data_source=="DigitalPanel") or (data_source=="Headstages") or (data_source=="AnalogPanel"), \
+        f"Expected data_source to be AnalogPanel, Headstages, DigitalPanel "
+    volts_per_bit = None
+    
+    if data_source!="DigitalPanel":
+        test_str= 'settings' + data_source + '.xml'
+        xml_file = [x for x in os.listdir(data_dir) if test_str in x]
+
+
+        if len(xml_file)==1:
+            xml_file=xml_file[0]
+        elif len(xml_file)>1:
+            raise ValueError(
+                f"Incorrect datasource format: '{data_source}'. "
+                f"Expected format: AnalogPanel, Headstages"
+            )
+        else:
+            raise FileNotFoundError(
+                f"Data_source xml file not found in: '{data_dir}'."
+            )
+
+        xml_path = os.path.join(data_dir, xml_file)
+
+
+        import xml.etree.ElementTree as ET
+
+        # Parse the XML file
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+
+        # Get all CHANNEL elements
+        channels = root.findall('.//CHANNEL')
+        tmp_vtb = np.unique([float(channel.attrib['voltsperbit']) for channel in channels])
+        if len(tmp_vtb)==1:
+            voltsperbit=tmp_vtb[0]
+        else:
+            raise Exception(
+                f"Ecube xml file has multiple volts per bit values saved. This is incorrect and indicates and issue with either the ecube or corruption of the xml file"
+            )
 
     n_channels = 0
     n_samples = 0
