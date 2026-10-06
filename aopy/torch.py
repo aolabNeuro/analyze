@@ -65,3 +65,31 @@ def recursive_assign_device(x, device: str):
     else:
         x = x.to(device)
     return x
+
+# transforms - -
+class DropChannels(object):
+    '''
+        Dataset transform to randomly drop channels (i.e. set all values to zero) within a sample.
+        The number of dropped channels is determined by the drop ratio:
+            n_drop = floor(drop_ratio*n_ch)
+        Channel dimension is assumed to be the last indexed tensor dimension. This may need to be
+        adjusted for multidimensional time series data, e.g. spectrograms.
+    '''
+    def __init__(self,drop_ratio=0.1):
+        self.drop_ratio = drop_ratio
+
+    def __call__(self,sample):
+        n_ch = sample.shape[-1]
+        n_ch_drop = floor(self.drop_ratio*n_ch)
+        drop_ch_idx = torch.randperm(n_ch)[:n_ch_drop]
+        sample[:,drop_ch_idx] = 0.
+        return sample
+
+# z-scoring for tensors in pytorch.
+def tensor_zscore(x,dim=0):
+    mean = x.mean(dim=dim).expand([50,-1,-1]).permute(1,0,2)
+    std = x.std(dim=dim).expand([50,-1,-1]).permute(1,0,2)
+    return (x - mean) / std
+
+#-------------------------------------------------------------------
+#-------------------------------------------------------------------
