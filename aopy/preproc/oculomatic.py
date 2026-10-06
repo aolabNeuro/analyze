@@ -53,6 +53,12 @@ def parse_oculomatic(data_dir, files, samplerate=1000, max_memory_gb=1.0, debug=
         else:
             eye_channels = [9, 8, 10, 11]
             if debug: print(f'eye channel definitions do not exist, use eye channels {eye_channels} ')
+    
+        # Get eye diameter if it exists
+        bmi3d_task, bmi3d_task_metadata = aodata.load_bmi3d_hdf_table(data_dir, files['hdf'], 'task')
+        if 'eye_diameter' in bmi3d_task.dtype.names:
+            eye_metadata[''] = 0 # TO-DO: add eye diameter to metadata
+            
     else:
         # from https://github.com/aolabNeuro/analyze/issues/225
         eye_channels = [10, 11, 8, 9]
